@@ -13,10 +13,16 @@
   .grab:active{ cursor:grabbing; }
   #knob:focus-visible{ outline:none; }
 
-  .timein{ display:flex; align-items:center; gap:var(--s2); }
+  .timein{ display:flex; align-items:flex-start; gap:var(--s2); }
   .timein .input{ width:100%; text-align:center; font-family:var(--font-mono);
     font-variant-numeric:tabular-nums; font-size:18px; letter-spacing:.02em; padding:0 8px; }
-  .timein .colon{ color:var(--text-3); font-weight:600; }
+  .timein .colon{ height:38px; line-height:38px; color:var(--text-3); font-weight:600; }
+  .tcol{ flex:1; display:flex; flex-direction:column; gap:6px; }
+  .fieldreset{ height:28px; display:flex; align-items:center; justify-content:center; gap:5px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-3); font-size:12px; font-weight:500; cursor:pointer; transition:all var(--tap); }
+  .fieldreset:hover{ border-color:var(--text-3); color:var(--text); background:var(--surface-2); }
+  .fieldreset svg{ width:13px; height:13px; }
 
   .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .seg--2{ grid-template-columns:repeat(2,1fr); }
@@ -59,11 +65,26 @@
         <div class="field">
           <label class="label" data-i18n="t.time">Time</label>
           <div class="timein">
-            <input class="input" id="in-h" type="number" min="0" max="23" inputmode="numeric" aria-label="Hours">
+            <div class="tcol">
+              <input class="input" id="in-h" type="number" min="0" max="23" inputmode="numeric" aria-label="Hours">
+              <button type="button" class="fieldreset" data-reset="h" title="Reset hours">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
             <span class="colon">:</span>
-            <input class="input" id="in-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutes">
+            <div class="tcol">
+              <input class="input" id="in-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutes">
+              <button type="button" class="fieldreset" data-reset="m" title="Reset minutes">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
             <span class="colon">:</span>
-            <input class="input" id="in-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Seconds">
+            <div class="tcol">
+              <input class="input" id="in-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Seconds">
+              <button type="button" class="fieldreset" data-reset="s" title="Reset seconds">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -281,6 +302,23 @@
   });
   $("reset").addEventListener("click", function () { total = 0; render(); });
 
+  // ---- 各パラメーターの個別リセット（他の項目は維持） ----
+  function curHMS() { return { h: Math.floor(total / 3600) % 24, m: Math.floor(mod(total, 3600) / 60), s: Math.floor(mod(total, 60)) }; }
+  document.querySelectorAll(".fieldreset").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var u = b.getAttribute("data-reset"), c = curHMS();
+      if (u === "h") c.h = 0; else if (u === "m") c.m = 0; else c.s = 0;
+      total = c.h * 3600 + c.m * 60 + c.s; render();
+    });
+  });
+  function localizeTitles() {
+    document.querySelectorAll(".fieldreset").forEach(function (b) {
+      var u = b.getAttribute("data-reset");
+      var key = u === "h" ? "t.rhour" : u === "m" ? "t.rmin" : "t.rsec";
+      b.title = Shell.t(key); b.setAttribute("aria-label", Shell.t(key));
+    });
+  }
+
   // ---- ring / hour-hand drag（角度差分の積算で境界連続） ----
   var dragging = false, prevA = 0;
   function pointerAngle(e) {
@@ -318,6 +356,7 @@
         "t.ringhint": "Drag the outer ring or the hour hand — one full turn is 12 hours.",
         "t.hour": "Hour hand", "t.minute": "Minute hand", "t.second": "Second hand",
         "t.right": "Right", "t.left": "Left",
+        "t.rhour": "Reset hours to 0", "t.rmin": "Reset minutes to 0", "t.rsec": "Reset seconds to 0",
         "t.output": "Output", "t.copyhint": "Click any value to copy.",
         "u.h": "h", "u.m": "m", "u.s": "s"
       },
@@ -328,13 +367,14 @@
         "t.ringhint": "外周リングか時針をドラッグ。1周で12時間ぶんです。",
         "t.hour": "時針", "t.minute": "分針", "t.second": "秒針",
         "t.right": "右側", "t.left": "左側",
+        "t.rhour": "時を0にリセット", "t.rmin": "分を0にリセット", "t.rsec": "秒を0にリセット",
         "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
         "u.h": "時", "u.m": "分", "u.s": "秒"
       }
     },
-    onSettingsChange: function () { labelUnits(); render(); }
+    onSettingsChange: function () { labelUnits(); localizeTitles(); render(); }
   });
-  labelUnits(); render();
+  labelUnits(); localizeTitles(); render();
 })();
 </script>
 </body>
