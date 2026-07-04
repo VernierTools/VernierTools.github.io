@@ -30,14 +30,14 @@
   /* ---- 共通辞書（cat.* とヘッダー/一覧の文言） ---- */
   var COMMON = {
     en: {
-      "cat.general":"General","cat.text":"Text","cat.image":"Image","cat.3dcg":"3DCG","cat.audio":"Audio",
+      "cat.general":"General","cat.text":"Text","cat.image":"Image","cat.3dcg":"Blender Add-ons","cat.audio":"Audio",
       "nav.home":"Home","nav.about":"About","hub.search":"Search tools…","hub.all":"All",
       "hub.empty":"No tools found.","badge.blender":"Blender add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied"
     },
     ja: {
-      "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.3dcg":"3DCG","cat.audio":"音声",
+      "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.3dcg":"Blenderアドオン","cat.audio":"音声",
       "nav.home":"ホーム","nav.about":"About","hub.search":"ツールを検索…","hub.all":"すべて",
       "hub.empty":"該当するツールがありません。","badge.blender":"Blenderアドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
