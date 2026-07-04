@@ -28,6 +28,8 @@
 
   .adjust{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .adjust .btn{ height:40px; font-variant-numeric:tabular-nums; }
+  .quickset{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:var(--s4); }
+  .quickset .btn{ height:42px; }
 
   .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
 
@@ -74,7 +76,16 @@
             <button class="btn btn--secondary" data-adj="1">+1<span class="au" data-u="s"></span></button>
             <button class="btn btn--secondary" data-adj="-1">−1<span class="au" data-u="s"></span></button>
           </div>
-          <div class="btnrow"><button class="btn btn--ghost" id="now" data-i18n="t.now">Set to now</button></div>
+          <div class="quickset">
+            <button class="btn btn--secondary" id="now">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <span data-i18n="t.now">Set to now</span>
+            </button>
+            <button class="btn btn--secondary" id="reset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+              <span data-i18n="t.reset">Reset</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -268,6 +279,7 @@
   $("now").addEventListener("click", function () {
     var d = new Date(); total = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); render();
   });
+  $("reset").addEventListener("click", function () { total = 0; render(); });
 
   // ---- ring / hour-hand drag（角度差分の積算で境界連続） ----
   var dragging = false, prevA = 0;
@@ -302,7 +314,7 @@
       en: {
         "t.title": "Clock hand angles",
         "t.desc": "Set a time and see how far the selected hand has rotated from the 12 o'clock position.",
-        "t.time": "Time", "t.hand": "Angle for", "t.side": "Side shown on clock", "t.adjust": "Adjust", "t.now": "Set to now",
+        "t.time": "Time", "t.hand": "Angle for", "t.side": "Side shown on clock", "t.adjust": "Adjust", "t.now": "Set to now", "t.reset": "Reset to 00:00:00",
         "t.ringhint": "Drag the outer ring or the hour hand — one full turn is 12 hours.",
         "t.hour": "Hour hand", "t.minute": "Minute hand", "t.second": "Second hand",
         "t.right": "Right", "t.left": "Left",
@@ -312,7 +324,7 @@
       ja: {
         "t.title": "時計の針の角度",
         "t.desc": "時刻を設定すると、選択した針が12時方向から何度回転しているかを表示します。",
-        "t.time": "時刻", "t.hand": "角度を表示する針", "t.side": "時計に表示する側", "t.adjust": "時刻調整", "t.now": "現在時刻にする",
+        "t.time": "時刻", "t.hand": "角度を表示する針", "t.side": "時計に表示する側", "t.adjust": "時刻調整", "t.now": "現在時刻にする", "t.reset": "00:00:00に戻す",
         "t.ringhint": "外周リングか時針をドラッグ。1周で12時間ぶんです。",
         "t.hour": "時針", "t.minute": "分針", "t.second": "秒針",
         "t.right": "右側", "t.left": "左側",
