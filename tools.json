@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "id": "clock", "type": "web", "path": "tools/clock/",
+      "categories": ["general"],
+      "name": { "en": "Clock hand angles", "ja": "時計の針の角度" },
+      "description": { "en": "Exact hand angles for any time.", "ja": "任意の時刻の針の角度を正確に算出。" },
+      "keywords": ["clock", "angle", "hands", "時計", "角度", "針"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "platform-sizes", "type": "web", "path": "tools/platform-sizes/",
+      "categories": ["general", "image"],
+      "name": { "en": "Platform sizes", "ja": "プラットフォーム寸法辞典" },
+      "description": { "en": "Recommended sizes and a crop preview for major platforms.", "ja": "主要プラットフォームの推奨サイズと、切り取られ方のプレビュー。" },
+      "keywords": ["youtube", "thumbnail", "size", "crop", "サムネ", "サイズ", "寸法"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "random-string", "type": "web", "path": "tools/random-string/",
+      "categories": ["general"],
+      "name": { "en": "Random string", "ja": "ランダム文字列" },
+      "description": { "en": "Secure random strings with full control over length and character set.", "ja": "長さと文字種を完全指定できる安全な乱数文字列。" },
+      "keywords": ["random", "password", "generator", "乱数", "パスワード"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "cipher", "type": "web", "path": "tools/cipher/",
+      "categories": ["general", "text"],
+      "name": { "en": "Simple cipher", "ja": "簡易暗号" },
+      "description": { "en": "Letter-substitution and other simple ciphers, for fun and learning.", "ja": "文字置換など、遊びと学習用の簡単な暗号。" },
+      "keywords": ["cipher", "encode", "substitution", "暗号", "置換"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "date-formatter", "type": "web", "path": "tools/date-formatter/",
+      "categories": ["general"],
+      "name": { "en": "Date formatter", "ja": "日付フォーマッタ" },
+      "description": { "en": "One date shown in many formats at once.", "ja": "1つの日付を複数フォーマットで一括表示。" },
+      "keywords": ["date", "format", "iso", "日付", "書式"],
+      "added": "2026-07-04"
+    },
+
+    {
+      "id": "text-cleanup", "type": "web", "path": "tools/text-cleanup/",
+      "categories": ["text"],
+      "name": { "en": "Text cleanup", "ja": "表記ゆれ・ミス検出＆修正" },
+      "description": { "en": "Detect and fix full-width spaces, stray characters, and doubled punctuation.", "ja": "全角スペース・紛れ込んだ文字・連続した句読点を検出して修正。" },
+      "keywords": ["cleanup", "fullwidth", "punctuation", "全角", "表記ゆれ", "校正"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "text-diff", "type": "web", "path": "tools/text-diff/",
+      "categories": ["text"],
+      "name": { "en": "Text diff", "ja": "文章の差分" },
+      "description": { "en": "Paste two texts and highlight the differences.", "ja": "2つの文章を貼って相違点をハイライト。" },
+      "keywords": ["diff", "compare", "difference", "差分", "比較"],
+      "added": "2026-07-04"
+    },
+
+    {
+      "id": "value-saturation-crop", "type": "web", "path": "tools/value-saturation-crop/",
+      "categories": ["image"],
+      "name": { "en": "Value / saturation crop", "ja": "明度・彩度で切り抜き" },
+      "description": { "en": "Mask an image by brightness and saturation range.", "ja": "明度・彩度の範囲で画像をマスク／切り抜き。" },
+      "keywords": ["mask", "hsv", "brightness", "saturation", "切り抜き", "明度", "彩度"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "color-picker", "type": "web", "path": "tools/color-picker/",
+      "categories": ["image"],
+      "name": { "en": "Advanced color picker", "ja": "アドバンスド・カラーピッカー" },
+      "description": { "en": "Pick and convert colors, with an eyedropper.", "ja": "色の抽出・変換とスポイト。" },
+      "keywords": ["color", "hex", "hsv", "eyedropper", "カラー", "スポイト"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "clipping-highlighter", "type": "web", "path": "tools/clipping-highlighter/",
+      "categories": ["image"],
+      "name": { "en": "Clipping highlighter", "ja": "白飛び・黒つぶれ表示" },
+      "description": { "en": "Highlight blown highlights and crushed blacks.", "ja": "白飛び・黒つぶれの箇所を可視化。" },
+      "keywords": ["clipping", "highlight", "shadow", "白飛び", "黒つぶれ"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "motion-shutter", "type": "web", "path": "tools/motion-shutter/",
+      "categories": ["image"],
+      "name": { "en": "Motion auto-shutter", "ja": "モーション検知オートシャッター" },
+      "description": { "en": "Capture automatically when the camera sees enough motion.", "ja": "一定以上の動きを検知したときだけ自動撮影。" },
+      "keywords": ["camera", "motion", "shutter", "カメラ", "動き", "自動撮影"],
+      "added": "2026-07-04"
+    },
+
+    {
+      "id": "overwrite-save-warning", "type": "blender", "path": "tools/overwrite-save-warning/",
+      "categories": ["3dcg"],
+      "name": { "en": "Overwrite Save Warning", "ja": "Overwrite Save Warning" },
+      "description": { "en": "Warn before overwriting a saved file. Blender add-on (English UI).", "ja": "上書き保存の前に警告を出すBlenderアドオン（英語UI）。" },
+      "keywords": ["blender", "save", "overwrite", "warning", "アドオン"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "enhanced-folder-ops", "type": "blender", "path": "tools/enhanced-folder-ops/",
+      "categories": ["3dcg"],
+      "name": { "en": "Enhanced Folder Operations", "ja": "Enhanced Folder Operations" },
+      "description": { "en": "Improved folder and path handling. Blender add-on (English UI).", "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。" },
+      "keywords": ["blender", "folder", "path", "アドオン"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "static-keyframe-cleaner", "type": "blender", "path": "tools/static-keyframe-cleaner/",
+      "categories": ["3dcg"],
+      "name": { "en": "Static Keyframe Cleaner", "ja": "Static Keyframe Cleaner" },
+      "description": { "en": "Remove keyframes whose value doesn't change. Blender add-on (English UI).", "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。" },
+      "keywords": ["blender", "keyframe", "fcurve", "cleanup", "アドオン"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "vse-silence-cutter", "type": "blender", "path": "tools/vse-silence-cutter/",
+      "categories": ["3dcg"],
+      "name": { "en": "VSE Silence Cutter", "ja": "VSE Silence Cutter" },
+      "description": { "en": "Auto-cut silent parts in Blender's VSE. Blender add-on (English UI).", "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。" },
+      "keywords": ["blender", "vse", "silence", "cut", "無音", "アドオン"],
+      "added": "2026-07-04"
+    },
+
+    {
+      "id": "spectrum-stereo", "type": "web", "path": "tools/spectrum-stereo/",
+      "categories": ["audio"],
+      "name": { "en": "Spectrum & stereo", "ja": "周波数・ステレオ解析" },
+      "description": { "en": "Whole-file frequency distribution and mid/side view.", "ja": "ファイル全体の周波数分布とM/S表示。" },
+      "keywords": ["spectrum", "frequency", "stereo", "mid", "side", "周波数", "ステレオ"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "midi-editor", "type": "web", "path": "tools/midi-editor/",
+      "categories": ["audio"],
+      "name": { "en": "MIDI editor", "ja": "MIDIエディタ" },
+      "description": { "en": "Randomise, smooth, and humanise MIDI.", "ja": "MIDIのランダマイズ・スムーズ化・ヒューマナイズ。" },
+      "keywords": ["midi", "randomise", "smooth", "humanize", "ランダマイズ"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "metronome", "type": "web", "path": "tools/metronome/",
+      "categories": ["audio"],
+      "name": { "en": "Metronome", "ja": "メトロノーム" },
+      "description": { "en": "Precise, deeply configurable metronome.", "ja": "高精度で多機能なメトロノーム。" },
+      "keywords": ["metronome", "bpm", "tempo", "click", "テンポ", "拍"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "chord-analyzer", "type": "web", "path": "tools/chord-analyzer/",
+      "categories": ["audio"],
+      "name": { "en": "Chord analyzer", "ja": "コード解析" },
+      "description": { "en": "Name a chord, find its function, and suggest the next one.", "ja": "コード名と役割を判定し、次のコードを提案。" },
+      "keywords": ["chord", "key", "function", "progression", "コード", "進行"],
+      "added": "2026-07-04"
+    },
+    {
+      "id": "silence-cutter", "type": "web", "path": "tools/silence-cutter/",
+      "categories": ["audio"],
+      "name": { "en": "Audio silence cutter", "ja": "音声の無音カット" },
+      "description": { "en": "Highlight and auto-cut silent parts of an audio file.", "ja": "音声ファイルの無音部分をハイライトして自動カット。" },
+      "keywords": ["silence", "cut", "trim", "audio", "無音", "カット"],
+      "added": "2026-07-04"
+    }
+  ]
+}
