@@ -107,10 +107,12 @@
 
   /* ---- 設定変更の通知（ツールの onSettingsChange と data-i18n 更新） ---- */
   var listeners = [];
+  var redrawers = [];   // 一覧/カテゴリの再描画関数（言語・単位変更時に呼ぶ）
   function settings(){ return { lang:LANG, theme:applyThemeGet(), units:unitSystem() }; }
   function applyThemeGet(){ return document.documentElement.getAttribute("data-theme") || "light"; }
   function notify(){
     applyI18n();
+    redrawers.forEach(function (fn){ try { fn(); } catch (e) {} });   // カード類を現在言語で描き直す
     var s = settings();
     listeners.forEach(function (fn){ try { fn(s); } catch (e) {} });
   }
@@ -295,6 +297,7 @@
       }
     })();
 
+    redrawers.push(draw);   // 言語/単位変更時に再描画
     fetchTools(function(list){ tools = list; draw(); });
   }
 
@@ -303,10 +306,13 @@
     var empty = document.createElement("div"); empty.className = "empty"; empty.setAttribute("data-i18n","hub.empty");
     empty.textContent = t("hub.empty"); empty.hidden = true;
     mount.appendChild(grid); mount.appendChild(empty);
-    fetchTools(function(list){
-      var shown = list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0; });
+    var _list = [];
+    function draw(){
+      var shown = _list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0; });
       grid.innerHTML = shown.map(cardHTML).join(""); empty.hidden = shown.length > 0;
-    });
+    }
+    redrawers.push(draw);   // 言語/単位変更時に再描画
+    fetchTools(function(list){ _list = list; draw(); });
   }
 
   var _toolsCache = null;
