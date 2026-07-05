@@ -11,7 +11,7 @@
   .clockface svg{ display:block; width:100%; height:auto; }
   .grab{ cursor:grab; touch-action:none; }
   .grab:active{ cursor:grabbing; }
-  #knob:focus-visible{ outline:none; }
+  #knob:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
 
   .timein{ display:flex; align-items:flex-start; gap:var(--s2); }
   .timein .input{ width:100%; text-align:center; font-family:var(--font-mono);
@@ -198,6 +198,7 @@
   function mod(x, n) { return ((x % n) + n) % n; }
   function norm(a) { return mod(a, 360); }
   function fmt(deg) { var v = Math.round(deg * 10) / 10; return Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1); }
+  function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
   function pt(a, r) { var rad = a * Math.PI / 180; return [100 + r * Math.sin(rad), 100 - r * Math.cos(rad)]; }
 
   function angles() {
@@ -230,7 +231,7 @@
     var a = angles();
     if (document.activeElement !== inH) inH.value = a.h;
     if (document.activeElement !== inM) inM.value = a.m;
-    if (document.activeElement !== inS) inS.value = a.s;
+    if (document.activeElement !== inS) inS.value = Math.floor(a.s);
 
     setHand(hHour, a.hour, sel === "hour", "var(--text)");
     hHourHit.setAttribute("transform", "rotate(" + f(a.hour) + " 100 100)");
@@ -241,6 +242,7 @@
     var kp = pt(a.hour, 92);
     knob.setAttribute("cx", f(kp[0])); knob.setAttribute("cy", f(kp[1]));
     knob.setAttribute("aria-valuenow", Math.round(a.hour));
+    knob.setAttribute("aria-valuetext", a.h + ":" + pad(a.m) + ":" + pad(a.s));
 
     // selected hand, chosen side
     var theta = a[sel], arcD, labelVal, labelMid;
@@ -258,6 +260,7 @@
   }
 
   function labelUnits() {
+    if (typeof Shell === "undefined" || !Shell) return;
     document.querySelectorAll(".au").forEach(function (el) { el.textContent = " " + Shell.t("u." + el.getAttribute("data-u")); });
   }
 
@@ -312,6 +315,7 @@
     });
   });
   function localizeTitles() {
+    if (typeof Shell === "undefined" || !Shell) return;
     document.querySelectorAll(".fieldreset").forEach(function (b) {
       var u = b.getAttribute("data-reset");
       var key = u === "h" ? "t.rhour" : u === "m" ? "t.rmin" : "t.rsec";
@@ -327,13 +331,20 @@
     return Math.atan2(dx, -dy) * 180 / Math.PI;
   }
   function onDown(e) { e.preventDefault(); dragging = true; prevA = pointerAngle(e);
-    document.addEventListener("pointermove", onMove); document.addEventListener("pointerup", onUp); }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp); }
   function onMove(e) {
     if (!dragging) return;
     var a = pointerAngle(e), d = a - prevA; while (d > 180) d -= 360; while (d < -180) d += 360; prevA = a;
     total = mod(total + (d / 360) * 43200, 86400); render();
   }
-  function onUp() { dragging = false; document.removeEventListener("pointermove", onMove); document.removeEventListener("pointerup", onUp); }
+  function onUp() {
+    dragging = false; total = Math.floor(total); render();
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+  }
   [$("ring-hit"), knob, hHourHit].forEach(function (el) { el.addEventListener("pointerdown", onDown); });
 
   knob.addEventListener("keydown", function (e) {
@@ -346,7 +357,8 @@
 
   // ---- 起動 ----
   syncSeg(); syncSide();
-  Shell.init({
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
     id: "clock",
     strings: {
       en: {
@@ -373,7 +385,9 @@
       }
     },
     onSettingsChange: function () { labelUnits(); localizeTitles(); render(); }
-  });
+    });
+  }
+  // shell の有無に関わらず、時計・数値・操作は動作させる（labelUnits/localizeTitles は shell 無時 no-op）
   labelUnits(); localizeTitles(); render();
 })();
 </script>
