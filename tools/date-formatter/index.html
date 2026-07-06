@@ -15,11 +15,8 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 <link rel="stylesheet" href="../../shared/shell.css?v=1">
 <style>
 /* ---- date-formatter 固有CSS（トークン変数のみ使用） ---- */
-
-/* 入力：等幅で見やすく */
 .df-input{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; letter-spacing:.01em; }
 
-/* タブ */
 .df-tabs{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2);
   border:1px solid var(--border); border-radius:var(--r-sm); margin-bottom:var(--s4); }
 .df-tab{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit;
@@ -28,7 +25,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 .df-tab:hover{ color:var(--text); }
 .df-tab[aria-selected="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
 
-/* readout 行を name＋value＋copy に拡張 */
 .df-row{ gap:var(--s3); flex-wrap:wrap; }
 .df-row .rrow__label{ flex:0 0 auto; padding-top:2px; }
 .df-out{ display:flex; align-items:center; gap:var(--s2); margin-left:auto; min-width:0; }
@@ -45,7 +41,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 .df-copy.is-copied .df-ic-copy{ display:none; }
 .df-copy.is-copied .df-ic-check{ display:block; }
 
-/* メッセージ（空・エラー） */
 .df-msg{ padding:var(--s4); font-size:13px; color:var(--text-3); }
 .df-msg--err{ display:inline-flex; }
 .df-note{ font-size:11px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
@@ -64,7 +59,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   </div>
 
   <div class="work">
-    <!-- 左：入力 -->
     <div>
       <div class="card">
         <div class="field">
@@ -77,7 +71,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       </div>
     </div>
 
-    <!-- 右：タブ＋readout -->
     <div>
       <div class="df-tabs" role="tablist" aria-label="format groups">
         <button class="df-tab" id="df-tab-human"   role="tab" aria-controls="df-panel-human"   aria-selected="true"  data-i18n="t.tab.human">Human</button>
@@ -108,14 +101,16 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.title":"Date formatter",
       "t.desc":"Enter a date and read it back in many formats at once. Click any value to copy.",
       "t.inlabel":"Date / date-time",
-      "t.placeholder":"e.g. 2026-07-05  or  2026/07/05 14:30:15",
+      "t.placeholder":"e.g. 2026-07-05  /  07/05  /  Reiwa 8 = R8.7.5",
       "t.tab.human":"Human", "t.tab.machine":"Machine", "t.tab.japan":"Japan",
       "t.live":"Live",
       "t.empty":"Enter a date above to see the formats.",
       "t.err":"Could not recognize the date.",
-      "t.note":"Date-only input assumes 00:00:00 local time for machine formats.",
+      "t.needyear":"Enter a year to show these formats.",
+      "t.note":"Date-only input assumes 00:00:00 local time for machine formats. A month/day without a year shows year-less formats only.",
       "t.copy":"Copy",
       "t.label.weekday":"Weekday",
+      "t.label.longwd":"Weekday, Month D, YYYY",
       "t.label.wareki":"Japanese era",
       "t.label.seireki":"Gregorian",
       "t.label.eraabbr":"Era abbrev.",
@@ -125,14 +120,16 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.title":"日付フォーマッタ",
       "t.desc":"日付を入力すると複数フォーマットで一覧表示します。値をクリックするとコピーできます。",
       "t.inlabel":"日付 / 日時",
-      "t.placeholder":"例: 2026-07-05 ／ 令和8年7月5日 ／ R8.7.5",
+      "t.placeholder":"例: 2026-07-05 ／ 7月5日 ／ 令和8年7月5日 ／ 令和八年七月五日 ／ R8.7.5",
       "t.tab.human":"人間向け", "t.tab.machine":"機械向け", "t.tab.japan":"日本向け",
       "t.live":"ライブ",
       "t.empty":"上に日付を入力すると各フォーマットが表示されます。",
       "t.err":"日付を認識できません。",
-      "t.note":"日付のみの入力時、機械向けは 00:00:00（ローカル）と仮定します。",
+      "t.needyear":"年を入力すると表示されます。",
+      "t.note":"日付のみの入力時、機械向けは 00:00:00（ローカル）と仮定します。年のない月日入力では、年なしのフォーマットのみ表示します。",
       "t.copy":"コピー",
       "t.label.weekday":"曜日",
+      "t.label.longwd":"YYYY年M月D日 曜日",
       "t.label.wareki":"和暦",
       "t.label.seireki":"西暦",
       "t.label.eraabbr":"元号略称",
@@ -145,10 +142,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   var WD_JA_FULL  = ["日曜日","月曜日","火曜日","水曜日","木曜日","金曜日","土曜日"];
   var MON_EN_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var MON_EN_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var MDAYS       = [31,29,31,30,31,30,31,31,30,31,30,31]; // 年不明時は閏を許容（2/29 可・2/30 不可）
 
   function pad2(n){ n = Math.abs(n); return (n < 10 ? "0" : "") + n; }
 
-  /* 元号定義（グレゴリオ暦採用 1873-01-01 以降のみ対応） */
   var ERAS = [
     { k:"明治", ab:"M", base:1867, start:new Date(1873,0,1),  end:new Date(1912,6,29) },
     { k:"大正", ab:"T", base:1911, start:new Date(1912,6,30), end:new Date(1926,11,24) },
@@ -156,21 +153,41 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     { k:"平成", ab:"H", base:1988, start:new Date(1989,0,8),  end:new Date(2019,3,30) },
     { k:"令和", ab:"R", base:2018, start:new Date(2019,4,1),  end:null }
   ];
-  var GREG_START = new Date(1873,0,1); // 明治6年1月1日
+  var GREG_START = new Date(1873,0,1);
 
-  /* 全角→半角の正規化（数字・区切り・空白） */
+  /* 漢数字 → アラビア数字（位取り「二〇二六」と十百千方式「三十一」の両対応） */
+  function kan2num(s){
+    var DG = {"〇":0,"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+    var UN = {"十":10,"百":100,"千":1000};
+    return s.replace(/[〇零一二三四五六七八九十百千]+/g, function(run){
+      if (!/[十百千]/.test(run)){                  // 位取り：各文字を桁として連結
+        var out = "";
+        for (var i=0;i<run.length;i++){ var c=run.charAt(i); if (DG[c]==null) return run; out += DG[c]; }
+        return out;
+      }
+      var total=0, cur=0;                           // 十百千方式
+      for (var j=0;j<run.length;j++){
+        var ch=run.charAt(j);
+        if (DG[ch]!=null){ cur=DG[ch]; }
+        else if (UN[ch]!=null){ if(cur===0)cur=1; total+=cur*UN[ch]; cur=0; }
+        else { return run; }
+      }
+      return String(total+cur);
+    });
+  }
+
+  /* 全角→半角＋漢数字変換 */
   function normalize(s){
     if (!s) return "";
     s = s.replace(/[\uFF10-\uFF19]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
-    s = s.replace(/\u3000/g, " ")   // 全角スペース
-         .replace(/[\uFF0F]/g, "/") // ／
-         .replace(/[\uFF0E]/g, ".") // ．
-         .replace(/[\uFF0D\u2212]/g, "-") // －, −
-         .replace(/[\uFF1A]/g, ":"); // ：
+    s = kan2num(s);
+    s = s.replace(/\u3000/g, " ")
+         .replace(/[\uFF0F]/g, "/").replace(/[\uFF0E]/g, ".")
+         .replace(/[\uFF0D\u2212]/g, "-").replace(/[\uFF1A]/g, ":");
     return s.trim().replace(/\s+/g, " ");
   }
 
-  /* 実在日として構築＋往復検証（ロールオーバーを弾く） */
+  /* 年あり：実在日として構築＋往復検証 */
   function build(y, mo, d, h, mi, se){
     var hasT = (h != null);
     var dt = new Date(y, mo - 1, d, h || 0, mi || 0, se || 0);
@@ -178,65 +195,77 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     if (hasT && (dt.getHours() !== (h||0) || dt.getMinutes() !== (mi||0) || dt.getSeconds() !== (se||0))) return null;
     if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
     if (hasT && (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59)) return null;
-    return { date: dt, hasTime: hasT };
+    return { date: dt, hasTime: hasT, hasYear: true };
+  }
+
+  /* 年なし：月日（＋任意で時刻）。閏を許容して検証 */
+  function buildMD(mo, d, h, mi, se){
+    var hasT = (h != null);
+    if (mo < 1 || mo > 12) return null;
+    if (d < 1 || d > MDAYS[mo-1]) return null;
+    if (hasT && (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59)) return null;
+    return { hasYear:false, hasTime:hasT, mo:mo, day:d, h:h||0, mi:mi||0, s:se||0 };
   }
 
   function findEra(key){
     for (var i=0;i<ERAS.length;i++){ if (ERAS[i].k === key || ERAS[i].ab === key.toUpperCase()) return ERAS[i]; }
     return null;
   }
-
-  /* 和暦（元号名 or 略称）→ 内部日付 */
   function parseWareki(eraKey, yStr, mo, d){
     var era = findEra(eraKey); if (!era) return null;
     var ey = (yStr === "元") ? 1 : parseInt(yStr, 10);
     if (!(ey >= 1)) return null;
-    var gy = era.base + ey;
-    var r = build(gy, mo, d, null, null, null); if (!r) return null;
+    var r = build(era.base + ey, mo, d, null, null, null); if (!r) return null;
     var t = r.date.getTime();
-    if (t < era.start.getTime()) return null;             // 元号開始より前
-    if (era.end && t > era.end.getTime()) return null;    // 元号終了より後（例: 平成50年 / 平成31年5月1日）
-    if (t < GREG_START.getTime()) return null;            // 1873 未満
+    if (t < era.start.getTime()) return null;
+    if (era.end && t > era.end.getTime()) return null;
+    if (t < GREG_START.getTime()) return null;
     return r;
   }
 
-  /* メイン解析：null なら認識不能 */
+  /* メイン解析 */
   function parse(raw){
     var s = normalize(raw);
     if (s === "") return { empty:true };
     var m;
 
-    // 和暦（漢字）: 令和8年7月5日 / 令和元年5月1日
+    // 和暦（漢字）
     m = s.match(/^(明治|大正|昭和|平成|令和)\s*(元|\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日$/);
     if (m) return parseWareki(m[1], m[2], +m[3], +m[4]);
-
-    // 和暦（略称）: R8.7.5 / H31-4-30
+    // 和暦（略称）
     m = s.match(/^([MTSHRmtshr])\s*(元|\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
     if (m) return parseWareki(m[1], m[2], +m[3], +m[4]);
 
-    // ISO 8601（T区切り・オフセット/Z 付きはネイティブ解釈）
+    // ISO 8601（オフセット/Z 付き → ネイティブ解釈）
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+\-]\d{2}:?\d{2})$/i);
-    if (m){
-      var dt = new Date(s);
-      if (isNaN(dt.getTime())) return null;
-      return { date: dt, hasTime: true };
-    }
+    if (m){ var dt = new Date(s); if (isNaN(dt.getTime())) return null; return { date: dt, hasTime:true, hasYear:true }; }
 
-    // 日時（T または 空白区切り・オフセットなし → ローカル）
+    // 年あり・日時（オフセットなし → ローカル）
     m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
     if (m) return build(+m[1], +m[2], +m[3], +m[4], +m[5], m[6] != null ? +m[6] : 0);
 
-    // 日付: YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+    // 年あり・日付
     m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
     if (m) return build(+m[1], +m[2], +m[3], null, null, null);
-
-    // 年月日: YYYY年M月D日
+    // 年あり・年月日
     m = s.match(/^(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日$/);
     if (m) return build(+m[1], +m[2], +m[3], null, null, null);
-
-    // YYYYMMDD（ちょうど8桁）
+    // 年あり・YYYYMMDD
     m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
     if (m) return build(+m[1], +m[2], +m[3], null, null, null);
+
+    // 年なし・日時（M/D H:m:s）
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+    if (m) return buildMD(+m[1], +m[2], +m[3], +m[4], m[5] != null ? +m[5] : 0);
+    // 年なし・月日＋時刻（M月D日 H時m分s秒）
+    m = s.match(/^(\d{1,2})月\s*(\d{1,2})日\s*(\d{1,2})時\s*(\d{1,2})分(?:\s*(\d{1,2})秒)?$/);
+    if (m) return buildMD(+m[1], +m[2], +m[3], +m[4], m[5] != null ? +m[5] : 0);
+    // 年なし・日付（M/D）
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})$/);
+    if (m) return buildMD(+m[1], +m[2], null, null, null);
+    // 年なし・月日（M月D日）
+    m = s.match(/^(\d{1,2})月\s*(\d{1,2})日$/);
+    if (m) return buildMD(+m[1], +m[2], null, null, null);
 
     return null;
   }
@@ -250,48 +279,68 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     if (dt.getTime() < GREG_START.getTime()) return null;
     for (var i=0;i<ERAS.length;i++){
       var e = ERAS[i], t = dt.getTime();
-      if (t >= e.start.getTime() && (!e.end || t <= e.end.getTime())){
-        return { era:e, year: dt.getFullYear() - e.base };
-      }
+      if (t >= e.start.getTime() && (!e.end || t <= e.end.getTime())) return { era:e, year: dt.getFullYear() - e.base };
     }
     return null;
   }
 
-  /* 各フォーマット定義（配列駆動 → 追加はここに1要素足すだけ）
-     fn(c) が文字列を返す。c = { d,mo,day,h,mi,s,wd,dt } */
+  /* 各フォーマット定義（配列駆動）
+     fn(c)      … 年ありの出力（年入力時に使用）
+     fnNoYear(c)… 年なしの出力（省略した項目は年なし時に非表示 = 年が必須の項目）
+     time:true  … 時刻入力時のみ表示 */
   var FORMATS = {
     human: [
-      { label:"YYYY/MM/DD",            fn:function(c){ return c.y+"/"+pad2(c.mo)+"/"+pad2(c.day); } },
-      { label:"YYYY-MM-DD",            fn:function(c){ return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day); } },
-      { label:"YYYY.MM.DD",            fn:function(c){ return c.y+"."+pad2(c.mo)+"."+pad2(c.day); } },
-      { label:"YYYY年M月D日",          fn:function(c){ return c.y+"年"+c.mo+"月"+c.day+"日"; } },
-      { label:"Mon D, YYYY",           fn:function(c){ return MON_EN_ABBR[c.mo-1]+" "+c.day+", "+c.y; } },
-      { label:"Month D, YYYY",         fn:function(c){ return MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y; } },
-      { label:"Weekday, Month D, YYYY",fn:function(c){ return WD_EN_FULL[c.wd]+", "+MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y; } },
+      { label:"YYYY/MM/DD",
+        fn:function(c){ return c.y+"/"+pad2(c.mo)+"/"+pad2(c.day); },
+        fnNoYear:function(c){ return pad2(c.mo)+"/"+pad2(c.day); } },
+      { label:"YYYY-MM-DD",
+        fn:function(c){ return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day); },
+        fnNoYear:function(c){ return pad2(c.mo)+"-"+pad2(c.day); } },
+      { label:"YYYY.MM.DD",
+        fn:function(c){ return c.y+"."+pad2(c.mo)+"."+pad2(c.day); },
+        fnNoYear:function(c){ return pad2(c.mo)+"."+pad2(c.day); } },
+      { label:"YYYY年M月D日",
+        fn:function(c){ return c.y+"年"+c.mo+"月"+c.day+"日"; },
+        fnNoYear:function(c){ return c.mo+"月"+c.day+"日"; } },
+      { label:"Mon D, YYYY",
+        fn:function(c){ return MON_EN_ABBR[c.mo-1]+" "+c.day+", "+c.y; },
+        fnNoYear:function(c){ return MON_EN_ABBR[c.mo-1]+" "+c.day; } },
+      { label:"Month D, YYYY",
+        fn:function(c){ return MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y; },
+        fnNoYear:function(c){ return MON_EN_FULL[c.mo-1]+" "+c.day; } },
+      { labelKey:"t.label.longwd",   // 曜日を含む長い形（言語連動）。年が無いと曜日不明 → 年なし時は非表示
+        fn:function(c){
+          if (Shell.lang === "ja") return c.y+"年"+c.mo+"月"+c.day+"日 "+WD_JA_FULL[c.wd];
+          return WD_EN_FULL[c.wd]+", "+MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y;
+        } },
       { label:"YYYY/MM/DD HH:mm:ss", time:true,
-        fn:function(c){ return c.y+"/"+pad2(c.mo)+"/"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); } },
+        fn:function(c){ return c.y+"/"+pad2(c.mo)+"/"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); },
+        fnNoYear:function(c){ return pad2(c.mo)+"/"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); } },
       { label:"YYYY年M月D日 HH時MM分SS秒", time:true,
-        fn:function(c){ return c.y+"年"+c.mo+"月"+c.day+"日 "+pad2(c.h)+"時"+pad2(c.mi)+"分"+pad2(c.s)+"秒"; } },
-      { labelKey:"t.label.weekday",
+        fn:function(c){ return c.y+"年"+c.mo+"月"+c.day+"日 "+pad2(c.h)+"時"+pad2(c.mi)+"分"+pad2(c.s)+"秒"; },
+        fnNoYear:function(c){ return c.mo+"月"+c.day+"日 "+pad2(c.h)+"時"+pad2(c.mi)+"分"+pad2(c.s)+"秒"; } },
+      { labelKey:"t.label.weekday",  // 曜日（年が無いと算出不可 → 年なし時は非表示）
         fn:function(c){ return (Shell.lang==="ja"?WD_JA_FULL:WD_EN_FULL)[c.wd]; } }
     ],
     machine: [
-      { label:"ISO 8601",
+      { label:"ISO 8601",           // 絶対時刻 → 年必須
         fn:function(c){ return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day)+"T"+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s)+tzOffset(c.dt); } },
       { label:"YYYY-MM-DD HH:mm:ss",
-        fn:function(c){ return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); } },
+        fn:function(c){ return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); },
+        fnNoYear:function(c){ return pad2(c.mo)+"-"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s); } },
       { label:"YYYYMMDD",
-        fn:function(c){ return c.y+pad2(c.mo)+pad2(c.day); } },
-      { label:"Unix (s)",
+        fn:function(c){ return c.y+pad2(c.mo)+pad2(c.day); },
+        fnNoYear:function(c){ return pad2(c.mo)+pad2(c.day); } },
+      { label:"Unix (s)",           // 絶対時刻 → 年必須
         fn:function(c){ return String(Math.floor(c.dt.getTime()/1000)); } },
-      { label:"Unix (ms)",
+      { label:"Unix (ms)",          // 絶対時刻 → 年必須
         fn:function(c){ return String(c.dt.getTime()); } },
-      { label:"UTC",
+      { label:"UTC",                // 絶対時刻 → 年必須
         fn:function(c){ return c.dt.toUTCString(); } },
-      { label:"RFC3339",
+      { label:"RFC3339",            // 絶対時刻 → 年必須
         fn:function(c){ return c.dt.toISOString().replace(/\.\d{3}Z$/,"Z"); } }
     ],
-    japan: [
+    japan: [ // すべて年が必要 → 年なし時はタブごと「年を入力すると表示されます」
       { labelKey:"t.label.wareki",  fn:function(c){
           var w = toWareki(c.dt); if (!w) return null;
           return w.era.k + (w.year===1 ? "元" : w.year) + "年" + c.mo + "月" + c.day + "日";
@@ -308,84 +357,67 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   /* ===================== DOM ===================== */
   var input = document.getElementById("df-in");
   var noteEl = document.getElementById("df-note");
-  var panels = {
-    human:   document.getElementById("df-panel-human"),
-    machine: document.getElementById("df-panel-machine"),
-    japan:   document.getElementById("df-panel-japan")
-  };
-  var tabs = {
-    human:   document.getElementById("df-tab-human"),
-    machine: document.getElementById("df-tab-machine"),
-    japan:   document.getElementById("df-tab-japan")
-  };
-  var ORDER = ["human","machine","japan"];
+  var panels = { human:document.getElementById("df-panel-human"), machine:document.getElementById("df-panel-machine"), japan:document.getElementById("df-panel-japan") };
+  var tabs   = { human:document.getElementById("df-tab-human"),   machine:document.getElementById("df-tab-machine"),   japan:document.getElementById("df-tab-japan") };
+  var ORDER  = ["human","machine","japan"];
   var active = "human";
 
   var IC_COPY  = '<svg class="df-ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
   var IC_CHECK = '<svg class="df-ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 
-  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
-
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function rowHTML(label, val){
     var v = esc(val);
-    return '<div class="rrow df-row">'
-      +   '<span class="rrow__label">'+esc(label)+'</span>'
-      +   '<div class="df-out">'
-      +     '<span class="rrow__value df-val" data-copy="'+v+'" title="'+esc(Shell.t("t.copy"))+'">'+v+'</span>'
-      +     '<button type="button" class="df-copy" data-copy="'+v+'" aria-label="'+esc(Shell.t("t.copy"))+'">'+IC_COPY+IC_CHECK+'</button>'
-      +   '</div>'
-      + '</div>';
+    return '<div class="rrow df-row"><span class="rrow__label">'+esc(label)+'</span>'
+      + '<div class="df-out"><span class="rrow__value df-val" data-copy="'+v+'" title="'+esc(Shell.t("t.copy"))+'">'+v+'</span>'
+      + '<button type="button" class="df-copy" data-copy="'+v+'" aria-label="'+esc(Shell.t("t.copy"))+'">'+IC_COPY+IC_CHECK+'</button></div></div>';
   }
   function msgHTML(text, isErr){
     return '<div class="df-msg'+(isErr?' df-msg--err':'')+'">'
-      + (isErr ? '<span class="badge badge--neg"><span class="d"></span>'+esc(text)+'</span>' : esc(text))
-      + '</div>';
+      + (isErr ? '<span class="badge badge--neg"><span class="d"></span>'+esc(text)+'</span>' : esc(text)) + '</div>';
   }
 
-  function buildPanel(tab, ctx){
+  function buildPanel(tab, c){
     var defs = FORMATS[tab], out = [];
     for (var i=0;i<defs.length;i++){
       var def = defs[i];
-      if (def.time && !ctx.hasTime) continue;               // 日時入力時のみの行
+      if (def.time && !c.hasTime) continue;
+      var val;
+      if (c.hasYear){ val = def.fn(c); }
+      else { if (!def.fnNoYear) continue; val = def.fnNoYear(c); }
       var label = def.labelKey ? Shell.t(def.labelKey) : def.label;
-      var val = def.fn(ctx);
-      if (val == null){                                     // 和暦対応範囲外など
-        out.push(rowHTML(label, Shell.t("t.wareki.unsupported")));
-      } else {
-        out.push(rowHTML(label, val));
-      }
+      if (val == null) out.push(rowHTML(label, Shell.t("t.wareki.unsupported")));
+      else out.push(rowHTML(label, val));
     }
+    if (out.length === 0) return msgHTML(Shell.t("t.needyear"), false);
     return out.join("");
   }
 
   function render(){
     var res = parse(input.value);
-
     if (res && res.empty){
       var e = msgHTML(Shell.t("t.empty"), false);
-      panels.human.innerHTML = panels.machine.innerHTML = panels.japan.innerHTML = e;
-      return;
+      panels.human.innerHTML = panels.machine.innerHTML = panels.japan.innerHTML = e; return;
     }
     if (!res){
       var er = msgHTML(Shell.t("t.err"), true);
-      panels.human.innerHTML = panels.machine.innerHTML = panels.japan.innerHTML = er;
-      return;
+      panels.human.innerHTML = panels.machine.innerHTML = panels.japan.innerHTML = er; return;
     }
-
-    var dt = res.date;
-    var ctx = {
-      dt: dt, hasTime: res.hasTime,
-      y: dt.getFullYear(), mo: dt.getMonth()+1, day: dt.getDate(),
-      h: dt.getHours(), mi: dt.getMinutes(), s: dt.getSeconds(),
-      wd: dt.getDay()
-    };
-    panels.human.innerHTML   = buildPanel("human", ctx);
-    panels.machine.innerHTML = buildPanel("machine", ctx);
-    panels.japan.innerHTML   = buildPanel("japan", ctx);
+    var c;
+    if (res.hasYear){
+      var dt = res.date;
+      c = { hasYear:true, hasTime:res.hasTime, dt:dt,
+            y:dt.getFullYear(), mo:dt.getMonth()+1, day:dt.getDate(),
+            h:dt.getHours(), mi:dt.getMinutes(), s:dt.getSeconds(), wd:dt.getDay() };
+    } else {
+      c = { hasYear:false, hasTime:res.hasTime, mo:res.mo, day:res.day, h:res.h, mi:res.mi, s:res.s };
+    }
+    panels.human.innerHTML   = buildPanel("human", c);
+    panels.machine.innerHTML = buildPanel("machine", c);
+    panels.japan.innerHTML   = buildPanel("japan", c);
   }
 
-  /* ---- タブ制御（キーボード対応込み） ---- */
+  /* ---- タブ制御 ---- */
   function selectTab(id){
     if (tabs[id].hidden) id = "human";
     active = id;
@@ -409,7 +441,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     });
   });
 
-  /* ---- コピー時のチェック演出（コピー自体は shell の data-copy 委譲が処理） ---- */
+  /* ---- コピー時のチェック演出（コピー本体は shell の data-copy 委譲） ---- */
   document.addEventListener("click", function(ev){
     var btn = ev.target.closest(".df-copy"); if (!btn) return;
     btn.classList.add("is-copied");
@@ -419,7 +451,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 
   input.addEventListener("input", render);
 
-  /* ---- 言語/テーマ変更時に呼ばれる ---- */
   function onSettings(){
     var ja = (Shell.lang === "ja");
     tabs.japan.hidden = !ja;
@@ -429,11 +460,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     render();
   }
 
-  Shell.init({
-    id: "date-formatter",
-    strings: STR,
-    onSettingsChange: onSettings
-  });
+  Shell.init({ id:"date-formatter", strings:STR, onSettingsChange:onSettings });
 })();
 </script>
 </body>
