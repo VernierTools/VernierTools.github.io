@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Date formatter 2.0</title>
+<title>Date formatter 2.1</title>
 <script>
 (function(){try{var m=localStorage.getItem("tb.theme");
 var d=m?m:((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");
@@ -71,7 +71,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 <main class="shell">
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
-    <h1 data-i18n="t.title">Date formatter 2.0</h1>
+    <h1 data-i18n="t.title">Date formatter 2.1</h1>
     <p data-i18n="t.desc">Enter a date and read it back in many formats at once.</p>
   </div>
 
@@ -139,10 +139,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 
   var STR = {
     en: {
-      "t.title":"Date formatter 2.0",
+      "t.title":"Date formatter 2.1",
       "t.desc":"Pick a date or type one freely, and read it back in many formats. Click any value to copy.",
       "t.inlabel":"Date / date-time",
-      "t.placeholder":"e.g. 2026-07-05  /  07/05  /  R8.7.5",
+      "t.placeholder":"e.g. 2026-07-05  /  26-07-05  /  07/05  /  R8.7.5  /  1783261815",
       "t.mode.picker":"Pick", "t.mode.text":"Free text",
       "t.f.era":"Era", "t.f.year":"Year", "t.f.month":"Month", "t.f.day":"Day",
       "t.f.hour":"Hour", "t.f.min":"Min", "t.f.sec":"Sec",
@@ -152,7 +152,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.empty":"Enter a date above to see the formats.",
       "t.err":"Could not recognize the date.",
       "t.needyear":"Set a year to show these formats.",
-      "t.note":"Date-only input assumes 00:00:00 local time for machine formats. With no year, only year-less formats are shown.",
+      "t.note":"Date-only input assumes 00:00:00 local time for machine formats. With no year, only year-less formats are shown. In free-text mode, two-digit years map to 1969–2068, and 10-digit (seconds) or 13-digit (milliseconds) Unix timestamps are recognized.",
       "t.copy":"Copy",
       "t.label.weekday":"Weekday",
       "t.label.longwd":"Weekday, Month D, YYYY",
@@ -162,10 +162,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.wareki.unsupported":"Out of range (1873 onward)"
     },
     ja: {
-      "t.title":"日付フォーマッタ 2.0",
+      "t.title":"日付フォーマッタ 2.1",
       "t.desc":"日付を選択または自由入力すると、複数フォーマットで一覧表示します。値をクリックするとコピーできます。",
       "t.inlabel":"日付 / 日時",
-      "t.placeholder":"例: 2026-07-05 ／ 7月5日 ／ 令和8年7月5日 ／ 令和八年七月五日 ／ R8.7.5",
+      "t.placeholder":"例: 2026-07-05 ／ 26-07-05 ／ 7月5日 ／ 令和8年7月5日 ／ R8.7.5 ／ 1783261815",
       "t.mode.picker":"選択", "t.mode.text":"自由入力",
       "t.f.era":"年号", "t.f.year":"年", "t.f.month":"月", "t.f.day":"日",
       "t.f.hour":"時", "t.f.min":"分", "t.f.sec":"秒",
@@ -175,7 +175,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.empty":"上に日付を入力すると各フォーマットが表示されます。",
       "t.err":"日付を認識できません。",
       "t.needyear":"年を指定すると表示されます。",
-      "t.note":"日付のみの入力時、機械向けは 00:00:00（ローカル）と仮定します。年が「（なし）」のときは年なしのフォーマットのみ表示します。",
+      "t.note":"日付のみの入力時、機械向けは 00:00:00（ローカル）と仮定します。年が「（なし）」のときは年なしのフォーマットのみ表示します。自由入力では、2桁の年は1969〜2068年に対応し、10桁（秒）・13桁（ミリ秒）のUnixタイムスタンプも認識します。",
       "t.copy":"コピー",
       "t.label.weekday":"曜日",
       "t.label.longwd":"YYYY年M月D日 曜日",
@@ -195,6 +195,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   var YMIN=1868, YMAX=2100;
 
   function pad2(n){ n=Math.abs(n); return (n<10?"0":"")+n; }
+  function expandYear(str){ if(str.length<=2){ var n=parseInt(str,10); return n<=68?2000+n:1900+n; } return parseInt(str,10); }
 
   var ERAS=[
     { k:"明治", ab:"M", base:1867, start:new Date(1873,0,1),  end:new Date(1912,6,29), min:6, max:45 },
@@ -261,9 +262,14 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     m=s.match(/^([MTSHRmtshr])\s*(元|\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/); if(m)return parseWareki(m[1],m[2],+m[3],+m[4]);
     m=s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+\-]\d{2}:?\d{2})$/i); if(m){var dt=new Date(s);if(isNaN(dt.getTime()))return null;return{date:dt,hasTime:true,hasYear:true};}
     m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/); if(m)return build(+m[1],+m[2],+m[3],+m[4],+m[5],m[6]!=null?+m[6]:0);
+    m=s.match(/^(\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/); if(m)return build(expandYear(m[1]),+m[2],+m[3],+m[4],+m[5],m[6]!=null?+m[6]:0);
     m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/); if(m)return build(+m[1],+m[2],+m[3],null,null,null);
+    m=s.match(/^(\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})$/); if(m)return build(expandYear(m[1]),+m[2],+m[3],null,null,null);
     m=s.match(/^(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日$/); if(m)return build(+m[1],+m[2],+m[3],null,null,null);
+    m=s.match(/^(\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日$/); if(m)return build(expandYear(m[1]),+m[2],+m[3],null,null,null);
     m=s.match(/^(\d{4})(\d{2})(\d{2})$/); if(m)return build(+m[1],+m[2],+m[3],null,null,null);
+    m=s.match(/^(-?\d{13,14})$/); if(m){var uu=new Date(parseInt(m[1],10));if(isNaN(uu.getTime()))return null;return{date:uu,hasTime:true,hasYear:true};}
+    m=s.match(/^(-?\d{9,12})$/); if(m){var us=new Date(parseInt(m[1],10)*1000);if(isNaN(us.getTime()))return null;return{date:us,hasTime:true,hasYear:true};}
     m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/); if(m)return buildMD(+m[1],+m[2],+m[3],+m[4],m[5]!=null?+m[5]:0);
     m=s.match(/^(\d{1,2})月\s*(\d{1,2})日\s*(\d{1,2})時\s*(\d{1,2})分(?:\s*(\d{1,2})秒)?$/); if(m)return buildMD(+m[1],+m[2],+m[3],+m[4],m[5]!=null?+m[5]:0);
     m=s.match(/^(\d{1,2})[-\/.](\d{1,2})$/); if(m)return buildMD(+m[1],+m[2],null,null,null);
