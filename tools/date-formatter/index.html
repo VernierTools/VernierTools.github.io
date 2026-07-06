@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Date formatter 2.1</title>
+<title>Date formatter 2.2</title>
 <script>
 (function(){try{var m=localStorage.getItem("tb.theme");
 var d=m?m:((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");
@@ -28,7 +28,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 .df-sel{ display:flex; flex-direction:column; gap:4px; }
 .df-sel > span{ font-size:11px; color:var(--text-3); }
 .df-select{ font:inherit; font-size:14px; color:var(--text); background:var(--surface);
-  border:1px solid var(--border); border-radius:var(--r-sm); padding:0 8px; height:var(--tap);
+  border:1px solid var(--border); border-radius:var(--r-sm); padding:0 8px; height:38px;
   min-width:66px; font-variant-numeric:tabular-nums; }
 .df-select:hover{ border-color:var(--border-strong); }
 .df-select:focus{ outline:2px solid var(--accent-ring); outline-offset:1px; border-color:var(--accent); }
@@ -71,7 +71,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 <main class="shell">
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
-    <h1 data-i18n="t.title">Date formatter 2.1</h1>
+    <h1 data-i18n="t.title">Date formatter 2.2</h1>
     <p data-i18n="t.desc">Enter a date and read it back in many formats at once.</p>
   </div>
 
@@ -124,9 +124,9 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
         <div class="readout__head">
           <span class="live"><span class="dot"></span><span data-i18n="t.live">Live</span></span>
         </div>
-        <div id="df-panel-human"   role="tabpanel" aria-labelledby="df-tab-human"></div>
-        <div id="df-panel-machine" role="tabpanel" aria-labelledby="df-tab-machine" hidden></div>
-        <div id="df-panel-japan"   role="tabpanel" aria-labelledby="df-tab-japan" hidden></div>
+        <div id="df-panel-human"   role="tabpanel" aria-labelledby="df-tab-human" aria-live="polite"></div>
+        <div id="df-panel-machine" role="tabpanel" aria-labelledby="df-tab-machine" aria-live="polite" hidden></div>
+        <div id="df-panel-japan"   role="tabpanel" aria-labelledby="df-tab-japan" aria-live="polite" hidden></div>
       </div>
     </div>
   </div>
@@ -139,7 +139,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 
   var STR = {
     en: {
-      "t.title":"Date formatter 2.1",
+      "t.title":"Date formatter 2.2",
       "t.desc":"Pick a date or type one freely, and read it back in many formats. Click any value to copy.",
       "t.inlabel":"Date / date-time",
       "t.placeholder":"e.g. 2026-07-05  /  26-07-05  /  07/05  /  R8.7.5  /  1783261815",
@@ -151,6 +151,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.live":"Live",
       "t.empty":"Enter a date above to see the formats.",
       "t.err":"Could not recognize the date.",
+      "t.err.pick":"That era year with this month/day does not exist. Check the era transition dates.",
       "t.needyear":"Set a year to show these formats.",
       "t.note":"Date-only input assumes 00:00:00 local time for machine formats. With no year, only year-less formats are shown. In free-text mode, two-digit years map to 1969–2068, and 10-digit (seconds) or 13-digit (milliseconds) Unix timestamps are recognized.",
       "t.copy":"Copy",
@@ -162,7 +163,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.wareki.unsupported":"Out of range (1873 onward)"
     },
     ja: {
-      "t.title":"日付フォーマッタ 2.1",
+      "t.title":"日付フォーマッタ 2.2",
       "t.desc":"日付を選択または自由入力すると、複数フォーマットで一覧表示します。値をクリックするとコピーできます。",
       "t.inlabel":"日付 / 日時",
       "t.placeholder":"例: 2026-07-05 ／ 26-07-05 ／ 7月5日 ／ 令和8年7月5日 ／ R8.7.5 ／ 1783261815",
@@ -174,6 +175,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.live":"ライブ",
       "t.empty":"上に日付を入力すると各フォーマットが表示されます。",
       "t.err":"日付を認識できません。",
+      "t.err.pick":"その元号・年月日は存在しません。改元日をご確認ください。",
       "t.needyear":"年を指定すると表示されます。",
       "t.note":"日付のみの入力時、機械向けは 00:00:00（ローカル）と仮定します。年が「（なし）」のときは年なしのフォーマットのみ表示します。自由入力では、2桁の年は1969〜2068年に対応し、10桁（秒）・13桁（ミリ秒）のUnixタイムスタンプも認識します。",
       "t.copy":"コピー",
@@ -185,6 +187,9 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       "t.wareki.unsupported":"対応範囲外（1873年以降）"
     }
   };
+
+  function T(k){ return (typeof Shell!=="undefined"&&Shell&&Shell.t)?Shell.t(k):((STR.en&&STR.en[k])||k); }
+  function curLang(){ return (typeof Shell!=="undefined"&&Shell&&Shell.lang)?Shell.lang:"en"; }
 
   /* ===================== 日付ユーティリティ ===================== */
   var WD_EN_FULL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -198,10 +203,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function expandYear(str){ if(str.length<=2){ var n=parseInt(str,10); return n<=68?2000+n:1900+n; } return parseInt(str,10); }
 
   var ERAS=[
-    { k:"明治", ab:"M", base:1867, start:new Date(1873,0,1),  end:new Date(1912,6,29), min:6, max:45 },
-    { k:"大正", ab:"T", base:1911, start:new Date(1912,6,30), end:new Date(1926,11,24),min:1, max:15 },
-    { k:"昭和", ab:"S", base:1925, start:new Date(1926,11,25),end:new Date(1989,0,7),  min:1, max:64 },
-    { k:"平成", ab:"H", base:1988, start:new Date(1989,0,8),  end:new Date(2019,3,30), min:1, max:31 },
+    { k:"明治", ab:"M", base:1867, start:new Date(1873,0,1),  end:new Date(1912,6,30), min:6, max:45 },
+    { k:"大正", ab:"T", base:1911, start:new Date(1912,6,30), end:new Date(1926,11,25),min:1, max:15 },
+    { k:"昭和", ab:"S", base:1925, start:new Date(1926,11,25),end:new Date(1989,0,8),  min:1, max:64 },
+    { k:"平成", ab:"H", base:1988, start:new Date(1989,0,8),  end:new Date(2019,4,1), min:1, max:31 },
     { k:"令和", ab:"R", base:2018, start:new Date(2019,4,1),  end:null, min:1, max:(new Date().getFullYear()-2018) }
   ];
   var GREG_START=new Date(1873,0,1);
@@ -229,7 +234,6 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function build(y,mo,d,h,mi,se){
     var hasT=(h!=null); var dt=new Date(y,mo-1,d,h||0,mi||0,se||0);
     if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d)return null;
-    if(hasT&&(dt.getHours()!==(h||0)||dt.getMinutes()!==(mi||0)||dt.getSeconds()!==(se||0)))return null;
     if(mo<1||mo>12||d<1||d>31)return null;
     if(hasT&&(h<0||h>23||mi<0||mi>59||se<0||se>59))return null;
     return {date:dt,hasTime:hasT,hasYear:true};
@@ -246,7 +250,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     var r=build(era.base+ey,mo,d,h,mi,se); if(!r)return null;
     var t=r.date.getTime();
     if(t<era.start.getTime())return null;
-    if(era.end&&t>era.end.getTime())return null;
+    if(era.end&&t>=era.end.getTime())return null;
     if(t<GREG_START.getTime())return null;
     return r;
   }
@@ -268,6 +272,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     m=s.match(/^(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日$/); if(m)return build(+m[1],+m[2],+m[3],null,null,null);
     m=s.match(/^(\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日$/); if(m)return build(expandYear(m[1]),+m[2],+m[3],null,null,null);
     m=s.match(/^(\d{4})(\d{2})(\d{2})$/); if(m)return build(+m[1],+m[2],+m[3],null,null,null);
+    m=s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/); if(m){var r14=build(+m[1],+m[2],+m[3],+m[4],+m[5],+m[6]);if(r14)return r14;}
     m=s.match(/^(-?\d{13,14})$/); if(m){var uu=new Date(parseInt(m[1],10));if(isNaN(uu.getTime()))return null;return{date:uu,hasTime:true,hasYear:true};}
     m=s.match(/^(-?\d{9,12})$/); if(m){var us=new Date(parseInt(m[1],10)*1000);if(isNaN(us.getTime()))return null;return{date:us,hasTime:true,hasYear:true};}
     m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/); if(m)return buildMD(+m[1],+m[2],+m[3],+m[4],m[5]!=null?+m[5]:0);
@@ -282,7 +287,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function toWareki(dt){
     if(dt.getTime()<GREG_START.getTime())return null;
     for(var i=0;i<ERAS.length;i++){var e=ERAS[i],t=dt.getTime();
-      if(t>=e.start.getTime()&&(!e.end||t<=e.end.getTime()))return{era:e,year:dt.getFullYear()-e.base};}
+      if(t>=e.start.getTime()&&(!e.end||t<e.end.getTime()))return{era:e,year:dt.getFullYear()-e.base};}
     return null;
   }
 
@@ -294,10 +299,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       {label:"YYYY年M月D日",fn:function(c){return c.y+"年"+c.mo+"月"+c.day+"日";},fnNoYear:function(c){return c.mo+"月"+c.day+"日";}},
       {label:"Mon D, YYYY",fn:function(c){return MON_EN_ABBR[c.mo-1]+" "+c.day+", "+c.y;},fnNoYear:function(c){return MON_EN_ABBR[c.mo-1]+" "+c.day;}},
       {label:"Month D, YYYY",fn:function(c){return MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y;},fnNoYear:function(c){return MON_EN_FULL[c.mo-1]+" "+c.day;}},
-      {labelKey:"t.label.longwd",fn:function(c){ if(Shell.lang==="ja")return c.y+"年"+c.mo+"月"+c.day+"日 "+WD_JA_FULL[c.wd]; return WD_EN_FULL[c.wd]+", "+MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y; }},
+      {labelKey:"t.label.longwd",fn:function(c){ if(curLang()==="ja")return c.y+"年"+c.mo+"月"+c.day+"日 "+WD_JA_FULL[c.wd]; return WD_EN_FULL[c.wd]+", "+MON_EN_FULL[c.mo-1]+" "+c.day+", "+c.y; }},
       {label:"YYYY/MM/DD HH:mm:ss",time:true,fn:function(c){return c.y+"/"+pad2(c.mo)+"/"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s);},fnNoYear:function(c){return pad2(c.mo)+"/"+pad2(c.day)+" "+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s);}},
       {label:"YYYY年M月D日 HH時MM分SS秒",time:true,fn:function(c){return c.y+"年"+c.mo+"月"+c.day+"日 "+pad2(c.h)+"時"+pad2(c.mi)+"分"+pad2(c.s)+"秒";},fnNoYear:function(c){return c.mo+"月"+c.day+"日 "+pad2(c.h)+"時"+pad2(c.mi)+"分"+pad2(c.s)+"秒";}},
-      {labelKey:"t.label.weekday",fn:function(c){return (Shell.lang==="ja"?WD_JA_FULL:WD_EN_FULL)[c.wd];}}
+      {labelKey:"t.label.weekday",fn:function(c){return (curLang()==="ja"?WD_JA_FULL:WD_EN_FULL)[c.wd];}}
     ],
     machine:[
       {label:"ISO 8601",fn:function(c){return c.y+"-"+pad2(c.mo)+"-"+pad2(c.day)+"T"+pad2(c.h)+":"+pad2(c.mi)+":"+pad2(c.s)+tzOffset(c.dt);}},
@@ -312,7 +317,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       {labelKey:"t.label.wareki",fn:function(c){var w=toWareki(c.dt);if(!w)return null;return w.era.k+(w.year===1?"元":w.year)+"年"+c.mo+"月"+c.day+"日";}},
       {labelKey:"t.label.seireki",fn:function(c){return c.y+"年"+c.mo+"月"+c.day+"日";}},
       {labelKey:"t.label.eraabbr",fn:function(c){var w=toWareki(c.dt);if(!w)return null;return w.era.ab+w.year+"."+c.mo+"."+c.day;}},
-      {labelKey:"t.label.weekday",fn:function(c){return (Shell.lang==="ja"?WD_JA_FULL:WD_EN_FULL)[c.wd];}}
+      {labelKey:"t.label.weekday",fn:function(c){return (curLang()==="ja"?WD_JA_FULL:WD_EN_FULL)[c.wd];}}
     ]
   };
 
@@ -332,8 +337,8 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
   function rowHTML(label,val){ var v=esc(val);
     return '<div class="rrow df-row"><span class="rrow__label">'+esc(label)+'</span>'
-      +'<div class="df-out"><span class="rrow__value df-val" data-copy="'+v+'" title="'+esc(Shell.t("t.copy"))+'">'+v+'</span>'
-      +'<button type="button" class="df-copy" data-copy="'+v+'" aria-label="'+esc(Shell.t("t.copy"))+'">'+IC_COPY+IC_CHECK+'</button></div></div>';
+      +'<div class="df-out"><span class="rrow__value df-val" data-copy="'+v+'" title="'+esc(T("t.copy"))+'">'+v+'</span>'
+      +'<button type="button" class="df-copy" data-copy="'+v+'" aria-label="'+esc(T("t.copy"))+'">'+IC_COPY+IC_CHECK+'</button></div></div>';
   }
   function msgHTML(text,isErr){
     return '<div class="df-msg'+(isErr?' df-msg--err':'')+'">'
@@ -344,10 +349,10 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
     for(var i=0;i<defs.length;i++){ var def=defs[i];
       if(def.time&&!c.hasTime)continue;
       var val; if(c.hasYear){val=def.fn(c);}else{if(!def.fnNoYear)continue;val=def.fnNoYear(c);}
-      var label=def.labelKey?Shell.t(def.labelKey):def.label;
-      out.push(rowHTML(label, val==null?Shell.t("t.wareki.unsupported"):val));
+      var label=def.labelKey?T(def.labelKey):def.label;
+      out.push(rowHTML(label, val==null?T("t.wareki.unsupported"):val));
     }
-    if(out.length===0)return msgHTML(Shell.t("t.needyear"),false);
+    if(out.length===0)return msgHTML(T("t.needyear"),false);
     return out.join("");
   }
 
@@ -368,7 +373,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   }
 
   function rebuildEra(desired){
-    var html='<option value="西暦">'+esc(Shell.t("t.era.seireki"))+'</option>';
+    var html='<option value="西暦">'+esc(T("t.era.seireki"))+'</option>';
     for(var i=ERAS.length-1;i>=0;i--){ html+='<option value="'+ERAS[i].k+'">'+ERAS[i].k+'</option>'; }
     selEra.innerHTML=html;
     if(desired!=null)selEra.value=desired;
@@ -377,11 +382,12 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function rebuildYear(eraKey,desired){
     var html="",i;
     if(eraKey==="西暦"){
-      html+='<option value="">'+esc(Shell.t("t.opt.none"))+'</option>';
+      html+='<option value="">'+esc(T("t.opt.none"))+'</option>';
       for(i=YMAX;i>=YMIN;i--)html+='<option value="'+i+'">'+i+'</option>';
     } else {
       var era=findEra(eraKey);
-      for(i=era.min;i<=era.max;i++)html+='<option value="'+i+'">'+(i===1?esc(Shell.t("t.opt.gan")):i)+'</option>';
+      var emax=(era.end===null)?(new Date().getFullYear()-era.base):era.max;
+      for(i=era.min;i<=emax;i++)html+='<option value="'+i+'">'+(i===1?esc(T("t.opt.gan")):i)+'</option>';
     }
     selYear.innerHTML=html;
     if(desired!=null)selYear.value=String(desired);
@@ -397,7 +403,7 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
   function populateAll(){
     var i,mh="",hh,mm="";
     for(i=1;i<=12;i++)mh+='<option value="'+i+'">'+i+'</option>'; selMonth.innerHTML=mh;
-    hh='<option value="">'+esc(Shell.t("t.opt.none"))+'</option>'; for(i=0;i<=23;i++)hh+='<option value="'+i+'">'+pad2(i)+'</option>'; selHour.innerHTML=hh;
+    hh='<option value="">'+esc(T("t.opt.none"))+'</option>'; for(i=0;i<=23;i++)hh+='<option value="'+i+'">'+pad2(i)+'</option>'; selHour.innerHTML=hh;
     for(i=0;i<=59;i++)mm+='<option value="'+i+'">'+pad2(i)+'</option>'; selMin.innerHTML=mm; selSec.innerHTML=mm;
     rebuildEra("西暦");
     var now=new Date();
@@ -409,8 +415,8 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 
   function render(){
     var res = (mode==="text") ? parse(input.value) : resultFromPickers();
-    if(res&&res.empty){ var e=msgHTML(Shell.t("t.empty"),false); panels.human.innerHTML=panels.machine.innerHTML=panels.japan.innerHTML=e; return; }
-    if(!res){ var er=msgHTML(Shell.t("t.err"),true); panels.human.innerHTML=panels.machine.innerHTML=panels.japan.innerHTML=er; return; }
+    if(res&&res.empty){ var e=msgHTML(T("t.empty"),false); panels.human.innerHTML=panels.machine.innerHTML=panels.japan.innerHTML=e; return; }
+    if(!res){ var er=msgHTML(T(mode==="pick"?"t.err.pick":"t.err"),true); panels.human.innerHTML=panels.machine.innerHTML=panels.japan.innerHTML=er; return; }
     var c;
     if(res.hasYear){ var dt=res.date;
       c={hasYear:true,hasTime:res.hasTime,dt:dt,y:dt.getFullYear(),mo:dt.getMonth()+1,day:dt.getDate(),h:dt.getHours(),mi:dt.getMinutes(),s:dt.getSeconds(),wd:dt.getDay()};
@@ -463,14 +469,15 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
 
   /* ---- コピー時のチェック演出 ---- */
   document.addEventListener("click",function(ev){
-    var btn=ev.target.closest(".df-copy"); if(!btn)return;
+    var el=ev.target.closest(".df-val, .df-copy"); if(!el)return;
+    var out=el.closest(".df-out"), btn=out?out.querySelector(".df-copy"):null; if(!btn)return;
     btn.classList.add("is-copied"); clearTimeout(btn._t);
     btn._t=setTimeout(function(){btn.classList.remove("is-copied");},1200);
   });
 
   function onSettings(){
     if(!initialized){ populateAll(); initialized=true; }
-    var ja=(Shell.lang==="ja");
+    var ja=(curLang()==="ja");
     tabs.japan.hidden=!ja;
     if(!ja&&active==="japan")selectTab("human");
     eraWrap.hidden=!ja;
@@ -481,12 +488,14 @@ document.documentElement.setAttribute("data-theme",d);}catch(e){}})();
       rebuildEra(selEra.value); rebuildYear(selEra.value, selYear.value);
     }
     rebuildDay(); syncTime();
-    input.placeholder=Shell.t("t.placeholder");
-    noteEl.textContent=Shell.t("t.note");
+    input.placeholder=T("t.placeholder");
+    noteEl.textContent=T("t.note");
     render();
   }
 
-  Shell.init({ id:"date-formatter", strings:STR, onSettingsChange:onSettings });
+  if(typeof Shell!=="undefined"&&Shell&&typeof Shell.init==="function"){
+    Shell.init({ id:"date-formatter", strings:STR, onSettingsChange:onSettings });
+  } else { onSettings(); }
 })();
 </script>
 </body>
