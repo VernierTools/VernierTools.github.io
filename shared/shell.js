@@ -1,5 +1,5 @@
 /* =========================================================================
-   toolbench — shared/shell.js
+   Vernier — shared/shell.js
    全ページ・全ツールの共通機能。<body> 末尾で読み込む。
      <script src="{root}shared/shell.js"></script>
    ルートは自身の src から自動算出するので、ページ側でパスを書く必要はない。
@@ -168,7 +168,7 @@
     h.innerHTML =
       '<div class="tb-header__in">'+
         '<button class="tb-iconbtn tb-menubtn" aria-label="Menu">'+svgMenu+'</button>'+
-        '<a class="tb-brand" href="'+ROOT+'index.html"><span class="tb-brand__mark"></span><span>toolbench</span></a>'+
+        '<a class="tb-brand" href="'+ROOT+'index.html"><span class="tb-brand__mark"></span><span>Vernier</span></a>'+
         '<nav class="tb-nav">'+navLinks()+'</nav>'+
         '<div class="tb-sp"></div>'+
         '<div class="tb-seg" role="group" aria-label="Units">'+

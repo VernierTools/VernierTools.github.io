@@ -1,5 +1,5 @@
 /* =========================================================================
-   toolbench — shared/shell.css
+   Vernier — shared/shell.css
    デザイントークン + 共通コンポーネント。全ページ・全ツールが読み込む唯一のCSS。
    ツール側は原則ここのクラスと CSS 変数だけを使う（生のHEXをツールに書かない）。
    ========================================================================= */
@@ -74,7 +74,7 @@ button{ font-family:inherit; }
   background:color-mix(in srgb, var(--surface) 82%, transparent);
   backdrop-filter:saturate(1.2) blur(8px); -webkit-backdrop-filter:saturate(1.2) blur(8px); }
 .tb-header__in{ max-width:var(--maxw); margin:0 auto; padding:0 var(--s5);
-  height:56px; display:flex; align-items:center; gap:var(--s4); }
+  height:73px; display:flex; align-items:center; gap:var(--s4); }
 .tb-brand{ display:flex; align-items:center; gap:var(--s2); font-weight:600; letter-spacing:-.01em; color:var(--text); }
 .tb-brand__mark{ width:22px; height:22px; border-radius:6px; background:var(--accent); position:relative; flex:0 0 auto; }
 .tb-brand__mark::after{ content:""; position:absolute; left:50%; top:50%; width:2px; height:8px; background:#fff;
@@ -105,7 +105,7 @@ button{ font-family:inherit; }
 @media (max-width:760px){
   .tb-nav{ display:none; }
   .tb-menubtn{ display:inline-flex; }
-  .tb-menu{ display:none; position:absolute; top:56px; left:0; right:0; background:var(--surface);
+  .tb-menu{ display:none; position:absolute; top:73px; left:0; right:0; background:var(--surface);
     border-bottom:1px solid var(--border); padding:var(--s3) var(--s5); flex-direction:column; gap:2px; }
   .tb-menu.open{ display:flex; }
   .tb-menu a{ padding:10px; border-radius:var(--r-sm); color:var(--text-2); }
