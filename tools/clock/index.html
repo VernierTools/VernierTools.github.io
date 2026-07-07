@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clock hand angles — toolbench</title>
+<title>Clock hand angles — Vernier</title>
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=1">
 <style>
@@ -48,6 +48,25 @@
   .rrow2 .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:17px; text-align:right; cursor:pointer; }
   .rrow2 .v--r{ color:var(--accent); }
   .rrow2 .v--l{ color:var(--text-2); }
+
+  /* 出力コーナー: 簡易/正確 モード切替 + フォーマット切替 */
+  .romode{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .romode button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:500; color:var(--text-2); padding:3px 10px; border-radius:4px; transition:all var(--tap); }
+  .romode button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .rofmt{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:10px var(--s4) 2px; }
+  .rofmt button{ appearance:none; cursor:pointer; font:inherit; font-size:12px; font-weight:500; height:30px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
+    transition:all var(--tap); }
+  .rofmt button:hover{ border-color:var(--text-3); }
+  .rofmt button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .acc-note{ font-size:11px; color:var(--text-3); padding:6px var(--s4) 0; line-height:1.45; }
+
+  /* 正確モード: 値の桁が長くなるので列幅を可変に + 循環小数の上線 */
+  .readout[data-acc="1"] .ro-head,
+  .readout[data-acc="1"] .rrow2{ grid-template-columns:1fr minmax(0,1fr) minmax(0,1fr); }
+  .readout[data-acc="1"] .rrow2 .v{ font-size:14.5px; }
+  .rrow2 .v .rep{ text-decoration:overline; }
 </style>
 </head>
 <body>
@@ -152,9 +171,17 @@
       </div>
 
       <!-- 出力: 各針の右側・左側を常時表示 -->
-      <div class="readout">
+      <div class="readout" data-acc="0">
         <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
-          <span class="live"><span class="dot"></span> live</span></div>
+          <div class="romode" id="ro-mode" role="group">
+            <button data-mode="simple"   data-i18n="t.simple"   aria-pressed="true">Simple</button>
+            <button data-mode="accurate" data-i18n="t.accurate">Accurate</button>
+          </div></div>
+        <div class="rofmt" id="ro-fmt" role="group" hidden>
+          <button data-fmt="dms"  data-i18n="t.fmtdms"  aria-pressed="true">D°M′S″</button>
+          <button data-fmt="frac" data-i18n="t.fmtfrac">Fraction</button>
+          <button data-fmt="dec"  data-i18n="t.fmtdec">Decimal</button>
+        </div>
         <div class="ro-head"><span></span><span data-i18n="t.left">Left</span><span data-i18n="t.right">Right</span></div>
         <div class="rrow2"><span class="lbl" data-i18n="t.hour">Hour hand</span>
           <span class="v v--l" id="ro-hour-l" data-copy="">0°</span><span class="v v--r" id="ro-hour-r" data-copy="">0°</span></div>
@@ -162,6 +189,7 @@
           <span class="v v--l" id="ro-minute-l" data-copy="">0°</span><span class="v v--r" id="ro-minute-r" data-copy="">0°</span></div>
         <div class="rrow2"><span class="lbl" data-i18n="t.second">Second hand</span>
           <span class="v v--l" id="ro-second-l" data-copy="">0°</span><span class="v v--r" id="ro-second-r" data-copy="">0°</span></div>
+        <div class="acc-note" id="acc-note" data-i18n="t.accnote" hidden>Every second turns the hour hand exactly 30″ (1/120°).</div>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
     </div>
@@ -175,6 +203,8 @@
   var total = 3 * 3600 + 27 * 60 + 15;   // 03:27:15
   var sel = "hour";
   var side = "right";
+  var mode = "simple";   // simple | accurate（出力の表示モード）
+  var afmt = "dms";      // dms | frac | dec（正確モードのフォーマット）
 
   var $ = function (id) { return document.getElementById(id); };
   var inH = $("in-h"), inM = $("in-m"), inS = $("in-s");
@@ -200,6 +230,49 @@
   function fmt(deg) { var v = Math.round(deg * 10) / 10; return Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1); }
   function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
   function pt(a, r) { var rad = a * Math.PI / 180; return [100 + r * Math.sin(rad), 100 - r * Math.cos(rad)]; }
+
+  // ---- 正確モード: 整数の「秒角(arcsec)」で厳密に扱う ----
+  // 1周=360°=1,296,000″。整数秒では 時針=30″/s・分針=360″/s・秒針=21600″/s で常に割り切れる。
+  var FULL = 1296000;
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = b; b = a % b; a = t; } return a || 1; }
+  function pad2(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+  function handArcsec() {
+    return { hour: mod(total, 43200) * 30, minute: mod(total, 3600) * 360, second: mod(total, 60) * 21600 };
+  }
+  function dmsText(A) {
+    A = mod(A, FULL);
+    var d = Math.floor(A / 3600), r = A % 3600, m = Math.floor(r / 60), s = r % 60;
+    return d + "°" + pad2(m) + "′" + pad2(s) + "″";
+  }
+  function fracText(A) {
+    A = mod(A, FULL);
+    var num = A, den = 3600, g = gcd(num, den); num /= g; den /= g;
+    if (den === 1) return num + "°";
+    var whole = Math.floor(num / den), rem = num % den;
+    return (whole ? whole + " " : "") + rem + "/" + den + "°";
+  }
+  // 割り算を筆算し、循環節を検出して厳密な小数を作る（表示は上線、コピーは括弧）
+  function decParts(A) {
+    A = mod(A, FULL);
+    var whole = Math.floor(A / 3600), rem = A - whole * 3600, den = 3600;
+    if (rem === 0) return { html: whole + "°", copy: whole + "°" };
+    var digits = [], seen = {}, pos = 0, repStart = -1;
+    while (rem !== 0) {
+      if (seen[rem] !== undefined) { repStart = seen[rem]; break; }
+      seen[rem] = pos; rem *= 10; digits.push(Math.floor(rem / den)); rem %= den; pos++;
+      if (pos > 60) break;
+    }
+    if (repStart < 0) { var t = whole + "." + digits.join(""); return { html: t + "°", copy: t + "°" }; }
+    var nonRep = digits.slice(0, repStart).join(""), rep = digits.slice(repStart).join("");
+    return {
+      html: whole + "." + nonRep + '<span class="rep">' + rep + "</span>°",
+      copy: whole + "." + nonRep + "(" + rep + ")°"
+    };
+  }
+  function setAcc(el, A) {
+    if (afmt === "dec") { var o = decParts(A); el.innerHTML = o.html; el.setAttribute("data-copy", o.copy); }
+    else { var s = afmt === "dms" ? dmsText(A) : fracText(A); el.textContent = s; el.setAttribute("data-copy", s); }
+  }
 
   function angles() {
     var s = mod(total, 60), m = Math.floor(mod(total, 3600) / 60), h = Math.floor(mod(total, 86400) / 3600);
@@ -254,9 +327,16 @@
     arcLabel.textContent = fmt(labelVal) + "°";
 
     // output: both sides for every hand
-    setVal($("ro-hour-r"), a.hour);     setVal($("ro-hour-l"), mod(360 - a.hour, 360));
-    setVal($("ro-minute-r"), a.minute); setVal($("ro-minute-l"), mod(360 - a.minute, 360));
-    setVal($("ro-second-r"), a.second); setVal($("ro-second-l"), mod(360 - a.second, 360));
+    if (mode === "accurate") {
+      var A = handArcsec();
+      setAcc($("ro-hour-r"),   A.hour);   setAcc($("ro-hour-l"),   mod(FULL - A.hour,   FULL));
+      setAcc($("ro-minute-r"), A.minute); setAcc($("ro-minute-l"), mod(FULL - A.minute, FULL));
+      setAcc($("ro-second-r"), A.second); setAcc($("ro-second-l"), mod(FULL - A.second, FULL));
+    } else {
+      setVal($("ro-hour-r"), a.hour);     setVal($("ro-hour-l"), mod(360 - a.hour, 360));
+      setVal($("ro-minute-r"), a.minute); setVal($("ro-minute-l"), mod(360 - a.minute, 360));
+      setVal($("ro-second-r"), a.second); setVal($("ro-second-l"), mod(360 - a.second, 360));
+    }
   }
 
   function labelUnits() {
@@ -295,6 +375,25 @@
     side = b.getAttribute("data-side"); syncSide(); render();
   });
   function syncSide() { $("seg-side").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-side") === side)); }); }
+
+  // ---- 出力モード（簡易/正確）とフォーマット（度分秒/分数/小数）の切替 ----
+  var roEl = document.querySelector(".readout"), roFmt = $("ro-fmt"), accNote = $("acc-note");
+  $("ro-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode"); syncMode(); render();
+  });
+  function syncMode() {
+    $("ro-mode").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode)); });
+    var acc = mode === "accurate";
+    if (roEl) roEl.setAttribute("data-acc", acc ? "1" : "0");
+    if (roFmt) roFmt.hidden = !acc;
+    if (accNote) accNote.hidden = !acc;
+  }
+  $("ro-fmt").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    afmt = b.getAttribute("data-fmt"); syncFmt(); render();
+  });
+  function syncFmt() { $("ro-fmt").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-fmt") === afmt)); }); }
 
   $("adjust").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
@@ -356,7 +455,7 @@
   });
 
   // ---- 起動 ----
-  syncSeg(); syncSide();
+  syncSeg(); syncSide(); syncMode(); syncFmt();
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
     Shell.init({
     id: "clock",
@@ -369,6 +468,9 @@
         "t.hour": "Hour hand", "t.minute": "Minute hand", "t.second": "Second hand",
         "t.right": "Right", "t.left": "Left",
         "t.rhour": "Reset hours to 0", "t.rmin": "Reset minutes to 0", "t.rsec": "Reset seconds to 0",
+        "t.simple": "Simple", "t.accurate": "Accurate",
+        "t.fmtdms": "D°M′S″", "t.fmtfrac": "Fraction", "t.fmtdec": "Decimal",
+        "t.accnote": "Every second turns the hour hand exactly 30″ (1/120°), so these are exact.",
         "t.output": "Output", "t.copyhint": "Click any value to copy.",
         "u.h": "h", "u.m": "m", "u.s": "s"
       },
@@ -380,6 +482,9 @@
         "t.hour": "時針", "t.minute": "分針", "t.second": "秒針",
         "t.right": "右側", "t.left": "左側",
         "t.rhour": "時を0にリセット", "t.rmin": "分を0にリセット", "t.rsec": "秒を0にリセット",
+        "t.simple": "簡易", "t.accurate": "正確",
+        "t.fmtdms": "度分秒", "t.fmtfrac": "分数", "t.fmtdec": "小数",
+        "t.accnote": "1秒ごとに時針はちょうど30″（＝1/120°）進むため、これらは厳密値です。",
         "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
         "u.h": "時", "u.m": "分", "u.s": "秒"
       }
