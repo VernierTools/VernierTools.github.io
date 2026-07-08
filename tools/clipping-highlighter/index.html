@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipping highlighter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=2">
+<style>
+  /* ---- tool-local colour constants (canvas/legend drawing targets) ---- */
+  :root{
+    --clip-white:#e0484d; --clip-black:#4d7fff;
+    --fc-white:#e0484d; --fc-high:#e8a83c; --fc-mid:#3fae6b; --fc-shadow:#4d7fff; --fc-black:#20286b;
+  }
+
+  /* ---- viewport (pan / zoom canvas) ---- */
+  .ch-viewport{ position:relative; height:440px; border:1px solid var(--border); border-radius:var(--r-lg);
+    overflow:hidden;
+    background:
+      repeating-conic-gradient(#0000 0 25%, color-mix(in srgb, var(--text-3) 8%, transparent) 0 50%) 0 0/18px 18px,
+      var(--surface-2); }
+  .ch-view{ position:absolute; inset:0; display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
+  .ch-view:active{ cursor:grabbing; }
+  .ch-view:focus-visible{ outline:none; box-shadow:inset 0 0 0 3px var(--accent-ring); }
+
+  .ch-empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:var(--s2); pointer-events:none; color:var(--text-3); text-align:center; padding:0 var(--s4); }
+  .ch-empty svg{ width:30px; height:30px; color:var(--text-3); }
+  .ch-empty__t{ font-size:12.5px; color:var(--text-2); }
+  .ch-empty__s{ font-size:11px; }
+  .ch-empty.hidden{ display:none; }
+
+  .ch-drop{ position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:var(--accent-tint); border:2px dashed var(--accent); border-radius:var(--r-lg);
+    color:var(--accent); font-size:13px; font-weight:600; pointer-events:none; z-index:5; }
+  .ch-drop.active{ display:flex; }
+
+  /* ---- zoom bar ---- */
+  .ch-zoombar{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3); }
+  .ch-zbtn{ height:32px; min-width:38px; padding:0 12px; font-size:13px; }
+  .ch-zbtn.icon{ font-size:17px; line-height:1; }
+  .ch-zoomval{ margin-left:auto; font-size:13px; color:var(--text-2);
+    font-family:var(--font-mono); font-variant-numeric:tabular-nums; cursor:pointer; padding:4px 8px; border-radius:var(--r-sm); }
+  .ch-zoomval:hover{ background:var(--surface-2); }
+
+  .ch-hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
+
+  /* ---- segmented control (view mode / basis) ---- */
+  .seg{ display:flex; border:1px solid var(--border-strong); border-radius:var(--r); overflow:hidden; }
+  .seg button{ flex:1; appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500; height:38px;
+    background:var(--surface); border:0; color:var(--text-2); transition:background var(--tap), color var(--tap); }
+  .seg button + button{ border-left:1px solid var(--border-strong); }
+  .seg button:hover{ background:var(--surface-2); color:var(--text); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+
+  /* ---- threshold rows ---- */
+  .thlabel{ display:flex; align-items:center; gap:8px; }
+  .thdot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .thdot--w{ background:var(--clip-white); }
+  .thdot--b{ background:var(--clip-black); }
+
+  .note{ font-size:11.5px; color:var(--text-3); line-height:1.55; margin-top:var(--s2); }
+
+  /* ---- histogram ---- */
+  .hist-toolbar{ display:flex; gap:6px; margin-bottom:var(--s3); flex-wrap:wrap; align-items:center; }
+  .hist-btn{ appearance:none; cursor:pointer; font:inherit; font-size:11px; font-weight:500; height:26px; padding:0 9px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
+    transition:border-color var(--tap), color var(--tap), background var(--tap); }
+  .hist-btn:hover{ border-color:var(--text-3); color:var(--text); }
+  .hist-btn[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .hist-wrap{ border:1px solid var(--border); border-radius:var(--r); overflow:hidden; background:var(--surface-2); }
+  #hist-canvas{ display:block; width:100%; height:170px; }
+
+  /* ---- false-colour legend ---- */
+  .ch-legend{ display:flex; flex-direction:column; gap:7px; }
+  .ch-legend__row{ display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text-2); }
+  .ch-legend__sw{ width:14px; height:14px; border-radius:4px; flex:0 0 auto; border:1px solid var(--border); }
+
+  /* ---- inspector readout: smaller values ---- */
+  .ch-ro .rrow__value{ font-size:15px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .ch-ro .rrow__value.plain{ font-family:var(--font-sans); }
+
+  #err{ margin-top:var(--s3); }
+
+  @media (max-width:760px){
+    .ch-viewport{ height:340px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Clipping highlighter</h1>
+    <p data-i18n="t.desc">Reveal blown highlights and crushed shadows. Load an image to mask clipped pixels, view a false-colour map, and read exact clip percentages. Everything runs locally in your browser.</p>
+  </div>
+
+  <div class="work">
+    <!-- LEFT: preview (larger) + zoom + readouts -->
+    <div>
+      <div class="ch-viewport" id="viewport">
+        <canvas class="ch-view" id="view" tabindex="0" role="img" aria-label="Image preview — drag to pan, scroll to zoom"></canvas>
+        <div class="ch-empty" id="empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
+          <div class="ch-empty__t" data-i18n="t.empty1">Open, drop, or paste an image</div>
+          <div class="ch-empty__s" data-i18n="t.formats">PNG · JPEG · WebP</div>
+        </div>
+        <div class="ch-drop" id="drop" data-i18n="t.dropnow">Drop to open</div>
+      </div>
+
+      <div class="ch-zoombar">
+        <button class="btn btn--secondary ch-zbtn icon" id="z-out" aria-label="Zoom out">−</button>
+        <button class="btn btn--secondary ch-zbtn" id="z-fit" data-i18n="t.fit">Fit</button>
+        <button class="btn btn--secondary ch-zbtn" id="z-100">100%</button>
+        <button class="btn btn--secondary ch-zbtn icon" id="z-in" aria-label="Zoom in">+</button>
+        <span class="ch-zoomval" id="z-val" data-copy="100%">100%</span>
+      </div>
+
+      <div class="ch-hint" data-i18n="t.shortcuts">Wheel / pinch to zoom · drag to pan · double-click to fit · M / F / O switch modes.</div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.stats">Clip statistics</span>
+          <span class="live"><span class="dot"></span><span data-i18n="t.live">live</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label"><span class="thlabel"><span class="thdot thdot--w"></span><span data-i18n="t.stwhite">White clipped</span></span></span>
+          <span class="rrow__value" id="st-white" data-copy="0%">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label"><span class="thlabel"><span class="thdot thdot--b"></span><span data-i18n="t.stblack">Black clipped</span></span></span>
+          <span class="rrow__value" id="st-black" data-copy="0%">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.stsafe">Safe</span>
+          <span class="rrow__value" id="st-safe" data-copy="0%">—</span>
+        </div>
+        <div class="copyhint" data-i18n="t.copyhint">Click a value to copy.</div>
+      </div>
+
+      <div class="readout ch-ro" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.pixel">Pixel</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.pos">Position</span><span class="rrow__value" id="px-pos">—</span></div>
+        <div class="rrow"><span class="rrow__label">RGB</span><span class="rrow__value" id="px-rgb">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.lumashort">Luma</span><span class="rrow__value" id="px-luma">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.status">Status</span><span class="rrow__value plain" id="px-status">—</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.source">Source</div>
+        <button class="btn btn--primary btn--block" id="open-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+          <span data-i18n="t.open">Open image</span>
+        </button>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" style="display:none">
+        <span id="live-status" aria-live="polite" class="mono" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></span>
+        <div class="note" data-i18n="t.drophint">Drop, paste (Ctrl+V), or click to open.</div>
+        <div class="badge badge--muted" id="scale-note" hidden style="margin-top:var(--s3)"><span class="d"></span><span id="scale-note-txt"></span></div>
+        <div class="badge badge--neg" id="err" hidden><span class="d"></span><span id="err-txt"></span></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.mode">View</div>
+        <div class="seg" id="seg-mode" role="group" aria-label="View mode">
+          <button data-mode="mask"       data-i18n="t.mask" aria-pressed="true">Mask</button>
+          <button data-mode="falsecolor" data-i18n="t.false">False colour</button>
+          <button data-mode="original"   data-i18n="t.original">Original</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.thresholds">Thresholds</div>
+        <div class="field">
+          <label class="label" for="range-white"><span class="thlabel"><span class="thdot thdot--w"></span><span data-i18n="t.white">White clip ≥</span></span></label>
+          <div class="sliderrow">
+            <input class="slider" type="range" id="range-white" min="150" max="255" value="250">
+            <span class="val" id="val-white">250</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="range-black"><span class="thlabel"><span class="thdot thdot--b"></span><span data-i18n="t.black">Black clip ≤</span></span></label>
+          <div class="sliderrow">
+            <input class="slider" type="range" id="range-black" min="0" max="100" value="5">
+            <span class="val" id="val-black">5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.basis">Detection basis</div>
+        <div class="seg" id="seg-basis" role="group" aria-label="Detection basis">
+          <button data-basis="luma" data-i18n="t.luma" aria-pressed="true">Luma (Rec.709)</button>
+          <button data-basis="any"  data-i18n="t.any">Any channel</button>
+        </div>
+        <p class="note" id="basis-note"></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.hist">Histogram</div>
+        <div class="hist-toolbar" id="hist-toolbar">
+          <button class="hist-btn" data-ch="luma" aria-pressed="true">LUMA</button>
+          <button class="hist-btn" data-ch="r">R</button>
+          <button class="hist-btn" data-ch="g">G</button>
+          <button class="hist-btn" data-ch="b">B</button>
+          <button class="hist-btn" data-ch="rgb">RGB</button>
+          <button class="hist-btn" id="hist-log" style="margin-left:auto" data-i18n="t.log">Log</button>
+        </div>
+        <div class="hist-wrap"><canvas id="hist-canvas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.legend">False-colour legend</div>
+        <div class="ch-legend">
+          <div class="ch-legend__row"><span class="ch-legend__sw" style="background:var(--fc-white)"></span><span data-i18n="t.lgwhite">Clipped white</span></div>
+          <div class="ch-legend__row"><span class="ch-legend__sw" style="background:var(--fc-high)"></span><span data-i18n="t.lghigh">Highlights</span></div>
+          <div class="ch-legend__row"><span class="ch-legend__sw" style="background:var(--fc-mid)"></span><span data-i18n="t.lgmid">Midtones</span></div>
+          <div class="ch-legend__row"><span class="ch-legend__sw" style="background:var(--fc-shadow)"></span><span data-i18n="t.lgshadow">Shadows</span></div>
+          <div class="ch-legend__row"><span class="ch-legend__sw" style="background:var(--fc-black)"></span><span data-i18n="t.lgblack">Clipped black</span></div>
+        </div>
+        <p class="note" data-i18n="t.legendnote">Bands follow the White / Black thresholds.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=2"></script>
+<script>
+"use strict";
+(function () {
+  var MAX_EDGE = 4096;   // 解析用の作業画像は長辺をこの値までに縮小
+
+  var LS_KEY = "tb.clipping-highlighter";
+  function loadSaved(){
+    try { var s = JSON.parse(localStorage.getItem(LS_KEY)); if (s) return s; } catch (e) {}
+    return {};
+  }
+  var saved = loadSaved();
+
+  var state = {
+    img:null, ow:0, oh:0, W:0, H:0, srcData:null, luma:null, bins:null, downscaled:false,
+    zoom:1, pan:{x:0,y:0},
+    mode:  saved.mode  || "mask",
+    white: (saved.white != null ? saved.white : 250),
+    black: (saved.black != null ? saved.black : 5),
+    basis: saved.basis || "luma",
+    histCh: saved.histCh || "luma",
+    histLog: !!saved.histLog,
+    counts:{ white:0, black:0, total:0 }
+  };
+  function save(){
+    try { localStorage.setItem(LS_KEY, JSON.stringify({
+      mode:state.mode, white:state.white, black:state.black,
+      basis:state.basis, histCh:state.histCh, histLog:state.histLog
+    })); } catch (e) {}
+  }
+
+  var $ = function (id){ return document.getElementById(id); };
+  var view = $("view"), vctx = view.getContext("2d", { alpha:true });
+  var histCV = $("hist-canvas"), histCtx = histCV.getContext("2d");
+  var srcCV = document.createElement("canvas"), srcCtx = srcCV.getContext("2d");
+  var ovCV  = document.createElement("canvas"), ovCtx  = ovCV.getContext("2d");
+  var lastInspect = null;   // {x,y,r,g,b} or null
+
+  // ---- i18n helpers (work with or without Shell) ----
+  var EN = null;   // filled in Shell.init strings.en (reference for shell-less fallback)
+  function T(k){ return (typeof Shell !== "undefined" && Shell) ? Shell.t(k) : ((EN && EN[k]) || k); }
+
+  function clamp(v,a,b){ return v < a ? a : v > b ? b : v; }
+  function lumaRound(r,g,b){ return Math.round(0.2126*r + 0.7152*g + 0.0722*b); }
+
+  function clipStateAt(l, r, g, b){
+    var wt = state.white, bt = state.black;
+    if (state.basis === "any"){
+      if (r >= wt || g >= wt || b >= wt) return "white";
+      if (r <= bt && g <= bt && b <= bt) return "black";
+      return "safe";
+    }
+    if (l >= wt) return "white";
+    if (l <= bt) return "black";
+    return "safe";
+  }
+
+  // ================= IMAGE LOADING =================
+  function loadImage(file){
+    hideErr();
+    if (!file || !/^image\//.test(file.type)){ showErr(); return; }
+    var reader = new FileReader();
+    reader.onload = function (e){
+      var img = new Image();
+      img.onload = function (){
+        state.ow = img.width; state.oh = img.height;
+        var scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+        var W = Math.max(1, Math.round(img.width  * scale));
+        var H = Math.max(1, Math.round(img.height * scale));
+        state.downscaled = scale < 1;
+        state.W = W; state.H = H;
+        srcCV.width = ovCV.width = W;
+        srcCV.height = ovCV.height = H;
+        srcCtx.clearRect(0,0,W,H);
+        srcCtx.drawImage(img, 0, 0, W, H);
+        state.srcData = srcCtx.getImageData(0, 0, W, H);
+        state.img = img;
+        precompute();
+        $("empty").classList.add("hidden");
+        updateScaleNote();
+        $("live-status").textContent = state.ow + "×" + state.oh;
+        fitToView();
+        drawHistogram();
+        buildOverlay();
+        render();
+      };
+      img.onerror = function (){ showErr(); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function (){ showErr(); };
+    reader.readAsDataURL(file);
+  }
+
+  // luma[] とヒストグラムのビンを一度だけ計算（しきい値では変わらない）
+  function precompute(){
+    var d = state.srcData.data, n = state.W * state.H;
+    var luma = new Uint8ClampedArray(n);
+    var L = new Uint32Array(256), R = new Uint32Array(256), G = new Uint32Array(256), B = new Uint32Array(256);
+    for (var i = 0, p = 0; i < n; i++, p += 4){
+      var r = d[p], g = d[p+1], b = d[p+2];
+      var l = lumaRound(r,g,b);
+      luma[i] = l;
+      L[l]++; R[r]++; G[g]++; B[b]++;
+    }
+    state.luma = luma;
+    state.bins = { luma:L, r:R, g:G, b:B };
+  }
+
+  // ================= OVERLAY + STATS =================
+  function buildOverlay(){
+    if (!state.srcData){ return; }
+    var W = state.W, H = state.H, n = W * H;
+    var src = state.srcData.data, luma = state.luma;
+    var out = ovCtx.createImageData(W, H), dst = out.data;
+    var wt = state.white, bt = state.black;
+    var mid = Math.round((wt + bt) / 2), hiMid = Math.round((wt + mid) / 2);
+    var cw = 0, cb = 0;
+
+    for (var i = 0, p = 0; i < n; i++, p += 4){
+      var r = src[p], g = src[p+1], b = src[p+2], l = luma[i];
+      var cs = clipStateAt(l, r, g, b);
+      if (cs === "white") cw++; else if (cs === "black") cb++;
+
+      if (state.mode === "mask"){
+        if      (cs === "white"){ dst[p]=224; dst[p+1]=72;  dst[p+2]=77;  dst[p+3]=191; }
+        else if (cs === "black"){ dst[p]=77;  dst[p+1]=127; dst[p+2]=255; dst[p+3]=191; }
+        // safe → transparent
+      } else if (state.mode === "falsecolor"){
+        if      (l >= wt)    { dst[p]=224; dst[p+1]=72;  dst[p+2]=77;  dst[p+3]=255; }
+        else if (l >= hiMid) { dst[p]=232; dst[p+1]=168; dst[p+2]=60;  dst[p+3]=255; }
+        else if (l >= mid)   { dst[p]=63;  dst[p+1]=174; dst[p+2]=107; dst[p+3]=255; }
+        else if (l >  bt)    { dst[p]=77;  dst[p+1]=127; dst[p+2]=255; dst[p+3]=255; }
+        else                 { dst[p]=32;  dst[p+1]=40;  dst[p+2]=107; dst[p+3]=255; }
+      }
+      // original → fully transparent
+    }
+    ovCtx.putImageData(out, 0, 0);
+    state.counts = { white:cw, black:cb, total:n };
+    updateStats();
+  }
+
+  function pctText(part, total){
+    if (!total) return "—";
+    var p = part / total * 100;
+    if (p === 0) return "0.00%";
+    if (p < 0.01) return "<0.01%";
+    return p.toFixed(2) + "%";
+  }
+  function updateStats(){
+    var c = state.counts;
+    var w = pctText(c.white, c.total);
+    var b = pctText(c.black, c.total);
+    var s = pctText(c.total - c.white - c.black, c.total);
+    setStat("st-white", w); setStat("st-black", b); setStat("st-safe", s);
+  }
+  function setStat(id, txt){
+    var el = $(id);
+    el.textContent = txt;
+    el.setAttribute("data-copy", txt === "—" ? "" : txt);
+  }
+
+  // ================= HISTOGRAM =================
+  function themeDark(){ return (document.documentElement.getAttribute("data-theme") === "dark"); }
+  function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function sizeHistCanvas(){
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = histCV.clientWidth || 248, cssH = 170;
+    histCV.width  = Math.round(cssW * dpr);
+    histCV.height = Math.round(cssH * dpr);
+    histCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { W:cssW, H:cssH };
+  }
+
+  function drawHistogram(){
+    var dim = sizeHistCanvas(), W = dim.W, H = dim.H;
+    histCtx.clearRect(0, 0, W, H);
+    if (!state.bins) return;
+
+    var dark = themeDark();
+    var gridCol  = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
+    var labelCol = dark ? "rgba(255,255,255,0.34)" : "rgba(0,0,0,0.34)";
+    var lumaCol  = cssVar("--text-3") || (dark ? "#6e747d" : "#8a919b");
+
+    var LABEL_H = Math.round(H * 0.10), PLOT_H = H - LABEL_H;
+    var fontSize = Math.max(9, Math.round(W / 34));
+
+    histCtx.strokeStyle = gridCol; histCtx.lineWidth = 1;
+    [64,128,192].forEach(function (v){ var x = v/255*W; histCtx.beginPath(); histCtx.moveTo(x,0); histCtx.lineTo(x,PLOT_H); histCtx.stroke(); });
+    [0.25,0.5,0.75].forEach(function (r){ var y = PLOT_H*r; histCtx.beginPath(); histCtx.moveTo(0,y); histCtx.lineTo(W,y); histCtx.stroke(); });
+
+    histCtx.font = fontSize + "px " + (cssVar("--font-mono") || "monospace");
+    histCtx.fillStyle = labelCol;
+    var axisY = H - Math.round(LABEL_H * 0.2);
+    [0,64,128,192,255].forEach(function (v){
+      var x = v/255*W;
+      histCtx.textAlign = v === 0 ? "left" : v === 255 ? "right" : "center";
+      histCtx.fillText(v, x, axisY);
+    });
+
+    var log = state.histLog;
+    var scale = log
+      ? function (v, max){ return v > 0 ? Math.log(v+1) / Math.log(max+1) : 0; }
+      : function (v, max){ return v / max; };
+
+    function drawBars(hist, color, alpha){
+      var max = 0, i;
+      for (i = 0; i < 256; i++) if (hist[i] > max) max = hist[i];
+      if (!max) return;
+      histCtx.globalAlpha = alpha;
+      var barW = W / 256;
+      for (i = 0; i < 256; i++){
+        var h = scale(hist[i], max) * PLOT_H;
+        if      (i >= state.white) histCtx.fillStyle = "#e0484d";
+        else if (i <= state.black) histCtx.fillStyle = "#4d7fff";
+        else                       histCtx.fillStyle = color;
+        histCtx.fillRect(i*barW, PLOT_H - h, barW, h);
+      }
+      histCtx.globalAlpha = 1;
+    }
+
+    var bins = state.bins;
+    if (state.histCh === "rgb"){
+      drawBars(bins.r, "#e0555a", 0.6);
+      drawBars(bins.g, "#3fae6b", 0.6);
+      drawBars(bins.b, "#5b7cf0", 0.6);
+    } else {
+      var map = { luma:[bins.luma, lumaCol], r:[bins.r,"#e0555a"], g:[bins.g,"#3fae6b"], b:[bins.b,"#5b7cf0"] };
+      var m = map[state.histCh]; drawBars(m[0], m[1], 1);
+    }
+
+    drawThreshLine(W, PLOT_H, fontSize, state.white, "rgba(224,72,77,0.9)");
+    drawThreshLine(W, PLOT_H, fontSize, state.black, "rgba(77,127,255,0.95)");
+  }
+  function drawThreshLine(W, PLOT_H, fontSize, val, color){
+    var x = val/255*W;
+    histCtx.strokeStyle = color; histCtx.lineWidth = 1;
+    histCtx.setLineDash([4,4]); histCtx.beginPath(); histCtx.moveTo(x,0); histCtx.lineTo(x,PLOT_H); histCtx.stroke();
+    histCtx.setLineDash([]);
+    var label = String(val);
+    histCtx.font = fontSize + "px " + (cssVar("--font-mono") || "monospace");
+    histCtx.textAlign = "left";
+    var lw = histCtx.measureText(label).width, pad = 5;
+    var idealX = x > W/2 ? x - pad - lw : x + pad;
+    var lx = Math.max(pad, Math.min(W - lw - pad, idealX));
+    histCtx.fillStyle = color;
+    histCtx.fillText(label, lx, PLOT_H - 4);
+  }
+
+  // ================= RENDER (pan / zoom) =================
+  function sizeViewCanvas(){
+    var dpr = window.devicePixelRatio || 1;
+    var w = view.clientWidth, h = view.clientHeight;
+    view.width  = Math.round(w * dpr);
+    view.height = Math.round(h * dpr);
+    return dpr;
+  }
+  function render(){
+    var dpr = window.devicePixelRatio || 1;
+    vctx.setTransform(1,0,0,1,0,0);
+    vctx.clearRect(0, 0, view.width, view.height);
+    if (!state.img){ updateZoomLabel(); return; }
+    vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    vctx.translate(state.pan.x, state.pan.y);
+    vctx.scale(state.zoom, state.zoom);
+    vctx.imageSmoothingEnabled = state.zoom < 1;
+    if (state.mode !== "falsecolor") vctx.drawImage(srcCV, 0, 0);
+    vctx.drawImage(ovCV, 0, 0);
+    vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    updateZoomLabel();
+  }
+  function updateZoomLabel(){
+    var z = Math.round(state.zoom * 100) + "%";
+    var el = $("z-val"); el.textContent = z; el.setAttribute("data-copy", z);
+  }
+
+  function fitToView(){
+    if (!state.img) return;
+    var vw = view.clientWidth, vh = view.clientHeight, pad = 24;
+    var ratio = Math.min((vw - pad) / state.W, (vh - pad) / state.H, 1);
+    state.zoom = ratio > 0 ? ratio : 1;
+    state.pan.x = (vw - state.W * state.zoom) / 2;
+    state.pan.y = (vh - state.H * state.zoom) / 2;
+    render();
+  }
+  function zoomAtClient(cx, cy, f){
+    if (!state.img) return;
+    var r = view.getBoundingClientRect();
+    var mx = cx - r.left, my = cy - r.top;
+    var bx = (mx - state.pan.x) / state.zoom, by = (my - state.pan.y) / state.zoom;
+    state.zoom = clamp(state.zoom * f, 0.02, 64);
+    state.pan.x = mx - bx * state.zoom;
+    state.pan.y = my - by * state.zoom;
+    render();
+  }
+  function zoomCentre(f){ var r = view.getBoundingClientRect(); zoomAtClient(r.left + r.width/2, r.top + r.height/2, f); }
+  function setZoom100(){
+    if (!state.img) return;
+    var vw = view.clientWidth, vh = view.clientHeight;
+    state.zoom = 1;
+    state.pan.x = (vw - state.W) / 2;
+    state.pan.y = (vh - state.H) / 2;
+    render();
+  }
+
+  // ================= INSPECTOR =================
+  function inspect(cx, cy){
+    if (!state.srcData){ return; }
+    var r = view.getBoundingClientRect();
+    var ix = Math.floor((cx - r.left - state.pan.x) / state.zoom);
+    var iy = Math.floor((cy - r.top  - state.pan.y) / state.zoom);
+    if (ix >= 0 && ix < state.W && iy >= 0 && iy < state.H){
+      var p = (iy * state.W + ix) * 4, d = state.srcData.data;
+      lastInspect = { x:ix, y:iy, r:d[p], g:d[p+1], b:d[p+2] };
+    } else {
+      lastInspect = null;
+    }
+    renderInspector();
+  }
+  function renderInspector(){
+    if (!lastInspect){
+      $("px-pos").textContent = "—"; $("px-rgb").textContent = "—";
+      $("px-luma").textContent = "—";
+      var st0 = $("px-status"); st0.textContent = "—"; st0.style.color = "";
+      return;
+    }
+    var o = lastInspect, l = lumaRound(o.r, o.g, o.b);
+    $("px-pos").textContent = o.x + ", " + o.y;
+    $("px-rgb").textContent = o.r + " " + o.g + " " + o.b;
+    $("px-luma").textContent = l;
+    var cs = clipStateAt(l, o.r, o.g, o.b), st = $("px-status");
+    if (cs === "white"){ st.textContent = T("t.clipwhite"); st.style.color = "var(--clip-white)"; }
+    else if (cs === "black"){ st.textContent = T("t.clipblack"); st.style.color = "var(--clip-black)"; }
+    else { st.textContent = T("t.safe"); st.style.color = "var(--pos)"; }
+  }
+
+  // ================= THRESHOLD / MODE / BASIS =================
+  var debounce;
+  function onThresholdChange(){
+    drawHistogram();                 // 即時（ビンはキャッシュ済み）
+    clearTimeout(debounce);
+    debounce = setTimeout(function (){ buildOverlay(); render(); renderInspector(); save(); }, 40);
+  }
+  $("range-white").addEventListener("input", function (e){
+    var v = clamp(parseInt(e.target.value,10) || 0, 150, 255);
+    if (v <= state.black) v = Math.min(255, state.black + 1);
+    state.white = v; $("range-white").value = v; $("val-white").textContent = v; onThresholdChange();
+  });
+  $("range-black").addEventListener("input", function (e){
+    var v = clamp(parseInt(e.target.value,10) || 0, 0, 100);
+    if (v >= state.white) v = Math.max(0, state.white - 1);
+    state.black = v; $("range-black").value = v; $("val-black").textContent = v; onThresholdChange();
+  });
+
+  $("seg-mode").addEventListener("click", function (e){
+    var b = e.target.closest("button"); if (!b) return;
+    state.mode = b.getAttribute("data-mode"); syncSeg("seg-mode","data-mode",state.mode);
+    buildOverlay(); render(); save();
+  });
+  $("seg-basis").addEventListener("click", function (e){
+    var b = e.target.closest("button"); if (!b) return;
+    state.basis = b.getAttribute("data-basis"); syncSeg("seg-basis","data-basis",state.basis);
+    setBasisNote(); buildOverlay(); render(); renderInspector(); save();
+  });
+  function syncSeg(id, attr, val){
+    $(id).querySelectorAll("button").forEach(function (b){ b.setAttribute("aria-pressed", String(b.getAttribute(attr) === val)); });
+  }
+  function setBasisNote(){ $("basis-note").textContent = T("t.basisnote." + state.basis); }
+
+  // histogram toolbar
+  $("hist-toolbar").addEventListener("click", function (e){
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.id === "hist-log"){ state.histLog = !state.histLog; b.setAttribute("aria-pressed", String(state.histLog)); }
+    else if (b.hasAttribute("data-ch")){ state.histCh = b.getAttribute("data-ch"); syncSeg("hist-toolbar","data-ch",state.histCh); }
+    drawHistogram(); save();
+  });
+
+  // ================= POINTER (pan + pinch) =================
+  var pointers = new Map(), panning = false, pinchPrev = null;
+  function pinchInfo(){
+    var a = null, b = null;
+    pointers.forEach(function (v){ if (!a) a = v; else if (!b) b = v; });
+    var r = view.getBoundingClientRect();
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return { dist: Math.hypot(dx,dy), mx: (a.x+b.x)/2, my: (a.y+b.y)/2 };
+  }
+  view.addEventListener("pointerdown", function (e){
+    if (view.setPointerCapture) { try { view.setPointerCapture(e.pointerId); } catch (err) {} }
+    pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if (pointers.size === 1) panning = true;
+    else { panning = false; pinchPrev = pinchInfo(); }
+  });
+  window.addEventListener("pointermove", function (e){
+    if (pointers.has(e.pointerId)){
+      var prev = pointers.get(e.pointerId);
+      pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if (pointers.size >= 2){
+        var pi = pinchInfo();
+        if (pinchPrev && pinchPrev.dist > 0) zoomAtClient(pi.mx, pi.my, pi.dist / pinchPrev.dist);
+        pinchPrev = pi;
+      } else if (panning && state.img){
+        state.pan.x += e.clientX - prev.x;
+        state.pan.y += e.clientY - prev.y;
+        render();
+      }
+    }
+    inspect(e.clientX, e.clientY);
+  });
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchPrev = null;
+    if (pointers.size === 0) panning = false;
+    else if (pointers.size === 1) panning = true;
+  }
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", endPointer);
+
+  view.addEventListener("wheel", function (e){
+    e.preventDefault();
+    zoomAtClient(e.clientX, e.clientY, e.deltaY > 0 ? 0.9 : 1.1);
+  }, { passive:false });
+  view.addEventListener("dblclick", fitToView);
+
+  $("z-in").addEventListener("click", function (){ zoomCentre(1.25); });
+  $("z-out").addEventListener("click", function (){ zoomCentre(0.8); });
+  $("z-fit").addEventListener("click", fitToView);
+  $("z-100").addEventListener("click", setZoom100);
+
+  // keyboard on viewport
+  view.addEventListener("keydown", function (e){
+    if (!state.img) return;
+    var step = 40, k = e.key;
+    if (k === "ArrowLeft")  { state.pan.x += step; render(); e.preventDefault(); }
+    else if (k === "ArrowRight"){ state.pan.x -= step; render(); e.preventDefault(); }
+    else if (k === "ArrowUp")   { state.pan.y += step; render(); e.preventDefault(); }
+    else if (k === "ArrowDown") { state.pan.y -= step; render(); e.preventDefault(); }
+    else if (k === "+" || k === "=") { zoomCentre(1.25); e.preventDefault(); }
+    else if (k === "-" || k === "_") { zoomCentre(0.8); e.preventDefault(); }
+    else if (k === "0") { fitToView(); e.preventDefault(); }
+  });
+
+  // global shortcuts (mode switch)
+  window.addEventListener("keydown", function (e){
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    var m = null;
+    if (e.key === "m" || e.key === "M") m = "mask";
+    else if (e.key === "f" || e.key === "F") m = "falsecolor";
+    else if (e.key === "o" || e.key === "O") m = "original";
+    else if (e.key === " " && state.img){ e.preventDefault(); fitToView(); return; }
+    if (m){ state.mode = m; syncSeg("seg-mode","data-mode",m); buildOverlay(); render(); save(); }
+  });
+
+  // ================= FILE / DROP / PASTE =================
+  $("file").addEventListener("change", function (e){ if (e.target.files[0]) loadImage(e.target.files[0]); });
+  $("open-btn").addEventListener("click", function (){ $("file").click(); });
+  view.addEventListener("click", function (){ if (!state.img) $("file").click(); });
+
+  var vp = $("viewport"), dropEl = $("drop"), dragN = 0;
+  vp.addEventListener("dragenter", function (e){ e.preventDefault(); dragN++; dropEl.classList.add("active"); });
+  vp.addEventListener("dragleave", function (){ if (--dragN <= 0){ dragN = 0; dropEl.classList.remove("active"); } });
+  vp.addEventListener("dragover",  function (e){ e.preventDefault(); });
+  vp.addEventListener("drop", function (e){
+    e.preventDefault(); dragN = 0; dropEl.classList.remove("active");
+    if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
+  });
+  window.addEventListener("paste", function (e){
+    var cd = e.clipboardData; if (!cd) return;
+    var items = cd.items || [];
+    for (var i = 0; i < items.length; i++){ if (items[i].kind === "file"){ loadImage(items[i].getAsFile()); break; } }
+  });
+
+  // ================= ERROR / NOTE =================
+  function showErr(){ var t = $("err-txt"); t.textContent = T("t.error"); $("err").hidden = false; }
+  function hideErr(){ $("err").hidden = true; }
+  function updateScaleNote(){
+    var el = $("scale-note");
+    if (!state.downscaled){ el.hidden = true; return; }
+    $("scale-note-txt").textContent = T("t.downscaled")
+      .replace("{w}", state.W).replace("{h}", state.H)
+      .replace("{ow}", state.ow).replace("{oh}", state.oh);
+    el.hidden = false;
+  }
+
+  // ================= RESIZE =================
+  function onResize(){
+    sizeViewCanvas();
+    if (state.img) render();
+    drawHistogram();
+  }
+  window.addEventListener("resize", onResize);
+  if (window.ResizeObserver){
+    var ro = new ResizeObserver(function (){ onResize(); });
+    ro.observe(view); ro.observe(histCV);
+  }
+
+  // ================= INIT =================
+  function syncInputs(){
+    $("range-white").value = state.white; $("val-white").textContent = state.white;
+    $("range-black").value = state.black; $("val-black").textContent = state.black;
+    syncSeg("seg-mode","data-mode",state.mode);
+    syncSeg("seg-basis","data-basis",state.basis);
+    syncSeg("hist-toolbar","data-ch",state.histCh);
+    $("hist-log").setAttribute("aria-pressed", String(state.histLog));
+  }
+
+  var STRINGS = {
+    en: {
+      "t.title":"Clipping highlighter",
+      "t.desc":"Reveal blown highlights and crushed shadows. Load an image to mask clipped pixels, view a false-colour map, and read exact clip percentages. Everything runs locally in your browser.",
+      "t.empty1":"Open, drop, or paste an image",
+      "t.formats":"PNG · JPEG · WebP",
+      "t.dropnow":"Drop to open",
+      "t.fit":"Fit","t.shortcuts":"Wheel / pinch to zoom · drag to pan · double-click to fit · M / F / O switch modes.",
+      "t.stats":"Clip statistics","t.live":"live",
+      "t.stwhite":"White clipped","t.stblack":"Black clipped","t.stsafe":"Safe",
+      "t.copyhint":"Click a value to copy.",
+      "t.pixel":"Pixel","t.pos":"Position","t.lumashort":"Luma","t.status":"Status",
+      "t.clipwhite":"Clipped (white)","t.clipblack":"Clipped (black)","t.safe":"Safe",
+      "t.source":"Source","t.open":"Open image","t.drophint":"Drop, paste (Ctrl+V), or click to open.",
+      "t.mode":"View","t.mask":"Mask","t.false":"False colour","t.original":"Original",
+      "t.thresholds":"Thresholds","t.white":"White clip ≥","t.black":"Black clip ≤",
+      "t.basis":"Detection basis","t.luma":"Luma (Rec.709)","t.any":"Any channel",
+      "t.basisnote.luma":"Judged by luma (0.2126·R + 0.7152·G + 0.0722·B). A single saturated channel can be missed.",
+      "t.basisnote.any":"White clip if any channel ≥ White. Black clip if every channel ≤ Black.",
+      "t.hist":"Histogram","t.log":"Log",
+      "t.legend":"False-colour legend",
+      "t.lgwhite":"Clipped white","t.lghigh":"Highlights","t.lgmid":"Midtones","t.lgshadow":"Shadows","t.lgblack":"Clipped black",
+      "t.legendnote":"Bands follow the White / Black thresholds.",
+      "t.downscaled":"Analysed at {w}×{h} (downscaled from {ow}×{oh}).",
+      "t.error":"Couldn't read that image. Supported: PNG, JPEG, WebP.",
+      "t.viewaria":"Image preview. Drag to pan, scroll to zoom, arrow keys to move, plus and minus to zoom."
+    },
+    ja: {
+      "t.title":"白飛び・黒つぶれ表示",
+      "t.desc":"白飛び（ハイライトの飽和）と黒つぶれ（シャドウの潰れ）を可視化します。画像を読み込むと、クリップ箇所のマスク表示・フォルスカラー表示・クリップ率の数値を確認できます。処理はすべてブラウザ内でローカルに完結します。",
+      "t.empty1":"画像を開く・ドロップ・貼り付け",
+      "t.formats":"PNG · JPEG · WebP",
+      "t.dropnow":"ドロップして開く",
+      "t.fit":"全体表示","t.shortcuts":"ホイール／ピンチでズーム・ドラッグで移動・ダブルクリックで全体表示・M / F / O で表示切替。",
+      "t.stats":"クリップ統計","t.live":"ライブ",
+      "t.stwhite":"白飛び","t.stblack":"黒つぶれ","t.stsafe":"セーフ",
+      "t.copyhint":"数値をクリックでコピー。",
+      "t.pixel":"ピクセル","t.pos":"座標","t.lumashort":"輝度","t.status":"状態",
+      "t.clipwhite":"白飛び","t.clipblack":"黒つぶれ","t.safe":"セーフ",
+      "t.source":"ソース","t.open":"画像を開く","t.drophint":"ドロップ／貼り付け(Ctrl+V)／クリックで開く。",
+      "t.mode":"表示","t.mask":"マスク","t.false":"フォルスカラー","t.original":"元画像",
+      "t.thresholds":"しきい値","t.white":"白飛び ≥","t.black":"黒つぶれ ≤",
+      "t.basis":"判定基準","t.luma":"輝度 (Rec.709)","t.any":"いずれかのチャンネル",
+      "t.basisnote.luma":"輝度 (0.2126·R + 0.7152·G + 0.0722·B) で判定します。単一チャンネルの飽和は見逃す場合があります。",
+      "t.basisnote.any":"いずれかのチャンネルが White 以上で白飛び、全チャンネルが Black 以下で黒つぶれと判定します。",
+      "t.hist":"ヒストグラム","t.log":"対数",
+      "t.legend":"フォルスカラー凡例",
+      "t.lgwhite":"白飛び","t.lghigh":"ハイライト","t.lgmid":"中間調","t.lgshadow":"シャドウ","t.lgblack":"黒つぶれ",
+      "t.legendnote":"各帯域は White / Black しきい値に連動します。",
+      "t.downscaled":"解析解像度: {w}×{h}（元 {ow}×{oh} から縮小）。",
+      "t.error":"画像を読み込めませんでした。対応形式: PNG / JPEG / WebP。",
+      "t.viewaria":"画像プレビュー。ドラッグで移動、スクロールでズーム、矢印キーで移動、＋／−でズーム。"
+    }
+  };
+  EN = STRINGS.en;
+
+  function onSettings(){
+    // 言語/テーマ変更時: 動的テキストとテーマ依存の描画を更新
+    view.setAttribute("aria-label", T("t.viewaria"));
+    setBasisNote();
+    updateScaleNote();
+    renderInspector();
+    updateStats();          // 「—」表記などは言語非依存だが将来のため
+    drawHistogram();        // テーマ色の再取得
+    if (state.img) render();
+  }
+
+  syncInputs();
+  sizeViewCanvas();
+  drawHistogram();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function"){
+    Shell.init({ id:"clipping-highlighter", strings:STRINGS, onSettingsChange:onSettings });
+  }
+  setBasisNote();
+  updateStats();
+  render();
+})();
+</script>
+</body>
+</html>
