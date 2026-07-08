@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Advanced color picker — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=2">
+<style>
+  /* ── Pick a color: SV square + hue bar ── */
+  .pick-sv{ position:relative; width:100%; aspect-ratio:1 / .62; border-radius:var(--r);
+    border:1px solid var(--border-strong); cursor:crosshair; touch-action:none; overflow:hidden; }
+  .pick-sv__knob,.pick-hue__knob{ position:absolute; width:14px; height:14px; border-radius:50%;
+    background:#fff; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5),var(--shadow-sm);
+    transform:translate(-50%,-50%); pointer-events:none; }
+  .pick-hue{ position:relative; width:100%; height:16px; margin-top:var(--s3); border-radius:var(--r-sm);
+    border:1px solid var(--border-strong); cursor:pointer; touch-action:none;
+    background:linear-gradient(to right,#f00 0%,#ff0 16.66%,#0f0 33.33%,#0ff 50%,#00f 66.66%,#f0f 83.33%,#f00 100%); }
+  .pick-hue__knob{ top:50%; width:10px; height:22px; border-radius:3px; }
+  .pick-sv:focus-visible,.pick-hue:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
+
+  .in-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s2); }
+  .in-grid .label{ margin-bottom:4px; }
+  .in-hex{ margin-top:var(--s4); }
+  .in-hex .input{ font-family:var(--font-mono); letter-spacing:.03em; }
+  .miniunit{ font-size:11px; color:var(--text-3); font-weight:400; }
+
+  /* ── Values readout ── */
+  .swatch{ height:56px; border-radius:var(--r); border:1px solid var(--border);
+    margin:var(--s3) var(--s4); background:#fff; }
+  .vrow{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) var(--s4); gap:var(--s3); }
+  .vrow + .vrow{ border-top:1px solid var(--border); }
+  .vrow__k{ font-size:12px; color:var(--text-2); flex:0 0 auto; }
+  .vrow__v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15px; color:var(--text);
+    text-align:right; cursor:pointer; border-radius:var(--r-sm); }
+  .vrow__v:hover{ color:var(--accent); }
+  .vrow__v:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
+
+  /* ── Image eyedropper section ── */
+  .eye-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--s2); margin-bottom:var(--s4); }
+  .eye-bar .sep{ width:1px; height:22px; background:var(--border); }
+  .eye-bar .grow{ flex:1; }
+  .btn--sm{ height:32px; padding:0 12px; font-size:13px; }
+  .btn.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-tint); }
+  .btn--danger:hover{ border-color:var(--neg); color:var(--neg); background:var(--neg-tint); }
+
+  .eye-instances{ display:flex; flex-direction:column; gap:var(--s4); }
+  .eye-inst{ display:flex; gap:var(--s4); align-items:stretch; }
+  .eye-view{ position:relative; flex:1; min-width:0; height:320px; border-radius:var(--r-lg);
+    border:1px solid var(--border); overflow:hidden;
+    background:
+      repeating-conic-gradient(var(--surface-2) 0 25%, color-mix(in srgb,var(--text-3) 9%, transparent) 0 50%) 0 0/16px 16px; }
+  .eye-badge{ position:absolute; top:8px; left:8px; z-index:3; font-family:var(--font-mono); font-size:10px;
+    font-weight:600; letter-spacing:.06em; padding:2px 8px; border-radius:var(--r-sm);
+    background:var(--surface); color:var(--text-2); border:1px solid var(--border); }
+  .eye-canvas{ display:block; width:100%; height:100%; cursor:crosshair; }
+  .eye-canvas.grabbing{ cursor:grabbing; }
+  .eye-canvas.frozen{ cursor:pointer; }
+  .eye-view.frozen{ outline:2px solid var(--accent); outline-offset:-2px; }
+
+  .eye-hint{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:var(--s3); text-align:center; padding:var(--s5); transition:opacity var(--tap); }
+  .eye-hint.hidden{ opacity:0; pointer-events:none; }
+  .eye-hint svg{ width:34px; height:34px; color:var(--text-3); }
+  .eye-hint__t{ font-size:13px; font-weight:600; color:var(--text); }
+  .eye-hint__d{ font-size:12px; color:var(--text-3); line-height:1.6; }
+  .eye-drop{ position:absolute; inset:0; z-index:5; display:none; align-items:center; justify-content:center;
+    background:var(--accent-tint); border:2px dashed var(--accent); color:var(--accent);
+    font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; pointer-events:none; }
+  .eye-drop.active{ display:flex; }
+  .eye-frozen{ position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:4;
+    background:var(--accent); color:#fff; font-family:var(--font-mono); font-size:10px; font-weight:600;
+    letter-spacing:.08em; padding:3px 10px; border-radius:var(--r-sm); pointer-events:none;
+    opacity:0; transition:opacity var(--tap); }
+  .eye-frozen.visible{ opacity:1; }
+
+  .eye-panel{ flex:0 0 250px; display:flex; flex-direction:column; gap:var(--s4); }
+  .dist-sv{ width:100%; height:150px; display:block; border:1px solid var(--border); border-radius:var(--r-sm); background:#0e0e0e; }
+  .dist-hue{ width:100%; height:14px; display:block; border:1px solid var(--border); border-radius:var(--r-sm); margin-top:6px; }
+  .eye-stats{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:11px; color:var(--text-3);
+    display:flex; flex-wrap:wrap; gap:var(--s1) var(--s4); }
+  .eye-stats b{ color:var(--text-2); font-weight:500; }
+  .sc-grid{ display:grid; grid-template-columns:auto 1fr; gap:4px var(--s3); font-size:11px; }
+  .sc-grid .k{ font-family:var(--font-mono); color:var(--accent); }
+  .sc-grid .d{ color:var(--text-3); }
+
+  @media (max-width:760px){
+    .eye-inst{ flex-direction:column; }
+    .eye-panel{ flex-basis:auto; }
+    .eye-view{ height:260px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Advanced color picker</h1>
+    <p data-i18n="t.desc">Choose a color, convert it between HEX, RGB, HSV and HSL, or sample it straight from an image.</p>
+  </div>
+
+  <!-- ── Pick & convert ── -->
+  <div class="work work--wide">
+    <!-- left: pick -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.pick">Pick a color</div>
+        <div class="pick-sv" id="sv" tabindex="0" role="slider" aria-label="Saturation and brightness"
+             aria-valuemin="0" aria-valuemax="100"><div class="pick-sv__knob" id="sv-knob"></div></div>
+        <div class="pick-hue" id="hue" tabindex="0" role="slider" aria-label="Hue"
+             aria-valuemin="0" aria-valuemax="360"><div class="pick-hue__knob" id="hue-knob"></div></div>
+
+        <div class="in-hex field">
+          <label class="label" for="in-hex" data-i18n="t.hex">HEX</label>
+          <input class="input" id="in-hex" type="text" spellcheck="false" autocomplete="off" maxlength="7" value="#5457E5">
+        </div>
+
+        <div class="field">
+          <label class="label"><span data-i18n="t.rgb">RGB</span> <span class="miniunit">0–255</span></label>
+          <div class="in-grid">
+            <input class="input" id="in-r" type="number" min="0" max="255" inputmode="numeric" aria-label="Red">
+            <input class="input" id="in-g" type="number" min="0" max="255" inputmode="numeric" aria-label="Green">
+            <input class="input" id="in-b" type="number" min="0" max="255" inputmode="numeric" aria-label="Blue">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label"><span data-i18n="t.hsv">HSV</span> <span class="miniunit">°/%/%</span></label>
+          <div class="in-grid">
+            <input class="input" id="in-h" type="number" min="0" max="360" inputmode="numeric" aria-label="Hue">
+            <input class="input" id="in-s" type="number" min="0" max="100" inputmode="numeric" aria-label="Saturation">
+            <input class="input" id="in-v" type="number" min="0" max="100" inputmode="numeric" aria-label="Value">
+          </div>
+        </div>
+
+        <div class="btnrow" id="screen-row" hidden>
+          <button class="btn btn--secondary" id="screen-pick">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l1-4 11-11 3 3L6 21l-4 1z"/><path d="M15 6l3-3a2.1 2.1 0 0 1 3 3l-3 3"/></svg>
+            <span data-i18n="t.screen">Pick from screen</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- right: values -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.values">Values</span>
+          <span class="live"><span class="dot"></span><span data-i18n="t.live">live</span></span></div>
+        <div class="swatch" id="swatch"></div>
+        <div class="vrow"><span class="vrow__k" data-i18n="t.hex">HEX</span>
+          <span class="vrow__v" id="out-hex" tabindex="0" role="button" data-copy="">#5457E5</span></div>
+        <div class="vrow"><span class="vrow__k" data-i18n="t.rgb">RGB</span>
+          <span class="vrow__v" id="out-rgb" tabindex="0" role="button" data-copy="">rgb(84, 87, 229)</span></div>
+        <div class="vrow"><span class="vrow__k" data-i18n="t.hsv">HSV</span>
+          <span class="vrow__v" id="out-hsv" tabindex="0" role="button" data-copy="">hsv(239, 63%, 90%)</span></div>
+        <div class="vrow"><span class="vrow__k" data-i18n="t.hsl">HSL</span>
+          <span class="vrow__v" id="out-hsl" tabindex="0" role="button" data-copy="">hsl(239, 63%, 61%)</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Image eyedropper ── -->
+  <div class="section" style="padding-top:0">
+    <div class="section__head"><h2 data-i18n="t.image">Sample from an image</h2></div>
+
+    <div class="eye-bar">
+      <label class="btn btn--primary btn--sm" style="cursor:pointer" id="open-a-label">
+        <input type="file" id="file-a" accept="image/*" hidden>
+        <span data-i18n="t.open">Open image</span>
+      </label>
+      <button class="btn btn--secondary btn--sm" id="fit-a" data-i18n="t.fit">Fit</button>
+      <div class="sep"></div>
+      <button class="btn btn--secondary btn--sm" id="sel-a" data-i18n="t.select">Select area</button>
+      <button class="btn btn--secondary btn--sm" id="clearsel-a" data-i18n="t.clearsel">Clear area</button>
+      <button class="btn btn--ghost btn--sm btn--danger" id="cleartrail-a" data-i18n="t.cleartrail">Clear trail</button>
+      <div class="grow"></div>
+      <button class="btn btn--secondary btn--sm" id="toggle-compare" data-i18n="t.addcompare">Add comparison</button>
+    </div>
+
+    <div class="eye-instances" id="eye-wrap">
+      <!-- instance A -->
+      <div class="eye-inst" id="inst-a">
+        <div class="eye-view canvas-wrap">
+          <span class="eye-badge inst-tag">A</span>
+          <canvas class="eye-canvas"></canvas>
+          <div class="eye-hint eye-hint-el">
+            <svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5" width="30" height="23" rx="2"/><path d="M3 22l8-7 6 5 5-4 9 7"/><circle cx="11" cy="13" r="2.5"/></svg>
+            <div class="eye-hint__t" data-i18n="t.hinttitle">Drop an image here</div>
+            <div class="eye-hint__d" data-i18n="t.hintdesc">Drag &amp; drop, paste, or open a file. Everything stays on your device.</div>
+          </div>
+          <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
+          <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
+        </div>
+        <aside class="eye-panel">
+          <div class="card" style="padding:var(--s4)">
+            <div class="card__title" data-i18n="t.dist">HSV distribution</div>
+            <canvas class="dist-sv" width="234" height="150"></canvas>
+            <canvas class="dist-hue" width="234" height="14"></canvas>
+            <div class="toggles" style="margin-top:var(--s3)">
+              <label class="toggle"><input type="checkbox" class="tg-trail"><span class="track"></span><span data-i18n="t.trail">Trail</span></label>
+              <label class="toggle"><input type="checkbox" class="tg-density" checked><span class="track"></span><span data-i18n="t.density">Density heatmap</span></label>
+            </div>
+            <div class="field" style="margin-top:var(--s3);margin-bottom:var(--s3)">
+              <label class="label" data-i18n="t.traillen">Trail length</label>
+              <div class="sliderrow"><input type="range" class="slider sl-trail" min="10" max="500" value="140"><span class="val tl-val">140</span></div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label class="label" data-i18n="t.densitystr">Heatmap strength</label>
+              <div class="sliderrow"><input type="range" class="slider sl-dens" min="20" max="100" value="70"><span class="val ds-val">70%</span></div>
+            </div>
+            <div class="eye-stats" style="margin-top:var(--s3)">
+              <span><b data-i18n="t.pos">pos</b> <span class="st-pos">—</span></span>
+              <span><b data-i18n="t.sampled">sampled</b> <span class="st-sampled">—</span></span>
+              <span><b data-i18n="t.zoom">zoom</b> <span class="st-zoom">100%</span></span>
+            </div>
+          </div>
+          <div class="card sc-card" style="padding:var(--s4)">
+            <div class="card__title" data-i18n="t.sc">Shortcuts</div>
+            <div class="sc-grid">
+              <span class="k" data-i18n="t.sc_wheel">Wheel</span><span class="d" data-i18n="t.sc_zoom">Zoom</span>
+              <span class="k" data-i18n="t.sc_drag">Drag</span><span class="d" data-i18n="t.sc_pan">Pan / draw area</span>
+              <span class="k">Space</span><span class="d" data-i18n="t.sc_fit">Fit to view</span>
+              <span class="k">S</span><span class="d" data-i18n="t.sc_sel">Toggle area select</span>
+              <span class="k" data-i18n="t.sc_click">Click</span><span class="d" data-i18n="t.sc_freeze">Freeze / unfreeze</span>
+              <span class="k" data-i18n="t.sc_right">Right-click</span><span class="d" data-i18n="t.sc_copy">Copy HEX</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- instance B -->
+      <div class="eye-inst" id="inst-b" hidden>
+        <div class="eye-view canvas-wrap">
+          <span class="eye-badge inst-tag" style="background:var(--accent);color:#fff;border-color:var(--accent)">B</span>
+          <canvas class="eye-canvas"></canvas>
+          <div class="eye-hint eye-hint-el">
+            <svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5" width="30" height="23" rx="2"/><path d="M3 22l8-7 6 5 5-4 9 7"/><circle cx="11" cy="13" r="2.5"/></svg>
+            <div class="eye-hint__t" data-i18n="t.hinttitle">Drop an image here</div>
+            <div class="eye-hint__d" data-i18n="t.hintdesc">Drag &amp; drop, paste, or open a file. Everything stays on your device.</div>
+          </div>
+          <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
+          <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
+        </div>
+        <aside class="eye-panel">
+          <div class="card" style="padding:var(--s4)">
+            <div class="card__title" data-i18n="t.dist">HSV distribution</div>
+            <canvas class="dist-sv" width="234" height="150"></canvas>
+            <canvas class="dist-hue" width="234" height="14"></canvas>
+            <div class="toggles" style="margin-top:var(--s3)">
+              <label class="toggle"><input type="checkbox" class="tg-trail"><span class="track"></span><span data-i18n="t.trail">Trail</span></label>
+              <label class="toggle"><input type="checkbox" class="tg-density" checked><span class="track"></span><span data-i18n="t.density">Density heatmap</span></label>
+            </div>
+            <div class="field" style="margin-top:var(--s3);margin-bottom:var(--s3)">
+              <label class="label" data-i18n="t.traillen">Trail length</label>
+              <div class="sliderrow"><input type="range" class="slider sl-trail" min="10" max="500" value="140"><span class="val tl-val">140</span></div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label class="label" data-i18n="t.densitystr">Heatmap strength</label>
+              <div class="sliderrow"><input type="range" class="slider sl-dens" min="20" max="100" value="70"><span class="val ds-val">70%</span></div>
+            </div>
+            <div class="eye-stats" style="margin-top:var(--s3)">
+              <span><b data-i18n="t.pos">pos</b> <span class="st-pos">—</span></span>
+              <span><b data-i18n="t.sampled">sampled</b> <span class="st-sampled">—</span></span>
+              <span><b data-i18n="t.zoom">zoom</b> <span class="st-zoom">100%</span></span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=2"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+
+  /* ── color math ── */
+  function rgbToHex(r, g, b) { return "#" + [r, g, b].map(function (v) { return clamp(v,0,255).toString(16).padStart(2, "0"); }).join("").toUpperCase(); }
+  function hexToRgb(hex) {
+    var h = hex.trim().replace(/^#/, "");
+    if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join("");
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
+  function rgbToHsv(r, g, b) {
+    var rn = r / 255, gn = g / 255, bn = b / 255;
+    var max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), d = max - min, h = 0;
+    if (d !== 0) {
+      if (max === rn) h = 60 * (((gn - bn) / d) % 6);
+      else if (max === gn) h = 60 * (((bn - rn) / d) + 2);
+      else h = 60 * (((rn - gn) / d) + 4);
+    }
+    if (h < 0) h += 360;
+    return { h: h, s: max === 0 ? 0 : (d / max) * 100, v: max * 100 };
+  }
+  function hsvToRgb(h, s, v) {
+    var sn = s / 100, vn = v / 100, c = vn * sn, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = vn - c, r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+    return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+  }
+  function hsvToHsl(h, s, v) {
+    s /= 100; v /= 100;
+    var l = v * (1 - s / 2), sl = (l === 0 || l === 1) ? 0 : (v - l) / Math.min(l, 1 - l);
+    return { h: h, s: sl * 100, l: l * 100 };
+  }
+
+  /* ── shared current color (source of truth = HSV) ── */
+  var C = { h: 239, s: 63, v: 90 };
+
+  var sv = $("sv"), svKnob = $("sv-knob"), hue = $("hue"), hueKnob = $("hue-knob");
+  var inHex = $("in-hex"), inR = $("in-r"), inG = $("in-g"), inB = $("in-b"), inH = $("in-h"), inS = $("in-s"), inV = $("in-v");
+  var swatch = $("swatch");
+  var outHex = $("out-hex"), outRgb = $("out-rgb"), outHsv = $("out-hsv"), outHsl = $("out-hsl");
+
+  function renderPicker(skip) {
+    var rgb = hsvToRgb(C.h, C.s, C.v), hex = rgbToHex(rgb.r, rgb.g, rgb.b), hsl = hsvToHsl(C.h, C.s, C.v);
+    var Hr = Math.round(C.h) % 360, Sr = Math.round(C.s), Vr = Math.round(C.v);
+    var Slr = Math.round(hsl.s), Llr = Math.round(hsl.l);
+
+    // SV square background + knobs
+    sv.style.background = "linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, hsl(" + Hr + ",100%,50%))";
+    svKnob.style.left = C.s + "%"; svKnob.style.top = (100 - C.v) + "%";
+    hueKnob.style.left = (C.h / 360 * 100) + "%";
+    sv.setAttribute("aria-valuenow", Sr); sv.setAttribute("aria-valuetext", "S " + Sr + "%, V " + Vr + "%");
+    hue.setAttribute("aria-valuenow", Hr);
+
+    swatch.style.background = hex;
+
+    var sHex = hex, sRgb = "rgb(" + rgb.r + ", " + rgb.g + ", " + rgb.b + ")",
+        sHsv = "hsv(" + Hr + ", " + Sr + "%, " + Vr + "%)", sHsl = "hsl(" + Hr + ", " + Slr + "%, " + Llr + "%)";
+    outHex.textContent = sHex; outHex.setAttribute("data-copy", sHex);
+    outRgb.textContent = sRgb; outRgb.setAttribute("data-copy", sRgb);
+    outHsv.textContent = sHsv; outHsv.setAttribute("data-copy", sHsv);
+    outHsl.textContent = sHsl; outHsl.setAttribute("data-copy", sHsl);
+
+    // inputs (skip the one being edited so the caret is left alone)
+    if (skip !== inHex) inHex.value = hex;
+    if (skip !== inR) inR.value = rgb.r; if (skip !== inG) inG.value = rgb.g; if (skip !== inB) inB.value = rgb.b;
+    if (skip !== inH) inH.value = Hr; if (skip !== inS) inS.value = Sr; if (skip !== inV) inV.value = Vr;
+  }
+  function setHsv(h, s, v, skip) { C.h = ((h % 360) + 360) % 360; C.s = clamp(s, 0, 100); C.v = clamp(v, 0, 100); renderPicker(skip); }
+  function setRgb(r, g, b, skip) { var hsv = rgbToHsv(clamp(r,0,255), clamp(g,0,255), clamp(b,0,255)); setHsv(hsv.h, hsv.s, hsv.v, skip); }
+
+  /* ── SV square / hue drag + keyboard ── */
+  function svFromPointer(e) {
+    var r = sv.getBoundingClientRect();
+    setHsv(C.h, clamp((e.clientX - r.left) / r.width * 100, 0, 100), clamp((1 - (e.clientY - r.top) / r.height) * 100, 0, 100));
+  }
+  function hueFromPointer(e) { var r = hue.getBoundingClientRect(); setHsv(clamp((e.clientX - r.left) / r.width, 0, 1) * 360, C.s, C.v); }
+  function makeDrag(el, fn) {
+    el.addEventListener("pointerdown", function (e) { e.preventDefault(); el.focus(); el.setPointerCapture(e.pointerId); fn(e);
+      var mv = function (ev) { fn(ev); }, up = function () { el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up); };
+      el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up); });
+  }
+  makeDrag(sv, svFromPointer); makeDrag(hue, hueFromPointer);
+  sv.addEventListener("keydown", function (e) {
+    var big = e.shiftKey ? 10 : 1, k = e.key;
+    if (k === "ArrowLeft") setHsv(C.h, C.s - big, C.v); else if (k === "ArrowRight") setHsv(C.h, C.s + big, C.v);
+    else if (k === "ArrowUp") setHsv(C.h, C.s, C.v + big); else if (k === "ArrowDown") setHsv(C.h, C.s, C.v - big); else return;
+    e.preventDefault();
+  });
+  hue.addEventListener("keydown", function (e) {
+    var big = e.shiftKey ? 10 : 2;
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") setHsv(C.h - big, C.s, C.v);
+    else if (e.key === "ArrowRight" || e.key === "ArrowUp") setHsv(C.h + big, C.s, C.v); else return;
+    e.preventDefault();
+  });
+
+  /* ── editable inputs ── */
+  inHex.addEventListener("input", function () { var rgb = hexToRgb(inHex.value); if (rgb) setRgb(rgb.r, rgb.g, rgb.b, inHex); });
+  inHex.addEventListener("blur", function () { renderPicker(); });
+  function numIn(el, kind) {
+    el.addEventListener("input", function () {
+      var r = parseInt(inR.value, 10) || 0, g = parseInt(inG.value, 10) || 0, b = parseInt(inB.value, 10) || 0;
+      var h = parseInt(inH.value, 10) || 0, s = parseInt(inS.value, 10) || 0, v = parseInt(inV.value, 10) || 0;
+      if (kind === "rgb") setRgb(r, g, b, el); else setHsv(h, s, v, el);
+    });
+    el.addEventListener("blur", function () { renderPicker(); });
+  }
+  numIn(inR, "rgb"); numIn(inG, "rgb"); numIn(inB, "rgb"); numIn(inH, "hsv"); numIn(inS, "hsv"); numIn(inV, "hsv");
+
+  /* ── copy readout values via keyboard (click handled by shell) ── */
+  [outHex, outRgb, outHsv, outHsl].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (window.Shell) Shell.copy(el.getAttribute("data-copy"), el); }
+    });
+  });
+
+  /* ── native screen eyedropper ── */
+  if (window.EyeDropper) {
+    $("screen-row").hidden = false;
+    $("screen-pick").addEventListener("click", function () {
+      new window.EyeDropper().open().then(function (res) { var rgb = hexToRgb(res.sRGBHex); if (rgb) setRgb(rgb.r, rgb.g, rgb.b); }).catch(function () {});
+    });
+  }
+
+  /* ══ image eyedropper instances ══ */
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var viewers = [];
+
+  function createViewer(root, tag) {
+    var q = function (s) { return root.querySelector(s); };
+    var wrap = q(".canvas-wrap"), canvas = q(".eye-canvas"), ctx = canvas.getContext("2d");
+    var distSv = q(".dist-sv"), dsx = distSv.getContext("2d"), distHue = q(".dist-hue"), dhx = distHue.getContext("2d");
+    var hintEl = q(".eye-hint-el"), dropEl = q(".eye-drop-el"), frozenEl = q(".eye-frozen-el");
+    var stPos = q(".st-pos"), stSampled = q(".st-sampled"), stZoom = q(".st-zoom");
+    var tgTrail = q(".tg-trail"), tgDens = q(".tg-density"), slTrail = q(".sl-trail"), tlVal = q(".tl-val"), slDens = q(".sl-dens"), dsVal = q(".ds-val");
+
+    var raw = document.createElement("canvas"), rawCtx = raw.getContext("2d", { willReadFrequently: true });
+    var tSv = document.createElement("canvas"), tSvX = tSv.getContext("2d");
+    var tHue = document.createElement("canvas"), tHueX = tHue.getContext("2d");
+
+    var st = { image: null, zoom: 1, pan: { x: 0, y: 0 }, hover: null, trail: [], last: { r: 255, g: 255, b: 255, h: 0, s: 0, v: 100 },
+      selMode: false, selecting: false, selStart: null, selRect: null,
+      densityMap: null, densityMax: 0, hueDensity: null, hueDensityMax: 0, sampled: 0,
+      frozen: false, dragging: false, pending: false, downPos: null, downImg: null, midPan: false, lastMouse: { x: 0, y: 0 } };
+    var dragCounter = 0, drawing = false, clipTimer = null;
+
+    function cssW() { return canvas.clientWidth; } function cssH() { return canvas.clientHeight; }
+    function resize() {
+      canvas.width = Math.max(1, Math.round(cssW() * DPR)); canvas.height = Math.max(1, Math.round(cssH() * DPR));
+      render();
+    }
+    new ResizeObserver(function () { resize(); if (st.image) fit(); }).observe(wrap);
+
+    function loadImage(fileOrImg) {
+      var use = function (img) { st.image = img; raw.width = img.width; raw.height = img.height; rawCtx.drawImage(img, 0, 0);
+        st.trail = []; hintEl.classList.add("hidden"); clearSel(); fit(); };
+      if (fileOrImg instanceof Image) use(fileOrImg);
+      else if (fileOrImg && fileOrImg.type && fileOrImg.type.indexOf("image/") === 0) {
+        var rd = new FileReader(); rd.onload = function (e) { var im = new Image(); im.onload = function () { use(im); }; im.src = e.target.result; }; rd.readAsDataURL(fileOrImg);
+      }
+    }
+    function fit() {
+      if (!st.image || !canvas.width) return;
+      var pad = 40 * DPR, ratio = Math.min((canvas.width - pad) / st.image.width, (canvas.height - pad) / st.image.height, 1) || 0;
+      if (ratio <= 0) ratio = Math.min(canvas.width / st.image.width, canvas.height / st.image.height);
+      st.zoom = ratio; st.pan.x = (canvas.width - st.image.width * ratio) / 2; st.pan.y = (canvas.height - st.image.height * ratio) / 2; render();
+    }
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); if (!st.image) { stZoom.textContent = "100%"; return; }
+      ctx.save(); ctx.translate(st.pan.x, st.pan.y); ctx.scale(st.zoom, st.zoom); ctx.imageSmoothingEnabled = st.zoom < 4;
+      ctx.drawImage(st.image, 0, 0);
+      if (st.selRect) { var r = st.selRect; ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 1.4 / st.zoom; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.strokeRect(r.x, r.y, r.w, r.h); }
+      if (st.hover && !st.selMode) { var x = st.hover.x, y = st.hover.y;
+        ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.lineWidth = 3 / st.zoom; ctx.beginPath(); ctx.arc(x, y, 6 / st.zoom, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5 / st.zoom; ctx.beginPath(); ctx.arc(x, y, 6 / st.zoom, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.restore(); stZoom.textContent = Math.round(st.zoom / DPR * 100) + "%";
+    }
+
+    function drawDist() {
+      var col = st.last, wSV = distSv.width, hSV = distSv.height, wH = distHue.width, hH = distHue.height;
+      var pure = hsvToRgb(col.h, 100, 100);
+      dsx.fillStyle = "rgb(" + pure.r + "," + pure.g + "," + pure.b + ")"; dsx.fillRect(0, 0, wSV, hSV);
+      var wg = dsx.createLinearGradient(0, 0, wSV, 0); wg.addColorStop(0, "rgba(255,255,255,1)"); wg.addColorStop(1, "rgba(255,255,255,0)"); dsx.fillStyle = wg; dsx.fillRect(0, 0, wSV, hSV);
+      var bg = dsx.createLinearGradient(0, 0, 0, hSV); bg.addColorStop(0, "rgba(0,0,0,0)"); bg.addColorStop(1, "rgba(0,0,0,1)"); dsx.fillStyle = bg; dsx.fillRect(0, 0, wSV, hSV);
+      if (tgDens.checked && st.densityMap && st.densityMax > 0) {
+        tSv.width = wSV; tSv.height = hSV; var img = tSvX.createImageData(wSV, hSV), str = Number(slDens.value) / 100;
+        for (var y = 0; y < hSV; y++) { var rowM = st.densityMap[Math.floor(y / hSV * st.densityMap.length)];
+          for (var x = 0; x < wSV; x++) { var cnt = rowM[Math.floor(x / wSV * rowM.length)]; if (!cnt) continue;
+            var a = Math.floor(255 * (Math.log1p(cnt) / Math.log1p(st.densityMax)) * str), i = (y * wSV + x) * 4;
+            img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = a; } }
+        tSvX.putImageData(img, 0, 0); dsx.drawImage(tSv, 0, 0);
+      }
+      if (tgTrail.checked) for (var t = 0; t < st.trail.length; t++) { var p = st.trail[t];
+        dsx.beginPath(); dsx.arc(p.s / 100 * wSV, (100 - p.v) / 100 * hSV, 2, 0, Math.PI * 2);
+        dsx.fillStyle = "rgba(255,255,255," + ((t + 1) / st.trail.length * 0.6) + ")"; dsx.fill(); }
+      if (!st.selMode) { var cx = col.s / 100 * wSV, cy = (100 - col.v) / 100 * hSV;
+        dsx.save(); dsx.shadowColor = "rgba(0,0,0,.5)"; dsx.shadowBlur = 4; dsx.beginPath(); dsx.arc(cx, cy, 4, 0, Math.PI * 2);
+        dsx.fillStyle = "#fff"; dsx.fill(); dsx.lineWidth = 1.5; dsx.strokeStyle = "#000"; dsx.stroke(); dsx.restore(); }
+      var gr = dhx.createLinearGradient(0, 0, wH, 0);
+      gr.addColorStop(0, "#f00"); gr.addColorStop(.1666, "#ff0"); gr.addColorStop(.3333, "#0f0"); gr.addColorStop(.5, "#0ff");
+      gr.addColorStop(.6666, "#00f"); gr.addColorStop(.8333, "#f0f"); gr.addColorStop(1, "#f00");
+      dhx.fillStyle = gr; dhx.fillRect(0, 0, wH, hH);
+      if (tgDens.checked && st.hueDensity && st.hueDensityMax > 0) {
+        tHue.width = wH; tHue.height = hH; var im2 = tHueX.createImageData(wH, hH), str2 = Number(slDens.value) / 100;
+        for (var hx = 0; hx < wH; hx++) { var c2 = st.hueDensity[Math.floor(hx / wH * st.hueDensity.length)] || 0; if (!c2) continue;
+          var a2 = Math.floor(255 * (Math.log1p(c2) / Math.log1p(st.hueDensityMax)) * str2);
+          for (var hy = 0; hy < hH; hy++) { var j = (hy * wH + hx) * 4; im2.data[j] = im2.data[j + 1] = im2.data[j + 2] = 255; im2.data[j + 3] = a2; } }
+        tHueX.putImageData(im2, 0, 0); dhx.drawImage(tHue, 0, 0);
+      }
+      if (!st.selMode) { var hxp = col.h / 360 * wH; dhx.save(); dhx.fillStyle = "#fff"; dhx.strokeStyle = "#000"; dhx.lineWidth = 1;
+        dhx.fillRect(hxp - 2, 0, 4, hH); dhx.strokeRect(hxp - 2, 0, 4, hH); dhx.restore(); }
+    }
+
+    function updateStats(pos) {
+      if (st.selRect && st.sampled > 0) { stPos.textContent = st.selRect.w + "×" + st.selRect.h; stSampled.textContent = st.sampled.toLocaleString() + " px"; }
+      else { stPos.textContent = pos ? pos.x + ", " + pos.y : "—"; stSampled.textContent = "—"; }
+    }
+    function imgPos(cx, cy) { var r = canvas.getBoundingClientRect();
+      return { x: Math.floor(((cx - r.left) * (canvas.width / r.width) - st.pan.x) / st.zoom), y: Math.floor(((cy - r.top) * (canvas.height / r.height) - st.pan.y) / st.zoom) }; }
+    function normRect(a, b) { var x1 = clamp(Math.min(a.x, b.x), 0, st.image.width - 1), y1 = clamp(Math.min(a.y, b.y), 0, st.image.height - 1),
+      x2 = clamp(Math.max(a.x, b.x), 0, st.image.width - 1), y2 = clamp(Math.max(a.y, b.y), 0, st.image.height - 1);
+      return { x: x1, y: y1, w: Math.max(1, x2 - x1), h: Math.max(1, y2 - y1) }; }
+    function clearSel() { st.selRect = null; st.selecting = false; st.densityMap = null; st.densityMax = 0; st.hueDensity = null; st.hueDensityMax = 0; st.sampled = 0; render(); drawDist(); updateStats(st.hover); }
+    function computeDensity(rect) {
+      if (!st.image || !rect) return;
+      var bX = 64, bY = 64, bH = 360, map = Array.from({ length: bY }, function () { return new Array(bX).fill(0); }), hueMap = new Array(bH).fill(0);
+      var maxC = 0, hueMax = 0, sampled = 0;
+      var ix = clamp(rect.x, 0, st.image.width - 1), iy = clamp(rect.y, 0, st.image.height - 1);
+      var iw = clamp(rect.w, 1, st.image.width - ix), ih = clamp(rect.h, 1, st.image.height - iy);
+      var step = Math.max(1, Math.floor(Math.sqrt(iw * ih / 30000))), data = rawCtx.getImageData(ix, iy, iw, ih).data;
+      for (var y = 0; y < ih; y += step) for (var x = 0; x < iw; x += step) {
+        var i = (y * iw + x) * 4; if (data[i + 3] < 8) continue;
+        var hsv = rgbToHsv(data[i], data[i + 1], data[i + 2]);
+        var bx = clamp(Math.floor(hsv.s / 100 * (bX - 1)), 0, bX - 1), by = clamp(Math.floor((100 - hsv.v) / 100 * (bY - 1)), 0, bY - 1), bh = clamp(Math.floor(hsv.h) % bH, 0, bH - 1);
+        var c = ++map[by][bx], hc = ++hueMap[bh]; if (c > maxC) maxC = c; if (hc > hueMax) hueMax = hc; sampled++;
+      }
+      st.densityMap = map; st.densityMax = maxC; st.hueDensity = hueMap; st.hueDensityMax = hueMax; st.sampled = sampled;
+    }
+    function pick(ix, iy) {
+      if (!st.image || st.selMode || ix < 0 || iy < 0 || ix >= st.image.width || iy >= st.image.height) { st.hover = null; render(); drawDist(); return; }
+      var px = rawCtx.getImageData(ix, iy, 1, 1).data, hsv = rgbToHsv(px[0], px[1], px[2]);
+      st.last = { r: px[0], g: px[1], b: px[2], h: hsv.h, s: hsv.s, v: hsv.v }; st.hover = { x: ix, y: iy };
+      st.trail.push(st.last); while (st.trail.length > Number(slTrail.value)) st.trail.shift();
+      render(); drawDist(); updateStats({ x: ix, y: iy });
+      setRgb(px[0], px[1], px[2]);           // feed the shared picker/readout
+    }
+    function updateFrozen() { var f = st.frozen; canvas.classList.toggle("frozen", f); wrap.classList.toggle("frozen", f); frozenEl.classList.toggle("visible", f); if (!f) { st.hover = null; render(); } }
+
+    canvas.addEventListener("mousedown", function (e) {
+      if (!st.image) return;
+      if (e.button === 1) { e.preventDefault(); st.dragging = true; st.midPan = true; st.lastMouse = { x: e.clientX, y: e.clientY }; canvas.classList.add("grabbing"); return; }
+      if (e.button !== 0) return;
+      var pos = imgPos(e.clientX, e.clientY);
+      if (st.selMode) { st.selecting = true; st.selStart = pos; st.selRect = normRect(pos, pos); render(); }
+      else { st.pending = true; st.lastMouse = { x: e.clientX, y: e.clientY }; st.downPos = { x: e.clientX, y: e.clientY }; st.downImg = pos; }
+    });
+    window.addEventListener("mousemove", function (e) {
+      if (st.dragging) { st.pan.x += (e.clientX - st.lastMouse.x) * DPR; st.pan.y += (e.clientY - st.lastMouse.y) * DPR; st.lastMouse = { x: e.clientX, y: e.clientY }; render(); return; }
+      if (st.pending) { var dx = e.clientX - st.downPos.x, dy = e.clientY - st.downPos.y; if (Math.sqrt(dx * dx + dy * dy) > 4) { st.dragging = true; st.pending = false; canvas.classList.add("grabbing"); } return; }
+      if (!st.image) return;
+      var r = canvas.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      var pos = imgPos(e.clientX, e.clientY);
+      if (st.selMode && st.selecting) { if (!drawing) { drawing = true; requestAnimationFrame(function () { st.selRect = normRect(st.selStart, pos); render(); drawing = false; }); } }
+      else if (!st.selMode && !st.frozen) { if (!drawing) { drawing = true; requestAnimationFrame(function () { pick(pos.x, pos.y); drawing = false; }); } }
+    });
+    window.addEventListener("mouseup", function () {
+      var wasDrag = st.dragging, wasPending = st.pending, wasMid = st.midPan;
+      if (st.dragging) { st.dragging = false; canvas.classList.remove("grabbing"); render(); }
+      st.midPan = false; st.pending = false;
+      if (st.selecting) { st.selecting = false; computeDensity(st.selRect); render(); drawDist(); updateStats(); }
+      if (!st.selMode && wasPending && !wasDrag && !wasMid && st.image) { st.frozen = !st.frozen; if (st.frozen && st.downImg) pick(st.downImg.x, st.downImg.y); updateFrozen(); }
+      st.downPos = null; st.downImg = null;
+    });
+    canvas.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
+    canvas.addEventListener("wheel", function (e) {
+      if (!st.image) return; e.preventDefault(); var r = canvas.getBoundingClientRect();
+      var mx = (e.clientX - r.left) * (canvas.width / r.width), my = (e.clientY - r.top) * (canvas.height / r.height);
+      var bx = (mx - st.pan.x) / st.zoom, by = (my - st.pan.y) / st.zoom;
+      st.zoom = clamp(st.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.02 * DPR, 60 * DPR); st.pan.x = mx - bx * st.zoom; st.pan.y = my - by * st.zoom; render();
+    }, { passive: false });
+    canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); if (!st.selMode && st.image && window.Shell) Shell.copy(rgbToHex(st.last.r, st.last.g, st.last.b), frozenEl); });
+
+    wrap.addEventListener("dragenter", function (e) { e.preventDefault(); dragCounter++; if (dragCounter === 1) dropEl.classList.add("active"); });
+    wrap.addEventListener("dragleave", function () { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropEl.classList.remove("active"); } });
+    wrap.addEventListener("dragover", function (e) { e.preventDefault(); });
+    wrap.addEventListener("drop", function (e) { e.preventDefault(); dragCounter = 0; dropEl.classList.remove("active"); var f = e.dataTransfer.files[0]; if (f) loadImage(f); });
+
+    tgTrail.addEventListener("change", drawDist);
+    tgDens.addEventListener("change", drawDist);
+    slTrail.addEventListener("input", function () { tlVal.textContent = slTrail.value; drawDist(); });
+    slDens.addEventListener("input", function () { dsVal.textContent = slDens.value + "%"; drawDist(); });
+
+    resize(); drawDist();
+    return {
+      tag: tag, loadImage: loadImage, fit: fit, drawDist: drawDist,
+      setSelMode: function (on) { st.selMode = on; if (on) { st.frozen = false; updateFrozen(); } clearSel(); },
+      clearSel: clearSel, clearTrail: function () { st.trail = []; drawDist(); },
+      hasImage: function () { return !!st.image; },
+      refit: function () { requestAnimationFrame(function () { resize(); if (st.image) fit(); }); }
+    };
+  }
+
+  var vA = createViewer($("inst-a"), "A"), vB = createViewer($("inst-b"), "B");
+  viewers = [vA, vB];
+
+  // paste image → first empty viewer (or A)
+  window.addEventListener("paste", function (e) {
+    var items = e.clipboardData && e.clipboardData.items; if (!items) return;
+    for (var i = 0; i < items.length; i++) if (items[i].type.indexOf("image/") === 0) {
+      var f = items[i].getAsFile(); if (f) { var target = (!vA.hasImage() ? vA : (!$("inst-b").hidden && !vB.hasImage() ? vB : vA)); target.loadImage(f); break; }
+    }
+  });
+
+  // toolbar (acts on A; B is comparison)
+  $("file-a").addEventListener("change", function (e) { if (e.target.files[0]) vA.loadImage(e.target.files[0]); });
+  $("fit-a").addEventListener("click", function () { viewers.forEach(function (v) { v.fit(); }); });
+  var selOn = false;
+  $("sel-a").addEventListener("click", function () { selOn = !selOn; $("sel-a").classList.toggle("active", selOn); viewers.forEach(function (v) { v.setSelMode(selOn); }); });
+  $("clearsel-a").addEventListener("click", function () { viewers.forEach(function (v) { v.clearSel(); }); });
+  $("cleartrail-a").addEventListener("click", function () { viewers.forEach(function (v) { v.clearTrail(); }); });
+
+  // compare toggle
+  var compare = false;
+  $("toggle-compare").addEventListener("click", function () {
+    compare = !compare; $("inst-b").hidden = !compare;
+    $("toggle-compare").textContent = window.Shell ? Shell.t(compare ? "t.singleview" : "t.addcompare") : (compare ? "Single view" : "Add comparison");
+    if (compare) vB.refit();
+    vA.refit();
+  });
+
+  // keyboard shortcuts, scoped to the image section and never while typing
+  var eyeSection = $("eye-wrap").parentElement, focusEye = false;
+  eyeSection.addEventListener("mouseenter", function () { focusEye = true; });
+  eyeSection.addEventListener("mouseleave", function () { focusEye = false; });
+  window.addEventListener("keydown", function (e) {
+    var tag = (e.target && e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+    if (!focusEye) return;
+    if (e.key.toLowerCase() === "s") { e.preventDefault(); $("sel-a").click(); }
+    else if (e.key === " ") { e.preventDefault(); viewers.forEach(function (v) { v.fit(); }); }
+  });
+
+  /* ── shell init ── */
+  function redrawAll() { renderPicker(); vA.drawDist(); vB.drawDist(); if (window.Shell) $("toggle-compare").textContent = Shell.t(compare ? "t.singleview" : "t.addcompare"); }
+  if (window.Shell && Shell.init) {
+    Shell.init({
+      id: "color-picker",
+      strings: {
+        en: {
+          "t.title": "Advanced color picker",
+          "t.desc": "Choose a color, convert it between HEX, RGB, HSV and HSL, or sample it straight from an image.",
+          "t.pick": "Pick a color", "t.screen": "Pick from screen",
+          "t.hex": "HEX", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL",
+          "t.values": "Values", "t.live": "live", "t.copyhint": "Click any value to copy.",
+          "t.image": "Sample from an image", "t.open": "Open image", "t.fit": "Fit",
+          "t.select": "Select area", "t.clearsel": "Clear area", "t.cleartrail": "Clear trail",
+          "t.addcompare": "Add comparison", "t.singleview": "Single view",
+          "t.dist": "HSV distribution", "t.trail": "Trail", "t.density": "Density heatmap",
+          "t.traillen": "Trail length", "t.densitystr": "Heatmap strength",
+          "t.hinttitle": "Drop an image here", "t.hintdesc": "Drag & drop, paste, or open a file. Everything stays on your device.",
+          "t.drop": "Drop image here", "t.frozen": "Frozen",
+          "t.pos": "pos", "t.sampled": "sampled", "t.zoom": "zoom",
+          "t.sc": "Shortcuts", "t.sc_wheel": "Wheel", "t.sc_zoom": "Zoom", "t.sc_drag": "Drag", "t.sc_pan": "Pan / draw area",
+          "t.sc_fit": "Fit to view", "t.sc_sel": "Toggle area select", "t.sc_click": "Click", "t.sc_freeze": "Freeze / unfreeze",
+          "t.sc_right": "Right-click", "t.sc_copy": "Copy HEX"
+        },
+        ja: {
+          "t.title": "アドバンスド・カラーピッカー",
+          "t.desc": "色を選び、HEX・RGB・HSV・HSL を相互変換。画像から直接スポイトで抽出もできます。",
+          "t.pick": "色を選ぶ", "t.screen": "画面から抽出",
+          "t.hex": "HEX", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL",
+          "t.values": "値", "t.live": "ライブ", "t.copyhint": "数値をクリックでコピー。",
+          "t.image": "画像から抽出", "t.open": "画像を開く", "t.fit": "全体表示",
+          "t.select": "範囲選択", "t.clearsel": "範囲クリア", "t.cleartrail": "軌跡クリア",
+          "t.addcompare": "比較を追加", "t.singleview": "単一表示に戻す",
+          "t.dist": "HSV分布", "t.trail": "軌跡", "t.density": "密度ヒートマップ",
+          "t.traillen": "軌跡の長さ", "t.densitystr": "ヒートマップの強さ",
+          "t.hinttitle": "ここに画像をドロップ", "t.hintdesc": "ドラッグ&ドロップ・貼り付け・ファイルを開く。すべて端末内で処理されます。",
+          "t.drop": "画像をドロップ", "t.frozen": "固定中",
+          "t.pos": "座標", "t.sampled": "サンプル", "t.zoom": "ズーム",
+          "t.sc": "ショートカット", "t.sc_wheel": "ホイール", "t.sc_zoom": "ズーム", "t.sc_drag": "ドラッグ", "t.sc_pan": "移動 / 範囲描画",
+          "t.sc_fit": "全体表示", "t.sc_sel": "範囲選択の切替", "t.sc_click": "クリック", "t.sc_freeze": "固定 / 解除",
+          "t.sc_right": "右クリック", "t.sc_copy": "HEXをコピー"
+        }
+      },
+      onSettingsChange: redrawAll
+    });
+  }
+  renderPicker();
+})();
+</script>
+</body>
+</html>
