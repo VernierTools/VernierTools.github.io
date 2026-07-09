@@ -30,7 +30,7 @@
     border:1px solid var(--border); overflow:hidden;
     background:
       repeating-conic-gradient(var(--surface-2) 0 25%, color-mix(in srgb,var(--text-3) 9%, transparent) 0 50%) 0 0/16px 16px; }
-  .eye-canvas{ display:block; width:100%; height:100%; cursor:crosshair; }
+  .eye-canvas{ display:block; width:100%; height:100%; cursor:crosshair; touch-action:none; }
   .eye-canvas.grabbing{ cursor:grabbing; }
   .eye-canvas.frozen{ cursor:pointer; }
   .eye-view.frozen{ outline:2px solid var(--accent); outline-offset:-2px; }
@@ -52,6 +52,14 @@
     opacity:0; transition:opacity var(--tap); }
   .eye-frozen.visible{ opacity:1; }
 
+  /* zoom buttons (essential on touch, harmless on desktop) */
+  .eye-zoom{ position:absolute; right:8px; bottom:8px; z-index:4; display:flex; flex-direction:column; gap:6px; }
+  .eye-zoom button{ width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-2); font-size:17px; font-weight:500; line-height:1; cursor:pointer; box-shadow:var(--shadow-sm);
+    transition:background var(--tap), border-color var(--tap); }
+  .eye-zoom button:hover{ background:var(--surface-2); border-color:var(--text-3); }
+
   /* ── selected color readout ── */
   .sel-wrap{ display:flex; gap:var(--s3); align-items:flex-start; }
   .sel-swatch{ width:44px; height:44px; border-radius:var(--r); border:1px solid var(--border);
@@ -66,6 +74,19 @@
   .sel-hex:hover,.sel-sub .v:hover{ color:var(--accent); }
   .sel-hex:focus-visible,.sel-sub .v:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
 
+  /* ── collapsible cards ── */
+  .card--fold{ padding:0 !important; }
+  .foldbtn{ appearance:none; width:100%; background:transparent; border:0; cursor:pointer; font:inherit;
+    display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+    padding:var(--s4); border-radius:var(--r-lg); color:var(--text); text-align:left; }
+  .foldbtn .card__title{ margin:0; }
+  .foldbtn:hover{ background:var(--surface-2); }
+  .foldbtn:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
+  .foldbtn svg{ width:15px; height:15px; color:var(--text-3); flex:0 0 auto; transition:transform var(--tap); }
+  .card.collapsed .foldbtn svg{ transform:rotate(-90deg); }
+  .foldbody{ padding:0 var(--s4) var(--s4); }
+  .card.collapsed .foldbody{ display:none; }
+
   /* ── distribution ── */
   .dist-sv{ width:100%; height:150px; display:block; border:1px solid var(--border); border-radius:var(--r-sm); background:#0e0e0e; }
   .dist-hue{ width:100%; height:14px; display:block; border:1px solid var(--border); border-radius:var(--r-sm); margin-top:6px; }
@@ -79,6 +100,7 @@
   .sc-list .it{ display:flex; align-items:center; gap:7px; font-size:12px; }
   .sc-list .k{ font-family:var(--font-mono); color:var(--accent); }
   .sc-list .d{ color:var(--text-3); }
+  .sc-touch{ display:none; }
 
   /* ── compare, wide: two side-by-side columns ── */
   @media (min-width:901px){
@@ -86,14 +108,27 @@
     .eye-instances.compare .eye-inst{ flex-direction:column; flex:1 1 0; min-width:0; }
     .eye-instances.compare .eye-main{ flex:0 0 auto; width:100%; }
     .eye-instances.compare .eye-panel{ flex:0 0 auto; width:100%; }
-    .eye-instances.compare .dist-sv,
-    .eye-instances.compare .dist-hue{ max-width:320px; }
   }
-  /* ── narrow: instance stacks (canvas over panel) ── */
   @media (max-width:760px){
     .eye-inst{ flex-direction:column; }
     .eye-panel{ flex-basis:auto; width:100%; }
-    .eye-view{ height:280px; }
+    .eye-view{ height:300px; }
+    .eye-bar{ margin-top:var(--s4); }
+  }
+
+  /* ── touch devices: bigger targets, gesture help ── */
+  @media (pointer:coarse){
+    .btn--sm{ height:40px; padding:0 14px; font-size:13.5px; }
+    .eye-toolbar{ gap:var(--s2) 6px; }
+    .eye-zoom button{ width:44px; height:44px; font-size:19px; }
+    .sel-hex{ font-size:18px; padding:2px 0; }
+    .sel-sub{ font-size:13px; line-height:1.9; }
+    .sel-sub .k{ width:34px; }
+    .sc-mouse{ display:none; }
+    .sc-touch{ display:flex; }
+    .sc-list{ gap:var(--s3) var(--s5); }
+    .sc-list .it{ font-size:13px; }
+    .toggle{ font-size:14px; padding:4px 0; }
   }
 </style>
 </head>
@@ -134,11 +169,17 @@
           </div>
           <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
           <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
+          <div class="eye-zoom">
+            <button type="button" class="bt-zin" aria-label="Zoom in">+</button>
+            <button type="button" class="bt-zout" aria-label="Zoom out">−</button>
+          </div>
         </div>
       </div>
       <aside class="eye-panel">
-        <div class="card" style="padding:var(--s4)">
-          <div class="card__title" data-i18n="t.selcolor">Selected color</div>
+        <div class="card card--fold">
+          <button type="button" class="foldbtn" aria-expanded="true">
+            <span class="card__title" data-i18n="t.selcolor">Selected color</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="foldbody">
           <div class="sel-wrap">
             <div class="sel-swatch swatch-el"></div>
             <div class="sel-vals">
@@ -150,10 +191,13 @@
               </div>
             </div>
           </div>
-          <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+          <div class="copyhint" data-i18n="t.copyhint">Tap any value to copy.</div>
+          </div>
         </div>
-        <div class="card" style="padding:var(--s4)">
-          <div class="card__title" data-i18n="t.dist">HSV distribution</div>
+        <div class="card card--fold">
+          <button type="button" class="foldbtn" aria-expanded="true">
+            <span class="card__title" data-i18n="t.dist">HSV distribution</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="foldbody dist-body">
           <canvas class="dist-sv" width="234" height="150"></canvas>
           <canvas class="dist-hue" width="234" height="14"></canvas>
           <div class="toggles" style="margin-top:var(--s3)">
@@ -172,6 +216,7 @@
             <span><b data-i18n="t.pos">pos</b> <span class="st-pos">—</span></span>
             <span><b data-i18n="t.sampled">sampled</b> <span class="st-sampled">—</span></span>
             <span><b data-i18n="t.zoom">zoom</b> <span class="st-zoom">100%</span></span>
+          </div>
           </div>
         </div>
       </aside>
@@ -201,11 +246,17 @@
           </div>
           <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
           <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
+          <div class="eye-zoom">
+            <button type="button" class="bt-zin" aria-label="Zoom in">+</button>
+            <button type="button" class="bt-zout" aria-label="Zoom out">−</button>
+          </div>
         </div>
       </div>
       <aside class="eye-panel">
-        <div class="card" style="padding:var(--s4)">
-          <div class="card__title" data-i18n="t.selcolor">Selected color</div>
+        <div class="card card--fold">
+          <button type="button" class="foldbtn" aria-expanded="true">
+            <span class="card__title" data-i18n="t.selcolor">Selected color</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="foldbody">
           <div class="sel-wrap">
             <div class="sel-swatch swatch-el"></div>
             <div class="sel-vals">
@@ -217,10 +268,13 @@
               </div>
             </div>
           </div>
-          <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+          <div class="copyhint" data-i18n="t.copyhint">Tap any value to copy.</div>
+          </div>
         </div>
-        <div class="card" style="padding:var(--s4)">
-          <div class="card__title" data-i18n="t.dist">HSV distribution</div>
+        <div class="card card--fold">
+          <button type="button" class="foldbtn" aria-expanded="true">
+            <span class="card__title" data-i18n="t.dist">HSV distribution</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="foldbody dist-body">
           <canvas class="dist-sv" width="234" height="150"></canvas>
           <canvas class="dist-hue" width="234" height="14"></canvas>
           <div class="toggles" style="margin-top:var(--s3)">
@@ -240,6 +294,7 @@
             <span><b data-i18n="t.sampled">sampled</b> <span class="st-sampled">—</span></span>
             <span><b data-i18n="t.zoom">zoom</b> <span class="st-zoom">100%</span></span>
           </div>
+          </div>
         </div>
       </aside>
     </div>
@@ -247,13 +302,19 @@
 
   <div class="card sc-card">
     <div class="card__title" data-i18n="t.sc">Shortcuts</div>
-    <div class="sc-list">
+    <div class="sc-list sc-mouse">
       <span class="it"><span class="k" data-i18n="t.sc_wheel">Wheel</span><span class="d" data-i18n="t.sc_zoom">Zoom</span></span>
       <span class="it"><span class="k" data-i18n="t.sc_drag">Drag</span><span class="d" data-i18n="t.sc_pan">Pan / draw area</span></span>
       <span class="it"><span class="k">Space</span><span class="d" data-i18n="t.sc_fit">Fit to view</span></span>
       <span class="it"><span class="k">S</span><span class="d" data-i18n="t.sc_sel">Toggle area select</span></span>
       <span class="it"><span class="k" data-i18n="t.sc_click">Click</span><span class="d" data-i18n="t.sc_freeze">Freeze / unfreeze</span></span>
       <span class="it"><span class="k" data-i18n="t.sc_right">Right-click</span><span class="d" data-i18n="t.sc_copy">Copy HEX</span></span>
+    </div>
+    <div class="sc-list sc-touch">
+      <span class="it"><span class="k" data-i18n="t.tc_one">1 finger</span><span class="d" data-i18n="t.tc_pick">Drag to pick a color</span></span>
+      <span class="it"><span class="k" data-i18n="t.tc_two">2 fingers</span><span class="d" data-i18n="t.tc_pinch">Pinch to zoom, drag to pan</span></span>
+      <span class="it"><span class="k" data-i18n="t.tc_selm">Select area</span><span class="d" data-i18n="t.tc_seld">1 finger draws the area</span></span>
+      <span class="it"><span class="k" data-i18n="t.tc_tap">Tap a value</span><span class="d" data-i18n="t.tc_copy">Copy it</span></span>
     </div>
   </div>
 </main>
@@ -291,6 +352,7 @@
     var swatchEl = q(".swatch-el"), hexEl = q(".hex-el"), rgbEl = q(".rgb-el"), hsvEl = q(".hsv-el"), hslEl = q(".hsl-el");
     var tgTrail = q(".tg-trail"), tgDens = q(".tg-density"), slTrail = q(".sl-trail"), tlVal = q(".tl-val"), slDens = q(".sl-dens"), dsVal = q(".ds-val");
     var fileIn = q(".file-in"), btFit = q(".bt-fit"), btSel = q(".bt-sel"), btClearSel = q(".bt-clearsel"), btClearTrail = q(".bt-cleartrail"), hintOpen = q(".hint-open");
+    var btZin = q(".bt-zin"), btZout = q(".bt-zout");
 
     var raw = document.createElement("canvas"), rawCtx = raw.getContext("2d", { willReadFrequently: true });
     var tSv = document.createElement("canvas"), tSvX = tSv.getContext("2d");
@@ -299,11 +361,27 @@
     var st = { image: null, zoom: 1, pan: { x: 0, y: 0 }, hover: null, trail: [], last: null,
       selMode: false, selecting: false, selStart: null, selRect: null,
       densityMap: null, densityMax: 0, hueDensity: null, hueDensityMax: 0, sampled: 0,
-      frozen: false, dragging: false, pending: false, downPos: null, downImg: null, midPan: false, lastMouse: { x: 0, y: 0 } };
+      frozen: false, loupe: false,
+      dragging: false, pending: false, downPos: null, downImg: null, lastMouse: { x: 0, y: 0 } };
     var dragCounter = 0, drawing = false;
+    var pointers = new Map();          // active pointers (touch/pen/mouse)
+    var pinch = null;                  // { dist, cx, cy, zoom, panX, panY }
 
     function resize() { canvas.width = Math.max(1, Math.round(canvas.clientWidth * DPR)); canvas.height = Math.max(1, Math.round(canvas.clientHeight * DPR)); render(); }
     new ResizeObserver(function () { resize(); if (st.image) fit(); }).observe(wrap);
+
+    /* distribution canvases follow their real CSS size (square markers stay square) */
+    function resizeDist() {
+      var w = distSv.clientWidth, changed = false;
+      if (w > 0) {
+        var nw = Math.round(w * DPR), nh = Math.round(distSv.clientHeight * DPR);
+        if (distSv.width !== nw || distSv.height !== nh) { distSv.width = nw; distSv.height = nh; changed = true; }
+        var hw = Math.round(distHue.clientWidth * DPR), hh = Math.round(distHue.clientHeight * DPR);
+        if (distHue.width !== hw || distHue.height !== hh) { distHue.width = hw; distHue.height = hh; changed = true; }
+      }
+      return changed;
+    }
+    new ResizeObserver(function () { if (resizeDist()) drawDist(); }).observe(distSv);
 
     function loadImage(fileOrImg) {
       var use = function (img) { st.image = img; raw.width = img.width; raw.height = img.height; rawCtx.drawImage(img, 0, 0);
@@ -315,20 +393,53 @@
     }
     function fit() {
       if (!st.image || !canvas.width) return;
-      var pad = 10 * DPR;                                   // small, consistent margin
+      var pad = 10 * DPR;
       var ratio = Math.min((canvas.width - pad * 2) / st.image.width, (canvas.height - pad * 2) / st.image.height);
-      ratio = clamp(ratio, 0.01, 64);                       // upscale small images to fill (no big empty margins)
+      ratio = clamp(ratio, 0.01, 64);
       st.zoom = ratio; st.pan.x = (canvas.width - st.image.width * ratio) / 2; st.pan.y = (canvas.height - st.image.height * ratio) / 2; render();
     }
+    function zoomAt(mx, my, factor) {
+      if (!st.image) return;
+      var bx = (mx - st.pan.x) / st.zoom, by = (my - st.pan.y) / st.zoom;
+      st.zoom = clamp(st.zoom * factor, 0.02 * DPR, 60 * DPR);
+      st.pan.x = mx - bx * st.zoom; st.pan.y = my - by * st.zoom; render();
+    }
+
+    function drawLoupe() {
+      if (!st.hover || !st.image) return;
+      var R = 46 * DPR, gap = 30 * DPR, srcPx = 13, half = (srcPx - 1) / 2;
+      var cxs = st.pan.x + (st.hover.x + 0.5) * st.zoom, cys = st.pan.y + (st.hover.y + 0.5) * st.zoom;
+      var lx = clamp(cxs, R + 3, canvas.width - R - 3);
+      var ly = cys - (R + gap); if (ly < R + 3) ly = cys + R + gap;
+      ly = clamp(ly, R + 3, canvas.height - R - 3);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+      ctx.fillStyle = "#000"; ctx.fillRect(lx - R, ly - R, R * 2, R * 2);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(raw, st.hover.x - half, st.hover.y - half, srcPx, srcPx, lx - R, ly - R, R * 2, R * 2);
+      var cell = (R * 2) / srcPx;
+      ctx.lineWidth = 2; ctx.strokeStyle = "rgba(0,0,0,.8)"; ctx.strokeRect(lx - cell / 2, ly - cell / 2, cell, cell);
+      ctx.lineWidth = 1; ctx.strokeStyle = "#fff"; ctx.strokeRect(lx - cell / 2, ly - cell / 2, cell, cell);
+      ctx.restore();
+      ctx.save();
+      ctx.lineWidth = 3 * (DPR / 2 + .5); ctx.strokeStyle = "rgba(0,0,0,.75)";
+      ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1.6 * (DPR / 2 + .5); ctx.strokeStyle = "#fff";
+      ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height); if (!st.image) { stZoom.textContent = "100%"; return; }
       ctx.save(); ctx.translate(st.pan.x, st.pan.y); ctx.scale(st.zoom, st.zoom); ctx.imageSmoothingEnabled = st.zoom < 4;
       ctx.drawImage(st.image, 0, 0);
       if (st.selRect) { var r = st.selRect; ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 1.4 / st.zoom; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.strokeRect(r.x, r.y, r.w, r.h); }
-      if (st.hover && !st.selMode) { var x = st.hover.x, y = st.hover.y;
+      if (st.hover && !st.selMode) { var x = st.hover.x + .5, y = st.hover.y + .5;
         ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.lineWidth = 3 / st.zoom; ctx.beginPath(); ctx.arc(x, y, 6 / st.zoom, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5 / st.zoom; ctx.beginPath(); ctx.arc(x, y, 6 / st.zoom, 0, Math.PI * 2); ctx.stroke(); }
-      ctx.restore(); stZoom.textContent = Math.round(st.zoom / DPR * 100) + "%";
+      ctx.restore();
+      if (st.loupe && !st.selMode) drawLoupe();
+      stZoom.textContent = Math.round(st.zoom / DPR * 100) + "%";
     }
 
     function updateReadout(col) {
@@ -357,11 +468,11 @@
         tSvX.putImageData(img, 0, 0); dsx.drawImage(tSv, 0, 0);
       }
       if (tgTrail.checked) for (var t = 0; t < st.trail.length; t++) { var p = st.trail[t];
-        dsx.beginPath(); dsx.arc(p.s / 100 * wSV, (100 - p.v) / 100 * hSV, 2, 0, Math.PI * 2);
+        dsx.beginPath(); dsx.arc(p.s / 100 * wSV, (100 - p.v) / 100 * hSV, 2 * DPR, 0, Math.PI * 2);
         dsx.fillStyle = "rgba(255,255,255," + ((t + 1) / st.trail.length * 0.6) + ")"; dsx.fill(); }
       if (st.last && !st.selMode) { var cx = col.s / 100 * wSV, cy = (100 - col.v) / 100 * hSV;
-        dsx.save(); dsx.shadowColor = "rgba(0,0,0,.5)"; dsx.shadowBlur = 4; dsx.beginPath(); dsx.arc(cx, cy, 4, 0, Math.PI * 2);
-        dsx.fillStyle = "#fff"; dsx.fill(); dsx.lineWidth = 1.5; dsx.strokeStyle = "#000"; dsx.stroke(); dsx.restore(); }
+        dsx.save(); dsx.shadowColor = "rgba(0,0,0,.5)"; dsx.shadowBlur = 4 * DPR; dsx.beginPath(); dsx.arc(cx, cy, 4 * DPR, 0, Math.PI * 2);
+        dsx.fillStyle = "#fff"; dsx.fill(); dsx.lineWidth = 1.5 * DPR; dsx.strokeStyle = "#000"; dsx.stroke(); dsx.restore(); }
       var gr = dhx.createLinearGradient(0, 0, wH, 0);
       gr.addColorStop(0, "#f00"); gr.addColorStop(.1666, "#ff0"); gr.addColorStop(.3333, "#0f0"); gr.addColorStop(.5, "#0ff");
       gr.addColorStop(.6666, "#00f"); gr.addColorStop(.8333, "#f0f"); gr.addColorStop(1, "#f00");
@@ -373,16 +484,17 @@
           for (var hy = 0; hy < hH; hy++) { var j = (hy * wH + hx) * 4; im2.data[j] = im2.data[j + 1] = im2.data[j + 2] = 255; im2.data[j + 3] = a2; } }
         tHueX.putImageData(im2, 0, 0); dhx.drawImage(tHue, 0, 0);
       }
-      if (st.last && !st.selMode) { var hxp = col.h / 360 * wH; dhx.save(); dhx.fillStyle = "#fff"; dhx.strokeStyle = "#000"; dhx.lineWidth = 1;
-        dhx.fillRect(hxp - 2, 0, 4, hH); dhx.strokeRect(hxp - 2, 0, 4, hH); dhx.restore(); }
+      if (st.last && !st.selMode) { var hxp = col.h / 360 * wH, mw = 2 * DPR;
+        dhx.save(); dhx.fillStyle = "#fff"; dhx.strokeStyle = "#000"; dhx.lineWidth = DPR;
+        dhx.fillRect(hxp - mw, 0, mw * 2, hH); dhx.strokeRect(hxp - mw, 0, mw * 2, hH); dhx.restore(); }
     }
 
     function updateStats(pos) {
       if (st.selRect && st.sampled > 0) { stPos.textContent = st.selRect.w + "×" + st.selRect.h; stSampled.textContent = st.sampled.toLocaleString() + " px"; }
       else { stPos.textContent = pos ? pos.x + ", " + pos.y : "—"; stSampled.textContent = "—"; }
     }
-    function imgPos(cx, cy) { var r = canvas.getBoundingClientRect();
-      return { x: Math.floor(((cx - r.left) * (canvas.width / r.width) - st.pan.x) / st.zoom), y: Math.floor(((cy - r.top) * (canvas.height / r.height) - st.pan.y) / st.zoom) }; }
+    function canvasXY(e) { var r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) }; }
+    function imgPos(e) { var c = canvasXY(e); return { x: Math.floor((c.x - st.pan.x) / st.zoom), y: Math.floor((c.y - st.pan.y) / st.zoom) }; }
     function normRect(a, b) { var x1 = clamp(Math.min(a.x, b.x), 0, st.image.width - 1), y1 = clamp(Math.min(a.y, b.y), 0, st.image.height - 1),
       x2 = clamp(Math.max(a.x, b.x), 0, st.image.width - 1), y2 = clamp(Math.max(a.y, b.y), 0, st.image.height - 1);
       return { x: x1, y: y1, w: Math.max(1, x2 - x1), h: Math.max(1, y2 - y1) }; }
@@ -410,42 +522,100 @@
       render(); drawDist(); updateStats({ x: ix, y: iy }); updateReadout(st.last);
     }
     function updateFrozen() { var f = st.frozen; canvas.classList.toggle("frozen", f); wrap.classList.toggle("frozen", f); frozenEl.classList.toggle("visible", f); if (!f) { st.hover = null; render(); } }
-    function setSelMode(on) { st.selMode = on; btSel.classList.toggle("active", on); if (on) { st.frozen = false; updateFrozen(); } clearSel(); }
+    function setSelMode(on) { st.selMode = on; btSel.classList.toggle("active", on); st.loupe = false; if (on) { st.frozen = false; updateFrozen(); } clearSel(); }
+    function throttled(fn) { if (drawing) return; drawing = true; requestAnimationFrame(function () { fn(); drawing = false; }); }
 
-    canvas.addEventListener("mousedown", function (e) {
+    /* ── pointer events: mouse, touch and pen in one path ── */
+    canvas.addEventListener("pointerdown", function (e) {
       if (!st.image) return;
-      if (e.button === 1) { e.preventDefault(); st.dragging = true; st.midPan = true; st.lastMouse = { x: e.clientX, y: e.clientY }; canvas.classList.add("grabbing"); return; }
+      var touchy = e.pointerType !== "mouse";
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (touchy && pointers.size === 2) {           // start pinch: cancel pick/select
+        var p = Array.from(pointers.values());
+        var r = canvas.getBoundingClientRect(), sx = canvas.width / r.width, sy = canvas.height / r.height;
+        pinch = { dist: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y),
+          cx: ((p[0].x + p[1].x) / 2 - r.left) * sx, cy: ((p[0].y + p[1].y) / 2 - r.top) * sy,
+          zoom: st.zoom, panX: st.pan.x, panY: st.pan.y };
+        st.selecting = false; st.pending = false; st.dragging = false; st.loupe = false; render();
+        return;
+      }
+      if (pointers.size > 2) return;
+      e.preventDefault();
+
+      if (e.button === 1) { st.dragging = true; st.lastMouse = { x: e.clientX, y: e.clientY }; canvas.classList.add("grabbing"); return; }
       if (e.button !== 0) return;
-      var pos = imgPos(e.clientX, e.clientY);
-      if (st.selMode) { st.selecting = true; st.selStart = pos; st.selRect = normRect(pos, pos); render(); }
-      else { st.pending = true; st.lastMouse = { x: e.clientX, y: e.clientY }; st.downPos = { x: e.clientX, y: e.clientY }; st.downImg = pos; }
+
+      var pos = imgPos(e);
+      if (st.selMode) { st.selecting = true; st.selStart = pos; st.selRect = normRect(pos, pos); render(); return; }
+
+      if (touchy) {                                   // finger: pick immediately, show loupe
+        st.frozen = true; updateFrozen(); st.loupe = true; pick(pos.x, pos.y);
+      } else {                                        // mouse: click = freeze toggle, drag = pan
+        st.pending = true; st.lastMouse = { x: e.clientX, y: e.clientY }; st.downPos = { x: e.clientX, y: e.clientY }; st.downImg = pos;
+      }
     });
-    window.addEventListener("mousemove", function (e) {
-      if (st.dragging) { st.pan.x += (e.clientX - st.lastMouse.x) * DPR; st.pan.y += (e.clientY - st.lastMouse.y) * DPR; st.lastMouse = { x: e.clientX, y: e.clientY }; render(); return; }
-      if (st.pending) { var dx = e.clientX - st.downPos.x, dy = e.clientY - st.downPos.y; if (Math.sqrt(dx * dx + dy * dy) > 4) { st.dragging = true; st.pending = false; canvas.classList.add("grabbing"); } return; }
+
+    canvas.addEventListener("pointermove", function (e) {
       if (!st.image) return;
-      var r = canvas.getBoundingClientRect();
-      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
-      var pos = imgPos(e.clientX, e.clientY);
-      if (st.selMode && st.selecting) { if (!drawing) { drawing = true; requestAnimationFrame(function () { st.selRect = normRect(st.selStart, pos); render(); drawing = false; }); } }
-      else if (!st.selMode && !st.frozen) { if (!drawing) { drawing = true; requestAnimationFrame(function () { pick(pos.x, pos.y); drawing = false; }); } }
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pinch && pointers.size >= 2) {              // two-finger pinch zoom + pan
+        e.preventDefault();
+        var p = Array.from(pointers.values());
+        var r = canvas.getBoundingClientRect(), sx = canvas.width / r.width, sy = canvas.height / r.height;
+        var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1;
+        var cx = ((p[0].x + p[1].x) / 2 - r.left) * sx, cy = ((p[0].y + p[1].y) / 2 - r.top) * sy;
+        var scale = clamp(d / pinch.dist, 0.05, 20);
+        var nz = clamp(pinch.zoom * scale, 0.02 * DPR, 60 * DPR); scale = nz / pinch.zoom;
+        st.zoom = nz;
+        st.pan.x = cx - (pinch.cx - pinch.panX) * scale; st.pan.y = cy - (pinch.cy - pinch.panY) * scale;
+        throttled(render); return;
+      }
+
+      if (st.dragging) { e.preventDefault();
+        var r2 = canvas.getBoundingClientRect(), sx2 = canvas.width / r2.width, sy2 = canvas.height / r2.height;
+        st.pan.x += (e.clientX - st.lastMouse.x) * sx2; st.pan.y += (e.clientY - st.lastMouse.y) * sy2;
+        st.lastMouse = { x: e.clientX, y: e.clientY }; throttled(render); return; }
+
+      if (st.pending) { var dx = e.clientX - st.downPos.x, dy = e.clientY - st.downPos.y;
+        if (Math.hypot(dx, dy) > 4) { st.dragging = true; st.pending = false; canvas.classList.add("grabbing"); } return; }
+
+      if (st.selMode) { if (st.selecting) { e.preventDefault(); var ps = imgPos(e); throttled(function () { st.selRect = normRect(st.selStart, ps); render(); }); } return; }
+
+      if (e.pointerType === "mouse") { if (!st.frozen) { var pm = imgPos(e); throttled(function () { pick(pm.x, pm.y); }); } return; }
+
+      if (pointers.has(e.pointerId)) {               // finger drag = keep picking
+        e.preventDefault(); var pt = imgPos(e); throttled(function () { pick(clamp(pt.x, 0, st.image.width - 1), clamp(pt.y, 0, st.image.height - 1)); });
+      }
     });
-    window.addEventListener("mouseup", function () {
-      var wasDrag = st.dragging, wasPending = st.pending, wasMid = st.midPan;
-      if (st.dragging) { st.dragging = false; canvas.classList.remove("grabbing"); render(); }
-      st.midPan = false; st.pending = false;
+
+    function endPointer(e) {
+      pointers.delete(e.pointerId);
+      if (pinch && pointers.size < 2) pinch = null;
+      if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+
+      var wasDrag = st.dragging, wasPending = st.pending;
+      if (st.dragging) { st.dragging = false; canvas.classList.remove("grabbing"); }
+      st.pending = false;
       if (st.selecting) { st.selecting = false; computeDensity(st.selRect); render(); drawDist(); updateStats(); }
-      if (!st.selMode && wasPending && !wasDrag && !wasMid && st.image) { st.frozen = !st.frozen; if (st.frozen && st.downImg) pick(st.downImg.x, st.downImg.y); updateFrozen(); }
+      if (e.pointerType !== "mouse") { st.loupe = false; render(); }        // keep the picked color, hide loupe
+      else if (!st.selMode && wasPending && !wasDrag && st.image) { st.frozen = !st.frozen; if (st.frozen && st.downImg) pick(st.downImg.x, st.downImg.y); updateFrozen(); }
       st.downPos = null; st.downImg = null;
-    });
+    }
+    canvas.addEventListener("pointerup", endPointer);
+    canvas.addEventListener("pointercancel", endPointer);
+    canvas.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse" && !st.frozen && !st.dragging) { st.hover = null; render(); } });
     canvas.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
+
     canvas.addEventListener("wheel", function (e) {
-      if (!st.image) return; e.preventDefault(); var r = canvas.getBoundingClientRect();
-      var mx = (e.clientX - r.left) * (canvas.width / r.width), my = (e.clientY - r.top) * (canvas.height / r.height);
-      var bx = (mx - st.pan.x) / st.zoom, by = (my - st.pan.y) / st.zoom;
-      st.zoom = clamp(st.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.02 * DPR, 60 * DPR); st.pan.x = mx - bx * st.zoom; st.pan.y = my - by * st.zoom; render();
+      if (!st.image) return; e.preventDefault(); var c = canvasXY(e); zoomAt(c.x, c.y, e.deltaY > 0 ? 0.9 : 1.1);
     }, { passive: false });
     canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); if (!st.selMode && st.last && window.Shell) Shell.copy(rgbToHex(st.last.r, st.last.g, st.last.b), hexEl); });
+
+    btZin.addEventListener("click", function () { zoomAt(canvas.width / 2, canvas.height / 2, 1.35); });
+    btZout.addEventListener("click", function () { zoomAt(canvas.width / 2, canvas.height / 2, 1 / 1.35); });
 
     wrap.addEventListener("dragenter", function (e) { e.preventDefault(); dragCounter++; if (dragCounter === 1) dropEl.classList.add("active"); });
     wrap.addEventListener("dragleave", function () { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropEl.classList.remove("active"); } });
@@ -467,22 +637,34 @@
       el.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && el.getAttribute("data-copy")) { e.preventDefault(); if (window.Shell) Shell.copy(el.getAttribute("data-copy"), el); } });
     });
 
-    resize(); drawDist(); updateReadout(null);
+    /* collapsible cards */
+    root.querySelectorAll(".foldbtn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var card = btn.closest(".card"), open = card.classList.toggle("collapsed") === false;
+        btn.setAttribute("aria-expanded", String(open));
+        if (open && card.querySelector(".dist-sv")) requestAnimationFrame(function () { resizeDist(); drawDist(); });
+      });
+    });
+
+    resize(); resizeDist(); drawDist(); updateReadout(null);
     return { loadImage: loadImage, fit: fit, drawDist: drawDist, hasImage: function () { return !!st.image; },
       toggleSel: function () { setSelMode(!st.selMode); },
+      redrawDist: function () { if (resizeDist()) { drawDist(); } else drawDist(); },
       refit: function () { requestAnimationFrame(function () { resize(); if (st.image) fit(); }); } };
   }
 
   var vA = createViewer($("inst-a")), vB = createViewer($("inst-b"));
-  var eyeWrap = $("eye-wrap"), hovered = null;
-  $("inst-a").addEventListener("mouseenter", function () { hovered = vA; });
-  $("inst-b").addEventListener("mouseenter", function () { hovered = vB; });
-  eyeWrap.addEventListener("mouseleave", function () { hovered = null; });
+  var eyeWrap = $("eye-wrap"), active = null;
+  ["mouseenter", "pointerdown"].forEach(function (ev) {
+    $("inst-a").addEventListener(ev, function () { active = vA; });
+    $("inst-b").addEventListener(ev, function () { active = vB; });
+  });
+  eyeWrap.addEventListener("mouseleave", function () { active = null; });
 
   window.addEventListener("paste", function (e) {
     var items = e.clipboardData && e.clipboardData.items; if (!items) return;
     for (var i = 0; i < items.length; i++) if (items[i].type.indexOf("image/") === 0) {
-      var f = items[i].getAsFile(); if (f) { (hovered || vA).loadImage(f); break; }
+      var f = items[i].getAsFile(); if (f) { (active || vA).loadImage(f); break; }
     }
   });
 
@@ -490,18 +672,21 @@
   $("toggle-compare").addEventListener("click", function () {
     compare = !compare; $("inst-b").hidden = !compare; eyeWrap.classList.toggle("compare", compare);
     $("toggle-compare").textContent = window.Shell ? Shell.t(compare ? "t.singleview" : "t.addcompare") : (compare ? "Single view" : "Add comparison");
-    if (compare) vB.refit(); vA.refit();
+    if (compare) vB.refit();
+    vA.refit();
+    requestAnimationFrame(function () { vA.redrawDist(); vB.redrawDist(); });
   });
+  window.addEventListener("orientationchange", function () { vA.refit(); vB.refit(); });
 
   window.addEventListener("keydown", function (e) {
     var tag = (e.target && e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable)) return;
-    if (!hovered) return;
-    if (e.key.toLowerCase() === "s") { e.preventDefault(); hovered.toggleSel(); }
-    else if (e.key === " ") { e.preventDefault(); hovered.fit(); }
+    if (!active) return;
+    if (e.key.toLowerCase() === "s") { e.preventDefault(); active.toggleSel(); }
+    else if (e.key === " ") { e.preventDefault(); active.fit(); }
   });
 
-  function redrawAll() { vA.drawDist(); vB.drawDist(); if (window.Shell) $("toggle-compare").textContent = Shell.t(compare ? "t.singleview" : "t.addcompare"); }
+  function redrawAll() { vA.redrawDist(); vB.redrawDist(); if (window.Shell) $("toggle-compare").textContent = Shell.t(compare ? "t.singleview" : "t.addcompare"); }
   if (window.Shell && Shell.init) {
     Shell.init({
       id: "color-picker",
@@ -511,28 +696,36 @@
           "t.desc": "Sample colors from an image with an eyedropper and read them as HEX, RGB, HSV or HSL. Compare two images' HSV distributions side by side.",
           "t.open": "Open image", "t.fit": "Fit", "t.select": "Select area", "t.clearsel": "Clear area", "t.cleartrail": "Clear trail",
           "t.addcompare": "Add comparison", "t.singleview": "Single view",
-          "t.selcolor": "Selected color", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "Click any value to copy.",
+          "t.selcolor": "Selected color", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "Tap any value to copy.",
           "t.dist": "HSV distribution", "t.trail": "Trail", "t.density": "Density heatmap", "t.traillen": "Trail length", "t.densitystr": "Heatmap strength",
           "t.hinttitle": "Drop an image here", "t.hintdesc": "Drag & drop, paste, or open a file. Everything stays on your device.",
           "t.drop": "Drop image here", "t.frozen": "Frozen",
           "t.pos": "pos", "t.sampled": "sampled", "t.zoom": "zoom",
           "t.sc": "Shortcuts", "t.sc_wheel": "Wheel", "t.sc_zoom": "Zoom", "t.sc_drag": "Drag", "t.sc_pan": "Pan / draw area",
           "t.sc_fit": "Fit to view", "t.sc_sel": "Toggle area select", "t.sc_click": "Click", "t.sc_freeze": "Freeze / unfreeze",
-          "t.sc_right": "Right-click", "t.sc_copy": "Copy HEX"
+          "t.sc_right": "Right-click", "t.sc_copy": "Copy HEX",
+          "t.tc_one": "1 finger", "t.tc_pick": "Drag to pick a color",
+          "t.tc_two": "2 fingers", "t.tc_pinch": "Pinch to zoom, drag to pan",
+          "t.tc_selm": "Select area", "t.tc_seld": "1 finger draws the area",
+          "t.tc_tap": "Tap a value", "t.tc_copy": "Copy it"
         },
         ja: {
           "t.title": "アドバンスド・カラーピッカー",
           "t.desc": "画像からスポイトで色を抽出し、HEX・RGB・HSV・HSL で表示します。2枚の画像のHSV分布を並べて比較することもできます。",
           "t.open": "画像を開く", "t.fit": "全体表示", "t.select": "範囲選択", "t.clearsel": "範囲クリア", "t.cleartrail": "軌跡クリア",
           "t.addcompare": "比較を追加", "t.singleview": "単一表示に戻す",
-          "t.selcolor": "抽出した色", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "数値をクリックでコピー。",
+          "t.selcolor": "抽出した色", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "数値をタップでコピー。",
           "t.dist": "HSV分布", "t.trail": "軌跡", "t.density": "密度ヒートマップ", "t.traillen": "軌跡の長さ", "t.densitystr": "ヒートマップの強さ",
           "t.hinttitle": "ここに画像をドロップ", "t.hintdesc": "ドラッグ&ドロップ・貼り付け・ファイルを開く。すべて端末内で処理されます。",
           "t.drop": "画像をドロップ", "t.frozen": "固定中",
           "t.pos": "座標", "t.sampled": "サンプル", "t.zoom": "ズーム",
           "t.sc": "ショートカット", "t.sc_wheel": "ホイール", "t.sc_zoom": "ズーム", "t.sc_drag": "ドラッグ", "t.sc_pan": "移動 / 範囲描画",
           "t.sc_fit": "全体表示", "t.sc_sel": "範囲選択の切替", "t.sc_click": "クリック", "t.sc_freeze": "固定 / 解除",
-          "t.sc_right": "右クリック", "t.sc_copy": "HEXをコピー"
+          "t.sc_right": "右クリック", "t.sc_copy": "HEXをコピー",
+          "t.tc_one": "1本指", "t.tc_pick": "ドラッグで色を抽出",
+          "t.tc_two": "2本指", "t.tc_pinch": "ピンチでズーム、ドラッグで移動",
+          "t.tc_selm": "範囲選択中", "t.tc_seld": "1本指で範囲を描く",
+          "t.tc_tap": "数値をタップ", "t.tc_copy": "コピー"
         }
       },
       onSettingsChange: redrawAll
