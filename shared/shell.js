@@ -34,14 +34,14 @@
     en: {
       "cat.general":"General","cat.text":"Text","cat.image":"Image","cat.video":"Video","cat.3dcg":"3DCG","cat.blender":"Blender","cat.audio":"Audio",
       "nav.home":"Home","nav.about":"About","hub.search":"Search tools…","hub.all":"All",
-      "hub.empty":"No tools found.","badge.blender":"Blender add-on",
+      "hub.empty":"No tools found.","badge.blender":"Blender add-on","badge.soon":"Coming soon",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied"
     },
     ja: {
       "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"Blender","cat.audio":"音声",
       "nav.home":"ホーム","nav.about":"About","hub.search":"ツールを検索…","hub.all":"すべて",
-      "hub.empty":"該当するツールがありません。","badge.blender":"Blenderアドオン",
+      "hub.empty":"該当するツールがありません。","badge.blender":"Blenderアドオン","badge.soon":"準備中",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
       "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました"
     }
@@ -228,11 +228,17 @@
     var name = loc(tool.name), desc = loc(tool.description);
     var ico  = tool.icon ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'+tool.icon+'"/></svg>' : defaultIcon;
     var tags = (tool.categories||[]).map(function(id){ return '<span class="tag">'+t("cat."+id)+'</span>'; }).join("");
-    var bl   = tool.type === "blender" ? '<span class="bl-badge">'+t("badge.blender")+'</span>' : "";
-    return '<a class="toolcard" href="'+ROOT+tool.path+'">'+bl+
+    var body =
       '<div class="toolcard__ico">'+ico+'</div>'+
       '<h3>'+esc(name)+'</h3><p>'+esc(desc)+'</p>'+
-      '<div class="toolcard__tags">'+tags+'</div></a>';
+      '<div class="toolcard__tags">'+tags+'</div>';
+    // 未完成（status:"planned"）は非クリックの「準備中」カードにする（クリックで404を防ぐ）
+    if (tool.status === "planned"){
+      return '<div class="toolcard toolcard--soon" aria-disabled="true">'+
+        '<span class="soon-badge">'+t("badge.soon")+'</span>'+body+'</div>';
+    }
+    var bl = tool.type === "blender" ? '<span class="bl-badge">'+t("badge.blender")+'</span>' : "";
+    return '<a class="toolcard" href="'+ROOT+tool.path+'">'+bl+body+'</a>';
   }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function haystack(tool){
