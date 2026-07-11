@@ -94,7 +94,7 @@
 
     {
       "id": "overwrite-save-warning", "type": "blender", "path": "tools/overwrite-save-warning/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Overwrite Save Warning", "ja": "Overwrite Save Warning" },
       "description": { "en": "Warn before overwriting a saved file. Blender add-on (English UI).", "ja": "上書き保存の前に警告を出すBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "save", "overwrite", "warning", "アドオン"],
@@ -102,7 +102,7 @@
     },
     {
       "id": "enhanced-folder-ops", "type": "blender", "path": "tools/enhanced-folder-ops/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Enhanced Folder Operations", "ja": "Enhanced Folder Operations" },
       "description": { "en": "Improved folder and path handling. Blender add-on (English UI).", "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "folder", "path", "アドオン"],
@@ -110,7 +110,7 @@
     },
     {
       "id": "static-keyframe-cleaner", "type": "blender", "path": "tools/static-keyframe-cleaner/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Static Keyframe Cleaner", "ja": "Static Keyframe Cleaner" },
       "description": { "en": "Remove keyframes whose value doesn't change. Blender add-on (English UI).", "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "keyframe", "fcurve", "cleanup", "アドオン"],
@@ -118,7 +118,7 @@
     },
     {
       "id": "vse-silence-cutter", "type": "blender", "path": "tools/vse-silence-cutter/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "VSE Silence Cutter", "ja": "VSE Silence Cutter" },
       "description": { "en": "Auto-cut silent parts in Blender's VSE. Blender add-on (English UI).", "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。" },
       "keywords": ["blender", "vse", "silence", "cut", "無音", "アドオン"],
@@ -164,6 +164,198 @@
       "description": { "en": "Highlight and auto-cut silent parts of an audio file.", "ja": "音声ファイルの無音部分をハイライトして自動カット。" },
       "keywords": ["silence", "cut", "trim", "audio", "無音", "カット"],
       "added": "2026-07-04"
+    },
+    {
+      "id": "cue-timer", "type": "web", "path": "tools/cue-timer/", "status": "planned",
+      "categories": ["general"],
+      "name": { "en": "Multi-cue timer", "ja": "多機能タイマー" },
+      "description": { "en": "Chain multiple timed segments with presets.", "ja": "複数の区間を連結して順に消化するタイマー。" },
+      "keywords": ["timer", "countdown", "interval", "cue", "タイマー", "インターバル"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "device-size", "type": "web", "path": "tools/device-size/", "status": "planned",
+      "categories": ["general"],
+      "name": { "en": "Device size comparison", "ja": "デバイスサイズ比較" },
+      "description": { "en": "Overlay device dimensions to compare sizes.", "ja": "デバイスの寸法を重ねて大きさを比較。" },
+      "keywords": ["device", "size", "screen", "compare", "デバイス", "サイズ", "比較"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "char-counter", "type": "web", "path": "tools/char-counter/", "status": "planned",
+      "categories": ["text"],
+      "name": { "en": "Character counter", "ja": "文字数・文字種カウンター" },
+      "description": { "en": "Counts, byte sizes, and character-type breakdown at once.", "ja": "文字数・バイト数・文字種の割合を一括表示。" },
+      "keywords": ["count", "character", "byte", "utf-8", "shift_jis", "文字数", "バイト", "原稿用紙"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "color-convert", "type": "web", "path": "tools/color-convert/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Color format converter", "ja": "色フォーマット変換" },
+      "description": { "en": "Convert between RGB, HEX, HSL, Lab, OKLCH, linear RGB and more.", "ja": "RGB・HEX・Lab・OKLCH・リニアRGB等を相互変換。" },
+      "keywords": ["color", "convert", "hex", "oklch", "lab", "linear", "色変換", "カラー"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "cud-simulator", "type": "web", "path": "tools/cud-simulator/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Color-blindness (CUD) simulator", "ja": "色覚（CUD）シミュレーター" },
+      "description": { "en": "Simulate P/D/T-type color vision on images in real time.", "ja": "P/D/T型の色覚をリアルタイムに再現。" },
+      "keywords": ["cud", "color blind", "accessibility", "p type", "色覚", "色弱", "ユニバーサル"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "color-temperature", "type": "web", "path": "tools/color-temperature/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Color temperature comparison", "ja": "色温度比較" },
+      "description": { "en": "Compare Kelvin color temperatures side by side.", "ja": "ケルビン色温度を並べて色味を比較。" },
+      "keywords": ["kelvin", "temperature", "white balance", "色温度", "ケルビン", "ホワイトバランス"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "noise-generator", "type": "web", "path": "tools/noise-generator/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Noise generator", "ja": "ノイズジェネレーター" },
+      "description": { "en": "Generate seamless Perlin, Simplex, and Worley noise textures.", "ja": "Perlin/Simplex/Worley等のシームレスノイズを生成。" },
+      "keywords": ["noise", "perlin", "simplex", "worley", "texture", "ノイズ", "テクスチャ"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "aspect-ratio", "type": "web", "path": "tools/aspect-ratio/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Aspect ratio calculator", "ja": "アスペクト比計算機" },
+      "description": { "en": "Enter one side to get the other at a set ratio.", "ja": "片方の辺から指定比率でもう一方を算出。" },
+      "keywords": ["aspect", "ratio", "resize", "16:9", "アスペクト比", "比率"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "px-dpi", "type": "web", "path": "tools/px-dpi/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "px to mm / inch", "ja": "px ↔ mm / inch 変換" },
+      "description": { "en": "Convert pixels and physical size via DPI.", "ja": "DPI経由でピクセルと物理寸法を相互変換。" },
+      "keywords": ["px", "dpi", "ppi", "mm", "inch", "print", "解像度", "印刷"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "dof-calculator", "type": "web", "path": "tools/dof-calculator/", "status": "planned",
+      "categories": ["image"],
+      "name": { "en": "Depth of field calculator", "ja": "被写界深度計算機" },
+      "description": { "en": "Depth of field from aperture, focal length, and distance.", "ja": "F値・焦点距離・距離から被写界深度を算出。" },
+      "keywords": ["depth of field", "dof", "aperture", "bokeh", "被写界深度", "ボケ", "絞り"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "flash-safety", "type": "web", "path": "tools/flash-safety/", "status": "planned",
+      "categories": ["video"],
+      "name": { "en": "Photosensitivity risk checker", "ja": "ポリゴンショック・リスクチェッカー" },
+      "description": { "en": "Scan a video for flash and pattern seizure risks.", "ja": "動画の明滅・模様が発作リスク基準を超えないか判定。" },
+      "keywords": ["flash", "seizure", "photosensitive", "harding", "ポリゴンショック", "光過敏", "明滅"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "timecode", "type": "web", "path": "tools/timecode/", "status": "planned",
+      "categories": ["video"],
+      "name": { "en": "Timecode to frames", "ja": "タイムコード↔フレーム変換" },
+      "description": { "en": "Convert timecode and frame numbers, drop-frame aware.", "ja": "fps指定でタイムコードとフレームを相互変換（ドロップフレーム対応）。" },
+      "keywords": ["timecode", "frame", "fps", "drop frame", "タイムコード", "フレーム"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "retro-graphics", "type": "web", "path": "tools/retro-graphics/", "status": "planned",
+      "categories": ["video"],
+      "name": { "en": "Retro graphics converter", "ja": "レトロ・グラフィック変換" },
+      "description": { "en": "CRT, VHS, and 216-color retro conversion by real algorithms.", "ja": "CRT/VHS/216色などレトロ変換を原理ベースで。" },
+      "keywords": ["crt", "vhs", "retro", "dither", "websafe", "レトロ", "減色"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "normal-map", "type": "web", "path": "tools/normal-map/", "status": "planned",
+      "categories": ["3dcg"],
+      "name": { "en": "Normal map tool", "ja": "ノーマルマップツール" },
+      "description": { "en": "Generate pseudo normal maps and flip DirectX/OpenGL Y.", "ja": "擬似ノーマルマップ生成とDirectX/OpenGLのY反転。" },
+      "keywords": ["normal map", "directx", "opengl", "bump", "ノーマルマップ", "法線"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "axis-scale", "type": "web", "path": "tools/axis-scale/", "status": "planned",
+      "categories": ["3dcg"],
+      "name": { "en": "Y-Up / Z-Up & scale cheat sheet", "ja": "Y-Up/Z-Up・スケール移行早見表" },
+      "description": { "en": "Pick source and target apps to get correct axis and scale settings.", "ja": "移行元と先を選ぶと軸・スケールの正しい設定を表示。" },
+      "keywords": ["y-up", "z-up", "fbx", "scale", "unreal", "maya", "houdini", "軸", "スケール"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "vroid-to-blender", "type": "blender", "path": "tools/vroid-to-blender/", "status": "planned",
+      "categories": ["blender"],
+      "name": { "en": "VRoid to Blender", "ja": "VRoid to Blender" },
+      "description": { "en": "Import VRoid models cleaned up for Blender. Add-on (English UI).", "ja": "VRoidモデルをBlender向けに整えてインポートするアドオン（英語UI）。" },
+      "keywords": ["blender", "vroid", "vrm", "import", "アドオン"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "stmap-setup-node", "type": "blender", "path": "tools/stmap-setup-node/", "status": "planned",
+      "categories": ["blender"],
+      "name": { "en": "STMap Setup Node", "ja": "STMap Setup Node" },
+      "description": { "en": "One-click STMap node setup. Blender add-on (English UI).", "ja": "STMap適用ノードをワンクリック生成するアドオン（英語UI）。" },
+      "keywords": ["blender", "stmap", "uv", "lens", "distortion", "アドオン"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "material-less-counter", "type": "blender", "path": "tools/material-less-counter/", "status": "planned",
+      "categories": ["blender"],
+      "name": { "en": "Material-less Object Counter", "ja": "Material-less Object Counter" },
+      "description": { "en": "List and select objects with no material. Blender add-on (English UI).", "ja": "マテリアル未設定オブジェクトを列挙・選択するアドオン（英語UI）。" },
+      "keywords": ["blender", "material", "object", "check", "アドオン"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "editor-subtabs", "type": "blender", "path": "tools/editor-subtabs/", "status": "planned",
+      "categories": ["blender"],
+      "name": { "en": "Editor Subtabs", "ja": "Editor Subtabs" },
+      "description": { "en": "Sub-tabs to switch editors in one area. Blender add-on (English UI).", "ja": "エディタ領域にサブタブを設けるアドオン（英語UI）。" },
+      "keywords": ["blender", "editor", "tab", "ui", "アドオン"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "scale-finder", "type": "web", "path": "tools/scale-finder/", "status": "planned",
+      "categories": ["audio"],
+      "name": { "en": "Scale finder", "ja": "スケール検索" },
+      "description": { "en": "Find scales that contain the notes you pick.", "ja": "選んだ構成音を含むスケールを逆引き。" },
+      "keywords": ["scale", "mode", "church mode", "dorian", "スケール", "旋法", "音階"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "tuner", "type": "web", "path": "tools/tuner/", "status": "planned",
+      "categories": ["audio"],
+      "name": { "en": "Advanced tuner", "ja": "高精度チューナー" },
+      "description": { "en": "Mic pitch detection with cents, temperaments, and custom pitch.", "ja": "マイク入力の高精度チューナー。セント・音律・基準ピッチ対応。" },
+      "keywords": ["tuner", "pitch", "cents", "tuning", "チューナー", "音程", "セント"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "probability-drums", "type": "web", "path": "tools/probability-drums/", "status": "planned",
+      "categories": ["audio"],
+      "name": { "en": "Probability drum machine", "ja": "確率ドラムマシン" },
+      "description": { "en": "Step sequencer with per-step trigger probability.", "ja": "各ステップに発生確率を設定できるドラムマシン。" },
+      "keywords": ["drum", "sequencer", "probability", "beat", "ドラム", "確率", "シーケンサー"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "delay-calculator", "type": "web", "path": "tools/delay-calculator/", "status": "planned",
+      "categories": ["audio"],
+      "name": { "en": "BPM delay / LFO calculator", "ja": "BPMディレイ/LFO計算機" },
+      "description": { "en": "Delay times (ms) and LFO rates (Hz) for any BPM.", "ja": "BPMから各音符のディレイ(ms)とLFO周期(Hz)を一覧。" },
+      "keywords": ["bpm", "delay", "lfo", "reverb", "ms", "hz", "ディレイ", "テンポ"],
+      "added": "2026-07-11"
+    },
+    {
+      "id": "audio-info", "type": "web", "path": "tools/audio-info/", "status": "planned",
+      "categories": ["audio"],
+      "name": { "en": "Audio file info", "ja": "音声ファイル情報ビューア" },
+      "description": { "en": "Show sample rate, bit depth, and channels locally.", "ja": "サンプルレート・ビット深度・チャンネル数をローカル表示。" },
+      "keywords": ["audio", "sample rate", "bit depth", "wav", "flac", "サンプルレート", "ビット深度"],
+      "added": "2026-07-11"
     }
   ]
 }
