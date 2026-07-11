@@ -94,7 +94,7 @@
 
     {
       "id": "overwrite-save-warning", "type": "blender", "path": "tools/overwrite-save-warning/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Overwrite Save Warning", "ja": "Overwrite Save Warning" },
       "description": { "en": "Warn before overwriting a saved file. Blender add-on (English UI).", "ja": "上書き保存の前に警告を出すBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "save", "overwrite", "warning", "アドオン"],
@@ -102,7 +102,7 @@
     },
     {
       "id": "enhanced-folder-ops", "type": "blender", "path": "tools/enhanced-folder-ops/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Enhanced Folder Operations", "ja": "Enhanced Folder Operations" },
       "description": { "en": "Improved folder and path handling. Blender add-on (English UI).", "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "folder", "path", "アドオン"],
@@ -110,7 +110,7 @@
     },
     {
       "id": "static-keyframe-cleaner", "type": "blender", "path": "tools/static-keyframe-cleaner/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "Static Keyframe Cleaner", "ja": "Static Keyframe Cleaner" },
       "description": { "en": "Remove keyframes whose value doesn't change. Blender add-on (English UI).", "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。" },
       "keywords": ["blender", "keyframe", "fcurve", "cleanup", "アドオン"],
@@ -118,7 +118,7 @@
     },
     {
       "id": "vse-silence-cutter", "type": "blender", "path": "tools/vse-silence-cutter/",
-      "categories": ["3dcg"],
+      "categories": ["blender"],
       "name": { "en": "VSE Silence Cutter", "ja": "VSE Silence Cutter" },
       "description": { "en": "Auto-cut silent parts in Blender's VSE. Blender add-on (English UI).", "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。" },
       "keywords": ["blender", "vse", "silence", "cut", "無音", "アドオン"],
