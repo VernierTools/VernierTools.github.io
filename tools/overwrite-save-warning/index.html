@@ -93,9 +93,9 @@
       <div class="card">
         <div class="card__title" data-i18n="t.install">Install</div>
         <ol class="steps">
-          <li data-i18n="t.step1">Download the .zip on the right (no need to unzip it).</li>
+          <li data-i18n="t.step1">Download the .py file on the right.</li>
           <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
-          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .zip.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
           <li data-i18n="t.step4">Turn the add-on on with its checkbox.</li>
         </ol>
       </div>
@@ -124,9 +124,9 @@
             </div>
           </div>
 
-          <a class="btn btn--primary btn--block" href="overwrite_save_warning.zip" download>
+          <a class="btn btn--primary btn--block" href="overwrite_save_warning.py" download>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
-            <span data-i18n="t.download">Download (.zip)</span>
+            <span data-i18n="t.download">Download (.py)</span>
           </a>
 
           <div class="dl-specs">
@@ -157,9 +157,9 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.smart.t": "Smart", "t.smart.d": "Normal quick saves (Ctrl+S) stay completely silent.",
         "t.smooth.t": "Smooth", "t.smooth.d": "Cancelling the warning safely returns you to the same folder.",
         "t.install": "Install",
-        "t.step1": "Download the .zip on the right (no need to unzip it).",
+        "t.step1": "Download the .py file on the right.",
         "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
-        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .zip.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .py file.",
         "t.step4": "Turn the add-on on with its checkbox.",
         "t.about": "Requirements & limits",
         "t.req": "Requirements",
@@ -167,7 +167,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.limits": "Limitations",
         "t.limitsbody": "This add-on only supports .blend files. Due to technical limitations, it does not warn you when exporting other formats (FBX, OBJ, PNG, \u2026), or when saving through the \"Save changes before closing?\" dialog shown when you quit Blender.",
         "t.kicker": "Install it, and never accidentally lose your old iterations again.",
-        "t.download": "Download (.zip)",
+        "t.download": "Download (.py)",
         "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
       },
@@ -179,9 +179,9 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.smart.t": "\u30B9\u30DE\u30FC\u30C8", "t.smart.d": "\u901A\u5E38\u306E\u30AF\u30A4\u30C3\u30AF\u4FDD\u5B58\uFF08Ctrl+S\uFF09\u306F\u4E00\u5207\u90AA\u9B54\u3057\u307E\u305B\u3093\u3002",
         "t.smooth.t": "\u30B9\u30E0\u30FC\u30BA", "t.smooth.d": "\u8B66\u544A\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3059\u308B\u3068\u3001\u540C\u3058\u30D5\u30A9\u30EB\u30C0\u306B\u5B89\u5168\u306B\u623B\u308A\u307E\u3059\u3002",
         "t.install": "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB",
-        "t.step1": "\u53F3\u306E .zip \u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\uFF08\u89E3\u51CD\u4E0D\u8981\uFF09\u3002",
+        "t.step1": "\u53F3\u306E .py \u30D5\u30A1\u30A4\u30EB\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\u3002",
         "t.step2": "Blender\u3067 \u7DE8\u96C6 \u25B8 \u30D7\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9 \u25B8 \u30A2\u30C9\u30AA\u30F3 \u3092\u958B\u304D\u307E\u3059\u3002",
-        "t.step3": "\u53F3\u4E0A\u306E \u25BE \u30E1\u30CB\u30E5\u30FC\u304B\u3089\u300C\u30C7\u30A3\u30B9\u30AF\u304B\u3089\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u2026\u300D\u3092\u9078\u3073\u3001.zip \u3092\u6307\u5B9A\u3057\u307E\u3059\u3002",
+        "t.step3": "\u53F3\u4E0A\u306E \u25BE \u30E1\u30CB\u30E5\u30FC\u304B\u3089\u300C\u30C7\u30A3\u30B9\u30AF\u304B\u3089\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u2026\u300D\u3092\u9078\u3073\u3001.py \u30D5\u30A1\u30A4\u30EB\u3092\u6307\u5B9A\u3057\u307E\u3059\u3002",
         "t.step4": "\u30C1\u30A7\u30C3\u30AF\u30DC\u30C3\u30AF\u30B9\u3067\u30A2\u30C9\u30AA\u30F3\u3092\u6709\u52B9\u5316\u3057\u307E\u3059\u3002",
         "t.about": "\u52D5\u4F5C\u74B0\u5883\u30FB\u5236\u9650",
         "t.req": "\u52D5\u4F5C\u74B0\u5883",
@@ -189,7 +189,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.limits": "\u5236\u9650\u4E8B\u9805",
         "t.limitsbody": "\u3053\u306E\u30A2\u30C9\u30AA\u30F3\u306F .blend \u30D5\u30A1\u30A4\u30EB\u306E\u307F\u306B\u5BFE\u5FDC\u3057\u307E\u3059\u3002\u6280\u8853\u7684\u306A\u5236\u7D04\u306B\u3088\u308A\u3001\u4ED6\u306E\u5F62\u5F0F\uFF08FBX\u30FBOBJ\u30FBPNG \u306A\u3069\uFF09\u306E\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u6642\u3084\u3001Blender\u7D42\u4E86\u6642\u306E\u300C\u4FDD\u5B58\u3057\u307E\u3059\u304B\uFF1F\u300D\u30C0\u30A4\u30A2\u30ED\u30B0\u304B\u3089\u306E\u4FDD\u5B58\u6642\u306B\u306F\u8B66\u544A\u3057\u307E\u305B\u3093\u3002",
         "t.kicker": "\u5C0E\u5165\u3057\u3066\u3001\u53E4\u3044\u30A4\u30C6\u30EC\u30FC\u30B7\u30E7\u30F3\u3092\u4E8C\u5EA6\u3068\u3046\u3063\u304B\u308A\u5931\u308F\u306A\u3044\u3088\u3046\u306B\u3002",
-        "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.zip\uFF09",
+        "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.py\uFF09",
         "t.version": "\u30D0\u30FC\u30B8\u30E7\u30F3", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "\u7121\u6599\u30FB\u30AA\u30FC\u30D7\u30F3\u3002\u3059\u3079\u3066Blender\u5185\u3067\u30ED\u30FC\u30AB\u30EB\u306B\u52D5\u4F5C\u3057\u3001\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306F\u3042\u308A\u307E\u305B\u3093\u3002"
       }
