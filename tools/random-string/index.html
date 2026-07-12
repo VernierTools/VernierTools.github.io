@@ -4,11 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Random string — Vernier</title>
-<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
-  /* ツール固有CSS（トークン変数のみ使用） */
   .lenrow{ display:flex; align-items:center; gap:var(--s4); }
   .lenrow .slider{ flex:1; }
   .lenrow .input{ width:82px; text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
@@ -17,11 +15,27 @@
   .toggle .tlbl{ line-height:1.35; }
 
   .count-in{ max-width:120px; text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
-  #custom{ font-family:var(--font-mono); }
+  #exclude-field, #custom{ font-family:var(--font-mono); }
 
   .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.45; }
 
-  /* 結果一覧 */
+  /* 個別選択（チップ） */
+  .pickbtn{ margin-top:var(--s3); display:inline-flex; align-items:center; gap:6px; background:transparent; border:0;
+    color:var(--accent); font:inherit; font-size:12.5px; font-weight:500; cursor:pointer; padding:2px 0; }
+  .pickbtn svg{ width:14px; height:14px; transition:transform var(--tap); }
+  .pickbtn[aria-expanded="true"] svg{ transform:rotate(90deg); }
+  .pickpanel{ margin-top:var(--s3); padding:var(--s3); background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); }
+  .chipgroup + .chipgroup{ margin-top:var(--s3); }
+  .chipgroup__h{ font-size:11px; color:var(--text-3); margin-bottom:6px; }
+  .chipgrid{ display:flex; flex-wrap:wrap; gap:5px; }
+  .cchip{ appearance:none; cursor:pointer; font-family:var(--font-mono); font-size:13px; line-height:1;
+    min-width:26px; height:28px; padding:0 6px; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--text); transition:all var(--tap); }
+  .cchip[aria-pressed="false"]{ background:var(--surface-2); color:var(--text-3); border-style:dashed; text-decoration:line-through; }
+  .cchip:hover{ border-color:var(--accent); }
+  .pick-actions{ display:flex; justify-content:flex-end; margin-top:var(--s3); }
+  .pick-actions .btn{ height:30px; font-size:12px; }
+
   .results{ min-height:46px; }
   .res{ font-family:var(--font-mono); font-size:15px; line-height:1.5; padding:var(--s3) var(--s4);
     cursor:pointer; word-break:break-all; color:var(--text); transition:background var(--tap); display:flex; gap:10px; }
@@ -35,7 +49,6 @@
   .copyall{ height:28px; padding:0 10px; font-size:12px; }
   .copyall svg{ width:13px; height:13px; }
 
-  /* 計器表示の総パターン数は桁が長いので少し小さめに */
   #m-combos{ font-size:17px; }
   .warnrow{ padding:0 var(--s4) var(--s4); }
 </style>
@@ -45,7 +58,7 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
     <h1 data-i18n="t.title">Random string</h1>
-    <p data-i18n="t.desc">Generate secure random strings with full control over length and character set.</p>
+    <p data-i18n="t.desc">Generate secure random strings with full control over the character set.</p>
   </div>
 
   <div class="work">
@@ -61,13 +74,46 @@
         </div>
 
         <div class="field">
-          <label class="label" data-i18n="t.chars">Character types</label>
+          <label class="label" data-i18n="t.basic">Letters, digits, symbols</label>
           <div class="togcol">
-            <label class="toggle"><input type="checkbox" id="c-lower" checked><span class="track"></span><span class="tlbl" data-i18n="t.lower">Lowercase (a–z)</span></label>
-            <label class="toggle"><input type="checkbox" id="c-upper" checked><span class="track"></span><span class="tlbl" data-i18n="t.upper">Uppercase (A–Z)</span></label>
-            <label class="toggle"><input type="checkbox" id="c-digits" checked><span class="track"></span><span class="tlbl" data-i18n="t.digits">Digits (0–9)</span></label>
-            <label class="toggle"><input type="checkbox" id="c-symbols"><span class="track"></span><span class="tlbl" data-i18n="t.symbols">Symbols</span></label>
+            <label class="toggle"><input type="checkbox" id="g-lower" checked><span class="track"></span><span class="tlbl" data-i18n="t.lower">Lowercase (a–z)</span></label>
+            <label class="toggle"><input type="checkbox" id="g-upper" checked><span class="track"></span><span class="tlbl" data-i18n="t.upper">Uppercase (A–Z)</span></label>
+            <label class="toggle"><input type="checkbox" id="g-digits" checked><span class="track"></span><span class="tlbl" data-i18n="t.digits">Digits (0–9)</span></label>
+            <label class="toggle"><input type="checkbox" id="g-symbols"><span class="track"></span><span class="tlbl" data-i18n="t.symbols">Symbols</span></label>
           </div>
+          <button type="button" class="pickbtn" id="pick-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            <span data-i18n="t.pick">Pick individual characters</span>
+          </button>
+          <div class="pickpanel" id="pick-panel" hidden>
+            <div id="chipgrids"></div>
+            <div class="pick-actions">
+              <button type="button" class="btn btn--ghost" id="pick-reset"><span data-i18n="t.pickreset">Reset selection</span></button>
+            </div>
+            <div class="hint" data-i18n="t.pickhint">Click a character to switch it off.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.scripts">Scripts</label>
+          <div class="togcol">
+            <label class="toggle"><input type="checkbox" id="g-hiragana"><span class="track"></span><span class="tlbl" data-i18n="t.hiragana">Hiragana</span></label>
+            <label class="toggle"><input type="checkbox" id="g-katakana"><span class="track"></span><span class="tlbl" data-i18n="t.katakana">Katakana</span></label>
+            <label class="toggle"><input type="checkbox" id="g-cyrillic"><span class="track"></span><span class="tlbl" data-i18n="t.cyrillic">Cyrillic</span></label>
+            <label class="toggle"><input type="checkbox" id="g-greek"><span class="track"></span><span class="tlbl" data-i18n="t.greek">Greek</span></label>
+            <label class="toggle"><input type="checkbox" id="g-hangul"><span class="track"></span><span class="tlbl" data-i18n="t.hangul">Hangul</span></label>
+            <label class="toggle"><input type="checkbox" id="g-kanji"><span class="track"></span><span class="tlbl" data-i18n="t.kanji">Jōyō kanji</span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="exclude-field" data-i18n="t.excludeChars">Exclude characters</label>
+          <input class="input" id="exclude-field" data-i18n-ph="t.excludeCharsPh" placeholder="Characters typed here are never used" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+
+        <div class="field">
+          <label class="label" for="custom" data-i18n="t.customAdd">Extra characters</label>
+          <input class="input" id="custom" data-i18n-ph="t.customAddPh" placeholder="Used in addition to the selected types (paste OK)" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
 
         <div class="field">
@@ -77,11 +123,6 @@
             <label class="toggle"><input type="checkbox" id="o-norepeat"><span class="track"></span><span class="tlbl" data-i18n="t.norepeat">No repeated characters</span></label>
             <label class="toggle"><input type="checkbox" id="o-eachtype"><span class="track"></span><span class="tlbl" data-i18n="t.eachtype">Include at least one of each type</span></label>
           </div>
-        </div>
-
-        <div class="field">
-          <label class="label" for="custom" data-i18n="t.custom">Custom character set</label>
-          <input class="input" id="custom" data-i18n-ph="t.customph" placeholder="If set, only these characters are used (types ignored)" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
 
         <div class="field">
@@ -108,7 +149,7 @@
           </button>
         </div>
         <div id="results" class="results"></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click a string to copy.</div>
       </div>
 
       <div class="readout">
@@ -140,78 +181,89 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
 
-  var lenRange = $("len-range"), lenNum = $("len-num");
-  var cLower = $("c-lower"), cUpper = $("c-upper"), cDigits = $("c-digits"), cSymbols = $("c-symbols");
-  var oExclude = $("o-exclude"), oNoRepeat = $("o-norepeat"), oEachType = $("o-eachtype");
-  var customEl = $("custom"), countEl = $("count"), genBtn = $("gen"), dirtyEl = $("dirty");
-  var resultsEl = $("results"), copyallBtn = $("copyall");
-  var mBits = $("m-bits"), mAlpha = $("m-alpha"), mCombos = $("m-combos");
-  var strengthBadge = $("strength-badge"), strengthLbl = $("strength-lbl"), warningsEl = $("warnings");
+  // ===== 文字グループ =====
+  var KANJI_JOYO = "一丁七万丈三上下不与且世丘丙両並中串丸丹主丼久乏乗乙九乞乱乳乾亀了予争事二互五井亜亡交享京亭人仁今介仏仕他付仙代令以仮仰仲件任企伎伏伐休会伝伯伴伸伺似但位低住佐体何余作佳併使例侍供依価侮侯侵侶便係促俊俗保信修俳俵俸俺倉個倍倒候借倣値倫倹偉偏停健側偵偶偽傍傑傘備催傲債傷傾僅働像僕僚僧儀億儒償優元兄充兆先光克免児党入全八公六共兵具典兼内円冊再冒冗写冠冥冬冶冷凄准凍凝凡処凶凸凹出刀刃分切刈刊刑列初判別利到制刷券刹刺刻則削前剖剛剝剣剤副剰割創劇力功加劣助努励労効劾勃勅勇勉動勘務勝募勢勤勧勲勾匂包化北匠匹区医匿十千升午半卑卒卓協南単博占印危即却卵卸厄厘厚原厳去参又及友双反収叔取受叙口古句叫召可台叱史右号司各合吉同名后吏吐向君吟否含吸吹呂呈呉告周呪味呼命和咲咽哀品員哲哺唄唆唇唐唯唱唾商問啓善喉喚喜喝喩喪喫営嗅嗣嘆嘱嘲器噴嚇囚四回因団困囲図固国圏園土圧在地坂均坊坑坪垂型垣埋城域執培基埼堀堂堅堆堕堤堪報場塀塁塊塑塔塗塚塞塡塩塾境墓増墜墨墳墾壁壇壊壌士壮声壱売変夏夕外多夜夢大天太夫央失奇奈奉奏契奔奥奨奪奮女奴好如妃妄妊妖妙妥妨妬妹妻姉始姓委姫姻姿威娘娠娯婆婚婦婿媒媛嫁嫉嫌嫡嬢子孔字存孝季孤学孫宅宇守安完宗官宙定宛宜宝実客宣室宮宰害宴宵家容宿寂寄密富寒寛寝察寡寧審寮寸寺対寿封専射将尉尊尋導小少尚就尺尻尼尽尾尿局居屈届屋展属層履屯山岐岡岩岬岳岸峠峡峰島崇崎崖崩嵐川州巡巣工左巧巨差己巻巾市布帆希帝帥師席帯帰帳常帽幅幕幣干平年幸幹幻幼幽幾庁広床序底店府度座庫庭庶康庸廃廉廊延廷建弁弄弊式弐弓弔引弟弥弦弧弱張強弾当彙形彩彫彰影役彼往征径待律後徐徒従得御復循微徳徴徹心必忌忍志忘忙応忠快念怒怖思怠急性怨怪恋恐恒恣恥恨恩恭息恵悔悟悠患悦悩悪悲悼情惑惜惧惨惰想愁愉意愚愛感慄慈態慌慎慕慢慣慨慮慰慶憂憎憤憧憩憬憲憶憾懇懐懲懸成我戒戚戦戯戴戸戻房所扇扉手才打払扱扶批承技抄把抑投抗折抜択披抱抵抹押抽担拉拍拐拒拓拘拙招拝拠拡括拭拳拶拷拾持指挑挙挟挨挫振挿捉捕捗捜捨据捻掃授掌排掘掛採探接控推措掲描提揚換握揮援揺損搬搭携搾摂摘摩摯撃撤撮撲擁操擦擬支改攻放政故敏救敗教敢散敬数整敵敷文斉斎斑斗料斜斤斥斬断新方施旅旋族旗既日旦旧旨早旬旺昆昇明易昔星映春昧昨昭是昼時晩普景晴晶暁暇暑暖暗暦暫暮暴曇曖曜曲更書曹曽替最月有服朕朗望朝期木未末本札朱朴机朽杉材村束条来杯東松板析枕林枚果枝枠枢枯架柄某染柔柱柳柵査柿栃栄栓校株核根格栽桁桃案桑桜桟梅梗梨械棄棋棒棚棟森棺椅植椎検業極楷楼楽概構様槽標模権横樹橋機欄欠次欧欲欺款歌歓止正武歩歯歳歴死殉殊残殖殴段殺殻殿毀母毎毒比毛氏民気水氷永氾汁求汎汗汚江池汰決汽沃沈沖沙没沢河沸油治沼沿況泉泊泌法泡波泣泥注泰泳洋洗洞津洪活派流浄浅浜浦浪浮浴海浸消涙涯液涼淑淡淫深混添清渇済渉渋渓減渡渦温測港湖湧湯湾湿満源準溝溶溺滅滋滑滝滞滴漁漂漆漏演漠漢漫漬漸潔潜潟潤潮潰澄激濁濃濫濯瀬火灯灰災炉炊炎炭点為烈無焦然焼煎煙照煩煮熊熟熱燃燥爆爪爵父爽片版牙牛牧物牲特犠犬犯状狂狙狩独狭猛猟猫献猶猿獄獣獲玄率玉王玩珍珠班現球理琴瑠璃璧環璽瓦瓶甘甚生産用田由甲申男町画界畏畑畔留畜畝略番異畳畿疎疑疫疲疾病症痕痘痛痢痩痴瘍療癒癖発登白百的皆皇皮皿盆益盗盛盟監盤目盲直相盾省眉看県真眠眺眼着睡督睦瞬瞭瞳矛矢知短矯石砂研砕砲破硝硫硬碁碑確磁磨礁礎示礼社祈祉祖祝神祥票祭禁禅禍福秀私秋科秒秘租秩称移程税稚種稲稼稽稿穀穂積穏穫穴究空突窃窒窓窟窮窯立竜章童端競竹笑笛符第筆等筋筒答策箇箋算管箱箸節範築篤簡簿籍籠米粉粋粒粗粘粛粧精糖糧糸系糾紀約紅紋納純紙級紛素紡索紫累細紳紹紺終組経結絞絡給統絵絶絹継続維綱網綻綿緊総緑緒線締編緩緯練緻縁縄縛縦縫縮績繁繊織繕繭繰缶罪置罰署罵罷羅羊美羞群羨義羽翁翌習翻翼老考者耐耕耗耳聖聞聴職肉肌肖肘肝股肢肥肩肪肯育肺胃胆背胎胞胴胸能脂脅脇脈脊脚脱脳腎腐腕腫腰腸腹腺膚膜膝膨膳臆臓臣臨自臭至致臼興舌舎舗舞舟航般舶舷船艇艦良色艶芋芝芯花芳芸芽苗苛若苦英茂茎茨茶草荒荘荷菊菌菓菜華萎落葉著葛葬蒸蓄蓋蔑蔵蔽薄薦薪薫薬藍藤藩藻虎虐虚虜虞虫虹蚊蚕蛇蛍蛮蜂蜜融血衆行術街衛衝衡衣表衰衷袋袖被裁裂装裏裕補裸製裾複褐褒襟襲西要覆覇見規視覚覧親観角解触言訂訃計討訓託記訟訪設許訳訴診証詐詔評詞詠詣試詩詮詰話該詳誇誉誌認誓誕誘語誠誤説読誰課調談請論諦諧諭諮諸諾謀謁謄謎謙講謝謡謹識譜警議譲護谷豆豊豚象豪貌貝貞負財貢貧貨販貪貫責貯貴買貸費貼貿賀賂賃賄資賊賓賛賜賞賠賢賦質賭購贈赤赦走赴起超越趣足距跡路跳践踊踏踪蹴躍身車軌軍軒軟転軸軽較載輝輩輪輸轄辛辞辣辱農辺込迅迎近返迫迭述迷追退送逃逆透逐逓途通逝速造連逮週進逸遂遅遇遊運遍過道達違遜遠遡遣適遭遮遵遷選遺避還那邦邪邸郊郎郡部郭郵郷都酌配酎酒酔酢酪酬酵酷酸醒醜醸采釈里重野量金釜針釣鈍鈴鉄鉛鉢鉱銀銃銅銘銭鋭鋳鋼錠錦錬錮錯録鍋鍛鍵鎌鎖鎮鏡鐘鑑長門閉開閑間関閣閥閲闇闘阜阪防阻附降限陛院陣除陥陪陰陳陵陶陸険陽隅隆隊階随隔隙際障隠隣隷隻雄雅集雇雌雑離難雨雪雰雲零雷電需震霊霜霧露青静非面革靴韓音韻響頂頃項順須預頑頒頓領頬頭頻頼題額顎顔顕願類顧風飛食飢飯飲飼飽飾餅養餌餓館首香馬駄駅駆駐駒騎騒験騰驚骨骸髄高髪鬱鬼魂魅魔魚鮮鯨鳥鳴鶏鶴鹿麓麗麦麺麻黄黒黙鼓鼻齢";
+  function range(a, b) { var s = ""; for (var c = a; c <= b; c++) s += String.fromCharCode(c); return s; }
+  function greekSet() { var s = ""; for (var c = 0x0391; c <= 0x03A9; c++) if (c !== 0x03A2) s += String.fromCharCode(c); for (var d = 0x03B1; d <= 0x03C9; d++) s += String.fromCharCode(d); return s; }
+  var GROUPS = {
+    lower:    { ascii: true,  chars: "abcdefghijklmnopqrstuvwxyz" },
+    upper:    { ascii: true,  chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZ" },
+    digits:   { ascii: true,  chars: "0123456789" },
+    symbols:  { ascii: true,  chars: "!@#$%^&*()-_=+[]{};:,.?" },
+    hiragana: { ascii: false, chars: range(0x3041, 0x3096) },
+    katakana: { ascii: false, chars: range(0x30A1, 0x30FA) },
+    cyrillic: { ascii: false, chars: "\u0401" + range(0x0410, 0x044F) + "\u0451" },
+    greek:    { ascii: false, chars: greekSet() },
+    hangul:   { ascii: false, chars: range(0xAC00, 0xD7A3) },
+    kanji:    { ascii: false, chars: KANJI_JOYO }
+  };
+  var GROUP_LIST = ["lower", "upper", "digits", "symbols", "hiragana", "katakana", "cyrillic", "greek", "hangul", "kanji"];
+  var ASCII_LIST = ["lower", "upper", "digits", "symbols"];
+  var GROUP_ARR = {};
+  GROUP_LIST.forEach(function (id) { GROUP_ARR[id] = Array.from(GROUPS[id].chars); });
 
+  var AMBIG = "iIlL1oO0";   // 紛らわしい文字
+  var excludedChip = Object.create(null);   // チップでOFFにしたASCII文字
   var hasGenerated = false;
 
-  // ---- 文字集合定義 ----
-  var LOWER  = "abcdefghijklmnopqrstuvwxyz";
-  var UPPER  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  var DIGITS = "0123456789";
-  var SYMBOLS = "!@#$%^&*()-_=+[]{};:,.?";
-  var AMBIG  = "iIlL1oO0";   // 紛らわしい文字（除外対象）
-
-  // ---- 文言（shell 無時のフォールバックも兼ねる） ----
+  // ===== 文言（shell 無時のフォールバック兼） =====
   var STR = {
     en: {
       "t.title": "Random string",
-      "t.desc": "Generate secure random strings with full control over length and character set.",
-      "t.length": "Length", "t.chars": "Character types",
+      "t.desc": "Generate secure random strings with full control over the character set \u2014 pick scripts, toggle individual characters, and exclude the ones you don't want.",
+      "t.length": "Length", "t.basic": "Letters, digits, symbols",
       "t.lower": "Lowercase (a\u2013z)", "t.upper": "Uppercase (A\u2013Z)", "t.digits": "Digits (0\u20139)", "t.symbols": "Symbols",
-      "t.options": "Options",
-      "t.exclude": "Exclude look-alike characters", "t.norepeat": "No repeated characters", "t.eachtype": "Include at least one of each type",
-      "t.custom": "Custom character set", "t.customph": "If set, only these characters are used (types ignored)",
+      "t.pick": "Pick individual characters", "t.pickreset": "Reset selection",
+      "t.pickhint": "Click a character to switch it off. Large scripts (kanji, Hangul\u2026) aren't shown as chips \u2014 use \u201cExclude characters\u201d for those.",
+      "t.picknone": "Turn on a letters / digits / symbols type to choose characters here.",
+      "t.scripts": "Scripts", "t.hiragana": "Hiragana", "t.katakana": "Katakana", "t.cyrillic": "Cyrillic", "t.greek": "Greek", "t.hangul": "Hangul", "t.kanji": "J\u014dy\u014d kanji",
+      "t.excludeChars": "Exclude characters", "t.excludeCharsPh": "Characters typed here are never used (works for scripts and pasted text too)",
+      "t.customAdd": "Extra characters", "t.customAddPh": "Used in addition to the selected types \u2014 paste anything (e.g. \u3042, \u03a9, \u6f22)",
+      "t.options": "Options", "t.exclude": "Exclude look-alike characters", "t.norepeat": "No repeated characters", "t.eachtype": "Include at least one of each type",
       "t.count": "How many", "t.generate": "Generate",
       "t.dirty": "Settings changed \u2014 press Generate to update.",
       "t.result": "Result", "t.copyall": "Copy all", "t.copyhint": "Click a string to copy.",
-      "t.empty": "Select at least one character type.",
+      "t.empty": "No characters selected. Turn on a type or add characters.",
       "t.strength": "Strength", "t.entropy": "Entropy", "t.bit": "bit",
       "t.alphabet": "Character set size", "t.charsunit": "chars", "t.combos": "Total patterns",
       "t.weak": "Weak", "t.ok": "Fair", "t.strong": "Strong", "t.vstrong": "Very strong",
-      "t.wEmpty": "No characters available. Pick a type or enter a custom set.",
+      "t.wEmpty": "No characters available. Turn on a type or add characters.",
       "t.wClamp": "Length capped to the character-set size (no repeats).",
       "t.wEachLong": "Length is shorter than the number of selected types.",
-      "t.wCustomEach": "\u201cOne of each\u201d is ignored while a custom set is used.",
       "t.wEachNote": "Entropy is an upper bound when \u201cone of each\u201d is on."
     },
     ja: {
       "t.title": "\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217",
-      "t.desc": "\u9577\u3055\u3068\u6587\u5b57\u7a2e\u3092\u5b8c\u5168\u306b\u6307\u5b9a\u3067\u304d\u308b\u3001\u5b89\u5168\u306a\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217\u3092\u751f\u6210\u3057\u307e\u3059\u3002",
-      "t.length": "\u9577\u3055", "t.chars": "\u6587\u5b57\u7a2e",
+      "t.desc": "\u6587\u5b57\u96c6\u5408\u3092\u5b8c\u5168\u306b\u5236\u5fa1\u3057\u3066\u5b89\u5168\u306a\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217\u3092\u751f\u6210\u3057\u307e\u3059\u3002\u30b9\u30af\u30ea\u30d7\u30c8\u3092\u9078\u3073\u3001\u6587\u5b57\u30921\u3064\u305a\u3064ON/OFF\u3057\u3001\u4f7f\u3044\u305f\u304f\u306a\u3044\u6587\u5b57\u3092\u9664\u5916\u3067\u304d\u307e\u3059\u3002",
+      "t.length": "\u9577\u3055", "t.basic": "\u82f1\u6570\u30fb\u8a18\u53f7",
       "t.lower": "\u5c0f\u6587\u5b57\uff08a\u2013z\uff09", "t.upper": "\u5927\u6587\u5b57\uff08A\u2013Z\uff09", "t.digits": "\u6570\u5b57\uff080\u20139\uff09", "t.symbols": "\u8a18\u53f7",
-      "t.options": "\u30aa\u30d7\u30b7\u30e7\u30f3",
-      "t.exclude": "\u7d1b\u3089\u308f\u3057\u3044\u6587\u5b57\u3092\u9664\u5916", "t.norepeat": "\u540c\u3058\u6587\u5b57\u3092\u7e70\u308a\u8fd4\u3055\u306a\u3044", "t.eachtype": "\u5404\u6587\u5b57\u7a2e\u3092\u6700\u4f4e1\u6587\u5b57\u542b\u3081\u308b",
-      "t.custom": "\u30ab\u30b9\u30bf\u30e0\u6587\u5b57\u96c6\u5408", "t.customph": "\u6307\u5b9a\u3059\u308b\u3068\u3053\u306e\u6587\u5b57\u3060\u3051\u3092\u4f7f\u7528\uff08\u6587\u5b57\u7a2e\u306f\u7121\u8996\uff09",
+      "t.pick": "\u500b\u5225\u306b\u6587\u5b57\u3092\u9078\u3076", "t.pickreset": "\u500b\u5225\u9078\u629e\u3092\u30ea\u30bb\u30c3\u30c8",
+      "t.pickhint": "\u6587\u5b57\u3092\u30af\u30ea\u30c3\u30af\u3067OFF\u306b\u3067\u304d\u307e\u3059\u3002\u5b57\u6570\u306e\u591a\u3044\u30b9\u30af\u30ea\u30d7\u30c8\uff08\u6f22\u5b57\u30fb\u30cf\u30f3\u30b0\u30eb\u7b49\uff09\u306f\u30c1\u30c3\u30d7\u306b\u51fa\u3057\u307e\u305b\u3093\u3002\u305d\u306e\u5834\u5408\u306f\u300c\u9664\u5916\u3059\u308b\u6587\u5b57\u300d\u3092\u4f7f\u3063\u3066\u304f\u3060\u3055\u3044\u3002",
+      "t.picknone": "\u82f1\u6570\u30fb\u8a18\u53f7\u3092ON\u306b\u3059\u308b\u3068\u3001\u3053\u3053\u306b\u6587\u5b57\u304c\u4e26\u3073\u307e\u3059\u3002",
+      "t.scripts": "\u30b9\u30af\u30ea\u30d7\u30c8", "t.hiragana": "\u3072\u3089\u304c\u306a", "t.katakana": "\u30ab\u30bf\u30ab\u30ca", "t.cyrillic": "\u30ad\u30ea\u30eb\u6587\u5b57", "t.greek": "\u30ae\u30ea\u30b7\u30e3\u6587\u5b57", "t.hangul": "\u30cf\u30f3\u30b0\u30eb", "t.kanji": "\u5e38\u7528\u6f22\u5b57",
+      "t.excludeChars": "\u9664\u5916\u3059\u308b\u6587\u5b57", "t.excludeCharsPh": "\u3053\u3053\u306b\u66f8\u3044\u305f\u6587\u5b57\u306f\u4f7f\u3044\u307e\u305b\u3093\uff08\u30b9\u30af\u30ea\u30d7\u30c8\u3084\u8cbc\u308a\u4ed8\u3051\u306b\u3082\u6709\u52b9\uff09",
+      "t.customAdd": "\u8ffd\u52a0\u3059\u308b\u6587\u5b57", "t.customAddPh": "\u9078\u629e\u3057\u305f\u6587\u5b57\u7a2e\u306b\u52a0\u3048\u3066\u4f7f\u3046\u6587\u5b57\u3002\u4f55\u3067\u3082\u8cbc\u308a\u4ed8\u3051\u53ef\uff08\u4f8b: \u3042, \u03a9, \u6f22\uff09",
+      "t.options": "\u30aa\u30d7\u30b7\u30e7\u30f3", "t.exclude": "\u7d1b\u3089\u308f\u3057\u3044\u6587\u5b57\u3092\u9664\u5916", "t.norepeat": "\u540c\u3058\u6587\u5b57\u3092\u7e70\u308a\u8fd4\u3055\u306a\u3044", "t.eachtype": "\u5404\u6587\u5b57\u7a2e\u3092\u6700\u4f4e1\u6587\u5b57\u542b\u3081\u308b",
       "t.count": "\u672c\u6570", "t.generate": "\u751f\u6210",
       "t.dirty": "\u8a2d\u5b9a\u304c\u5909\u66f4\u3055\u308c\u307e\u3057\u305f\u3002\u300c\u751f\u6210\u300d\u3067\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
       "t.result": "\u7d50\u679c", "t.copyall": "\u3059\u3079\u3066\u30b3\u30d4\u30fc", "t.copyhint": "\u6587\u5b57\u5217\u3092\u30af\u30ea\u30c3\u30af\u3067\u30b3\u30d4\u30fc\u3002",
-      "t.empty": "\u6587\u5b57\u7a2e\u30921\u3064\u4ee5\u4e0a\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+      "t.empty": "\u6587\u5b57\u304c\u9078\u629e\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002\u6587\u5b57\u7a2e\u3092ON\u306b\u3059\u308b\u304b\u6587\u5b57\u3092\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
       "t.strength": "\u5f37\u5ea6", "t.entropy": "\u30a8\u30f3\u30c8\u30ed\u30d4\u30fc", "t.bit": "bit",
       "t.alphabet": "\u6587\u5b57\u96c6\u5408\u30b5\u30a4\u30ba", "t.charsunit": "\u6587\u5b57", "t.combos": "\u7dcf\u30d1\u30bf\u30fc\u30f3\u6570",
       "t.weak": "\u5f31\u3044", "t.ok": "\u666e\u901a", "t.strong": "\u5f37\u3044", "t.vstrong": "\u975e\u5e38\u306b\u5f37\u3044",
-      "t.wEmpty": "\u4f7f\u7528\u3067\u304d\u308b\u6587\u5b57\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u6587\u5b57\u7a2e\u3092\u9078\u3076\u304b\u30ab\u30b9\u30bf\u30e0\u6587\u5b57\u96c6\u5408\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+      "t.wEmpty": "\u4f7f\u7528\u3067\u304d\u308b\u6587\u5b57\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u6587\u5b57\u7a2e\u3092ON\u306b\u3059\u308b\u304b\u6587\u5b57\u3092\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
       "t.wClamp": "\u9577\u3055\u3092\u6587\u5b57\u96c6\u5408\u30b5\u30a4\u30ba\u306b\u5408\u308f\u305b\u307e\u3057\u305f\uff08\u91cd\u8907\u306a\u3057\uff09\u3002",
       "t.wEachLong": "\u9577\u3055\u304c\u9078\u629e\u3057\u305f\u6587\u5b57\u7a2e\u6570\u3088\u308a\u77ed\u3044\u305f\u3081\u3001\u4e00\u90e8\u306e\u7a2e\u985e\u3092\u542b\u3081\u3089\u308c\u307e\u305b\u3093\u3002",
-      "t.wCustomEach": "\u30ab\u30b9\u30bf\u30e0\u6587\u5b57\u96c6\u5408\u306e\u4f7f\u7528\u4e2d\u306f\u300c\u5404\u7a2e\u3092\u542b\u3081\u308b\u300d\u306f\u7121\u52b9\u3067\u3059\u3002",
       "t.wEachNote": "\u300c\u5404\u7a2e\u3092\u542b\u3081\u308b\u300d\u6709\u52b9\u6642\u3001\u30a8\u30f3\u30c8\u30ed\u30d4\u30fc\u306f\u4e0a\u9650\u5024\u3067\u3059\u3002"
     }
   };
-  function T(k){
-    if (window.Shell && Shell.t) return Shell.t(k);
-    return (STR.en[k] != null) ? STR.en[k] : k;
-  }
-  function doCopy(text, el){
+  function T(k) { if (window.Shell && Shell.t) return Shell.t(k); return (STR.en[k] != null) ? STR.en[k] : k; }
+  function doCopy(text, el) {
     if (window.Shell && Shell.copy) { Shell.copy(text, el); return; }
     try { navigator.clipboard && navigator.clipboard.writeText(String(text)); } catch (e) {}
   }
 
-  // ---- 安全な乱数（リジェクションサンプリングで剰余バイアスを排除） ----
+  // ===== 乱数（リジェクションサンプリング） =====
   function secureRandomInt(n) {
     if (n <= 1) return 0;
     var bytesNeeded = n <= 256 ? 1 : n <= 65536 ? 2 : 4;
@@ -224,96 +276,77 @@
       if (x < limit) return x % n;
     }
   }
+  function clampInt(v, min, max, def) { var n = parseInt(v, 10); if (isNaN(n)) n = def; if (n < min) n = min; if (n > max) n = max; return n; }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = secureRandomInt(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; } }
 
-  function clampInt(v, min, max, def) {
-    var n = parseInt(v, 10); if (isNaN(n)) n = def;
-    if (n < min) n = min; if (n > max) n = max; return n;
+  // ===== 文字集合の構築 =====
+  function activeGroupIds() { return GROUP_LIST.filter(function (id) { return $("g-" + id).checked; }); }
+  function exclusionSet() {
+    var set = Object.create(null);
+    if ($("o-exclude").checked) Array.from(AMBIG).forEach(function (c) { set[c] = 1; });
+    Array.from($("exclude-field").value).forEach(function (c) { set[c] = 1; });
+    for (var c in excludedChip) if (excludedChip[c]) set[c] = 1;
+    return set;
   }
-
-  // ---- 文字集合の構築 ----
   function buildAlphabet() {
-    var exclude = oExclude.checked;
-    var filt = function (s) { return exclude ? Array.prototype.filter.call(s, function (c) { return AMBIG.indexOf(c) < 0; }).join("") : s; };
-    var custom = customEl.value;
-    if (custom && custom.length) {
-      var set = [];
-      Array.prototype.forEach.call(custom, function (c) { if (set.indexOf(c) < 0) set.push(c); });
-      if (exclude) set = set.filter(function (c) { return AMBIG.indexOf(c) < 0; });
-      return { alphabet: set.join(""), activeCats: [], custom: true };
-    }
-    var cats = [];
-    if (cLower.checked)   { var a = filt(LOWER);  if (a) cats.push(a); }
-    if (cUpper.checked)   { var b = filt(UPPER);  if (b) cats.push(b); }
-    if (cDigits.checked)  { var c = filt(DIGITS); if (c) cats.push(c); }
-    if (cSymbols.checked) { var d = filt(SYMBOLS); if (d) cats.push(d); }
-    return { alphabet: cats.join(""), activeCats: cats, custom: false };
+    var ex = exclusionSet();
+    var ids = activeGroupIds();
+    var seen = Object.create(null);
+    var chars = [];
+    var cats = [];   // each-type 用（有効グループの残存文字・配列）
+    ids.forEach(function (id) {
+      var arr = GROUP_ARR[id], cat = [];
+      for (var i = 0; i < arr.length; i++) { var ch = arr[i]; if (ex[ch] || seen[ch]) continue; seen[ch] = 1; chars.push(ch); cat.push(ch); }
+      if (cat.length) cats.push(cat);
+    });
+    var custom = Array.from($("custom").value);   // 追加（積み増し）。each-type の種別には数えない
+    for (var j = 0; j < custom.length; j++) { var cc = custom[j]; if (ex[cc] || seen[cc]) continue; seen[cc] = 1; chars.push(cc); }
+    return { chars: chars, cats: cats };
   }
-
   function getConfig() {
     var ab = buildAlphabet();
-    var N = ab.alphabet.length;
-    var reqLen = clampInt(lenNum.value, 1, 128, 16);
-    var noRepeat = oNoRepeat.checked;
-    var eachType = oEachType.checked;
-    var count = clampInt(countEl.value, 1, 100, 1);
+    var N = ab.chars.length;
+    var reqLen = clampInt($("len-num").value, 1, 128, 16);
+    var noRepeat = $("o-norepeat").checked;
+    var eachType = $("o-eachtype").checked;
+    var count = clampInt($("count").value, 1, 100, 1);
     var warnings = [];
     var effLen = reqLen;
-
     if (N === 0) warnings.push("empty");
     if (noRepeat && N > 0 && reqLen > N) { effLen = N; warnings.push("clamp"); }
-    if (eachType && !ab.custom && ab.activeCats.length > 0 && effLen < ab.activeCats.length) warnings.push("eachlong");
-    if (eachType && ab.custom) warnings.push("customeach");
-
-    return {
-      alphabet: ab.alphabet, activeCats: ab.activeCats, custom: ab.custom,
-      N: N, length: effLen, noRepeat: noRepeat, eachType: eachType, count: count, warnings: warnings
-    };
+    if (eachType && ab.cats.length > 0 && effLen < ab.cats.length) warnings.push("eachlong");
+    return { chars: ab.chars, cats: ab.cats, N: N, length: effLen, noRepeat: noRepeat, eachType: eachType, count: count, warnings: warnings };
   }
 
-  // ---- 1本生成（重複なし・各種保証の両立） ----
+  // ===== 1本生成 =====
   function generateOne(cfg) {
-    var chars = Array.from(cfg.alphabet);
-    var N = chars.length;
-    var L = cfg.length;
-    var noRepeat = cfg.noRepeat;
-    var used = Object.create(null);   // noRepeat 用の使用済みセット
-    var usedCount = 0;
-
-    function pick(pool) {
-      if (noRepeat) {
-        var avail = pool.filter(function (ch) { return !used[ch]; });
-        var p = avail.length ? avail : pool;
-        var ch = p[secureRandomInt(p.length)];
-        if (!used[ch]) { used[ch] = true; usedCount++; }
-        return ch;
-      }
-      return pool[secureRandomInt(pool.length)];
+    var chars = cfg.chars, N = chars.length, L = cfg.length, noRepeat = cfg.noRepeat;
+    var cats = (cfg.eachType && cfg.cats.length > 0 && L >= cfg.cats.length) ? cfg.cats : [];
+    var out;
+    if (!noRepeat) {
+      out = [];
+      for (var ci = 0; ci < cats.length; ci++) out.push(cats[ci][secureRandomInt(cats[ci].length)]);
+      while (out.length < L) out.push(chars[secureRandomInt(N)]);
+    } else {
+      // 各カテゴリから1文字確保 → 残りを袋（swap削除）から重複なしで補充
+      var reserved = [], usedMap = Object.create(null);
+      for (var c2 = 0; c2 < cats.length; c2++) { var ch = cats[c2][secureRandomInt(cats[c2].length)]; reserved.push(ch); usedMap[ch] = 1; }
+      var bag = []; for (var b = 0; b < chars.length; b++) if (!usedMap[chars[b]]) bag.push(chars[b]);
+      out = reserved.slice();
+      var need = L - reserved.length, bagLen = bag.length;
+      for (var k = 0; k < need && bagLen > 0; k++) { var idx = secureRandomInt(bagLen); out.push(bag[idx]); bag[idx] = bag[bagLen - 1]; bagLen--; }
     }
-
-    var cats = (cfg.eachType && !cfg.custom && cfg.activeCats.length > 0 && L >= cfg.activeCats.length) ? cfg.activeCats : [];
-    var out = [];
-    // 各カテゴリから最低1文字を確保
-    for (var ci = 0; ci < cats.length; ci++) out.push(pick(Array.from(cats[ci])));
-    // 残りを全体から補充
-    while (out.length < L) {
-      if (noRepeat && usedCount >= N) break;
-      out.push(pick(chars));
-    }
-    // 確保した文字が先頭に固まらないようシャッフル（Fisher\u2013Yates）
-    for (var i = out.length - 1; i > 0; i--) {
-      var j = secureRandomInt(i + 1);
-      var tmp = out[i]; out[i] = out[j]; out[j] = tmp;
-    }
+    shuffle(out);
     return out.join("");
   }
 
-  // ---- エントロピー ----
+  // ===== エントロピー =====
   function bitsFor(N, L, noRepeat) {
     if (N <= 1 || L <= 0) return 0;
     if (!noRepeat) return L * Math.log2(N);
-    var b = 0, k = Math.min(L, N);
-    for (var i = 0; i < k; i++) b += Math.log2(N - i);
-    return b;
+    var bb = 0, kk = Math.min(L, N);
+    for (var i = 0; i < kk; i++) bb += Math.log2(N - i);
+    return bb;
   }
   function fmtCombos(bits) {
     if (bits <= 0) return "1";
@@ -323,9 +356,11 @@
     return mant.toFixed(2) + " \u00d7 10^" + exp;
   }
 
-  // ---- 出力 ----
+  // ===== 出力 =====
   function escHtml(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function escAttr(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  var resultsEl = $("results"), copyallBtn = $("copyall"), dirtyEl = $("dirty");
 
   function renderEmpty() {
     resultsEl.className = "results";
@@ -346,36 +381,33 @@
   function setStrength(bits, cfg) {
     var lbl, cls;
     if (cfg.N === 0) { lbl = "\u2014"; cls = "badge--muted"; }
-    else if (bits < 40)  { lbl = T("t.weak");    cls = "badge--neg"; }
-    else if (bits < 72)  { lbl = T("t.ok");      cls = "badge--muted"; }
-    else if (bits < 112) { lbl = T("t.strong");  cls = "badge--pos"; }
-    else                 { lbl = T("t.vstrong"); cls = "badge--pos"; }
-    strengthBadge.className = "badge " + cls;
-    strengthLbl.textContent = lbl;
+    else if (bits < 40) { lbl = T("t.weak"); cls = "badge--neg"; }
+    else if (bits < 72) { lbl = T("t.ok"); cls = "badge--muted"; }
+    else if (bits < 112) { lbl = T("t.strong"); cls = "badge--pos"; }
+    else { lbl = T("t.vstrong"); cls = "badge--pos"; }
+    $("strength-badge").className = "badge " + cls;
+    $("strength-lbl").textContent = lbl;
   }
   function renderWarnings(cfg) {
     var w = [];
     cfg.warnings.forEach(function (code) {
-      var key = code === "empty" ? "t.wEmpty" : code === "clamp" ? "t.wClamp" :
-        code === "eachlong" ? "t.wEachLong" : code === "customeach" ? "t.wCustomEach" : null;
+      var key = code === "empty" ? "t.wEmpty" : code === "clamp" ? "t.wClamp" : code === "eachlong" ? "t.wEachLong" : null;
       if (key) w.push({ key: key, neg: code === "empty" });
     });
-    if (cfg.eachType && !cfg.custom && cfg.activeCats.length > 0 && cfg.length >= cfg.activeCats.length)
-      w.push({ key: "t.wEachNote", neg: false });
-    warningsEl.innerHTML = w.map(function (o) {
+    if (cfg.eachType && cfg.cats.length > 0 && cfg.length >= cfg.cats.length) w.push({ key: "t.wEachNote", neg: false });
+    $("warnings").innerHTML = w.map(function (o) {
       return '<span class="badge ' + (o.neg ? "badge--neg" : "badge--muted") + '"><span class="d"></span>' + escHtml(T(o.key)) + "</span>";
     }).join("");
   }
-
   function updateMetrics(cfg) {
     cfg = cfg || getConfig();
     var bits = bitsFor(cfg.N, cfg.length, cfg.noRepeat);
-    mBits.textContent = bits <= 0 ? "0" : (bits >= 100 ? String(Math.round(bits)) : bits.toFixed(1));
-    mAlpha.textContent = cfg.N;
-    mCombos.textContent = cfg.N === 0 ? "\u2014" : fmtCombos(bits);
+    $("m-bits").textContent = bits <= 0 ? "0" : (bits >= 100 ? String(Math.round(bits)) : bits.toFixed(1));
+    $("m-alpha").textContent = cfg.N;
+    $("m-combos").textContent = cfg.N === 0 ? "\u2014" : fmtCombos(bits);
     setStrength(bits, cfg);
     renderWarnings(cfg);
-    genBtn.disabled = cfg.N === 0;
+    $("gen").disabled = cfg.N === 0;
   }
 
   function generate() {
@@ -389,39 +421,61 @@
     dirtyEl.hidden = true;
   }
 
-  // ---- 設定変更（結果は変えず計器のみ更新。dirty ヒント表示） ----
-  function onChange() {
-    updateMetrics();
-    if (hasGenerated) dirtyEl.hidden = false;
+  // ===== チップ（ASCII の個別選択） =====
+  var pickPanel = $("pick-panel"), pickToggle = $("pick-toggle");
+  function renderChips() {
+    var html = "";
+    ASCII_LIST.forEach(function (id) {
+      if (!$("g-" + id).checked) return;
+      var chips = GROUP_ARR[id].map(function (ch) {
+        var on = !excludedChip[ch];
+        return '<button type="button" class="cchip" data-ch="' + escAttr(ch) + '" aria-pressed="' + on + '">' + escHtml(ch) + "</button>";
+      }).join("");
+      html += '<div class="chipgroup"><div class="chipgroup__h">' + escHtml(T("t." + id)) + '</div><div class="chipgrid">' + chips + "</div></div>";
+    });
+    $("chipgrids").innerHTML = html || '<div class="hint">' + escHtml(T("t.picknone")) + "</div>";
   }
-
-  // 長さ: スライダー <-> 数値 同期（入力中は数値テキストを強制しない）
-  lenRange.addEventListener("input", function () { lenNum.value = lenRange.value; onChange(); });
-  lenNum.addEventListener("input", function () { lenRange.value = clampInt(lenNum.value, 1, 128, 16); onChange(); });
-  lenNum.addEventListener("blur", function () { lenNum.value = clampInt(lenNum.value, 1, 128, 16); lenRange.value = lenNum.value; onChange(); });
-  countEl.addEventListener("input", onChange);
-  countEl.addEventListener("blur", function () { countEl.value = clampInt(countEl.value, 1, 100, 1); onChange(); });
-
-  [cLower, cUpper, cDigits, cSymbols, oExclude, oNoRepeat, oEachType].forEach(function (el) {
-    el.addEventListener("change", onChange);
+  pickToggle.addEventListener("click", function () {
+    var open = pickPanel.hidden;
+    pickPanel.hidden = !open;
+    pickToggle.setAttribute("aria-expanded", String(open));
+    if (open) renderChips();
   });
-  customEl.addEventListener("input", onChange);
+  $("chipgrids").addEventListener("click", function (e) {
+    var b = e.target.closest(".cchip"); if (!b) return;
+    var ch = b.getAttribute("data-ch");
+    if (excludedChip[ch]) delete excludedChip[ch]; else excludedChip[ch] = 1;
+    b.setAttribute("aria-pressed", String(!excludedChip[ch]));
+    core();
+  });
+  $("pick-reset").addEventListener("click", function () { excludedChip = Object.create(null); renderChips(); core(); });
 
-  // Enter で生成
-  [lenNum, countEl, customEl].forEach(function (el) {
+  // ===== 変更ハンドリング =====
+  function core() { updateMetrics(); if (hasGenerated) dirtyEl.hidden = false; }
+
+  var lenRange = $("len-range"), lenNum = $("len-num"), countEl = $("count");
+  lenRange.addEventListener("input", function () { lenNum.value = lenRange.value; core(); });
+  lenNum.addEventListener("input", function () { lenRange.value = clampInt(lenNum.value, 1, 128, 16); core(); });
+  lenNum.addEventListener("blur", function () { lenNum.value = clampInt(lenNum.value, 1, 128, 16); lenRange.value = lenNum.value; core(); });
+  countEl.addEventListener("input", core);
+  countEl.addEventListener("blur", function () { countEl.value = clampInt(countEl.value, 1, 100, 1); core(); });
+
+  GROUP_LIST.forEach(function (id) {
+    $("g-" + id).addEventListener("change", function () { if (!pickPanel.hidden) renderChips(); core(); });
+  });
+  ["o-exclude", "o-norepeat", "o-eachtype"].forEach(function (id) { $(id).addEventListener("change", core); });
+  $("exclude-field").addEventListener("input", core);
+  $("custom").addEventListener("input", core);
+
+  [lenNum, countEl, $("exclude-field"), $("custom")].forEach(function (el) {
     el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); generate(); } });
   });
-
-  genBtn.addEventListener("click", generate);
+  $("gen").addEventListener("click", generate);
   copyallBtn.addEventListener("click", function () { doCopy(copyallBtn._all || "", copyallBtn); });
 
-  // ---- 起動 ----
+  // ===== 起動 =====
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
-    Shell.init({
-      id: "random-string",
-      strings: STR,
-      onSettingsChange: function () { updateMetrics(); }
-    });
+    Shell.init({ id: "random-string", strings: STR, onSettingsChange: function () { if (!pickPanel.hidden) renderChips(); updateMetrics(); } });
   }
   updateMetrics();
   generate();
