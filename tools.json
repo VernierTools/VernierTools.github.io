@@ -283,12 +283,12 @@
         "blender"
       ],
       "name": {
-        "en": "Overwrite Save Warning",
-        "ja": "Overwrite Save Warning"
+        "en": "Project Save Overwrite Warning",
+        "ja": "Project Save Overwrite Warning"
       },
       "description": {
-        "en": "Warn before overwriting a saved file. Blender add-on (English UI).",
-        "ja": "上書き保存の前に警告を出すBlenderアドオン（英語UI）。"
+        "en": "Warn before overwriting a saved .blend file. (English UI).",
+        "ja": "プロジェクトファイルの上書き保存の前に警告を出すBlenderアドオン（英語UI）。"
       },
       "keywords": [
         "blender",
