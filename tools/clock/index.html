@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock hand angles — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .clockface{ background:var(--surface); }
+  .clockface svg{ display:block; width:100%; height:auto; }
+  .grab{ cursor:grab; touch-action:none; }
+  .grab:active{ cursor:grabbing; }
+  #knob:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .timein{ display:flex; align-items:flex-start; gap:var(--s2); }
+  .timein .input{ width:100%; text-align:center; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:18px; letter-spacing:.02em; padding:0 8px; }
+  .timein .colon{ height:38px; line-height:38px; color:var(--text-3); font-weight:600; }
+  .tcol{ flex:1; display:flex; flex-direction:column; gap:6px; }
+  .fieldreset{ height:28px; display:flex; align-items:center; justify-content:center; gap:5px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-3); font-size:12px; font-weight:500; cursor:pointer; transition:all var(--tap); }
+  .fieldreset:hover{ border-color:var(--text-3); color:var(--text); background:var(--surface-2); }
+  .fieldreset svg{ width:13px; height:13px; }
+
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg--2{ grid-template-columns:repeat(2,1fr); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .adjust{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .adjust .btn{ height:40px; font-variant-numeric:tabular-nums; }
+  .quickset{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:var(--s4); }
+  .quickset .btn{ height:42px; }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
+
+  /* readout: 各針で右側/左側の両方を常時表示 */
+  .ro-head{ display:grid; grid-template-columns:1fr 80px 80px; gap:var(--s3); padding:8px var(--s4) 4px; }
+  .ro-head span{ font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); text-align:right; }
+  .rrow2{ display:grid; grid-template-columns:1fr 80px 80px; gap:var(--s3); align-items:baseline; padding:var(--s3) var(--s4); }
+  .rrow2 + .rrow2{ border-top:1px solid var(--border); }
+  .rrow2 .lbl{ font-size:13px; color:var(--text-2); }
+  .rrow2 .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:17px; text-align:right; cursor:pointer; }
+  .rrow2 .v--r{ color:var(--accent); }
+  .rrow2 .v--l{ color:var(--text-2); }
+
+  /* 出力コーナー: 簡易/正確 モード切替 + フォーマット切替 */
+  .romode{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .romode button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:500; color:var(--text-2); padding:3px 10px; border-radius:4px; transition:all var(--tap); }
+  .romode button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .rofmt{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:10px var(--s4) 2px; }
+  .rofmt button{ appearance:none; cursor:pointer; font:inherit; font-size:12px; font-weight:500; height:30px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
+    transition:all var(--tap); }
+  .rofmt button:hover{ border-color:var(--text-3); }
+  .rofmt button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .acc-note{ font-size:11px; color:var(--text-3); padding:6px var(--s4) 0; line-height:1.45; }
+
+  /* 正確モード: 値の桁が長くなるので列幅を可変に + 循環小数の上線 */
+  .readout[data-acc="1"] .ro-head,
+  .readout[data-acc="1"] .rrow2{ grid-template-columns:1fr minmax(0,1fr) minmax(0,1fr); }
+  .readout[data-acc="1"] .rrow2 .v{ font-size:14.5px; }
+  .rrow2 .v .rep{ text-decoration:overline; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
+    <h1 data-i18n="t.title">Clock hand angles</h1>
+    <p data-i18n="t.desc">Set a time and see how far the selected hand has rotated from the 12 o'clock position.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 時刻入力・調整 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.time">Time</label>
+          <div class="timein">
+            <div class="tcol">
+              <input class="input" id="in-h" type="number" min="0" max="23" inputmode="numeric" aria-label="Hours">
+              <button type="button" class="fieldreset" data-reset="h" title="Reset hours">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
+            <span class="colon">:</span>
+            <div class="tcol">
+              <input class="input" id="in-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutes">
+              <button type="button" class="fieldreset" data-reset="m" title="Reset minutes">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
+            <span class="colon">:</span>
+            <div class="tcol">
+              <input class="input" id="in-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Seconds">
+              <button type="button" class="fieldreset" data-reset="s" title="Reset seconds">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>0
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.adjust">Adjust</label>
+          <div class="adjust" id="adjust">
+            <button class="btn btn--secondary" data-adj="-3600">−1<span class="au" data-u="h"></span></button>
+            <button class="btn btn--secondary" data-adj="3600">+1<span class="au" data-u="h"></span></button>
+            <button class="btn btn--secondary" data-adj="-60">−1<span class="au" data-u="m"></span></button>
+            <button class="btn btn--secondary" data-adj="60">+1<span class="au" data-u="m"></span></button>
+            <button class="btn btn--secondary" data-adj="-1">−1<span class="au" data-u="s"></span></button>
+            <button class="btn btn--secondary" data-adj="1">+1<span class="au" data-u="s"></span></button>
+          </div>
+          <div class="quickset">
+            <button class="btn btn--secondary" id="now">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <span data-i18n="t.now">Set to now</span>
+            </button>
+            <button class="btn btn--secondary" id="reset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+              <span data-i18n="t.reset">Reset</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 時計 → 針選択（独立コーナー）→ 出力 -->
+    <div>
+      <div class="preview clockface" style="margin-bottom:var(--s4)">
+        <svg viewBox="0 0 200 200" role="img" aria-label="Analog clock with hour ring slider">
+          <circle id="ring-hit" class="grab" cx="100" cy="100" r="92" fill="none" stroke="rgba(0,0,0,0)"
+                  stroke-width="16" pointer-events="stroke"></circle>
+          <circle cx="100" cy="100" r="92" fill="none" stroke="var(--border-strong)" stroke-width="2"></circle>
+          <path id="ring-prog" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"></path>
+          <circle cx="100" cy="100" r="82" fill="var(--surface-2)" stroke="var(--border)"></circle>
+          <path id="arc" fill="var(--accent-tint)" stroke="none"></path>
+          <g id="ticks" stroke="var(--text-3)" stroke-linecap="round"></g>
+          <line id="h-hour"   x1="100" y1="100" x2="100" y2="56" stroke-width="5"   stroke-linecap="round"></line>
+          <line id="h-minute" x1="100" y1="100" x2="100" y2="38" stroke-width="3.5" stroke-linecap="round"></line>
+          <line id="h-second" x1="100" y1="100" x2="100" y2="32" stroke-width="2"   stroke-linecap="round"></line>
+          <line id="h-hour-hit" class="grab" x1="100" y1="100" x2="100" y2="56" stroke="rgba(0,0,0,0)"
+                stroke-width="18" stroke-linecap="round" pointer-events="stroke"></line>
+          <circle cx="100" cy="100" r="4.5" fill="var(--accent)"></circle>
+          <circle id="knob" class="grab" cx="100" cy="8" r="6.5" fill="var(--accent)" stroke="var(--surface)"
+                  stroke-width="2" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="360"></circle>
+          <text id="arc-label" text-anchor="middle" font-family="var(--font-mono)" font-size="13"
+                font-weight="600" fill="var(--accent)"></text>
+        </svg>
+      </div>
+
+      <!-- 針選択（独立コーナー）: 針の選択 + 表示する側 -->
+      <div class="card" style="margin-bottom:var(--s4)">
+        <label class="label" data-i18n="t.hand">Angle for</label>
+        <div class="seg" id="seg" role="group">
+          <button data-hand="hour"   data-i18n="t.hour">Hour hand</button>
+          <button data-hand="minute" data-i18n="t.minute">Minute hand</button>
+          <button data-hand="second" data-i18n="t.second">Second hand</button>
+        </div>
+        <label class="label" style="margin-top:var(--s4)" data-i18n="t.side">Side shown on clock</label>
+        <div class="seg seg--2" id="seg-side" role="group">
+          <button data-side="left"  data-i18n="t.left">Left</button>
+          <button data-side="right" data-i18n="t.right">Right</button>
+        </div>
+        <div class="hint" data-i18n="t.ringhint">Drag the outer ring or the hour hand — one full turn is 12 hours.</div>
+      </div>
+
+      <!-- 出力: 各針の右側・左側を常時表示 -->
+      <div class="readout" data-acc="0">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <div class="romode" id="ro-mode" role="group">
+            <button data-mode="simple"   data-i18n="t.simple"   aria-pressed="true">Simple</button>
+            <button data-mode="accurate" data-i18n="t.accurate">Accurate</button>
+          </div></div>
+        <div class="rofmt" id="ro-fmt" role="group" hidden>
+          <button data-fmt="dms"  data-i18n="t.fmtdms"  aria-pressed="true">D°M′S″</button>
+          <button data-fmt="frac" data-i18n="t.fmtfrac">Fraction</button>
+          <button data-fmt="dec"  data-i18n="t.fmtdec">Decimal</button>
+        </div>
+        <div class="ro-head"><span></span><span data-i18n="t.left">Left</span><span data-i18n="t.right">Right</span></div>
+        <div class="rrow2"><span class="lbl" data-i18n="t.hour">Hour hand</span>
+          <span class="v v--l" id="ro-hour-l" data-copy="">0°</span><span class="v v--r" id="ro-hour-r" data-copy="">0°</span></div>
+        <div class="rrow2"><span class="lbl" data-i18n="t.minute">Minute hand</span>
+          <span class="v v--l" id="ro-minute-l" data-copy="">0°</span><span class="v v--r" id="ro-minute-r" data-copy="">0°</span></div>
+        <div class="rrow2"><span class="lbl" data-i18n="t.second">Second hand</span>
+          <span class="v v--l" id="ro-second-l" data-copy="">0°</span><span class="v v--r" id="ro-second-r" data-copy="">0°</span></div>
+        <div class="acc-note" id="acc-note" data-i18n="t.accnote" hidden>Every second turns the hour hand exactly 30″ (1/120°).</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var total = 3 * 3600 + 27 * 60 + 15;   // 03:27:15
+  var sel = "hour";
+  var side = "right";
+  var mode = "simple";   // simple | accurate（出力の表示モード）
+  var afmt = "dms";      // dms | frac | dec（正確モードのフォーマット）
+
+  var $ = function (id) { return document.getElementById(id); };
+  var inH = $("in-h"), inM = $("in-m"), inS = $("in-s");
+  var arc = $("arc"), arcLabel = $("arc-label"), ringProg = $("ring-prog"), knob = $("knob");
+  var hHour = $("h-hour"), hMin = $("h-minute"), hSec = $("h-second"), hHourHit = $("h-hour-hit");
+  var svg = document.querySelector(".clockface svg");
+
+  (function ticks() {
+    var g = $("ticks"), s = "";
+    for (var i = 0; i < 12; i++) {
+      var a = i * 30 * Math.PI / 180;
+      var x = 100 + Math.sin(a) * 72, y = 100 - Math.cos(a) * 72;
+      var x2 = 100 + Math.sin(a) * 79, y2 = 100 - Math.cos(a) * 79;
+      var w = (i % 3 === 0) ? 2.4 : 1.2;
+      s += '<line x1="' + f(x) + '" y1="' + f(y) + '" x2="' + f(x2) + '" y2="' + f(y2) + '" stroke-width="' + w + '"/>';
+    }
+    g.innerHTML = s;
+  })();
+
+  function f(n) { return Math.round(n * 100) / 100; }
+  function mod(x, n) { return ((x % n) + n) % n; }
+  function norm(a) { return mod(a, 360); }
+  function fmt(deg) { var v = Math.round(deg * 10) / 10; return Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1); }
+  function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+  function pt(a, r) { var rad = a * Math.PI / 180; return [100 + r * Math.sin(rad), 100 - r * Math.cos(rad)]; }
+
+  // ---- 正確モード: 整数の「秒角(arcsec)」で厳密に扱う ----
+  // 1周=360°=1,296,000″。整数秒では 時針=30″/s・分針=360″/s・秒針=21600″/s で常に割り切れる。
+  var FULL = 1296000;
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = b; b = a % b; a = t; } return a || 1; }
+  function pad2(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+  function handArcsec() {
+    return { hour: mod(total, 43200) * 30, minute: mod(total, 3600) * 360, second: mod(total, 60) * 21600 };
+  }
+  function dmsText(A) {
+    A = mod(A, FULL);
+    var d = Math.floor(A / 3600), r = A % 3600, m = Math.floor(r / 60), s = r % 60;
+    return d + "°" + pad2(m) + "′" + pad2(s) + "″";
+  }
+  function fracText(A) {
+    A = mod(A, FULL);
+    var num = A, den = 3600, g = gcd(num, den); num /= g; den /= g;
+    if (den === 1) return num + "°";
+    var whole = Math.floor(num / den), rem = num % den;
+    return (whole ? whole + " " : "") + rem + "/" + den + "°";
+  }
+  // 割り算を筆算し、循環節を検出して厳密な小数を作る（表示は上線、コピーは括弧）
+  function decParts(A) {
+    A = mod(A, FULL);
+    var whole = Math.floor(A / 3600), rem = A - whole * 3600, den = 3600;
+    if (rem === 0) return { html: whole + "°", copy: whole + "°" };
+    var digits = [], seen = {}, pos = 0, repStart = -1;
+    while (rem !== 0) {
+      if (seen[rem] !== undefined) { repStart = seen[rem]; break; }
+      seen[rem] = pos; rem *= 10; digits.push(Math.floor(rem / den)); rem %= den; pos++;
+      if (pos > 60) break;
+    }
+    if (repStart < 0) { var t = whole + "." + digits.join(""); return { html: t + "°", copy: t + "°" }; }
+    var nonRep = digits.slice(0, repStart).join(""), rep = digits.slice(repStart).join("");
+    return {
+      html: whole + "." + nonRep + '<span class="rep">' + rep + "</span>°",
+      copy: whole + "." + nonRep + "(" + rep + ")°"
+    };
+  }
+  function setAcc(el, A) {
+    if (afmt === "dec") { var o = decParts(A); el.innerHTML = o.html; el.setAttribute("data-copy", o.copy); }
+    else { var s = afmt === "dms" ? dmsText(A) : fracText(A); el.textContent = s; el.setAttribute("data-copy", s); }
+  }
+
+  function angles() {
+    var s = mod(total, 60), m = Math.floor(mod(total, 3600) / 60), h = Math.floor(mod(total, 86400) / 3600);
+    return { h: h, m: m, s: s,
+      hour:   norm((mod(total, 43200) / 43200) * 360),
+      minute: norm(m * 6 + s * 0.1),
+      second: norm(s * 6) };
+  }
+
+  // clockwise sector from a1 to a2 (a2>=a1)
+  function sectorSpan(a1, a2, r) {
+    var span = a2 - a1; if (span < 0.05) return "";
+    if (span > 359.95) span = 359.95, a2 = a1 + span;
+    var A = pt(a1, r), B = pt(a2, r), large = span > 180 ? 1 : 0;
+    return "M100 100 L" + f(A[0]) + " " + f(A[1]) + " A" + r + " " + r + " 0 " + large + " 1 " + f(B[0]) + " " + f(B[1]) + " Z";
+  }
+  function strokeArc(deg, r) {
+    if (deg < 0.05) return ""; if (deg > 359.95) deg = 359.95;
+    var A = pt(0, r), B = pt(deg, r), large = deg > 180 ? 1 : 0;
+    return "M" + f(A[0]) + " " + f(A[1]) + " A" + r + " " + r + " 0 " + large + " 1 " + f(B[0]) + " " + f(B[1]);
+  }
+  function setHand(line, deg, selected, base) {
+    line.setAttribute("transform", "rotate(" + f(deg) + " 100 100)");
+    line.setAttribute("stroke", selected ? "var(--accent)" : base);
+  }
+  function setVal(el, deg) { var t = fmt(deg) + "°"; el.textContent = t; el.setAttribute("data-copy", t); }
+
+  function render() {
+    var a = angles();
+    if (document.activeElement !== inH) inH.value = a.h;
+    if (document.activeElement !== inM) inM.value = a.m;
+    if (document.activeElement !== inS) inS.value = Math.floor(a.s);
+
+    setHand(hHour, a.hour, sel === "hour", "var(--text)");
+    hHourHit.setAttribute("transform", "rotate(" + f(a.hour) + " 100 100)");
+    setHand(hMin, a.minute, sel === "minute", "var(--text)");
+    setHand(hSec, a.second, sel === "second", "var(--text-3)");
+
+    ringProg.setAttribute("d", strokeArc(a.hour, 92));
+    var kp = pt(a.hour, 92);
+    knob.setAttribute("cx", f(kp[0])); knob.setAttribute("cy", f(kp[1]));
+    knob.setAttribute("aria-valuenow", Math.round(a.hour));
+    knob.setAttribute("aria-valuetext", a.h + ":" + pad(a.m) + ":" + pad(a.s));
+
+    // selected hand, chosen side
+    var theta = a[sel], arcD, labelVal, labelMid;
+    if (side === "right") { arcD = sectorSpan(0, theta, 48); labelVal = theta; labelMid = theta / 2; }
+    else { if (theta < 0.05) { arcD = ""; labelVal = 0; labelMid = 0; } else { arcD = sectorSpan(theta, 360, 48); labelVal = 360 - theta; labelMid = (theta + 360) / 2; } }
+    arc.setAttribute("d", arcD);
+    var lp = pt(labelMid, 30);
+    arcLabel.setAttribute("x", f(lp[0])); arcLabel.setAttribute("y", f(lp[1]) + 4);
+    arcLabel.textContent = fmt(labelVal) + "°";
+
+    // output: both sides for every hand
+    if (mode === "accurate") {
+      var A = handArcsec();
+      setAcc($("ro-hour-r"),   A.hour);   setAcc($("ro-hour-l"),   mod(FULL - A.hour,   FULL));
+      setAcc($("ro-minute-r"), A.minute); setAcc($("ro-minute-l"), mod(FULL - A.minute, FULL));
+      setAcc($("ro-second-r"), A.second); setAcc($("ro-second-l"), mod(FULL - A.second, FULL));
+    } else {
+      setVal($("ro-hour-r"), a.hour);     setVal($("ro-hour-l"), mod(360 - a.hour, 360));
+      setVal($("ro-minute-r"), a.minute); setVal($("ro-minute-l"), mod(360 - a.minute, 360));
+      setVal($("ro-second-r"), a.second); setVal($("ro-second-l"), mod(360 - a.second, 360));
+    }
+  }
+
+  function labelUnits() {
+    if (typeof Shell === "undefined" || !Shell) return;
+    document.querySelectorAll(".au").forEach(function (el) { el.textContent = " " + Shell.t("u." + el.getAttribute("data-u")); });
+  }
+
+  // ---- inputs: 0–23 / 0–59 / 0–59 に制限（超過は即クランプ） ----
+  function limitField(el, max) {
+    el.addEventListener("input", function () {
+      var v = el.value.replace(/[^\d]/g, "");
+      if (v === "") { readInputs(); return; }
+      var n = parseInt(v, 10); if (isNaN(n)) n = 0;
+      if (n > max) n = max;
+      var sn = String(n);
+      if (el.value !== sn) el.value = sn;
+      readInputs();
+    });
+    el.addEventListener("blur", function () { if (el.value === "") el.value = "0"; readInputs(); });
+  }
+  function readInputs() {
+    var h = parseInt(inH.value, 10) || 0, m = parseInt(inM.value, 10) || 0, s = parseInt(inS.value, 10) || 0;
+    h = h < 0 ? 0 : h > 23 ? 23 : h; m = m < 0 ? 0 : m > 59 ? 59 : m; s = s < 0 ? 0 : s > 59 ? 59 : s;
+    total = h * 3600 + m * 60 + s; render();
+  }
+  limitField(inH, 23); limitField(inM, 59); limitField(inS, 59);
+
+  $("seg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    sel = b.getAttribute("data-hand"); syncSeg(); render();
+  });
+  function syncSeg() { $("seg").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-hand") === sel)); }); }
+
+  $("seg-side").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    side = b.getAttribute("data-side"); syncSide(); render();
+  });
+  function syncSide() { $("seg-side").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-side") === side)); }); }
+
+  // ---- 出力モード（簡易/正確）とフォーマット（度分秒/分数/小数）の切替 ----
+  var roEl = document.querySelector(".readout"), roFmt = $("ro-fmt"), accNote = $("acc-note");
+  $("ro-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode"); syncMode(); render();
+  });
+  function syncMode() {
+    $("ro-mode").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode)); });
+    var acc = mode === "accurate";
+    if (roEl) roEl.setAttribute("data-acc", acc ? "1" : "0");
+    if (roFmt) roFmt.hidden = !acc;
+    if (accNote) accNote.hidden = !acc;
+  }
+  $("ro-fmt").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    afmt = b.getAttribute("data-fmt"); syncFmt(); render();
+  });
+  function syncFmt() { $("ro-fmt").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-fmt") === afmt)); }); }
+
+  $("adjust").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    total = mod(total + parseInt(b.getAttribute("data-adj"), 10), 86400); render();
+  });
+  $("now").addEventListener("click", function () {
+    var d = new Date(); total = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); render();
+  });
+  $("reset").addEventListener("click", function () { total = 0; render(); });
+
+  // ---- 各パラメーターの個別リセット（他の項目は維持） ----
+  function curHMS() { return { h: Math.floor(total / 3600) % 24, m: Math.floor(mod(total, 3600) / 60), s: Math.floor(mod(total, 60)) }; }
+  document.querySelectorAll(".fieldreset").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var u = b.getAttribute("data-reset"), c = curHMS();
+      if (u === "h") c.h = 0; else if (u === "m") c.m = 0; else c.s = 0;
+      total = c.h * 3600 + c.m * 60 + c.s; render();
+    });
+  });
+  function localizeTitles() {
+    if (typeof Shell === "undefined" || !Shell) return;
+    document.querySelectorAll(".fieldreset").forEach(function (b) {
+      var u = b.getAttribute("data-reset");
+      var key = u === "h" ? "t.rhour" : u === "m" ? "t.rmin" : "t.rsec";
+      b.title = Shell.t(key); b.setAttribute("aria-label", Shell.t(key));
+    });
+  }
+
+  // ---- ring / hour-hand drag（角度差分の積算で境界連続） ----
+  var dragging = false, prevA = 0;
+  function pointerAngle(e) {
+    var r = svg.getBoundingClientRect();
+    var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    return Math.atan2(dx, -dy) * 180 / Math.PI;
+  }
+  function onDown(e) { e.preventDefault(); dragging = true; prevA = pointerAngle(e);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp); }
+  function onMove(e) {
+    if (!dragging) return;
+    var a = pointerAngle(e), d = a - prevA; while (d > 180) d -= 360; while (d < -180) d += 360; prevA = a;
+    total = mod(total + (d / 360) * 43200, 86400); render();
+  }
+  function onUp() {
+    dragging = false; total = Math.floor(total); render();
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+  }
+  [$("ring-hit"), knob, hHourHit].forEach(function (el) { el.addEventListener("pointerdown", onDown); });
+
+  knob.addEventListener("keydown", function (e) {
+    var step = 0;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") step = 60;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") step = -60;
+    else if (e.key === "PageUp") step = 3600; else if (e.key === "PageDown") step = -3600; else return;
+    e.preventDefault(); total = mod(total + step, 86400); render();
+  });
+
+  // ---- 起動 ----
+  syncSeg(); syncSide(); syncMode(); syncFmt();
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+    id: "clock",
+    strings: {
+      en: {
+        "t.title": "Clock hand angles",
+        "t.desc": "Set a time and see how far the selected hand has rotated from the 12 o'clock position.",
+        "t.time": "Time", "t.hand": "Angle for", "t.side": "Side shown on clock", "t.adjust": "Adjust", "t.now": "Set to now", "t.reset": "Reset to 00:00:00",
+        "t.ringhint": "Drag the outer ring or the hour hand — one full turn is 12 hours.",
+        "t.hour": "Hour hand", "t.minute": "Minute hand", "t.second": "Second hand",
+        "t.right": "Right", "t.left": "Left",
+        "t.rhour": "Reset hours to 0", "t.rmin": "Reset minutes to 0", "t.rsec": "Reset seconds to 0",
+        "t.simple": "Simple", "t.accurate": "Accurate",
+        "t.fmtdms": "D°M′S″", "t.fmtfrac": "Fraction", "t.fmtdec": "Decimal",
+        "t.accnote": "Every second turns the hour hand exactly 30″ (1/120°), so these are exact.",
+        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "u.h": "h", "u.m": "m", "u.s": "s"
+      },
+      ja: {
+        "t.title": "時計の針の角度",
+        "t.desc": "時刻を設定すると、選択した針が12時方向から何度回転しているかを表示します。",
+        "t.time": "時刻", "t.hand": "角度を表示する針", "t.side": "時計に表示する側", "t.adjust": "時刻調整", "t.now": "現在時刻にする", "t.reset": "00:00:00に戻す",
+        "t.ringhint": "外周リングか時針をドラッグ。1周で12時間ぶんです。",
+        "t.hour": "時針", "t.minute": "分針", "t.second": "秒針",
+        "t.right": "右側", "t.left": "左側",
+        "t.rhour": "時を0にリセット", "t.rmin": "分を0にリセット", "t.rsec": "秒を0にリセット",
+        "t.simple": "簡易", "t.accurate": "正確",
+        "t.fmtdms": "度分秒", "t.fmtfrac": "分数", "t.fmtdec": "小数",
+        "t.accnote": "1秒ごとに時針はちょうど30″（＝1/120°）進むため、これらは厳密値です。",
+        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "u.h": "時", "u.m": "分", "u.s": "秒"
+      }
+    },
+    onSettingsChange: function () { labelUnits(); localizeTitles(); render(); }
+    });
+  }
+  // shell の有無に関わらず、時計・数値・操作は動作させる（labelUnits/localizeTitles は shell 無時 no-op）
+  labelUnits(); localizeTitles(); render();
+})();
+</script>
+</body>
+</html>
