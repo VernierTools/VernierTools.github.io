@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Save Overwrite Warning — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト（Safe / Smart / Smooth） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・制限事項） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="badge.blender">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Project Save Overwrite Warning</h1>
+    <p data-i18n="t.desc">Get a popup warning before overwriting an existing Blender project file.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.safe.t">Safe</b><span data-i18n="t.safe.d">Confirms before you accidentally overwrite a file.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.smart.t">Smart</b><span data-i18n="t.smart.d">Normal quick saves (Ctrl+S) stay completely silent.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.smooth.t">Smooth</b><span data-i18n="t.smooth.d">Cancelling the warning safely returns you to the same folder.</span></span>
+          </li>
+        </ul>
+
+        <!-- デモGIFを入れる場合はこの形（docs/ にファイルを置く。相対パスでOK）:
+        <div class="preview" style="margin-top:var(--s4)">
+          <img src="docs/demo.gif" alt="Overwrite warning popup in action" loading="lazy">
+        </div>
+        -->
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip on the right (no need to unzip it).</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .zip.</li>
+          <li data-i18n="t.step4">Turn the add-on on with its checkbox.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; limits</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.</span></p>
+        <p class="note"><b data-i18n="t.limits">Limitations</b><br>
+          <span data-i18n="t.limitsbody">This add-on only supports .blend files. Due to technical limitations, it does not warn you when exporting other formats (FBX, OBJ, PNG, …), or when saving through the "Save changes before closing?" dialog shown when you quit Blender.</span></p>
+        <p class="kicker" data-i18n="t.kicker">Install it, and never accidentally lose your old iterations again.</p>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6z"/><path d="m8.8 12 2.2 2.2 4.2-4.6"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Project Save Overwrite Warning</div>
+              <div class="dl-kind" data-i18n="badge.blender">Blender add-on</div>
+            </div>
+          </div>
+
+          <a class="btn btn--primary btn--block" href="overwrite_save_warning.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS</span></div>
+          </div>
+
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open. Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "overwrite-save-warning",
+    strings: {
+      en: {
+        "t.title": "Project Save Overwrite Warning",
+        "t.desc": "Get a popup warning before overwriting an existing Blender project file.",
+        "t.feat": "Features",
+        "t.safe.t": "Safe",   "t.safe.d": "Confirms before you accidentally overwrite a file.",
+        "t.smart.t": "Smart", "t.smart.d": "Normal quick saves (Ctrl+S) stay completely silent.",
+        "t.smooth.t": "Smooth", "t.smooth.d": "Cancelling the warning safely returns you to the same folder.",
+        "t.install": "Install",
+        "t.step1": "Download the .zip on the right (no need to unzip it).",
+        "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .zip.",
+        "t.step4": "Turn the add-on on with its checkbox.",
+        "t.about": "Requirements & limits",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.",
+        "t.limits": "Limitations",
+        "t.limitsbody": "This add-on only supports .blend files. Due to technical limitations, it does not warn you when exporting other formats (FBX, OBJ, PNG, \u2026), or when saving through the \"Save changes before closing?\" dialog shown when you quit Blender.",
+        "t.kicker": "Install it, and never accidentally lose your old iterations again.",
+        "t.download": "Download (.zip)",
+        "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
+      },
+      ja: {
+        "t.title": "Project Save Overwrite Warning",
+        "t.desc": "\u65E2\u5B58\u306EBlender\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u30D5\u30A1\u30A4\u30EB\u3092\u4E0A\u66F8\u304D\u3059\u308B\u524D\u306B\u3001\u8B66\u544A\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7\u3092\u8868\u793A\u3057\u307E\u3059\u3002",
+        "t.feat": "\u7279\u9577",
+        "t.safe.t": "\u5B89\u5168",   "t.safe.d": "\u3046\u3063\u304B\u308A\u4E0A\u66F8\u304D\u3059\u308B\u524D\u306B\u78BA\u8A8D\u3057\u307E\u3059\u3002",
+        "t.smart.t": "\u30B9\u30DE\u30FC\u30C8", "t.smart.d": "\u901A\u5E38\u306E\u30AF\u30A4\u30C3\u30AF\u4FDD\u5B58\uFF08Ctrl+S\uFF09\u306F\u4E00\u5207\u90AA\u9B54\u3057\u307E\u305B\u3093\u3002",
+        "t.smooth.t": "\u30B9\u30E0\u30FC\u30BA", "t.smooth.d": "\u8B66\u544A\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3059\u308B\u3068\u3001\u540C\u3058\u30D5\u30A9\u30EB\u30C0\u306B\u5B89\u5168\u306B\u623B\u308A\u307E\u3059\u3002",
+        "t.install": "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB",
+        "t.step1": "\u53F3\u306E .zip \u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\uFF08\u89E3\u51CD\u4E0D\u8981\uFF09\u3002",
+        "t.step2": "Blender\u3067 \u7DE8\u96C6 \u25B8 \u30D7\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9 \u25B8 \u30A2\u30C9\u30AA\u30F3 \u3092\u958B\u304D\u307E\u3059\u3002",
+        "t.step3": "\u53F3\u4E0A\u306E \u25BE \u30E1\u30CB\u30E5\u30FC\u304B\u3089\u300C\u30C7\u30A3\u30B9\u30AF\u304B\u3089\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u2026\u300D\u3092\u9078\u3073\u3001.zip \u3092\u6307\u5B9A\u3057\u307E\u3059\u3002",
+        "t.step4": "\u30C1\u30A7\u30C3\u30AF\u30DC\u30C3\u30AF\u30B9\u3067\u30A2\u30C9\u30AA\u30F3\u3092\u6709\u52B9\u5316\u3057\u307E\u3059\u3002",
+        "t.about": "\u52D5\u4F5C\u74B0\u5883\u30FB\u5236\u9650",
+        "t.req": "\u52D5\u4F5C\u74B0\u5883",
+        "t.reqbody": "Blender 4.2 \u4EE5\u964D\u304C\u5FC5\u8981\u3067\u3059\u3002Windows\u30FBmacOS \u3067\u52D5\u4F5C\u3057\u307E\u3059\u3002Linux \u306F\u52D5\u4F5C\u3059\u308B\u306F\u305A\u3067\u3059\u304C\u672A\u691C\u8A3C\u3067\u3059\u3002",
+        "t.limits": "\u5236\u9650\u4E8B\u9805",
+        "t.limitsbody": "\u3053\u306E\u30A2\u30C9\u30AA\u30F3\u306F .blend \u30D5\u30A1\u30A4\u30EB\u306E\u307F\u306B\u5BFE\u5FDC\u3057\u307E\u3059\u3002\u6280\u8853\u7684\u306A\u5236\u7D04\u306B\u3088\u308A\u3001\u4ED6\u306E\u5F62\u5F0F\uFF08FBX\u30FBOBJ\u30FBPNG \u306A\u3069\uFF09\u306E\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u6642\u3084\u3001Blender\u7D42\u4E86\u6642\u306E\u300C\u4FDD\u5B58\u3057\u307E\u3059\u304B\uFF1F\u300D\u30C0\u30A4\u30A2\u30ED\u30B0\u304B\u3089\u306E\u4FDD\u5B58\u6642\u306B\u306F\u8B66\u544A\u3057\u307E\u305B\u3093\u3002",
+        "t.kicker": "\u5C0E\u5165\u3057\u3066\u3001\u53E4\u3044\u30A4\u30C6\u30EC\u30FC\u30B7\u30E7\u30F3\u3092\u4E8C\u5EA6\u3068\u3046\u3063\u304B\u308A\u5931\u308F\u306A\u3044\u3088\u3046\u306B\u3002",
+        "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.zip\uFF09",
+        "t.version": "\u30D0\u30FC\u30B8\u30E7\u30F3", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "\u7121\u6599\u30FB\u30AA\u30FC\u30D7\u30F3\u3002\u3059\u3079\u3066Blender\u5185\u3067\u30ED\u30FC\u30AB\u30EB\u306B\u52D5\u4F5C\u3057\u3001\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306F\u3042\u308A\u307E\u305B\u3093\u3002"
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
