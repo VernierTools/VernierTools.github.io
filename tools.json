@@ -307,8 +307,8 @@
         "blender"
       ],
       "name": {
-        "en": "Enhanced Folder Operations",
-        "ja": "Enhanced Folder Operations"
+        "en": "Parent and Reveal Folder",
+        "ja": "Parent and Reveal Folder"
       },
       "description": {
         "en": "Improved folder and path handling. Blender add-on (English UI).",
