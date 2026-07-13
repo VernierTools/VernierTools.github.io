@@ -311,7 +311,7 @@
         "ja": "Parent and Reveal Folder"
       },
       "description": {
-        "en": "Improved folder and path handling. Blender add-on .",
+        "en": "Improved folder and path handling. Blender add-on.",
         "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。"
       },
       "keywords": [
@@ -334,7 +334,7 @@
         "ja": "Static Keyframe Cleaner"
       },
       "description": {
-        "en": "Remove keyframes whose value doesn't change. Blender add-on .",
+        "en": "Remove keyframes whose value doesn't change. Blender add-on.",
         "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。"
       },
       "keywords": [
@@ -358,7 +358,7 @@
         "ja": "VSE Silence Cutter"
       },
       "description": {
-        "en": "Auto-cut silent parts in Blender's VSE. Blender add-on .",
+        "en": "Auto-cut silent parts in Blender's VSE. Blender add-on.",
         "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。"
       },
       "keywords": [
@@ -898,7 +898,7 @@
         "ja": "VRoid to Blender"
       },
       "description": {
-        "en": "Import VRoid models cleaned up for Blender. Add-on .",
+        "en": "Import VRoid models cleaned up for Blender. add-on.",
         "ja": "VRoidモデルをBlender向けに整えてインポートするアドオン（英語UI）。"
       },
       "keywords": [
@@ -922,7 +922,7 @@
         "ja": "STMap Setup Node"
       },
       "description": {
-        "en": "One-click STMap node setup. Blender add-on .",
+        "en": "One-click STMap node setup. Blender add-on.",
         "ja": "STMap適用ノードをワンクリック生成するアドオン（英語UI）。"
       },
       "keywords": [
@@ -947,7 +947,7 @@
         "ja": "Material-less Object Counter"
       },
       "description": {
-        "en": "List and select objects with no material. Blender add-on .",
+        "en": "List and select objects with no material. Blender add-on.",
         "ja": "マテリアル未設定オブジェクトを列挙・選択するアドオン（英語UI）。"
       },
       "keywords": [
@@ -971,7 +971,7 @@
         "ja": "Editor Subtabs"
       },
       "description": {
-        "en": "Sub-tabs to switch editors in one area. Blender add-on .",
+        "en": "Sub-tabs to switch editors in one area. Blender add-on.",
         "ja": "エディタ領域にサブタブを設けるアドオン（英語UI）。"
       },
       "keywords": [
