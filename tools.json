@@ -287,7 +287,7 @@
         "ja": "Project Save Overwrite Warning"
       },
       "description": {
-        "en": "Warn before overwriting a saved .blend file. (English UI).",
+        "en": "Warn before overwriting a saved .blend file. .",
         "ja": "プロジェクトファイルの上書き保存の前に警告を出すBlenderアドオン（英語UI）。"
       },
       "keywords": [
@@ -311,7 +311,7 @@
         "ja": "Parent and Reveal Folder"
       },
       "description": {
-        "en": "Improved folder and path handling. Blender add-on (English UI).",
+        "en": "Improved folder and path handling. Blender add-on .",
         "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。"
       },
       "keywords": [
@@ -334,7 +334,7 @@
         "ja": "Static Keyframe Cleaner"
       },
       "description": {
-        "en": "Remove keyframes whose value doesn't change. Blender add-on (English UI).",
+        "en": "Remove keyframes whose value doesn't change. Blender add-on .",
         "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。"
       },
       "keywords": [
@@ -358,7 +358,7 @@
         "ja": "VSE Silence Cutter"
       },
       "description": {
-        "en": "Auto-cut silent parts in Blender's VSE. Blender add-on (English UI).",
+        "en": "Auto-cut silent parts in Blender's VSE. Blender add-on .",
         "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。"
       },
       "keywords": [
@@ -898,7 +898,7 @@
         "ja": "VRoid to Blender"
       },
       "description": {
-        "en": "Import VRoid models cleaned up for Blender. Add-on (English UI).",
+        "en": "Import VRoid models cleaned up for Blender. Add-on .",
         "ja": "VRoidモデルをBlender向けに整えてインポートするアドオン（英語UI）。"
       },
       "keywords": [
@@ -922,7 +922,7 @@
         "ja": "STMap Setup Node"
       },
       "description": {
-        "en": "One-click STMap node setup. Blender add-on (English UI).",
+        "en": "One-click STMap node setup. Blender add-on .",
         "ja": "STMap適用ノードをワンクリック生成するアドオン（英語UI）。"
       },
       "keywords": [
@@ -947,7 +947,7 @@
         "ja": "Material-less Object Counter"
       },
       "description": {
-        "en": "List and select objects with no material. Blender add-on (English UI).",
+        "en": "List and select objects with no material. Blender add-on .",
         "ja": "マテリアル未設定オブジェクトを列挙・選択するアドオン（英語UI）。"
       },
       "keywords": [
@@ -971,7 +971,7 @@
         "ja": "Editor Subtabs"
       },
       "description": {
-        "en": "Sub-tabs to switch editors in one area. Blender add-on (English UI).",
+        "en": "Sub-tabs to switch editors in one area. Blender add-on .",
         "ja": "エディタ領域にサブタブを設けるアドオン（英語UI）。"
       },
       "keywords": [
