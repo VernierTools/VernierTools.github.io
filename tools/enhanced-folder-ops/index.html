@@ -21,14 +21,22 @@
   .ba .preview{ background:var(--surface-2); }
   .ba .preview img{ display:block; width:100%; height:auto; }
 
-  /* 特長リスト */
-  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  /* リード文（特長の前の導入） */
+  .lead{ font-size:13px; color:var(--text-2); line-height:1.55; margin:0 0 var(--s4); }
+
+  /* 特長リスト（チェック付き1行） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s3); }
   .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
-  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+  .feat .ic{ flex:0 0 auto; width:22px; height:22px; border-radius:var(--r-sm);
     background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
-  .feat .ic svg{ width:15px; height:15px; }
-  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
-  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+  .feat .ic svg{ width:14px; height:14px; }
+  .feat span.tx{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* 対応環境リスト（中黒ドット） */
+  .speclist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s2); }
+  .speclist li{ display:flex; gap:var(--s2); align-items:flex-start; font-size:13px; color:var(--text-2); line-height:1.55; }
+  .speclist li::before{ content:""; flex:0 0 auto; width:5px; height:5px; border-radius:50%;
+    background:var(--text-3); margin-top:8px; }
 
   /* インストール手順（連番） */
   .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
@@ -38,11 +46,6 @@
     background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
     font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
     font-variant-numeric:tabular-nums; margin-top:1px; }
-
-  /* 注記（動作環境・制限事項） */
-  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
-  .note + .note{ margin-top:var(--s3); }
-  .note b{ color:var(--text-2); font-weight:600; }
 
   /* 締めの一文 */
   .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
@@ -71,18 +74,18 @@
       <span class="chip chip--bl" data-i18n="badge.blender">Blender add-on</span>
     </div>
     <h1 data-i18n="t.title">Parent and Reveal Folder</h1>
-    <p data-i18n="t.desc">Jump to a file's parent folder and reveal it in your OS file explorer, right from Blender.</p>
+    <p data-i18n="t.desc">Stop losing your place in Blender's File Browser. A dedicated Parent button jumps up one level while keeping the folder you came from selected and scrolled into view.</p>
   </div>
 
   <!-- 導入前 / 導入後 のGIF比較 -->
   <div class="ba">
     <figure class="before">
       <figcaption><span class="dot"></span><span data-i18n="t.before">Before</span></figcaption>
-      <div class="preview"><img src="docs/before.gif" alt="Blender's file handling without the add-on" loading="lazy"></div>
+      <div class="preview"><img src="docs/before.gif" alt="Going back resets the scroll position and loses the folder" loading="lazy"></div>
     </figure>
     <figure class="after">
       <figcaption><span class="dot"></span><span data-i18n="t.after">After</span></figcaption>
-      <div class="preview"><img src="docs/after.gif" alt="The same task with the add-on installed" loading="lazy"></div>
+      <div class="preview"><img src="docs/after.gif" alt="The Parent button keeps the previous folder selected and in view" loading="lazy"></div>
     </figure>
   </div>
 
@@ -91,28 +94,35 @@
     <div>
       <div class="card">
         <div class="card__title" data-i18n="t.feat">Features</div>
+        <p class="lead" data-i18n="t.why">In large folders, going back usually resets your scroll position, leaving you to hunt for the same folder all over again. This add-on fixes that:</p>
         <ul class="feat">
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f1.t">Reveal</b><span data-i18n="t.f1.d">Open the folder containing your file in Explorer or Finder with one click.</span></span>
+            <span class="tx" data-i18n="t.f1">Go to the parent folder instantly.</span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f2.t">Parent</b><span data-i18n="t.f2.d">Jump straight up to the parent folder without retyping paths.</span></span>
+            <span class="tx" data-i18n="t.f2">Automatically select the folder you came from.</span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f3.t">Cross-platform</b><span data-i18n="t.f3.d">Behaves consistently on Windows, macOS, and Linux.</span></span>
+            <span class="tx" data-i18n="t.f3">Scroll it back into view.</span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx" data-i18n="t.f4">Works in the File Browser and in file dialogs.</span>
           </li>
         </ul>
+        <p class="kicker" data-i18n="t.kicker">Simple, lightweight, and designed to make file navigation feel smoother.</p>
       </div>
 
       <div class="card">
-        <div class="card__title" data-i18n="t.about">Requirements &amp; limits</div>
-        <p class="note"><b data-i18n="t.req">Requirements</b><br>
-          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.</span></p>
-        <p class="note"><b data-i18n="t.limits">Limitations</b><br>
-          <span data-i18n="t.limitsbody">Revealing a folder only works after the file has been saved once — an unsaved file has no folder to open yet.</span></p>
+        <div class="card__title" data-i18n="t.compat">Compatibility</div>
+        <ul class="speclist">
+          <li data-i18n="t.compat1">Blender 4.2 or later.</li>
+          <li data-i18n="t.compat2">Tested on Windows and macOS.</li>
+          <li data-i18n="t.compat3">Linux is currently untested, but should work in theory.</li>
+        </ul>
       </div>
 
       <div class="card">
@@ -123,7 +133,6 @@
           <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
           <li data-i18n="t.step4">Turn the add-on on with its checkbox.</li>
         </ol>
-        <p class="kicker" data-i18n="t.kicker">Install it, and stop digging through paths to find your project files.</p>
       </div>
     </div>
 
@@ -168,48 +177,50 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
     strings: {
       en: {
         "t.title": "Parent and Reveal Folder",
-        "t.desc": "Jump to a file's parent folder and reveal it in your OS file explorer, right from Blender.",
+        "t.desc": "Stop losing your place in Blender's File Browser. A dedicated Parent button jumps up one level while keeping the folder you came from selected and scrolled into view.",
         "t.before": "Before",
         "t.after": "After",
         "t.feat": "Features",
-        "t.f1.t": "Reveal",   "t.f1.d": "Open the folder containing your file in Explorer or Finder with one click.",
-        "t.f2.t": "Parent",   "t.f2.d": "Jump straight up to the parent folder without retyping paths.",
-        "t.f3.t": "Cross-platform", "t.f3.d": "Behaves consistently on Windows, macOS, and Linux.",
+        "t.why": "In large folders, going back usually resets your scroll position, leaving you to hunt for the same folder all over again. This add-on fixes that:",
+        "t.f1": "Go to the parent folder instantly.",
+        "t.f2": "Automatically select the folder you came from.",
+        "t.f3": "Scroll it back into view.",
+        "t.f4": "Works in the File Browser and in file dialogs.",
+        "t.kicker": "Simple, lightweight, and designed to make file navigation feel smoother.",
+        "t.compat": "Compatibility",
+        "t.compat1": "Blender 4.2 or later.",
+        "t.compat2": "Tested on Windows and macOS.",
+        "t.compat3": "Linux is currently untested, but should work in theory.",
         "t.install": "Install",
         "t.step1": "Download the .py file on the right.",
         "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
         "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .py file.",
         "t.step4": "Turn the add-on on with its checkbox.",
-        "t.about": "Requirements & limits",
-        "t.req": "Requirements",
-        "t.reqbody": "Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.",
-        "t.limits": "Limitations",
-        "t.limitsbody": "Revealing a folder only works after the file has been saved once \u2014 an unsaved file has no folder to open yet.",
-        "t.kicker": "Install it, and stop digging through paths to find your project files.",
         "t.download": "Download (.py)",
         "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
       },
       ja: {
         "t.title": "Parent and Reveal Folder",
-        "t.desc": "ファイルの親フォルダへ移動したり、OSのファイルブラウザでそのフォルダを開いたりを、Blenderから直接おこなえます。",
+        "t.desc": "Blenderのファイルブラウザで、居場所を見失わずに済みます。専用の Parent ボタンが1つ上のフォルダへ移動しつつ、直前まで開いていたフォルダを選択したまま画面内に表示します。",
         "t.before": "導入前",
         "t.after": "導入後",
         "t.feat": "特長",
-        "t.f1.t": "Reveal",   "t.f1.d": "ファイルの入ったフォルダを、エクスプローラーやFinderでワンクリックで開きます。",
-        "t.f2.t": "Parent",   "t.f2.d": "パスを打ち直さず、そのまま親フォルダへ一気に移動します。",
-        "t.f3.t": "クロスプラットフォーム", "t.f3.d": "Windows・macOS・Linux で同じように動作します。",
+        "t.why": "大きなフォルダを見ているとき、上の階層へ戻るとスクロール位置がリセットされ、同じフォルダをまた探すはめになりがちです。このアドオンがそれを解消します。",
+        "t.f1": "親フォルダへ即座に移動します。",
+        "t.f2": "直前にいたフォルダを自動で選択します。",
+        "t.f3": "そのフォルダを画面内までスクロールします。",
+        "t.f4": "ファイルブラウザとファイルダイアログの両方で動作します。",
+        "t.kicker": "シンプルで軽量。ファイル操作の移動が、なめらかに感じられるよう設計しました。",
+        "t.compat": "対応環境",
+        "t.compat1": "Blender 4.2 以降。",
+        "t.compat2": "Windows・macOS で動作確認済み。",
+        "t.compat3": "Linux は現在未検証ですが、理論上は動作するはずです。",
         "t.install": "インストール",
         "t.step1": "右の .py ファイルをダウンロードします。",
         "t.step2": "Blenderで 編集 \u25B8 プリファレンス \u25B8 アドオン を開きます。",
         "t.step3": "右上の \u25BE メニューから「ディスクからインストール\u2026」を選び、.py ファイルを指定します。",
         "t.step4": "チェックボックスでアドオンを有効化します。",
-        "t.about": "動作環境・制限",
-        "t.req": "動作環境",
-        "t.reqbody": "Blender 4.2 以降が必要です。Windows・macOS で動作します。Linux は動作するはずですが未検証です。",
-        "t.limits": "制限事項",
-        "t.limitsbody": "フォルダを開けるのは、ファイルを一度保存したあとだけです。未保存のファイルには、まだ開くべきフォルダが存在しません。",
-        "t.kicker": "導入すれば、プロジェクトファイルを探してパスを掘り進める作業とはお別れです。",
         "t.download": "ダウンロード（.py）",
         "t.version": "バージョン", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "無料・オープン。すべてBlender内でローカルに動作し、アップロードはありません。"
