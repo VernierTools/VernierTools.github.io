@@ -311,8 +311,8 @@
         "ja": "Parent and Reveal Folder"
       },
       "description": {
-        "en": "Improved folder and path handling. Blender add-on.",
-        "ja": "フォルダ・パス操作を強化するBlenderアドオン（英語UI）。"
+        "en": "Adds a Parent button to Blender's File Browser that keeps your previous folder selected. Add-on.",
+        "ja": "Blenderのファイルブラウザに、直前のフォルダを選択したまま親階層へ戻るParentボタンを追加するアドオン（英語UI）。"
       },
       "keywords": [
         "blender",
