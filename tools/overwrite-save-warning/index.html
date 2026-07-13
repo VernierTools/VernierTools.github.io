@@ -63,6 +63,10 @@
     <p data-i18n="t.desc">Get a popup warning before overwriting an existing Blender project file.</p>
   </div>
 
+  <div class="preview" style="background:var(--surface-2);margin-bottom:var(--s5)">
+    <img src="docs/demo.gif" alt="Overwrite warning popup in action" loading="lazy">
+  </div>
+
   <div class="work">
     <!-- 左: 説明 / インストール手順 -->
     <div>
@@ -82,12 +86,14 @@
             <span><b data-i18n="t.smooth.t">Smooth</b><span data-i18n="t.smooth.d">Cancelling the warning safely returns you to the same folder.</span></span>
           </li>
         </ul>
+      </div>
 
-        <!-- デモGIFを入れる場合はこの形（docs/ にファイルを置く。相対パスでOK）:
-        <div class="preview" style="margin-top:var(--s4)">
-          <img src="docs/demo.gif" alt="Overwrite warning popup in action" loading="lazy">
-        </div>
-        -->
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; limits</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.</span></p>
+        <p class="note"><b data-i18n="t.limits">Limitations</b><br>
+          <span data-i18n="t.limitsbody">This add-on only supports .blend files. Due to technical limitations, it does not warn you when exporting other formats (FBX, OBJ, PNG, …), or when saving through the "Save changes before closing?" dialog shown when you quit Blender.</span></p>
       </div>
 
       <div class="card">
@@ -98,14 +104,6 @@
           <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
           <li data-i18n="t.step4">Turn the add-on on with its checkbox.</li>
         </ol>
-      </div>
-
-      <div class="card">
-        <div class="card__title" data-i18n="t.about">Requirements &amp; limits</div>
-        <p class="note"><b data-i18n="t.req">Requirements</b><br>
-          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.</span></p>
-        <p class="note"><b data-i18n="t.limits">Limitations</b><br>
-          <span data-i18n="t.limitsbody">This add-on only supports .blend files. Due to technical limitations, it does not warn you when exporting other formats (FBX, OBJ, PNG, …), or when saving through the "Save changes before closing?" dialog shown when you quit Blender.</span></p>
         <p class="kicker" data-i18n="t.kicker">Install it, and never accidentally lose your old iterations again.</p>
       </div>
     </div>
@@ -130,7 +128,7 @@
           </a>
 
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.1.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS</span></div>
           </div>
