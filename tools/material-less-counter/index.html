@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Material-less Object Counter — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・補足） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="badge.blender">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Material-less Object Counter</h1>
+    <p data-i18n="t.desc">Instantly count and track down every object in your scene that has no material.</p>
+  </div>
+
+  <div class="preview" style="background:var(--surface-2);margin-bottom:var(--s5)">
+    <img src="docs/demo.gif" alt="The counter button and No Material list in action" loading="lazy">
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">See it at a glance</b><span data-i18n="t.f1.d">A header counter shows how many objects still have no material — a red warning while any remain, a checkmark once every object is covered.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">Jump straight to them</b><span data-i18n="t.f2.d">Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">Filter precisely</b><span data-i18n="t.f3.d">Narrow by object type, include or exclude hidden objects, and choose whether faceless objects count. Faces built by modifiers like Skin are detected correctly.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f4.t">Right where you work</b><span data-i18n="t.f4.d">Show the button in the 3D Viewport, Shader Editor, Outliner, or Properties header — on the left or the right.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Pure Python — runs on Windows, macOS, and Linux.</span></p>
+        <p class="note"><b data-i18n="t.limits">Good to know</b><br>
+          <span data-i18n="t.limitsbody">Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) and have either no material slots or only empty ones. By default, objects with no faces — even after modifiers — and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .py file on the right.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
+          <li data-i18n="t.step4">Turn the add-on on with its checkbox, then find it in any editor header and in the Sidebar (N) ▸ "No Material" tab.</li>
+        </ol>
+        <p class="kicker" data-i18n="t.kicker">Never ship a scene with a forgotten grey mesh again.</p>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="m7 14 2 2 3.5-3.5"/><path d="M15 15h3"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Material-less Object Counter</div>
+              <div class="dl-kind" data-i18n="badge.blender">Blender add-on</div>
+            </div>
+          </div>
+
+          <a class="btn btn--primary btn--block" href="material_less_counter.py" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.py)</span>
+          </a>
+
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">All</span></div>
+          </div>
+
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open. Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "material-less-counter",
+    strings: {
+      en: {
+        "t.title": "Material-less Object Counter",
+        "t.desc": "Instantly count and track down every object in your scene that has no material.",
+        "t.feat": "Features",
+        "t.f1.t": "See it at a glance",   "t.f1.d": "A header counter shows how many objects still have no material \u2014 a red warning while any remain, a checkmark once every object is covered.",
+        "t.f2.t": "Jump straight to them", "t.f2.d": "Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go.",
+        "t.f3.t": "Filter precisely",     "t.f3.d": "Narrow by object type, include or exclude hidden objects, and choose whether faceless objects count. Faces built by modifiers like Skin are detected correctly.",
+        "t.f4.t": "Right where you work",  "t.f4.d": "Show the button in the 3D Viewport, Shader Editor, Outliner, or Properties header \u2014 on the left or the right.",
+        "t.install": "Install",
+        "t.step1": "Download the .py file on the right.",
+        "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .py file.",
+        "t.step4": "Turn the add-on on with its checkbox, then find it in any editor header and in the Sidebar (N) \u25B8 \"No Material\" tab.",
+        "t.about": "Requirements & notes",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 4.2 or later. Pure Python \u2014 runs on Windows, macOS, and Linux.",
+        "t.limits": "Good to know",
+        "t.limitsbody": "Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) and have either no material slots or only empty ones. By default, objects with no faces \u2014 even after modifiers \u2014 and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.",
+        "t.kicker": "Never ship a scene with a forgotten grey mesh again.",
+        "t.download": "Download (.py)",
+        "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
+      },
+      ja: {
+        "t.title": "Material-less Object Counter",
+        "t.desc": "\u30B7\u30FC\u30F3\u5185\u306E\u30DE\u30C6\u30EA\u30A2\u30EB\u672A\u8A2D\u5B9A\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u77AC\u6642\u306B\u6570\u3048\u3001\u305D\u306E\u5834\u6240\u307E\u3067\u4E00\u89A7\u304B\u3089\u8FBF\u308C\u307E\u3059\u3002",
+        "t.feat": "\u7279\u9577",
+        "t.f1.t": "\u3072\u3068\u76EE\u3067\u628A\u63E1",   "t.f1.d": "\u30D8\u30C3\u30C0\u30FC\u306E\u30AB\u30A6\u30F3\u30BF\u30FC\u304C\u672A\u8A2D\u5B9A\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u6570\u3092\u8868\u793A\u3002\u6B8B\u3063\u3066\u3044\u308B\u9593\u306F\u8D64\u3044\u8B66\u544A\u3001\u3059\u3079\u3066\u8A2D\u5B9A\u6E08\u307F\u306B\u306A\u308B\u3068\u30C1\u30A7\u30C3\u30AF\u30DE\u30FC\u30AF\u306B\u5909\u308F\u308A\u307E\u3059\u3002",
+        "t.f2.t": "\u305D\u306E\u5834\u6240\u3078\u76F4\u884C", "t.f2.d": "\u4E00\u89A7\u306E\u540D\u524D\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u9078\u629E\u3001\u30BA\u30FC\u30E0\u3067\u30D3\u30E5\u30FC\u3092\u5BC4\u305B\u3001Select All \u3067\u4E00\u62EC\u9078\u629E\u3067\u304D\u307E\u3059\u3002",
+        "t.f3.t": "\u7D30\u304B\u304F\u7D5E\u308A\u8FBC\u307F",   "t.f3.d": "\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u30BF\u30A4\u30D7\u3067\u7D5E\u308A\u8FBC\u307F\u3001\u975E\u8868\u793A\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u9664\u5916/\u5305\u542B\u3092\u5207\u308A\u66FF\u3048\u3001\u9762\u306A\u3057\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u6570\u3048\u308B\u304B\u3082\u9078\u3079\u307E\u3059\u3002Skin \u306A\u3069\u30E2\u30C7\u30A3\u30D5\u30A1\u30A4\u30A2\u3067\u751F\u6210\u3055\u308C\u308B\u9762\u3082\u6B63\u3057\u304F\u5224\u5B9A\u3057\u307E\u3059\u3002",
+        "t.f4.t": "\u4F5C\u696D\u3059\u308B\u5834\u6240\u306B\u914D\u7F6E",  "t.f4.d": "3D\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u30FB\u30B7\u30A7\u30FC\u30C0\u30FC\u30A8\u30C7\u30A3\u30BF\u30FC\u30FB\u30A2\u30A6\u30C8\u30E9\u30A4\u30CA\u30FC\u30FB\u30D7\u30ED\u30D1\u30C6\u30A3\u306E\u5404\u30D8\u30C3\u30C0\u30FC\u306B\u3001\u5DE6\u53F3\u3069\u3061\u3089\u3067\u3082\u30DC\u30BF\u30F3\u3092\u8868\u793A\u3067\u304D\u307E\u3059\u3002",
+        "t.install": "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB",
+        "t.step1": "\u53F3\u306E .py \u30D5\u30A1\u30A4\u30EB\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\u3002",
+        "t.step2": "Blender\u3067 \u7DE8\u96C6 \u25B8 \u30D7\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9 \u25B8 \u30A2\u30C9\u30AA\u30F3 \u3092\u958B\u304D\u307E\u3059\u3002",
+        "t.step3": "\u53F3\u4E0A\u306E \u25BE \u30E1\u30CB\u30E5\u30FC\u304B\u3089\u300C\u30C7\u30A3\u30B9\u30AF\u304B\u3089\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u2026\u300D\u3092\u9078\u3073\u3001.py \u30D5\u30A1\u30A4\u30EB\u3092\u6307\u5B9A\u3057\u307E\u3059\u3002",
+        "t.step4": "\u30C1\u30A7\u30C3\u30AF\u30DC\u30C3\u30AF\u30B9\u3067\u30A2\u30C9\u30AA\u30F3\u3092\u6709\u52B9\u5316\u3057\u3001\u5404\u30A8\u30C7\u30A3\u30BF\u30FC\u306E\u30D8\u30C3\u30C0\u30FC\u3068\u30B5\u30A4\u30C9\u30D0\u30FC(N) \u25B8\u300CNo Material\u300D\u30BF\u30D6\u304B\u3089\u5229\u7528\u3057\u307E\u3059\u3002",
+        "t.about": "\u52D5\u4F5C\u74B0\u5883\u30FB\u88DC\u8DB3",
+        "t.req": "\u52D5\u4F5C\u74B0\u5883",
+        "t.reqbody": "Blender 4.2 \u4EE5\u964D\u304C\u5FC5\u8981\u3067\u3059\u3002\u7D14\u7C8B\u306APython\u306E\u307F\u3067\u3001Windows\u30FBmacOS\u30FBLinux \u3067\u52D5\u4F5C\u3057\u307E\u3059\u3002",
+        "t.limits": "\u88DC\u8DB3",
+        "t.limitsbody": "\u30DE\u30C6\u30EA\u30A2\u30EB\u3092\u6301\u3066\u308B\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E1\u30C3\u30B7\u30E5\u30FB\u30AB\u30FC\u30D6\u30FB\u30B5\u30FC\u30D5\u30A7\u30B9\u30FB\u30E1\u30BF\u30DC\u30FC\u30EB\u30FB\u30C6\u30AD\u30B9\u30C8\u30FB\u30DC\u30EA\u30E5\u30FC\u30E0\uFF09\u306E\u3046\u3061\u3001\u30B9\u30ED\u30C3\u30C8\u304C\u7121\u3044\uFF0F\u3059\u3079\u3066\u7A7A\u306E\u3082\u306E\u3092\u6570\u3048\u307E\u3059\u3002\u521D\u671F\u72B6\u614B\u3067\u306F\u3001\u9762\u306E\u7121\u3044\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E2\u30C7\u30A3\u30D5\u30A1\u30A4\u30A2\u9069\u7528\u5F8C\u3082\u9762\u304C\u7121\u3044\u3082\u306E\uFF09\u3068\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u3067\u975E\u8868\u793A\u306E\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306F\u5BFE\u8C61\u5916\u3067\u3059\uFF08\u3069\u3061\u3089\u3082\u30D5\u30A3\u30EB\u30BF\u30FC\u3067\u6709\u52B9\u5316\u53EF\u80FD\uFF09\u3002\u30AB\u30A6\u30F3\u30C8\u306F\u30D3\u30E5\u30FC\u30EC\u30A4\u30E4\u30FC\u3054\u3068\u306B\u7BA1\u7406\u3055\u308C\u307E\u3059\u3002",
+        "t.kicker": "\u30B0\u30EC\u30FC\u306E\u307E\u307E\u306E\u30E1\u30C3\u30B7\u30E5\u3092\u3001\u4E8C\u5EA6\u3068\u6700\u7D42\u30B7\u30FC\u30F3\u306B\u6B8B\u3057\u307E\u305B\u3093\u3002",
+        "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.py\uFF09",
+        "t.version": "\u30D0\u30FC\u30B8\u30E7\u30F3", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "\u7121\u6599\u30FB\u30AA\u30FC\u30D7\u30F3\u3002\u3059\u3079\u3066Blender\u5185\u3067\u30ED\u30FC\u30AB\u30EB\u306B\u52D5\u4F5C\u3057\u3001\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306F\u3042\u308A\u307E\u305B\u3093\u3002"
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
