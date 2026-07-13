@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parent and Reveal Folder — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 導入前 / 導入後 のGIF比較 */
+  .ba{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); align-items:start; margin-bottom:var(--s5); }
+  @media (max-width:600px){ .ba{ grid-template-columns:1fr; } }
+  .ba figure{ margin:0; display:flex; flex-direction:column; gap:var(--s2); }
+  .ba figcaption{ display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); }
+  .ba figcaption .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; flex:0 0 auto; }
+  .ba .after figcaption{ color:var(--accent); }
+  .ba .preview{ background:var(--surface-2); }
+  .ba .preview img{ display:block; width:100%; height:auto; }
+
+  /* 特長リスト */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・制限事項） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="badge.blender">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Parent and Reveal Folder</h1>
+    <p data-i18n="t.desc">Jump to a file's parent folder and reveal it in your OS file explorer, right from Blender.</p>
+  </div>
+
+  <!-- 導入前 / 導入後 のGIF比較 -->
+  <div class="ba">
+    <figure class="before">
+      <figcaption><span class="dot"></span><span data-i18n="t.before">Before</span></figcaption>
+      <div class="preview"><img src="docs/before.gif" alt="Blender's file handling without the add-on" loading="lazy"></div>
+    </figure>
+    <figure class="after">
+      <figcaption><span class="dot"></span><span data-i18n="t.after">After</span></figcaption>
+      <div class="preview"><img src="docs/after.gif" alt="The same task with the add-on installed" loading="lazy"></div>
+    </figure>
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">Reveal</b><span data-i18n="t.f1.d">Open the folder containing your file in Explorer or Finder with one click.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">Parent</b><span data-i18n="t.f2.d">Jump straight up to the parent folder without retyping paths.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">Cross-platform</b><span data-i18n="t.f3.d">Behaves consistently on Windows, macOS, and Linux.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; limits</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.</span></p>
+        <p class="note"><b data-i18n="t.limits">Limitations</b><br>
+          <span data-i18n="t.limitsbody">Revealing a folder only works after the file has been saved once — an unsaved file has no folder to open yet.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .py file on the right.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
+          <li data-i18n="t.step4">Turn the add-on on with its checkbox.</li>
+        </ol>
+        <p class="kicker" data-i18n="t.kicker">Install it, and stop digging through paths to find your project files.</p>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Parent and Reveal Folder</div>
+              <div class="dl-kind" data-i18n="badge.blender">Blender add-on</div>
+            </div>
+          </div>
+
+          <a class="btn btn--primary btn--block" href="enhanced_folder_ops.py" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.py)</span>
+          </a>
+
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS</span></div>
+          </div>
+
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open. Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "enhanced-folder-ops",
+    strings: {
+      en: {
+        "t.title": "Parent and Reveal Folder",
+        "t.desc": "Jump to a file's parent folder and reveal it in your OS file explorer, right from Blender.",
+        "t.before": "Before",
+        "t.after": "After",
+        "t.feat": "Features",
+        "t.f1.t": "Reveal",   "t.f1.d": "Open the folder containing your file in Explorer or Finder with one click.",
+        "t.f2.t": "Parent",   "t.f2.d": "Jump straight up to the parent folder without retyping paths.",
+        "t.f3.t": "Cross-platform", "t.f3.d": "Behaves consistently on Windows, macOS, and Linux.",
+        "t.install": "Install",
+        "t.step1": "Download the .py file on the right.",
+        "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .py file.",
+        "t.step4": "Turn the add-on on with its checkbox.",
+        "t.about": "Requirements & limits",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 4.2 or later. Works on Windows and macOS. Linux should work but is untested.",
+        "t.limits": "Limitations",
+        "t.limitsbody": "Revealing a folder only works after the file has been saved once \u2014 an unsaved file has no folder to open yet.",
+        "t.kicker": "Install it, and stop digging through paths to find your project files.",
+        "t.download": "Download (.py)",
+        "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
+      },
+      ja: {
+        "t.title": "Parent and Reveal Folder",
+        "t.desc": "ファイルの親フォルダへ移動したり、OSのファイルブラウザでそのフォルダを開いたりを、Blenderから直接おこなえます。",
+        "t.before": "導入前",
+        "t.after": "導入後",
+        "t.feat": "特長",
+        "t.f1.t": "Reveal",   "t.f1.d": "ファイルの入ったフォルダを、エクスプローラーやFinderでワンクリックで開きます。",
+        "t.f2.t": "Parent",   "t.f2.d": "パスを打ち直さず、そのまま親フォルダへ一気に移動します。",
+        "t.f3.t": "クロスプラットフォーム", "t.f3.d": "Windows・macOS・Linux で同じように動作します。",
+        "t.install": "インストール",
+        "t.step1": "右の .py ファイルをダウンロードします。",
+        "t.step2": "Blenderで 編集 \u25B8 プリファレンス \u25B8 アドオン を開きます。",
+        "t.step3": "右上の \u25BE メニューから「ディスクからインストール\u2026」を選び、.py ファイルを指定します。",
+        "t.step4": "チェックボックスでアドオンを有効化します。",
+        "t.about": "動作環境・制限",
+        "t.req": "動作環境",
+        "t.reqbody": "Blender 4.2 以降が必要です。Windows・macOS で動作します。Linux は動作するはずですが未検証です。",
+        "t.limits": "制限事項",
+        "t.limitsbody": "フォルダを開けるのは、ファイルを一度保存したあとだけです。未保存のファイルには、まだ開くべきフォルダが存在しません。",
+        "t.kicker": "導入すれば、プロジェクトファイルを探してパスを掘り進める作業とはお別れです。",
+        "t.download": "ダウンロード（.py）",
+        "t.version": "バージョン", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "無料・オープン。すべてBlender内でローカルに動作し、アップロードはありません。"
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
