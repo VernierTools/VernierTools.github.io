@@ -54,12 +54,16 @@
 
   /* デモ動画（shell.css の .preview は img/svg/canvas のみ整えるので video を補う） */
   .preview video{ display:block; width:100%; height:auto; }
-  .demo-poster{ display:none; }
+  /* shell.css の「.preview img」より詳細度を上げないと隠れないので img.demo-poster で指定 */
+  .preview img.demo-poster{ display:none; }
   /* 「動きを減らす」設定の閲覧者には自動再生せず、ポスター静止画のみ表示 */
   @media (prefers-reduced-motion:reduce){
-    .demo-vid{ display:none; }
-    .demo-poster{ display:block; }
+    .preview .demo-vid{ display:none; }
+    .preview img.demo-poster{ display:block; }
   }
+  /* 動画が読み込めなかった場合のフォールバック（JSが .preview に付与） */
+  .preview.demo-failed .demo-vid{ display:none; }
+  .preview.demo-failed img.demo-poster{ display:block; }
 </style>
 </head>
 <body>
@@ -80,6 +84,23 @@
     <img class="demo-poster" src="docs/demo-poster.png"
          alt="The counter button and No Material list in Blender" loading="lazy">
   </div>
+  <script>
+  /* 動画が読み込めなかったら .demo-failed を付けてポスター静止画へ切り替える */
+  (function () {
+    var v = document.querySelector(".preview .demo-vid");
+    if (!v) return;
+    var fail = function () {
+      var p = v.closest(".preview");
+      if (p) p.classList.add("demo-failed");
+    };
+    v.addEventListener("error", fail, true);      // <source> の失敗を捕捉
+    v.addEventListener("stalled", fail);
+    // 読み込みが始まらないケースの保険（一定時間データが来なければフォールバック）
+    setTimeout(function () {
+      if (v.readyState === 0) fail();
+    }, 4000);
+  })();
+  </script>
 
   <div class="work">
     <!-- 左: 説明 / インストール手順 -->
