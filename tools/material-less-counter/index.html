@@ -51,6 +51,15 @@
   .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
   .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
   .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+
+  /* デモ動画（shell.css の .preview は img/svg/canvas のみ整えるので video を補う） */
+  .preview video{ display:block; width:100%; height:auto; }
+  .demo-poster{ display:none; }
+  /* 「動きを減らす」設定の閲覧者には自動再生せず、ポスター静止画のみ表示 */
+  @media (prefers-reduced-motion:reduce){
+    .demo-vid{ display:none; }
+    .demo-poster{ display:block; }
+  }
 </style>
 </head>
 <body>
@@ -64,7 +73,12 @@
   </div>
 
   <div class="preview" style="background:var(--surface-2);margin-bottom:var(--s5)">
-    <img src="docs/demo.gif" alt="The counter button and No Material list in action" loading="lazy">
+    <video class="demo-vid" autoplay loop muted playsinline
+           poster="docs/demo-poster.png" aria-label="The counter button and No Material list in action">
+      <source src="docs/demo.mp4" type="video/mp4">
+    </video>
+    <img class="demo-poster" src="docs/demo-poster.png"
+         alt="The counter button and No Material list in Blender" loading="lazy">
   </div>
 
   <div class="work">
