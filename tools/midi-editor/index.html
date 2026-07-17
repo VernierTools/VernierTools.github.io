@@ -1974,13 +1974,25 @@
 
     if (l.kind === "vel") {
       var ns = sortedNotes();
+      var selBars = [], dim = sel.size > 0;
       for (var i = firstVisible(t0v); i < ns.length; i++) {
         var n = ns[i]; if (n.start > t1v) break; if (n.start < t0v - 480) continue;
         var x = tick2x(n.start); if (x < KEYW) continue;
         var bh = (n.velocity / 127) * (H - 10);
-        ctx.fillStyle = sel.has(n.id) ? C.accent : chColor(n.channel, 0.8);
-        ctx.fillRect(x, H - bh, Math.max(2, Math.min(6, n.duration * view.ppt)), bh);
+        var bw = Math.max(2, Math.min(6, n.duration * view.ppt));
+        // 選択中のバーは最前面に描くので後回しにする（重なっても隠れないように）
+        if (sel.has(n.id)) { selBars.push({ x: x, bh: bh, bw: bw }); continue; }
+        ctx.fillStyle = chColor(n.channel, dim ? 0.32 : 0.8);
+        ctx.fillRect(x, H - bh, bw, bh);
       }
+      selBars.forEach(function (b) {
+        var bw2 = Math.max(3, b.bw), top = H - b.bh;
+        ctx.fillStyle = C.surface;                                  // 隣のバーと分離する余白
+        ctx.fillRect(b.x - 1, top - 4, bw2 + 2, b.bh + 4);
+        ctx.fillStyle = C.accent;
+        ctx.fillRect(b.x, top, bw2, b.bh);
+        ctx.fillRect(b.x - 1, top - 3, bw2 + 2, 3);                 // 先端のキャップ
+      });
     } else {
       var evs = doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).sort(function (a, b) { return a.tick - b.tick; });
       // step line
