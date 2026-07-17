@@ -111,7 +111,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5v13l11-6.5z"/></svg></button>
       <button class="icobtn" id="btn-pause" title="Pause">
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5.5" width="4" height="13" rx="1"/><rect x="13.5" y="5.5" width="4" height="13" rx="1"/></svg></button>
-      <button class="icobtn" id="btn-stop" title="Stop">
+      <button class="icobtn" id="btn-stop" title="Stop (return to the play marker)">
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg></button>
       <button class="icobtn" id="btn-loop" title="Loop" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"/><path d="M20 6H8a5 5 0 0 0-5 5"/><path d="M7 21l-3-3 3-3"/><path d="M4 18h12a5 5 0 0 0 5-5"/></svg></button>
@@ -180,7 +180,7 @@
       <div id="lanes"></div>
       <button class="btn btn--ghost laneadd" id="lane-add">＋ <span data-i18n="lane.add">Add lane</span></button>
       <div class="statusline" id="status"></div>
-      <div class="cardnote" data-i18n="t.hints">Left-drag empty space: draw a note · right-drag: rubber-band select · right-click a note: menu · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom</div>
+      <div class="cardnote" data-i18n="t.hints">Click the ruler: set the play marker · left-drag empty space: draw a note · right-drag: rubber-band select · right-click a note: menu · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom</div>
     </div>
 
     <!-- right: side panel -->
@@ -769,6 +769,17 @@
         ctx.fillRect(tick2x(t2), H - 6, 1, 6);
       }
     }
+    // 再生開始マーカー（中抜きの旗）。再生ヘッドとは別に常時表示する
+    var mx = tick2x(marker);
+    if (mx >= KEYW - 6 && mx <= cw + 6) {
+      ctx.strokeStyle = C.accent; ctx.lineWidth = 1;
+      ctx.fillStyle = C["surface-2"];
+      ctx.beginPath();
+      ctx.moveTo(mx + 0.5, 3); ctx.lineTo(mx + 8.5, 6.5); ctx.lineTo(mx + 0.5, 10); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = colA(C.accent, 0.9);
+      ctx.fillRect(mx - 0.5, 3, 1, H - 4);
+    }
     // playhead caret
     var px = tick2x(playhead);
     if (px >= KEYW - 5 && px <= cw + 5) {
@@ -867,10 +878,23 @@
   function ppsToZy(p) { return clamp(100 * (p - 5) / (32 - 5), 0, 100); }
   function syncZoomSliders() { $("zx").value = pptToZx(view.ppt); $("zy").value = ppsToZy(view.pps); }
 
+  // ホイールの delta を px に正規化（Firefox は行単位、ページ単位で来ることがある）
+  function wheelPx(d, mode, page) {
+    if (mode === 1) return d * 16;
+    if (mode === 2) return d * page;
+    return d;
+  }
+  // 1ノッチ（≒100px相当）あたりの移動量を「音楽的な距離」で決める。
+  // 拡大しているほど画面上の移動は速く、縮小しているほど遅くなる（同じ操作量＝同じ小節数）。
+  // 極端な拡大率で行き過ぎ／進まなくなるのを避けるため、上下限で挟む。
+  function scrollStepX() { return clamp(barTicks() / 2 * view.ppt, 40, Math.max(60, (cw - KEYW) * 0.6)); }
+  function scrollStepY() { return clamp(6 * view.pps, 40, Math.max(60, chh * 0.6)); }
+
   function onWheel(e) {
     e.preventDefault();
     var r = rollstack.getBoundingClientRect();
     var x = clamp(e.clientX - r.left, 0, cw), y = clamp(e.clientY - r.top, 0, chh);
+    var dy = wheelPx(e.deltaY, e.deltaMode, chh), dx = wheelPx(e.deltaX, e.deltaMode, cw);
     if (e.ctrlKey || e.metaKey) {
       if (e.shiftKey) {
         var pc = (y + view.sy) / view.pps;
@@ -883,9 +907,10 @@
       }
       syncZoomSliders();
     } else if (e.shiftKey) {
-      view.sx += (e.deltaY || e.deltaX);
+      view.sx += ((dy || dx) / 100) * scrollStepX();
     } else {
-      view.sy += e.deltaY; view.sx += e.deltaX;
+      view.sy += (dy / 100) * scrollStepY();
+      view.sx += (dx / 100) * scrollStepX();
     }
     clampScroll();
     drawAll();
@@ -1231,7 +1256,7 @@
   function rulUp(e) {
     if (!rulDrag) return;
     var d = rulDrag; rulDrag = null;
-    if (!d.moved) { setPlayhead(Math.max(0, snapTick(d.t0))); }
+    if (!d.moved) { marker = Math.max(0, snapTick(d.t0)); setPlayhead(marker); }
   }
   cvRul.addEventListener("pointerup", rulUp);
   cvRul.addEventListener("pointercancel", rulUp);
@@ -1706,6 +1731,7 @@
     return audio;
   }
   var trans = { playing: false, startTick: 0, baseSec: 0, startTime: 0, iter: 0, ptr: 0, timer: null };
+  var marker = 0;   // 再生開始位置。停止するとここへ戻る（定規のクリックで移動）
   var voices = [];
   var REL = 0.005;   // リリース（ほぼ0。クリックノイズを避けるためだけの長さ）
   function voice(pitch, vel, when, durSec, chGain) {
@@ -1811,7 +1837,7 @@
     drawRuler(); drawOverlay(); updatePos();
   }
   function togglePlayStop() {
-    if (trans.playing) { stopPlay(); playhead = loop.on ? loop.a : 0; setPlayhead(playhead); }
+    if (trans.playing) { stopPlay(); setPlayhead(marker); }
     else { startPlay(playhead); }
   }
   function togglePlayPause() {
@@ -2063,7 +2089,7 @@
     doc.tempo = parsed.tempo; doc.timesig = parsed.timesig || { num: 4, den: 4 };
     if (doc.tempo.length === 1) bpmSingle = 60000000 / doc.tempo[0].uspq;
     else if (!doc.tempo.length) bpmSingle = 120;
-    sel = new Set(); undoStack.length = 0; redoStack.length = 0; playhead = 0;
+    sel = new Set(); undoStack.length = 0; redoStack.length = 0; playhead = 0; marker = 0;
     invalidateSort(); invalidateTempo();
     if (resetView) fitView();
     updateBpmUI(); scanDups(); drawAll(); updatePos();
@@ -2208,7 +2234,7 @@
       "sm.rs.overlap": "notes overlap or leave no gap ({n})",
       "sm.rs.short": "gap shorter than the step length ({n})",
       "sm.rs.notone": "no intermediate scale tone fits ({n})",
-      "t.hints": "Left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally.",
+      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally.",
       "cat.audio": "Audio",
       "tb.bpm": "BPM", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
@@ -2258,7 +2284,7 @@
       "sm.rs.overlap": "重なっている・隙間が無い（{n}件）",
       "sm.rs.short": "隙間がステップ長より短い（{n}件）",
       "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
-      "t.hints": "空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。",
+      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。",
       "cat.audio": "音声",
       "tb.bpm": "BPM", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
@@ -2376,7 +2402,7 @@
     // transport
     $("btn-play").addEventListener("click", function () { if (trans.playing) { stopPlay(); } else startPlay(playhead); });
     $("btn-pause").addEventListener("click", togglePlayPause);
-    $("btn-stop").addEventListener("click", function () { stopPlay(); playhead = loop.on ? loop.a : 0; setPlayhead(playhead); });
+    $("btn-stop").addEventListener("click", function () { stopPlay(); setPlayhead(marker); });
     $("btn-loop").addEventListener("click", function () { loop.on = !loop.on; this.setAttribute("aria-pressed", String(loop.on)); drawRuler(); drawOverlay(); });
 
     // bpm
