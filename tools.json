@@ -1113,6 +1113,36 @@
         "ビット深度"
       ],
       "added": "2026-07-11"
+    },
+    {
+      "id": "aif-to-mid",
+      "type": "web",
+      "path": "tools/aif-to-mid/",
+      "categories": [
+        "audio"
+      ],
+      "name": {
+        "en": "AIF to MID Converter",
+        "ja": "AIF→MIDコンバーター"
+      },
+      "description": {
+        "en": "Extract the MIDI data embedded in .aif files such as Apple Loops and save it as .mid.",
+        "ja": "Apple Loopsなどの.aifファイルに埋め込まれたMIDIデータを取り出して.midとして保存。"
+      },
+      "keywords": [
+        "aif",
+        "aiff",
+        "midi",
+        "mid",
+        "apple loops",
+        "convert",
+        "extract",
+        "MIDI",
+        "変換",
+        "抽出",
+        "アップルループ"
+      ],
+      "added": "2026-07-17"
     }
   ]
 }
