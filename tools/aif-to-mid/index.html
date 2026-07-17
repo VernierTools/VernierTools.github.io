@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIF to MID Converter — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止） -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- ファイル一覧 ---- */
+  .flist{ display:flex; flex-direction:column; gap:6px; }
+  .frow{ appearance:none; cursor:pointer; font:inherit; text-align:left; width:100%;
+    display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+    padding:8px 10px; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); color:var(--text); transition:all var(--tap); }
+  .frow:hover{ border-color:var(--text-3); }
+  .frow[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent-tint); }
+  .frow__name{ font-family:var(--font-mono); font-size:12.5px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .frow .badge{ flex:0 0 auto; }
+
+  /* ---- 署名要素: バイトマップ（ファイル内の位置を帯で示す） ---- */
+  .map__label{ position:relative; height:18px; font-size:11px; color:var(--accent);
+    font-family:var(--font-mono); }
+  .map__tag{ position:absolute; bottom:0; transform:translateX(-50%); white-space:nowrap; }
+  .map__tag::after{ content:""; position:absolute; left:50%; bottom:-5px; width:1px; height:5px; background:var(--accent); }
+  .map__bar{ position:relative; height:44px; border:1px solid var(--border);
+    border-radius:var(--r-sm); overflow:hidden; background:var(--surface-2); }
+  .seg{ position:absolute; top:0; bottom:0; background:var(--border-strong); }
+  .seg--meta{ background:var(--text-3); }
+  .seg--midi{ background:var(--accent); min-width:3px; z-index:2; }
+  .map__scale{ display:flex; justify-content:space-between; margin-top:6px;
+    font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:11px; color:var(--text-3); }
+  .legend{ display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:var(--s3);
+    font-size:11px; color:var(--text-3); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:9px; height:9px; border-radius:2px; background:var(--border-strong); }
+  .legend .i-meta{ background:var(--text-3); }
+  .legend .i-midi{ background:var(--accent); }
+
+  /* ---- チャンク一覧 ---- */
+  .tablewrap{ overflow-x:auto; margin-top:var(--s5); }
+  .chunks{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12px; }
+  .chunks th{ text-align:left; font-weight:500; color:var(--text-3); white-space:nowrap;
+    border-bottom:1px solid var(--border); padding:4px 10px 4px 0; }
+  .chunks td{ color:var(--text-2); white-space:nowrap;
+    border-bottom:1px solid var(--border); padding:4px 10px 4px 0; }
+  .chunks .num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .chunks td.bytes{ color:var(--text-3); overflow:hidden; text-overflow:ellipsis; max-width:0; width:99%; }
+  .chunks tr.hit td{ color:var(--accent); }
+
+  /* ---- readout の文字値（曲名など） ---- */
+  .rrow__value--text{ font-size:14px; text-align:right; word-break:break-all; max-width:62%; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">AIF to MID Converter</h1>
+    <p data-i18n="t.desc">Extract the MIDI data embedded in .aif files such as Apple Loops and save it as .mid. Files are read in the browser only — nothing is uploaded.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.input">AIFF file</label>
+          <div class="drop" id="drop" role="button" tabindex="0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <b data-i18n="t.droptitle">Drop .aif files here</b>
+            <small data-i18n="t.drophint">or click to choose — .aif / .aiff / .aifc, multiple files OK</small>
+          </div>
+          <input id="file" type="file" accept=".aif,.aiff,.aifc" multiple hidden>
+        </div>
+
+        <div class="field" id="listfield" hidden>
+          <label class="label" data-i18n="t.files">Loaded files</label>
+          <div class="flist" id="flist"></div>
+          <div class="btnrow">
+            <button class="btn btn--secondary" id="saveall">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+              <span data-i18n="t.saveall">Save every .mid</span>
+            </button>
+            <button class="btn btn--ghost" id="clear" data-i18n="t.clear">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 構造の可視化 + readout -->
+    <div>
+      <div class="card" id="mapcard" style="margin-bottom:var(--s4)" hidden>
+        <div class="card__title" data-i18n="t.struct">File structure</div>
+        <div class="map">
+          <div class="map__label" id="map-label"></div>
+          <div class="map__bar" id="map-bar"></div>
+          <div class="map__scale"><span>0</span><span id="map-total">0 B</span></div>
+        </div>
+        <div class="legend">
+          <span><i></i><span data-i18n="t.legaudio">Audio (SSND)</span></span>
+          <span><i class="i-meta"></i><span data-i18n="t.legmeta">Other chunks</span></span>
+          <span><i class="i-midi"></i><span data-i18n="t.legmidi">MIDI chunk</span></span>
+        </div>
+        <div class="tablewrap">
+          <table class="chunks">
+            <thead><tr>
+              <th data-i18n="t.cid">ID</th>
+              <th class="num" data-i18n="t.coff">Offset</th>
+              <th class="num" data-i18n="t.csize">Size</th>
+              <th data-i18n="t.chead">First bytes</th>
+            </tr></thead>
+            <tbody id="chunkrows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="badges" id="status" style="margin-top:0"></div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live" id="live" hidden><span class="dot"></span><span data-i18n="t.found">MIDI found</span></span>
+        </div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.bpm">Tempo</span><span class="rrow__value" id="v-bpm">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.meter">Time signature</span><span class="rrow__value" id="v-meter">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.ppq">Division</span><span class="rrow__value" id="v-ppq">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.notes">Notes</span><span class="rrow__value" id="v-notes">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.len">Length</span><span class="rrow__value" id="v-len">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.name">Track name</span><span class="rrow__value rrow__value--text" id="v-name">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.format">Format</span><span class="rrow__value" id="v-format">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.size">MIDI size</span><span class="rrow__value" id="v-size">—</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="save" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <span id="savelbl" data-i18n="t.save">Save .mid</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var MIDI_IDS = [".mid", "MIDI"];
+  var MAX_CHUNKS = 4096;
+
+  var items = [], sel = -1;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var drop = $("drop"), input = $("file"), flist = $("flist"), listfield = $("listfield");
+  var mapcard = $("mapcard"), mapLabel = $("map-label"), mapBar = $("map-bar"), mapTotal = $("map-total");
+  var chunkRows = $("chunkrows"), statusEl = $("status"), live = $("live");
+  var btnSave = $("save"), btnSaveAll = $("saveall"), btnClear = $("clear");
+
+  function T(k) { return (typeof Shell !== "undefined" && Shell && Shell.t) ? Shell.t(k) : k; }
+  function msg(k, a) { return T(k).replace("{0}", a == null ? "" : String(a)); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function fmtBytes(n) { return n.toLocaleString("en-US") + " B"; }
+  function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
+
+  /* ---------- AIFF ---------- */
+  function fourcc(view, pos) {
+    var s = "";
+    for (var i = 0; i < 4; i++) {
+      var c = view.getUint8(pos + i);
+      s += (c >= 0x20 && c <= 0x7e) ? String.fromCharCode(c) : ".";
+    }
+    return s;
+  }
+  function parseAiff(buf) {
+    if (buf.byteLength < 12) return { error: { key: "t.eshort" } };
+    var view = new DataView(buf);
+    if (fourcc(view, 0) !== "FORM") return { error: { key: "t.eform" } };
+    var formType = fourcc(view, 8);
+    if (formType !== "AIFF" && formType !== "AIFC") return { error: { key: "t.etype", arg: formType } };
+
+    var chunks = [], pos = 12;
+    while (pos + 8 <= buf.byteLength && chunks.length < MAX_CHUNKS) {
+      var id = fourcc(view, pos);
+      var size = view.getUint32(pos + 4, false);
+      var start = pos + 8;
+      var avail = Math.max(0, Math.min(size, buf.byteLength - start));
+      chunks.push({ id: id, offset: pos, start: start, size: size, avail: avail, truncated: avail < size });
+      pos = start + size + (size & 1);
+    }
+    return { formType: formType, chunks: chunks, total: buf.byteLength };
+  }
+
+  /* ---------- MIDI ---------- */
+  function readVarLen(view, pos) {
+    var value = 0, byte;
+    do {
+      if (pos >= view.byteLength) throw new Error("eof");
+      byte = view.getUint8(pos++);
+      value = (value << 7) | (byte & 0x7f);
+    } while (byte & 0x80);
+    return [value, pos];
+  }
+  function inspectMidi(bytes) {
+    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (view.byteLength < 14) throw new Error("header");
+
+    var info = {
+      format: view.getUint16(8, false),
+      tracks: view.getUint16(10, false),
+      division: view.getUint16(12, false)
+    };
+    info.ppq = (info.division & 0x8000) ? null : info.division;
+
+    var pos = 8 + view.getUint32(4, false);
+    if (pos + 8 > view.byteLength || fourcc(view, pos) !== "MTrk") return info;
+
+    var end = Math.min(pos + 8 + view.getUint32(pos + 4, false), view.byteLength);
+    pos += 8;
+    var running = 0, ticks = 0, notes = 0, delta, len, type, data, status, hi;
+
+    while (pos < end) {
+      var v = readVarLen(view, pos); delta = v[0]; pos = v[1];
+      ticks += delta;
+      if (pos >= end) break;
+
+      status = view.getUint8(pos);
+      if (status & 0x80) pos++; else status = running;
+      if (status < 0xf0) running = status;
+
+      if (status === 0xff) {
+        if (pos >= end) break;
+        type = view.getUint8(pos++);
+        v = readVarLen(view, pos); len = v[0]; pos = v[1];
+        if (pos + len > end) break;
+        data = new Uint8Array(view.buffer, view.byteOffset + pos, len);
+        if (type === 0x03 && !info.name) {
+          info.name = new TextDecoder().decode(data);
+        } else if (type === 0x51 && !info.bpm && len >= 3) {
+          var usec = (data[0] << 16) | (data[1] << 8) | data[2];
+          if (usec > 0) info.bpm = Math.round(60000000 / usec * 100) / 100;
+        } else if (type === 0x58 && !info.meter && len >= 2) {
+          info.meter = data[0] + "/" + Math.pow(2, data[1]);
+        } else if (type === 0x2f) {
+          pos += len; break;
+        }
+        pos += len;
+      } else if (status === 0xf0 || status === 0xf7) {
+        v = readVarLen(view, pos); len = v[0]; pos = v[1];
+        pos += len;
+      } else if (status < 0xf0) {
+        hi = status & 0xf0;
+        if (hi === 0x90 && pos + 1 < end && view.getUint8(pos + 1) > 0) notes++;
+        pos += (hi === 0xc0 || hi === 0xd0) ? 1 : 2;
+      } else if (status === 0xf1 || status === 0xf3) {
+        pos += 1;
+      } else if (status === 0xf2) {
+        pos += 2;
+      }
+    }
+
+    info.notes = notes;
+    if (info.ppq && info.bpm) info.seconds = ticks / info.ppq * (60 / info.bpm);
+    return info;
+  }
+
+  /* ---------- 取り込み ---------- */
+  function analyze(file, buf) {
+    var it = { name: file.name, buf: buf, parsed: null, error: null,
+      midiChunk: null, bytes: null, isSmf: false, info: null, infoErr: false };
+    var p = parseAiff(buf);
+    if (p.error) { it.error = p.error; return it; }
+    it.parsed = p;
+
+    for (var i = 0; i < p.chunks.length; i++) {
+      var c = p.chunks[i];
+      if (MIDI_IDS.indexOf(c.id) >= 0 && c.avail > 0) { it.midiChunk = c; break; }
+    }
+    if (it.midiChunk) {
+      it.bytes = new Uint8Array(buf, it.midiChunk.start, it.midiChunk.avail);
+      it.isSmf = it.bytes.length >= 4 &&
+        it.bytes[0] === 0x4d && it.bytes[1] === 0x54 && it.bytes[2] === 0x68 && it.bytes[3] === 0x64; // MThd
+      if (it.isSmf) {
+        try { it.info = inspectMidi(it.bytes); } catch (e) { it.infoErr = true; }
+      }
+    }
+    return it;
+  }
+  function handle(files) {
+    var list = Array.prototype.slice.call(files);
+    if (!list.length) return;
+    var pending = list.length, results = new Array(list.length);
+    list.forEach(function (f, i) {
+      f.arrayBuffer().then(function (buf) { results[i] = analyze(f, buf); done(); },
+        function () { results[i] = { name: f.name, error: { key: "t.eread" } }; done(); });
+    });
+    function done() {
+      if (--pending) return;
+      items = items.concat(results);
+      sel = items.length - results.length;
+      render();
+    }
+  }
+
+  /* ---------- 表示 ---------- */
+  function hexPeek(buf, start, len) {
+    var n = Math.max(0, Math.min(len, 12));
+    var b = new Uint8Array(buf, start, n), hex = "", ascii = "";
+    for (var i = 0; i < b.length; i++) {
+      hex += b[i].toString(16).toUpperCase().padStart(2, "0") + " ";
+      ascii += (b[i] >= 0x20 && b[i] <= 0x7e) ? String.fromCharCode(b[i]) : "·";
+    }
+    return hex.trim() + "  " + ascii;
+  }
+  function statusOf(it) {
+    if (it.error) return { mod: "neg", key: "t.sterr" };
+    if (!it.midiChunk) return { mod: "muted", key: "t.stnone" };
+    if (!it.isSmf) return { mod: "neg", key: "t.straw" };
+    return { mod: "pos", key: "t.stok" };
+  }
+  function renderList() {
+    listfield.hidden = items.length === 0;
+    flist.innerHTML = items.map(function (it, i) {
+      var st = statusOf(it);
+      return '<button type="button" class="frow" data-i="' + i + '" aria-pressed="' + (i === sel) + '">' +
+        '<span class="frow__name">' + esc(it.name) + '</span>' +
+        '<span class="badge badge--' + st.mod + '"><span class="d"></span>' + esc(T(st.key)) + '</span></button>';
+    }).join("");
+    var n = items.filter(function (it) { return it.isSmf; }).length;
+    btnSaveAll.disabled = n < 1;
+  }
+  function renderMap(it) {
+    var p = it.parsed, total = p.total || 1;
+    mapBar.innerHTML = p.chunks.map(function (c) {
+      var kind = c === it.midiChunk ? "seg--midi" : (c.id === "SSND" ? "" : "seg--meta");
+      var left = (c.offset / total * 100).toFixed(4);
+      var width = ((c.avail + 8) / total * 100).toFixed(4);
+      var tip = c.id + " — " + fmtBytes(c.size) + (c.truncated ? " (" + T("t.truncated") + ")" : "");
+      return '<div class="seg ' + kind + '" style="left:' + left + '%;width:' + width + '%" title="' + esc(tip) + '"></div>';
+    }).join("");
+
+    mapLabel.innerHTML = it.midiChunk
+      ? '<span class="map__tag" style="left:' + clamp(it.midiChunk.offset / total * 100, 6, 94).toFixed(3) + '%">' +
+        esc(it.midiChunk.id) + " " + fmtBytes(it.midiChunk.size) + "</span>"
+      : "";
+    mapTotal.textContent = fmtBytes(p.total);
+
+    chunkRows.innerHTML = p.chunks.map(function (c) {
+      return '<tr class="' + (c === it.midiChunk ? "hit" : "") + '">' +
+        "<td>" + esc(c.id) + "</td>" +
+        '<td class="num">' + c.offset.toLocaleString("en-US") + "</td>" +
+        '<td class="num">' + c.size.toLocaleString("en-US") + (c.truncated ? " ⚠" : "") + "</td>" +
+        '<td class="bytes">' + esc(hexPeek(it.buf, c.start, c.avail)) + "</td></tr>";
+    }).join("");
+  }
+  function setV(el, val, unit) {
+    if (val === null || val === undefined || val === "") {
+      el.textContent = "—"; el.removeAttribute("data-copy"); return;
+    }
+    el.innerHTML = esc(String(val)) + (unit ? ' <span class="u">' + esc(unit) + "</span>" : "");
+    el.setAttribute("data-copy", String(val));
+  }
+  function badge(mod, text) {
+    return '<span class="badge badge--' + mod + '"><span class="d"></span>' + esc(text) + "</span>";
+  }
+  function renderDetail() {
+    var it = items[sel];
+    var m = (it && it.info) || {};
+
+    mapcard.hidden = !(it && it.parsed);
+    if (it && it.parsed) renderMap(it);
+
+    var b = [];
+    if (!it) {
+      b.push(badge("muted", T("t.empty")));
+    } else if (it.error) {
+      b.push(badge("neg", msg(it.error.key, it.error.arg)));
+    } else if (!it.midiChunk) {
+      b.push(badge("neg", T("t.enomidi")));
+    } else if (!it.isSmf) {
+      b.push(badge("neg", msg("t.enotsmf", it.midiChunk.id)));
+    } else {
+      b.push(badge("pos", msg("t.eok", it.parsed.formType)));
+      if (it.infoErr) b.push(badge("muted", T("t.eparse")));
+      if (it.midiChunk.truncated) b.push(badge("neg", T("t.etrunc")));
+    }
+    statusEl.innerHTML = b.join("");
+    live.hidden = !(it && it.isSmf);
+
+    setV($("v-bpm"), m.bpm != null ? m.bpm.toFixed(2) : null, "BPM");
+    setV($("v-meter"), m.meter || null);
+    setV($("v-ppq"), it && it.isSmf && !it.infoErr ? (m.ppq != null ? m.ppq : T("t.smpte")) : null, m.ppq != null ? T("u.ticks") : "");
+    setV($("v-notes"), m.notes != null ? m.notes : null);
+    setV($("v-len"), m.seconds != null ? m.seconds.toFixed(2) : null, T("u.sec"));
+    setV($("v-name"), m.name || null);
+    setV($("v-format"), m.format != null ? m.format + " / " + m.tracks : null, m.format != null ? T("u.tracks") : "");
+    setV($("v-size"), it && it.bytes ? it.bytes.length.toLocaleString("en-US") : null, "B");
+
+    var ok = !!(it && it.isSmf);
+    btnSave.disabled = !ok;
+    $("savelbl").textContent = ok ? midName(it.name) : T("t.save");
+    btnSave.title = ok ? midName(it.name) : "";
+  }
+  function render() { renderList(); renderDetail(); }
+
+  /* ---------- 保存 ---------- */
+  function midName(name) { return name.replace(/\.[^.]+$/, "") + ".mid"; }
+  function saveOne(it) {
+    if (!it || !it.isSmf) return;
+    var url = URL.createObjectURL(new Blob([it.bytes], { type: "audio/midi" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = midName(it.name); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  /* ---------- 入力 ---------- */
+  drop.addEventListener("click", function () { input.click(); });
+  drop.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+  });
+  input.addEventListener("change", function (e) { handle(e.target.files); input.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); });
+  });
+  drop.addEventListener("drop", function (e) { handle(e.dataTransfer.files); });
+  document.addEventListener("dragover", function (e) { e.preventDefault(); });
+  document.addEventListener("drop", function (e) { e.preventDefault(); });
+
+  flist.addEventListener("click", function (e) {
+    var b = e.target.closest(".frow"); if (!b) return;
+    sel = parseInt(b.getAttribute("data-i"), 10); render();
+  });
+  btnSave.addEventListener("click", function () { saveOne(items[sel]); });
+  btnSaveAll.addEventListener("click", function () {
+    items.filter(function (it) { return it.isSmf; }).forEach(function (it, i) {
+      setTimeout(function () { saveOne(it); }, i * 150);
+    });
+  });
+  btnClear.addEventListener("click", function () { items = []; sel = -1; render(); });
+
+  /* ---------- 起動 ---------- */
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "aif-to-mid",
+      strings: {
+        en: {
+          "t.title": "AIF to MID Converter",
+          "t.desc": "Extract the MIDI data embedded in .aif files such as Apple Loops and save it as .mid. Files are read in the browser only — nothing is uploaded.",
+          "t.input": "AIFF file",
+          "t.droptitle": "Drop .aif files here",
+          "t.drophint": "or click to choose — .aif / .aiff / .aifc, multiple files OK",
+          "t.files": "Loaded files",
+          "t.saveall": "Save every .mid",
+          "t.clear": "Clear",
+          "t.stok": "MIDI", "t.straw": "Not SMF", "t.stnone": "Audio only", "t.sterr": "Error",
+          "t.struct": "File structure",
+          "t.legaudio": "Audio (SSND)", "t.legmeta": "Other chunks", "t.legmidi": "MIDI chunk",
+          "t.cid": "ID", "t.coff": "Offset", "t.csize": "Size", "t.chead": "First bytes",
+          "t.truncated": "truncated",
+          "t.output": "Output", "t.found": "MIDI found",
+          "t.bpm": "Tempo", "t.meter": "Time signature", "t.ppq": "Division", "t.notes": "Notes",
+          "t.len": "Length", "t.name": "Track name", "t.format": "Format", "t.size": "MIDI size",
+          "t.smpte": "SMPTE",
+          "t.save": "Save .mid",
+          "t.copyhint": "Click any value to copy.",
+          "t.empty": "Drop a file to read its chunks.",
+          "t.eok": "MIDI chunk found in FORM {0}",
+          "t.eshort": "The file is too short to be an AIFF.",
+          "t.eform": "Not an AIFF — the file does not start with FORM.",
+          "t.etype": "Not an AIFF — the FORM type is {0}.",
+          "t.eread": "The file could not be read.",
+          "t.enomidi": "No MIDI chunk (.mid / MIDI). This file holds audio only.",
+          "t.enotsmf": "The {0} chunk does not start with MThd — likely a raw MIDI stream or SysEx, so it cannot be saved as .mid.",
+          "t.eparse": "The MIDI saves fine, but its contents could not be parsed.",
+          "t.etrunc": "The MIDI chunk is cut short — the saved file may be incomplete.",
+          "u.ticks": "ticks/beat", "u.sec": "s", "u.tracks": "tracks"
+        },
+        ja: {
+          "t.title": "AIF→MIDコンバーター",
+          "t.desc": "Apple Loopsなどの.aifファイルに埋め込まれたMIDIデータを取り出して.midとして保存します。ファイルはブラウザの中だけで読まれ、どこにも送信されません。",
+          "t.input": "AIFFファイル",
+          "t.droptitle": ".aif をここにドロップ",
+          "t.drophint": "クリックして選択も可 — .aif / .aiff / .aifc、複数可",
+          "t.files": "読み込んだファイル",
+          "t.saveall": "すべて保存",
+          "t.clear": "クリア",
+          "t.stok": "MIDIあり", "t.straw": "SMFでない", "t.stnone": "音声のみ", "t.sterr": "エラー",
+          "t.struct": "ファイル構造",
+          "t.legaudio": "音声（SSND）", "t.legmeta": "その他のチャンク", "t.legmidi": "MIDIチャンク",
+          "t.cid": "ID", "t.coff": "位置", "t.csize": "サイズ", "t.chead": "先頭バイト",
+          "t.truncated": "破損",
+          "t.output": "出力", "t.found": "MIDI検出",
+          "t.bpm": "テンポ", "t.meter": "拍子", "t.ppq": "分解能", "t.notes": "ノート数",
+          "t.len": "長さ", "t.name": "トラック名", "t.format": "フォーマット", "t.size": "MIDIサイズ",
+          "t.smpte": "SMPTE",
+          "t.save": ".mid を保存",
+          "t.copyhint": "数値をクリックでコピー。",
+          "t.empty": "ファイルをドロップするとチャンクを表示します。",
+          "t.eok": "FORM {0} からMIDIチャンクを検出しました。",
+          "t.eshort": "ファイルが短すぎます。",
+          "t.eform": "AIFFではありません（先頭がFORMではない）。",
+          "t.etype": "AIFFではありません（FORMの型が {0}）。",
+          "t.eread": "ファイルを読み込めませんでした。",
+          "t.enomidi": "MIDIチャンク（.mid / MIDI）がありません。このファイルは音声だけです。",
+          "t.enotsmf": "{0} チャンクはありますがMThdで始まっていません。生のMIDIストリームかSysExの可能性があり、そのままでは.midになりません。",
+          "t.eparse": "MIDIは取り出せますが、中身の解析に失敗しました。",
+          "t.etrunc": "MIDIチャンクが途中で切れています。保存しても不完全な可能性があります。",
+          "u.ticks": "ticks/beat", "u.sec": "秒", "u.tracks": "トラック"
+        }
+      },
+      onSettingsChange: render
+    });
+  }
+  render();
+})();
+</script>
+</body>
+</html>
