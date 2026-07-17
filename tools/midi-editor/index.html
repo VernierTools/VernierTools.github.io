@@ -884,11 +884,12 @@
     if (mode === 2) return d * page;
     return d;
   }
-  // 1ノッチ（≒100px相当）あたりの移動量を「音楽的な距離」で決める。
-  // 拡大しているほど画面上の移動は速く、縮小しているほど遅くなる（同じ操作量＝同じ小節数）。
-  // 極端な拡大率で行き過ぎ／進まなくなるのを避けるため、上下限で挟む。
-  function scrollStepX() { return clamp(barTicks() / 2 * view.ppt, 40, Math.max(60, (cw - KEYW) * 0.6)); }
-  function scrollStepY() { return clamp(6 * view.pps, 40, Math.max(60, chh * 0.6)); }
+  // 1ノッチ（≒100px相当）あたりの移動量。拡大するほど画面上の移動を小さくして精密に、
+  // 縮小するほど大きくして速く動かす（基準は初期表示の拡大率 = 4小節表示・7半音相当）。
+  // 極端な拡大率で進まなくなる／飛びすぎるのを避けるため上下限で挟む。
+  var PPT_REF = 0.055, PPS_REF = 14;
+  function scrollStepX() { return clamp(110 * (PPT_REF / view.ppt), 24, Math.max(60, (cw - KEYW) * 0.6)); }
+  function scrollStepY() { return clamp(100 * (PPS_REF / view.pps), 24, Math.max(60, chh * 0.6)); }
 
   function onWheel(e) {
     e.preventDefault();
