@@ -342,7 +342,8 @@
   function cloneCC(c) { return { id: c.id, tick: c.tick, ctrl: c.ctrl, value: c.value, channel: c.channel }; }
   var NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   function noteName(p) { return NAMES[p % 12] + (Math.floor(p / 12) - 1); }
-  var GRIDS = [["1/4", 960], ["1/4T", 640], ["1/4D", 1440], ["1/8", 480], ["1/8T", 320], ["1/8D", 720],
+  var GRIDS = [["1/1", 3840], ["1/1T", 2560], ["1/1D", 5760], ["1/2", 1920], ["1/2T", 1280], ["1/2D", 2880],
+               ["1/4", 960], ["1/4T", 640], ["1/4D", 1440], ["1/8", 480], ["1/8T", 320], ["1/8D", 720],
                ["1/16", 240], ["1/16T", 160], ["1/16D", 360], ["1/32", 120], ["1/32T", 80], ["1/32D", 180], ["1/64", 60]];
   var SCALES = {
     chromatic: null,
