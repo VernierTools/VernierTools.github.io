@@ -1264,14 +1264,21 @@
 
   /* ---- keyboard shortcuts ---- */
   window.addEventListener("keydown", function (e) {
-    var tag = (e.target.tagName || "").toLowerCase();
-    if (tag === "input" || tag === "select" || tag === "textarea") return;
+    var el = e.target || document.body, tag = (el.tagName || "").toLowerCase();
+    // 文字入力中はショートカットを奪わない
+    var typing = tag === "textarea" || el.isContentEditable ||
+      (tag === "input" && !/^(checkbox|radio|range|button|submit|reset)$/.test(el.type || "text"));
+    if (typing) return;
     var mod = e.metaKey || e.ctrlKey;
     if (e.code === "Space") {
+      // チェックボックス／ラジオはスペースで切り替えるのが標準なので譲る。
+      // ドロップダウンやボタンに選択後のフォーカスが残っていても再生/停止を優先する。
+      if (tag === "input" && /^(checkbox|radio)$/.test(el.type || "")) return;
       e.preventDefault();
       if (e.shiftKey) togglePlayPause(); else togglePlayStop();
       return;
     }
+    if (tag === "select") return;   // スペース以外はセレクト本来のキー操作に任せる
     var k = (e.key || "").toLowerCase();
     if (mod && !e.shiftKey && k === "z") { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey && k === "y") || (mod && e.shiftKey && k === "z")) { e.preventDefault(); redo(); return; }
@@ -1805,9 +1812,12 @@
         while (trans.ptr < ns.length && ns[trans.ptr].start < loop.a) trans.ptr++;
       }
     }
-    if (!loop.on) {
+    // 末尾まで来たら自動停止し、手動停止と同じくマーカーへ戻す。
+    // （戻さないと再生ヘッドが曲末に残り、次の再生が即座に自動停止して無反応に見える）
+    // マーカー自体が曲末より後ろの場合は自動停止しない＝空白の上でも再生ヘッドは進む。
+    if (!loop.on && trans.startTick < songEnd()) {
       var endSec = trans.startTime + (tickToSec(songEnd()) - trans.baseSec);
-      if (a.currentTime > endSec + 0.1 && trans.ptr >= ns.length) { stopPlay(); return; }
+      if (a.currentTime > endSec + 0.1 && trans.ptr >= ns.length) { stopPlay(); setPlayhead(marker); return; }
     }
     trans.timer = setTimeout(schedule, 25);
   }
