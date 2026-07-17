@@ -67,6 +67,7 @@
   .row3c{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
   .cardnote{ font-size:11.5px; color:var(--text-3); line-height:1.45; margin-top:6px; }
   .resline{ font-size:12px; color:var(--text-2); margin-top:var(--s2); font-variant-numeric:tabular-nums; }
+  .resline.neg{ color:var(--neg); }
   .dupjump{ display:flex; align-items:center; gap:6px; }
 
   /* ---- context menu / modal / restore ---- */
@@ -179,7 +180,7 @@
       <div id="lanes"></div>
       <button class="btn btn--ghost laneadd" id="lane-add">＋ <span data-i18n="lane.add">Add lane</span></button>
       <div class="statusline" id="status"></div>
-      <div class="cardnote" data-i18n="t.hints">Double-click: add / delete · drag edges: resize · Alt+drag: duplicate or draw a note · right-click: menu · Ctrl+wheel: zoom · Shift+wheel: horizontal scroll</div>
+      <div class="cardnote" data-i18n="t.hints">Left-drag empty space: draw a note · right-drag: rubber-band select · right-click a note: menu · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom</div>
     </div>
 
     <!-- right: side panel -->
@@ -197,7 +198,8 @@
         <div class="card__title" data-i18n="q.title">Quantize</div>
         <div class="field"><label class="label" data-i18n="q.res">Resolution</label><select class="select" id="q-res"></select></div>
         <div class="field"><label class="label" data-i18n="q.strength">Strength</label>
-          <div class="sliderline"><input class="slider" id="q-str" type="range" min="0" max="100" value="85"><span class="val" id="q-strv">85%</span></div></div>
+          <div class="sliderline"><input class="slider" id="q-str" type="range" min="0" max="100" value="100"><span class="val" id="q-strv">100%</span></div>
+          <div class="cardnote" data-i18n="q.strnote">100% snaps exactly onto the grid. Lower values move each note only part of the way, so pressing Apply again moves it closer again.</div></div>
         <div class="field"><label class="label" data-i18n="q.swing">Swing</label>
           <div class="sliderline"><input class="slider" id="q-swing" type="range" min="0" max="100" value="50"><span class="val" id="q-swingv">50</span></div></div>
         <div class="field"><label class="label" data-i18n="q.window">Window</label>
@@ -781,6 +783,8 @@
   function redrawNotes() {
     var ctx = xNotes;
     ctx.clearRect(0, 0, cw, chh);
+    // 鍵盤より左にはみ出したノートは描かない（鍵盤だけが見える）
+    ctx.save(); ctx.beginPath(); ctx.rect(KEYW, 0, Math.max(0, cw - KEYW), chh); ctx.clip();
     var t0v = x2tick(KEYW), t1v = x2tick(cw);
     var ns = sortedNotes();
     for (var i = firstVisible(t0v); i < ns.length; i++) {
@@ -809,12 +813,14 @@
         ctx.restore();
       }
     }
+    ctx.restore();
     drawOverlay();
   }
 
   function drawOverlay() {
     var ctx = xOv;
     ctx.clearRect(0, 0, cw, chh);
+    ctx.save(); ctx.beginPath(); ctx.rect(KEYW, 0, Math.max(0, cw - KEYW), chh); ctx.clip();
     if (loop.on) {
       ctx.fillStyle = colA(C.accent, 0.05);
       var lx1 = Math.max(KEYW, tick2x(loop.a)), lx2 = tick2x(loop.b);
@@ -847,6 +853,7 @@
       ctx.fillStyle = C.accent;
       ctx.fillRect(px - 0.75, 0, 1.5, chh);
     }
+    ctx.restore();
   }
 
   function drawAll() { drawBg(); drawRuler(); redrawNotes(); drawLanes(); }
@@ -933,9 +940,16 @@
   }
 
   cvOv.addEventListener("pointerdown", function (e) {
-    if (e.button === 2) return;
     hideCtx();
     var pt = ovPos(e), x = pt.x, y = pt.y;
+    if (e.button === 2) {                       // 右ドラッグ＝範囲選択（動かさずに離せばメニュー）
+      if (x < KEYW) return;
+      cvOv.setPointerCapture(e.pointerId);
+      drag = { mode: "band", x0: x, y0: y, x1: x, y1: y, add: e.shiftKey || e.ctrlKey || e.metaKey, right: true };
+      drawOverlay();
+      return;
+    }
+    if (e.button !== 0) return;
     cvOv.setPointerCapture(e.pointerId);
     if (x < KEYW) { var p0 = y2pitch(y); startLive(p0, 100); drag = { mode: "key", pitch: p0 }; return; }
     var t = x2tick(x);
@@ -957,14 +971,11 @@
         drag = { mode: "move", t0: t, p0: y2pitch(y), before: snapshotSel(), refId: hit.n.id, refStart: hit.n.start, moved: false };
       }
     } else {
-      if (e.altKey) {
-        var st = Math.max(0, snapTick(t));
-        drag = { mode: "create", anchor: st, pitch: y2pitch(y), cur: st };
-        drawOverlay();
-      } else {
-        drag = { mode: "band", x0: x, y0: y, x1: x, y1: y, add: e.shiftKey };
-        drawOverlay();
-      }
+      // 左ドラッグ＝押した位置から離した位置までノートを作る。
+      // 音高は押した時点のものに固定する（縦にずれても変わらない）。
+      var st = Math.max(0, snapTick(t));
+      drag = { mode: "create", anchor: st, pitch: y2pitch(y), cur: st, x0: x, moved: false };
+      drawOverlay();
     }
   });
 
@@ -1018,6 +1029,7 @@
       drawOverlay();
     } else if (drag.mode === "create") {
       drag.cur = Math.max(0, snapTick(t));
+      if (Math.abs(x - drag.x0) >= 3) drag.moved = true;
       drawOverlay();
     } else if (drag.mode === "band") {
       drag.x1 = x; drag.y1 = y;
@@ -1060,8 +1072,12 @@
       return;
     }
     if (d.mode === "create") {
+      if (!d.moved) {                    // ドラッグしていない＝ただのクリック → 選択解除のみ
+        if (sel.size) { sel = new Set(); redrawNotes(); drawLanes(); } else drawOverlay();
+        return;
+      }
       var a = Math.min(d.anchor, d.cur), b2 = Math.max(d.anchor, d.cur);
-      var dur = Math.max(b2 - a, gridTick());
+      var dur = Math.max(b2 - a, MINLEN);
       var n = { id: nid(), start: a, duration: dur, pitch: d.pitch, velocity: 100, channel: curChannel };
       lastDur = dur;
       exec({ addNotes: [n], selBefore: Array.from(sel), selAfter: [n.id] });
@@ -1070,6 +1086,11 @@
     if (d.mode === "band") {
       var rx1 = Math.min(d.x0, d.x1), rx2 = Math.max(d.x0, d.x1);
       var ry1 = Math.min(d.y0, d.y1), ry2 = Math.max(d.y0, d.y1);
+      if (d.right && rx2 - rx1 < 3 && ry2 - ry1 < 3) {   // 動かさずに離した右クリック → メニュー
+        drawOverlay();
+        if (e) openCtxAt(e, d.x0, d.y0);
+        return;
+      }
       if (rx2 - rx1 < 3 && ry2 - ry1 < 3) { if (!d.add) sel.clear(); }
       else {
         var ta = x2tick(rx1), tb = x2tick(rx2);
@@ -1105,10 +1126,11 @@
   /* ---- context menu ---- */
   var ctxmenu = $("ctxmenu");
   function hideCtx() { ctxmenu.hidden = true; }
-  cvOv.addEventListener("contextmenu", function (e) {
-    e.preventDefault();
-    var pt = ovPos(e);
-    var hit = hitNote(pt.x, pt.y);
+  // 右ボタンは範囲選択に使うため、ブラウザのメニューは常に抑止し、
+  // 「動かさずに離した」ときだけ pointerup からこのメニューを開く。
+  cvOv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  function openCtxAt(e, x, y) {
+    var hit = hitNote(x, y);
     if (!hit) { hideCtx(); return; }
     if (!sel.has(hit.n.id)) { sel = new Set([hit.n.id]); redrawNotes(); drawLanes(); }
     anchorNote = hit.n;
@@ -1116,7 +1138,7 @@
     var mw = 180, mh = 110;
     ctxmenu.style.left = Math.min(e.clientX, window.innerWidth - mw) + "px";
     ctxmenu.style.top = Math.min(e.clientY, window.innerHeight - mh) + "px";
-  });
+  }
   document.addEventListener("pointerdown", function (e) {
     if (!ctxmenu.hidden && !ctxmenu.contains(e.target)) hideCtx();
   });
@@ -1341,21 +1363,22 @@
     var modeB = $("sm-modeb").checked;
     var finv = invCurve(+$("sm-tension").value, $("sm-eio").checked);
     var pairs = 0, processed = 0;
+    var why = { pitch: 0, overlap: 0, short: 0, notone: 0 };
     var addNotes = [], modNotes = [];
     for (var i = 0; i < targets.length - 1; i++) {
       var N1 = targets[i], N2 = targets[i + 1];
       pairs++;
       var pd = Math.abs(N2.pitch - N1.pitch);
-      if (pd <= 1) continue;
-      if (N1.start + N1.duration > N2.start) continue;   // overlap
-      if (N1.start + N1.duration === N2.start) continue;  // no gap
+      if (pd <= 1) { why.pitch++; continue; }
+      if (N1.start + N1.duration > N2.start) { why.overlap++; continue; }   // overlap
+      if (N1.start + N1.duration === N2.start) { why.overlap++; continue; } // no gap
       var t0 = N1.start + N1.duration, t1 = N2.start, span = t1 - t0;
-      if (span < step) continue;
+      if (span < step) { why.short++; continue; }
       if (!modeB) {
         var n = Math.floor(span / step);
-        if (n < 1) continue;
+        if (n < 1) { why.short++; continue; }
         var tones = scaleTonesBetween(N1.pitch, N2.pitch, sset);
-        if (!tones.length) continue;
+        if (!tones.length) { why.notone++; continue; }
         // build steps
         var segs = [];
         for (var s = 0; s < n; s++) {
@@ -1373,7 +1396,7 @@
           if (sg.pitch === prevPitch || sg.pitch === N2.pitch) continue;  // 直前のノートが伸びる
           keep.push(sg); prevPitch = sg.pitch;
         }
-        if (!keep.length) continue;   // 発行できる中間音が無い → スキップ扱い
+        if (!keep.length) { why.notone++; continue; }   // 発行できる中間音が無い → スキップ扱い
         for (var m = 0; m < keep.length; m++) {
           keep[m].dur = ((m + 1 < keep.length) ? keep[m + 1].start : t1) - keep[m].start;
         }
@@ -1390,7 +1413,7 @@
       } else {
         // mode B: one note per intermediate scale tone, timing via inverse curve
         var tonesB = scaleTonesBetween(N1.pitch, N2.pitch, sset);
-        if (!tonesB.length) continue;
+        if (!tonesB.length) { why.notone++; continue; }
         var pts = [];
         tonesB.forEach(function (pj) {
           var v = (pj - N1.pitch) / (N2.pitch - N1.pitch);
@@ -1407,7 +1430,7 @@
         }
         // 末尾が N2 に近すぎる場合も同様に間引く（直前のノートが N2 まで伸びる）
         while (keptB.length && t1 - keptB[keptB.length - 1].t < MINLEN) keptB.pop();
-        if (!keptB.length) continue;
+        if (!keptB.length) { why.notone++; continue; }
         for (var b3 = 0; b3 < keptB.length; b3++) {
           var endB = (b3 + 1 < keptB.length) ? keptB[b3 + 1].t : t1;
           var uB = (keptB[b3].t - t0) / span;
@@ -1421,7 +1444,16 @@
       var selAfter = Array.from(sel).concat(addNotes.map(function (n) { return n.id; }));
       exec({ addNotes: addNotes, modNotes: modNotes, selBefore: Array.from(sel), selAfter: selAfter });
     }
-    $("sm-status").textContent = fmtT("sm.status", { a: processed, b: pairs, c: pairs - processed });
+    var msg = fmtT("sm.status", { a: processed, b: pairs, c: pairs - processed });
+    var rs = [];
+    if (why.pitch) rs.push(fmtT("sm.rs.pitch", { n: why.pitch }));
+    if (why.overlap) rs.push(fmtT("sm.rs.overlap", { n: why.overlap }));
+    if (why.short) rs.push(fmtT("sm.rs.short", { n: why.short }));
+    if (why.notone) rs.push(fmtT("sm.rs.notone", { n: why.notone }));
+    if (rs.length) msg += " " + T("sm.rs.head") + rs.join(" / ");
+    var el = $("sm-status");
+    el.textContent = msg;
+    el.className = "resline" + (processed === 0 && pairs > 0 ? " neg" : "");
   }
 
   /* ---- 5.3 batch filter ---- */
@@ -1674,18 +1706,22 @@
   }
   var trans = { playing: false, startTick: 0, baseSec: 0, startTime: 0, iter: 0, ptr: 0, timer: null };
   var voices = [];
+  var REL = 0.005;   // リリース（ほぼ0。クリックノイズを避けるためだけの長さ）
   function voice(pitch, vel, when, durSec, chGain) {
     var a = ac();
     var o = a.createOscillator(), g = a.createGain();
     o.type = $("wave").value;
     o.frequency.value = 440 * Math.pow(2, (pitch - 69) / 12);
     var peak = 0.02 + 0.2 * (vel / 127);
-    g.gain.setValueAtTime(0.0001, when);
-    g.gain.exponentialRampToValueAtTime(peak, when + 0.006);
-    g.gain.setValueAtTime(peak, when + Math.max(0.02, durSec * 0.6));
-    g.gain.exponentialRampToValueAtTime(0.0006, when + durSec + 0.08);
+    var end = when + durSec;
+    // アタック2ms・リリース5msのほぼ矩形。ノートが存在する間は必ず鳴らし続ける
+    // （減衰を挟むと長いノートの途中で音が消えるため）。
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + Math.min(0.002, durSec / 4));
+    g.gain.setValueAtTime(peak, end);
+    g.gain.linearRampToValueAtTime(0, end + REL);
     o.connect(g); g.connect(master);
-    o.start(when); o.stop(when + durSec + 0.12);
+    o.start(when); o.stop(end + REL + 0.005);
     var rec = { o: o, g: g };
     voices.push(rec);
     o.onended = function () { var i = voices.indexOf(rec); if (i >= 0) voices.splice(i, 1); };
@@ -1700,16 +1736,17 @@
     var o = a.createOscillator(), g = a.createGain();
     o.type = $("wave").value; o.frequency.value = 440 * Math.pow(2, (pitch - 69) / 12);
     var peak = 0.02 + 0.2 * (vel / 127);
-    g.gain.setValueAtTime(0.0001, a.currentTime);
-    g.gain.exponentialRampToValueAtTime(peak, a.currentTime + 0.008);
+    g.gain.setValueAtTime(0, a.currentTime);
+    g.gain.linearRampToValueAtTime(peak, a.currentTime + 0.002);
     o.connect(g); g.connect(master); o.start();
     liveVoices[pitch] = { o: o, g: g };
   }
   function stopLive(pitch) {
     var v = liveVoices[pitch]; if (!v) return;
     var a = ac(); v.g.gain.cancelScheduledValues(a.currentTime);
-    v.g.gain.setTargetAtTime(0.0001, a.currentTime, 0.03);
-    v.o.stop(a.currentTime + 0.2); delete liveVoices[pitch];
+    v.g.gain.setValueAtTime(v.g.gain.value, a.currentTime);
+    v.g.gain.linearRampToValueAtTime(0, a.currentTime + REL);
+    v.o.stop(a.currentTime + REL + 0.005); delete liveVoices[pitch];
   }
 
   function loopLen() { return Math.max(1, loop.b - loop.a); }
@@ -1725,7 +1762,10 @@
       var when = trans.startTime + (tickToSec(noteTick) - trans.baseSec) + trans.iter * (tickToSec(loop.b) - tickToSec(loop.a));
       if (when > horizon) break;
       var durSec = tickToSec(n.start + n.duration) - tickToSec(n.start);
-      if (when >= a.currentTime - 0.02) voice(n.pitch, n.velocity, Math.max(a.currentTime, when), Math.max(0.03, durSec));
+      if (when >= a.currentTime - 0.02) {
+        var at = Math.max(a.currentTime, when);
+        voice(n.pitch, n.velocity, at, Math.max(0.02, durSec - (at - when)));
+      }
       trans.ptr++;
     }
     if (loop.on && trans.ptr >= ns.length) {
@@ -1960,7 +2000,6 @@
     }
     cv.addEventListener("pointerup", up);
     cv.addEventListener("pointercancel", up);
-    cv.addEventListener("wheel", onWheel, { passive: false });
   }
   function paintVel(l, p, first) {
     if (p.x < KEYW) return;
@@ -2162,7 +2201,13 @@
     en: {
       "t.title": "MIDI editor",
       "t.desc": "A piano-roll MIDI editor with smart-tool editing, quantize, glissando smoothing, batch selection, time reversal, and cleanup. Everything runs locally in your browser.",
-      "t.hints": "Double-click empty: add note · double-click note: delete · drag middle: move · drag edges: resize · Alt+drag: duplicate / draw · right-click: menu · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally.",
+      "q.strnote": "100% snaps exactly onto the grid. Lower values move each note only part of the way, so pressing Apply again moves it closer again.",
+      "sm.rs.head": "Skipped: ",
+      "sm.rs.pitch": "pitch interval 1 or less ({n})",
+      "sm.rs.overlap": "notes overlap or leave no gap ({n})",
+      "sm.rs.short": "gap shorter than the step length ({n})",
+      "sm.rs.notone": "no intermediate scale tone fits ({n})",
+      "t.hints": "Left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally.",
       "cat.audio": "Audio",
       "tb.bpm": "BPM", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
@@ -2206,7 +2251,13 @@
     ja: {
       "t.title": "MIDIエディタ",
       "t.desc": "ピアノロール式のMIDIエディタ。スマートツール編集・クオンタイズ・グリッサンド生成・一括選択・逆再生・クリーンアップを搭載。すべてブラウザ内で完結します。",
-      "t.hints": "空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製・描画／右クリック：メニュー／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。",
+      "q.strnote": "100%でグリッドにぴったり合わせます。下げるとグリッドへ寄せる割合になり、押すたびに少しずつ近づきます。",
+      "sm.rs.head": "スキップ理由: ",
+      "sm.rs.pitch": "音高差が1以下（{n}件）",
+      "sm.rs.overlap": "重なっている・隙間が無い（{n}件）",
+      "sm.rs.short": "隙間がステップ長より短い（{n}件）",
+      "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
+      "t.hints": "空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。",
       "cat.audio": "音声",
       "tb.bpm": "BPM", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
