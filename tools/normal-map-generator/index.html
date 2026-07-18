@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Normal map generator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .sliderrow{ margin-top:2px; }
+  .sliderrow .val{ min-width:56px; }
+
+  .drop{ position:relative; }
+  .drop-empty{ display:flex; flex-direction:column; align-items:center; }
+  .drop-loaded{ display:none; align-items:center; gap:var(--s3); text-align:left; width:100%; }
+  .drop.has-file .drop-empty{ display:none; }
+  .drop.has-file .drop-loaded{ display:flex; }
+  .drop-loaded__thumb{ width:56px; height:56px; border-radius:var(--r-sm); overflow:hidden; flex:0 0 auto;
+    border:1px solid var(--border);
+    background:repeating-conic-gradient(#0000 0 25%, color-mix(in srgb, var(--text-3) 8%, transparent) 0 50%) 0 0/12px 12px; }
+  .drop-loaded__thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .drop-loaded__meta{ flex:1; min-width:0; }
+  .drop-loaded__meta b{ display:block; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .drop-loaded__meta span{ display:block; font-size:12px; color:var(--text-3); margin-top:2px; }
+  .drop-loaded__change{ flex:0 0 auto; font-size:12px; color:var(--accent); font-weight:500; }
+
+  .basishint{ font-size:11.5px; color:var(--text-3); margin-top:6px; line-height:1.4; }
+  .basishint[hidden]{ display:none; }
+
+  #out-wrap{ min-height:200px; display:flex; align-items:center; justify-content:center; }
+  #out-canvas{ display:block; width:100%; height:auto; }
+  #out-canvas[hidden]{ display:none; }
+  .out-empty{ color:var(--text-3); font-size:13px; padding:var(--s7) var(--s5); text-align:center; }
+  .out-empty[hidden]{ display:none; }
+
+  .toggle small{ color:var(--text-3); font-weight:400; }
+  .fieldnote{ font-size:12px; color:var(--text-3); margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.3dcg">3DCG</span></div>
+    <h1 data-i18n="t.title">Normal map generator</h1>
+    <p data-i18n="t.desc">Turn a seamless texture into a normal map, driven by luminance, saturation, hue, or a single channel.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.texture">Texture</label>
+          <div class="drop" id="drop" tabindex="0">
+            <div class="drop-empty" id="drop-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5M7 9l5-5 5 5M12 4v13"/></svg>
+              <div><b data-i18n="t.dropTitle">Click or drop an image</b></div>
+              <small data-i18n="t.dropHint">PNG / JPG / WebP — ideally a seamless texture</small>
+            </div>
+            <div class="drop-loaded" id="drop-loaded">
+              <div class="drop-loaded__thumb"><img id="thumb-img" alt=""></div>
+              <div class="drop-loaded__meta">
+                <b id="meta-name">—</b>
+                <span id="meta-dims">—</span>
+              </div>
+              <span class="drop-loaded__change" data-i18n="t.change">Change</span>
+            </div>
+          </div>
+          <input type="file" id="file-input" accept="image/*" hidden>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.basis">Basis</label>
+          <select class="select" id="basis" disabled>
+            <option value="luminance" data-i18n="t.bLum">Luminance</option>
+            <option value="saturation" data-i18n="t.bSat">Saturation</option>
+            <option value="hue" data-i18n="t.bHue">Hue</option>
+            <option value="red" data-i18n="t.bR">Red channel</option>
+            <option value="green" data-i18n="t.bG">Green channel</option>
+            <option value="blue" data-i18n="t.bB">Blue channel</option>
+            <option value="alpha" data-i18n="t.bA">Alpha channel</option>
+          </select>
+          <div class="basishint" id="hint-hue" data-i18n="t.hueHint" hidden>Hue wraps at 0°/360° and can show a seam at that boundary.</div>
+          <div class="basishint" id="hint-alpha" data-i18n="t.alphaHint" hidden>If the image has no real alpha channel, this produces a flat result.</div>
+        </div>
+        <div class="field">
+          <label class="toggle"><input type="checkbox" id="invert" disabled><span class="track"></span><span data-i18n="t.invert">Invert</span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.levels">Levels</div>
+        <div class="field">
+          <label class="label" data-i18n="t.black">Black point</label>
+          <div class="sliderrow"><input type="range" class="slider" id="black" min="0" max="99" value="0" disabled><span class="val mono" id="black-val">0%</span></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.white">White point</label>
+          <div class="sliderrow"><input type="range" class="slider" id="white" min="1" max="100" value="100" disabled><span class="val mono" id="white-val">100%</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.heightRange">Height range</div>
+        <div class="field">
+          <label class="label" data-i18n="t.reference">Reference level</label>
+          <div class="sliderrow"><input type="range" class="slider" id="reference" min="0" max="100" value="50" disabled><span class="val mono" id="reference-val">50%</span></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.upper">Peak limit (above reference)</label>
+          <div class="sliderrow"><input type="range" class="slider" id="upper" min="0" max="200" value="100" disabled><span class="val mono" id="upper-val">100%</span></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.lower">Valley limit (below reference)</label>
+          <div class="sliderrow"><input type="range" class="slider" id="lower" min="0" max="200" value="100" disabled><span class="val mono" id="lower-val">100%</span></div>
+        </div>
+        <div class="hint" data-i18n="t.heightHint">Peaks and valleys can be scaled independently around the reference level, for asymmetric bumps.</div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.strength">Strength</label>
+          <div class="sliderrow"><input type="range" class="slider" id="strength" min="1" max="50" value="8" disabled><span class="val mono" id="strength-val">8</span></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.smoothing">Smoothing</label>
+          <div class="sliderrow"><input type="range" class="slider" id="smoothing" min="0" max="4" value="0" disabled><span class="val mono" id="smoothing-val">0</span></div>
+        </div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn btn--secondary" id="reset-btn" disabled data-i18n="t.reset">Reset settings</button>
+      </div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="preview" id="out-wrap" style="margin-bottom:var(--s4)">
+        <canvas id="out-canvas" hidden></canvas>
+        <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the normal map here.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--s4)">
+        <label class="toggle"><input type="checkbox" id="conv-dx" disabled><span class="track"></span>
+          <span><span data-i18n="t.dxToggle">Preview as DirectX (Y−)</span> <small id="conv-current">— OpenGL (Y+)</small></span>
+        </label>
+        <div class="badges" id="badges"></div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn btn--primary" id="dl-gl" disabled data-i18n="t.dlgl">Download OpenGL (Y+)</button>
+        <button class="btn btn--secondary" id="dl-dx" disabled data-i18n="t.dldx">Download DirectX (Y−)</button>
+      </div>
+      <div class="hint" data-i18n="t.tileHint">Gradients are sampled with wrap-around, so seamless input stays seamless.</div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var FULL_MAX = 2048;   // ダウンロード時の作業解像度上限
+  var WORK_MAX = 640;    // ライブプレビュー用の作業解像度上限
+
+  var el = {
+    dropZone: $("drop"), dropEmpty: $("drop-empty"), dropLoaded: $("drop-loaded"),
+    fileInput: $("file-input"), thumbImg: $("thumb-img"), metaName: $("meta-name"), metaDims: $("meta-dims"),
+    basis: $("basis"), hintHue: $("hint-hue"), hintAlpha: $("hint-alpha"), invert: $("invert"),
+    black: $("black"), blackVal: $("black-val"), white: $("white"), whiteVal: $("white-val"),
+    reference: $("reference"), referenceVal: $("reference-val"),
+    upper: $("upper"), upperVal: $("upper-val"), lower: $("lower"), lowerVal: $("lower-val"),
+    strength: $("strength"), strengthVal: $("strength-val"), smoothing: $("smoothing"), smoothingVal: $("smoothing-val"),
+    resetBtn: $("reset-btn"),
+    outWrap: $("out-wrap"), outCanvas: $("out-canvas"), outEmpty: $("out-empty"),
+    convDx: $("conv-dx"), convCurrent: $("conv-current"), badges: $("badges"),
+    dlGl: $("dl-gl"), dlDx: $("dl-dx")
+  };
+  var outCtx = el.outCanvas.getContext("2d");
+
+  var DEFAULTS = { basis:"luminance", invert:false, black:0, white:100, reference:50, upper:100, lower:100, strength:8, smoothing:0 };
+
+  var state = {
+    fullData:null, fullW:0, fullH:0,
+    workData:null, workW:0, workH:0,
+    gradX:null, gradY:null, normals:null,
+    baseName:"normalmap", srcW:0, srcH:0
+  };
+
+  function params(){
+    return {
+      basis: el.basis.value, invert: el.invert.checked,
+      black: +el.black.value, white: +el.white.value,
+      reference: +el.reference.value, upper: +el.upper.value, lower: +el.lower.value,
+      strength: +el.strength.value, smoothing: +el.smoothing.value
+    };
+  }
+
+  /* ---- 基準値サンプリング（0-1） ---- */
+  function sampleBasis(basis, r, g, b, a){
+    r/=255; g/=255; b/=255; a/=255;
+    switch(basis){
+      case "luminance": return 0.2126*r + 0.7152*g + 0.0722*b;
+      case "saturation": { var mx=Math.max(r,g,b), mn=Math.min(r,g,b); return mx===0 ? 0 : (mx-mn)/mx; }
+      case "hue": {
+        var mx2=Math.max(r,g,b), mn2=Math.min(r,g,b), d=mx2-mn2, h=0;
+        if (d===0) h=0;
+        else if (mx2===r) h=((g-b)/d) % 6;
+        else if (mx2===g) h=(b-r)/d + 2;
+        else h=(r-g)/d + 4;
+        h/=6; if (h<0) h+=1; return h;
+      }
+      case "red": return r; case "green": return g; case "blue": return b; case "alpha": return a;
+      default: return 0.5;
+    }
+  }
+
+  function idx(x,y,w,h){ x=((x%w)+w)%w; y=((y%h)+h)%h; return y*w+x; }
+
+  function computeHeightField(data, w, h, p){
+    var n = w*h;
+    var height = new Float32Array(n);
+    var black = p.black/100, white = Math.max(p.white/100, black+0.001);
+    var ref = p.reference/100, up = p.upper/100, lo = p.lower/100;
+    for (var y=0; y<h; y++){
+      for (var x=0; x<w; x++){
+        var i = y*w+x, o = i*4;
+        var v = sampleBasis(p.basis, data[o], data[o+1], data[o+2], data[o+3]);
+        if (p.invert) v = 1-v;
+        v = (v - black) / (white - black);
+        if (v<0) v=0; else if (v>1) v=1;
+        var dev = v - ref;
+        dev *= (dev>=0) ? up : lo;
+        height[i] = ref + dev;
+      }
+    }
+    for (var s=0; s<p.smoothing; s++) height = boxBlur(height, w, h);
+    return height;
+  }
+
+  function boxBlur(field, w, h){
+    var out = new Float32Array(w*h);
+    for (var y=0; y<h; y++){
+      for (var x=0; x<w; x++){
+        var sum=0;
+        for (var dy=-1; dy<=1; dy++) for (var dx=-1; dx<=1; dx++) sum += field[idx(x+dx,y+dy,w,h)];
+        out[y*w+x] = sum/9;
+      }
+    }
+    return out;
+  }
+
+  function computeGradients(height, w, h){
+    var gx = new Float32Array(w*h), gy = new Float32Array(w*h);
+    for (var y=0; y<h; y++){
+      for (var x=0; x<w; x++){
+        var i = y*w+x;
+        var tl=height[idx(x-1,y-1,w,h)], tm=height[idx(x,y-1,w,h)], tr=height[idx(x+1,y-1,w,h)];
+        var ml=height[idx(x-1,y,w,h)],                                  mr=height[idx(x+1,y,w,h)];
+        var bl=height[idx(x-1,y+1,w,h)], bm=height[idx(x,y+1,w,h)], br=height[idx(x+1,y+1,w,h)];
+        gx[i] = (tr+2*mr+br) - (tl+2*ml+bl);
+        gy[i] = (bl+2*bm+br) - (tl+2*tm+tr);
+      }
+    }
+    return { gx:gx, gy:gy };
+  }
+
+  function computeNormals(gx, gy, strength){
+    var n = gx.length;
+    var nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n);
+    for (var i=0; i<n; i++){
+      var X = -gx[i]*strength, Y = -gy[i]*strength, Z = 1;
+      var len = Math.sqrt(X*X+Y*Y+Z*Z);
+      nx[i]=X/len; ny[i]=Y/len; nz[i]=Z/len;
+    }
+    return { nx:nx, ny:ny, nz:nz };
+  }
+
+  function toRGBA(n, w, h, convention){
+    var out = new Uint8ClampedArray(w*h*4);
+    for (var i=0; i<w*h; i++){
+      var o = i*4;
+      var yv = (convention === "directx") ? -n.ny[i] : n.ny[i];
+      out[o]   = Math.round((n.nx[i]*0.5+0.5)*255);
+      out[o+1] = Math.round((yv*0.5+0.5)*255);
+      out[o+2] = Math.round((n.nz[i]*0.5+0.5)*255);
+      out[o+3] = 255;
+    }
+    return out;
+  }
+
+  /* ---- ライブプレビュー ---- */
+  var rafPending = false;
+  function schedule(){ if (rafPending) return; rafPending = true; requestAnimationFrame(function(){ rafPending=false; recomputeHeavy(); }); }
+
+  function recomputeHeavy(){
+    if (!state.workData) return;
+    var p = params();
+    var height = computeHeightField(state.workData, state.workW, state.workH, p);
+    var g = computeGradients(height, state.workW, state.workH);
+    state.gradX = g.gx; state.gradY = g.gy;
+    recomputeLight();
+  }
+  function recomputeLight(){
+    if (!state.gradX) return;
+    var p = params();
+    state.normals = computeNormals(state.gradX, state.gradY, p.strength/10);
+    drawPreview();
+  }
+  function drawPreview(){
+    var conv = el.convDx.checked ? "directx" : "opengl";
+    var rgba = toRGBA(state.normals, state.workW, state.workH, conv);
+    var imgData = new ImageData(rgba, state.workW, state.workH);
+    outCtx.putImageData(imgData, 0, 0);
+    el.convCurrent.textContent = conv === "directx"
+      ? (Shell.lang === "ja" ? "— DirectX (Y−)" : "— DirectX (Y−)")
+      : (Shell.lang === "ja" ? "— OpenGL (Y+)" : "— OpenGL (Y+)");
+  }
+
+  /* ---- ダウンロード（元解像度で再計算） ---- */
+  function downloadConvention(conv, btn){
+    if (!state.fullData) return;
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = Shell.t("t.generating");
+    setTimeout(function(){
+      var p = params();
+      var height = computeHeightField(state.fullData, state.fullW, state.fullH, p);
+      var g = computeGradients(height, state.fullW, state.fullH);
+      var n = computeNormals(g.gx, g.gy, p.strength/10);
+      var rgba = toRGBA(n, state.fullW, state.fullH, conv);
+      var c = document.createElement("canvas"); c.width = state.fullW; c.height = state.fullH;
+      c.getContext("2d").putImageData(new ImageData(rgba, state.fullW, state.fullH), 0, 0);
+      c.toBlob(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = state.baseName + "_normal_" + conv + ".png";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        btn.disabled = false; btn.textContent = label;
+      }, "image/png");
+    }, 30);
+  }
+
+  /* ---- 画像読み込み ---- */
+  function loadFile(file){
+    if (!file || !/^image\//.test(file.type)) return;
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){
+      var iw = img.naturalWidth, ih = img.naturalHeight;
+
+      var scaleFull = Math.min(1, FULL_MAX / Math.max(iw, ih));
+      var fw = Math.max(1, Math.round(iw*scaleFull)), fh = Math.max(1, Math.round(ih*scaleFull));
+      var fc = document.createElement("canvas"); fc.width = fw; fc.height = fh;
+      fc.getContext("2d").drawImage(img, 0, 0, fw, fh);
+      state.fullData = fc.getContext("2d").getImageData(0, 0, fw, fh).data;
+      state.fullW = fw; state.fullH = fh;
+
+      var scaleWork = Math.min(1, WORK_MAX / Math.max(fw, fh));
+      var ww = Math.max(1, Math.round(fw*scaleWork)), wh = Math.max(1, Math.round(fh*scaleWork));
+      var wc = document.createElement("canvas"); wc.width = ww; wc.height = wh;
+      wc.getContext("2d").drawImage(img, 0, 0, ww, wh);
+      state.workData = wc.getContext("2d").getImageData(0, 0, ww, wh).data;
+      state.workW = ww; state.workH = wh;
+
+      el.outCanvas.width = ww; el.outCanvas.height = wh;
+      el.outCanvas.hidden = false; el.outEmpty.hidden = true;
+
+      state.baseName = file.name.replace(/\.[^.]+$/, "") || "normalmap";
+      state.srcW = iw; state.srcH = ih;
+
+      el.thumbImg.src = url;
+      el.metaName.textContent = file.name;
+      el.metaDims.textContent = iw + "\u00d7" + ih;
+      el.dropZone.classList.add("has-file");
+
+      renderBadges(iw, ih, fw, fh);
+      setControlsEnabled(true);
+      schedule();
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); };
+    img.src = url;
+  }
+
+  function renderBadges(iw, ih, fw, fh){
+    var html = '<span class="badge badge--muted">' + iw + '\u00d7' + ih + '</span>';
+    if (fw !== iw || fh !== ih){
+      html += '<span class="badge badge--muted">' + Shell.t("t.resWork") + ' ' + fw + '\u00d7' + fh + '</span>';
+    }
+    el.badges.innerHTML = html;
+  }
+
+  function setControlsEnabled(on){
+    [el.basis, el.invert, el.black, el.white, el.reference, el.upper, el.lower,
+     el.strength, el.smoothing, el.resetBtn, el.convDx, el.dlGl, el.dlDx].forEach(function(node){
+      node.disabled = !on;
+    });
+  }
+
+  /* ---- スライダー表示・levels の相互ガード ---- */
+  function fmtPct(v){ return v + "%"; }
+  function syncSliderLabels(){
+    el.blackVal.textContent = fmtPct(el.black.value);
+    el.whiteVal.textContent = fmtPct(el.white.value);
+    el.referenceVal.textContent = fmtPct(el.reference.value);
+    el.upperVal.textContent = fmtPct(el.upper.value);
+    el.lowerVal.textContent = fmtPct(el.lower.value);
+    el.strengthVal.textContent = el.strength.value;
+    el.smoothingVal.textContent = el.smoothing.value;
+  }
+  function updateBasisHint(){
+    var v = el.basis.value;
+    el.hintHue.hidden = v !== "hue";
+    el.hintAlpha.hidden = v !== "alpha";
+  }
+
+  /* ---- ドロップゾーン ---- */
+  el.dropZone.addEventListener("click", function(){ el.fileInput.click(); });
+  el.dropZone.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); el.fileInput.click(); } });
+  el.dropZone.addEventListener("dragover", function(e){ e.preventDefault(); el.dropZone.classList.add("dragover"); });
+  el.dropZone.addEventListener("dragleave", function(){ el.dropZone.classList.remove("dragover"); });
+  el.dropZone.addEventListener("drop", function(e){
+    e.preventDefault(); el.dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  el.fileInput.addEventListener("change", function(){ if (el.fileInput.files[0]) loadFile(el.fileInput.files[0]); });
+
+  /* ---- コントロール配線 ---- */
+  el.basis.addEventListener("change", function(){ updateBasisHint(); schedule(); });
+  el.invert.addEventListener("change", schedule);
+  [el.black, el.white].forEach(function(node){
+    node.addEventListener("input", function(){
+      if (+el.black.value >= +el.white.value){
+        if (node === el.black) el.white.value = Math.min(100, +el.black.value+1);
+        else el.black.value = Math.max(0, +el.white.value-1);
+      }
+      syncSliderLabels(); schedule();
+    });
+  });
+  [el.reference, el.upper, el.lower].forEach(function(node){
+    node.addEventListener("input", function(){ syncSliderLabels(); schedule(); });
+  });
+  el.strength.addEventListener("input", function(){ syncSliderLabels(); recomputeLight(); });
+  el.smoothing.addEventListener("input", function(){ syncSliderLabels(); schedule(); });
+  el.convDx.addEventListener("change", drawPreview);
+
+  el.resetBtn.addEventListener("click", function(){
+    el.basis.value = DEFAULTS.basis; el.invert.checked = DEFAULTS.invert;
+    el.black.value = DEFAULTS.black; el.white.value = DEFAULTS.white;
+    el.reference.value = DEFAULTS.reference; el.upper.value = DEFAULTS.upper; el.lower.value = DEFAULTS.lower;
+    el.strength.value = DEFAULTS.strength; el.smoothing.value = DEFAULTS.smoothing;
+    updateBasisHint(); syncSliderLabels(); schedule();
+  });
+
+  el.dlGl.addEventListener("click", function(){ downloadConvention("opengl", el.dlGl); });
+  el.dlDx.addEventListener("click", function(){ downloadConvention("directx", el.dlDx); });
+
+  /* ---- 起動 ---- */
+  syncSliderLabels(); updateBasisHint();
+
+  Shell.init({
+    id: "normal-map-generator",
+    strings: {
+      en: {
+        "t.title": "Normal map generator",
+        "t.desc": "Turn a seamless texture into a normal map, driven by luminance, saturation, hue, or a single channel.",
+        "t.texture": "Texture",
+        "t.dropTitle": "Click or drop an image",
+        "t.dropHint": "PNG / JPG / WebP — ideally a seamless texture",
+        "t.change": "Change",
+        "t.basis": "Basis",
+        "t.bLum": "Luminance", "t.bSat": "Saturation", "t.bHue": "Hue",
+        "t.bR": "Red channel", "t.bG": "Green channel", "t.bB": "Blue channel", "t.bA": "Alpha channel",
+        "t.hueHint": "Hue wraps at 0°/360° and can show a seam at that boundary.",
+        "t.alphaHint": "If the image has no real alpha channel, this produces a flat result.",
+        "t.invert": "Invert",
+        "t.levels": "Levels", "t.black": "Black point", "t.white": "White point",
+        "t.heightRange": "Height range", "t.reference": "Reference level",
+        "t.upper": "Peak limit (above reference)", "t.lower": "Valley limit (below reference)",
+        "t.heightHint": "Peaks and valleys can be scaled independently around the reference level, for asymmetric bumps.",
+        "t.strength": "Strength", "t.smoothing": "Smoothing",
+        "t.reset": "Reset settings",
+        "t.emptyPreview": "Load a texture to see the normal map here.",
+        "t.dxToggle": "Preview as DirectX (Y−)",
+        "t.dlgl": "Download OpenGL (Y+)", "t.dldx": "Download DirectX (Y−)",
+        "t.tileHint": "Gradients are sampled with wrap-around, so seamless input stays seamless.",
+        "t.resWork": "preview", "t.generating": "Generating…"
+      },
+      ja: {
+        "t.title": "ノーマルマップ生成",
+        "t.desc": "明度・彩度・色相、または単一チャンネルを基準に、シームレステクスチャから疑似ノーマルマップを生成します。",
+        "t.texture": "テクスチャ",
+        "t.dropTitle": "クリックまたはドロップして画像を読み込み",
+        "t.dropHint": "PNG / JPG / WebP — シームレステクスチャ推奨",
+        "t.change": "変更",
+        "t.basis": "基準",
+        "t.bLum": "明度（輝度）", "t.bSat": "彩度", "t.bHue": "色相",
+        "t.bR": "Rチャンネル", "t.bG": "Gチャンネル", "t.bB": "Bチャンネル", "t.bA": "アルファチャンネル",
+        "t.hueHint": "色相は0°/360°で循環するため、その境界に継ぎ目が出ることがあります。",
+        "t.alphaHint": "画像に実質的なアルファチャンネルが無い場合、平坦な結果になります。",
+        "t.invert": "反転",
+        "t.levels": "レベル補正", "t.black": "黒点", "t.white": "白点",
+        "t.heightRange": "凹凸の範囲", "t.reference": "基準レベル",
+        "t.upper": "山の上限（基準より明るい側）", "t.lower": "谷の上限（基準より暗い側）",
+        "t.heightHint": "基準レベルを中心に、山と谷の強さをそれぞれ独立に調整できます（非対称な凹凸）。",
+        "t.strength": "強度", "t.smoothing": "スムージング",
+        "t.reset": "設定をリセット",
+        "t.emptyPreview": "テクスチャを読み込むとノーマルマップがここに表示されます。",
+        "t.dxToggle": "DirectX (Y−) でプレビュー",
+        "t.dlgl": "OpenGL (Y+) をダウンロード", "t.dldx": "DirectX (Y−) をダウンロード",
+        "t.tileHint": "勾配計算は周回（ラップアラウンド）参照のため、シームレスな入力は継ぎ目なく仕上がります。",
+        "t.resWork": "プレビュー", "t.generating": "生成中…"
+      }
+    },
+    onSettingsChange: function(){ if (state.normals) drawPreview(); }
+  });
+})();
+</script>
+</body>
+</html>
