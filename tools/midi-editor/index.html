@@ -227,7 +227,15 @@
 
       <div class="card">
         <div class="card__title" data-i18n="sm.title">Smoothing (glissando)</div>
-        <div class="field"><label class="label" data-i18n="sm.step">Step length</label><select class="select" id="sm-step"></select></div>
+        <div class="field">
+          <label class="label" data-i18n="sm.mode">Mode</label>
+          <select class="select" id="sm-mode">
+            <option value="even" data-i18n="sm.mode.even">Even-interval mode</option>
+            <option value="natural" data-i18n="sm.mode.natural">Natural mode</option>
+          </select>
+          <div class="cardnote" id="sm-mode-desc" data-i18n="sm.mode.even.desc">For precise synth step sequences — steady rising/falling 16th- or 32nd-note arpeggios, chiptune-style stepped pitch bends, and other mechanically even passages.</div>
+        </div>
+        <div class="field" id="sm-step-row"><label class="label" data-i18n="sm.step">Step length</label><select class="select" id="sm-step"></select></div>
         <div class="field"><label class="label" data-i18n="sm.tension">Pitch curve tension</label>
           <div class="sliderline"><input class="slider" id="sm-tension" type="range" min="-100" max="100" value="0"><span class="val" id="sm-tensionv">0</span></div>
           <div class="presetrow">
@@ -238,7 +246,6 @@
         <div class="field"><label class="checkline"><input type="checkbox" id="sm-eio"><span data-i18n="sm.easeio">Ease-in-out (S-curve)</span></label></div>
         <div class="field"><label class="label" data-i18n="sm.vtension">Velocity curve tension</label>
           <div class="sliderline"><input class="slider" id="sm-vt" type="range" min="-100" max="100" value="0"><span class="val" id="sm-vtv">0</span></div></div>
-        <div class="field"><label class="checkline"><input type="checkbox" id="sm-modeb"><span data-i18n="sm.modeb">Mode B: one note per scale tone (timing follows curve)</span></label></div>
         <div class="field"><label class="checkline"><input type="checkbox" id="sm-global" checked><span data-i18n="sm.global">Follow global key/scale</span></label></div>
         <div class="row3c" id="sm-localrow" hidden>
           <div class="field"><label class="label" data-i18n="sc.key">Key</label><select class="select" id="sm-key"></select></div>
@@ -1456,7 +1463,7 @@
     var sset = smoothScale();
     var fP = makeCurve(+$("sm-tension").value, $("sm-eio").checked);
     var fV = makeCurve(+$("sm-vt").value, false);
-    var modeB = $("sm-modeb").checked;
+    var modeB = $("sm-mode").value === "natural";
     var finv = invCurve(+$("sm-tension").value, $("sm-eio").checked);
     var pairs = 0, processed = 0;
     var why = { pitch: 0, overlap: 0, short: 0, notone: 0 };
@@ -2399,7 +2406,11 @@
       "q.apply": "Apply quantize", "q.done": "Quantized {n} notes.",
       "sm.title": "Smoothing (glissando)", "sm.step": "Step length", "sm.tension": "Pitch curve tension",
       "sm.easeio": "Ease-in-out (S-curve)", "sm.vtension": "Velocity curve tension",
-      "sm.modeb": "Mode B: one note per scale tone (timing follows curve)",
+      "sm.mode": "Mode",
+      "sm.mode.even": "Even-interval mode",
+      "sm.mode.natural": "Natural mode",
+      "sm.mode.even.desc": "For precise synth step sequences: steady rising or falling 16th- or 32nd-note arpeggios, chiptune-style stepped pitch bends, and other mechanically even passages. Uses every in-scale step and the step-length grid below.",
+      "sm.mode.natural.desc": "For the smooth, tempo-independent nuance of a real instrument — glissandi and emotional accelerando/ritardando phrasing. One note per scale step; timing follows the curve instead of a fixed grid, so the step-length setting is not used.",
       "sm.global": "Follow global key / scale", "sm.apply": "Smooth selected notes",
       "sm.status": "{a} of {b} pairs processed ({c} skipped).", "sm.needsel": "Select at least two notes.",
       "fl.title": "Batch select filter", "fl.vel": "Velocity", "fl.pitch": "Pitch", "fl.len": "Length", "fl.ch": "Channel",
@@ -2449,7 +2460,11 @@
       "q.apply": "クオンタイズ実行", "q.done": "{n}個のノートをクオンタイズしました。",
       "sm.title": "スムーズ化（グリッサンド）", "sm.step": "ステップ長", "sm.tension": "音高カーブのテンション",
       "sm.easeio": "イーズイン・アウト（S字）", "sm.vtension": "ベロシティカーブのテンション",
-      "sm.modeb": "モードB：スケール構成音ごとに1ノート（時間がカーブに従う）",
+      "sm.mode": "モード",
+      "sm.mode.even": "等間隔モード",
+      "sm.mode.natural": "ナチュラルモード",
+      "sm.mode.even.desc": "シンセサイザーの正確なステップシーケンス、規則正しく駆け上がる/下がる16分音符や32分音符のアルペジオ、チップチューン的な階段状のピッチベンド表現などに。スケール上の音を全て使い、下のステップ長の格子に従います。",
+      "sm.mode.natural.desc": "拍子に縛られない、生楽器特有の滑らかなニュアンスや、加速・減速を伴うエモーショナルなグリッサンド表現を作りたい場合に。スケール構成音ごとに1ノートを作り、タイミングは固定グリッドではなくカーブに従うため、ステップ長の設定は使いません。",
       "sm.global": "グローバルのキー／スケールに従う", "sm.apply": "選択ノートをスムーズ化",
       "sm.status": "{b}ペア中 {a}ペアを処理（{c}ペアをスキップ）。", "sm.needsel": "2つ以上のノートを選択してください。",
       "fl.title": "一括選択フィルタ", "fl.vel": "ベロシティ", "fl.pitch": "音高", "fl.len": "長さ", "fl.ch": "チャンネル",
@@ -2591,6 +2606,16 @@
 
     // smoothing local scale toggle + presets
     $("sm-global").addEventListener("change", function () { $("sm-localrow").hidden = this.checked; });
+    $("sm-mode").addEventListener("change", syncSmMode);
+    function syncSmMode() {
+      var natural = $("sm-mode").value === "natural";
+      // ステップ長は等間隔モードでのみ使う値なので、ナチュラルモードでは薄く表示して無関係だと伝える
+      $("sm-step-row").style.opacity = natural ? "0.45" : "1";
+      $("sm-step").disabled = natural;
+      $("sm-mode-desc").setAttribute("data-i18n", natural ? "sm.mode.natural.desc" : "sm.mode.even.desc");
+      $("sm-mode-desc").textContent = T(natural ? "sm.mode.natural.desc" : "sm.mode.even.desc");
+    }
+    syncSmMode();
     document.querySelectorAll(".presetrow [data-preset]").forEach(function (b) {
       b.addEventListener("click", function () { $("sm-tension").value = this.getAttribute("data-preset"); $("sm-tension").dispatchEvent(new Event("input")); });
     });
