@@ -2682,6 +2682,11 @@
     if (activeCCPointId === pointId) { activeCCLane = null; activeCCPointId = null; }
     drawLanes();
   }
+  var BEND_SNAP_ZERO = 200; // ±8192中、この範囲内へドラッグしたら正確に0(曲げなし)へ吸着する
+  function bendSnapVal(ctrl, v, disable) {
+    if (ctrl !== "bend" || disable) return v;
+    return Math.abs(v) <= BEND_SNAP_ZERO ? 0 : v;
+  }
   function wireCCLanePointer(l) {
     var cv = l.cv, drag = null;
     function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; }
@@ -2718,6 +2723,7 @@
         if (e.shiftKey) {
           if (Math.abs(p.x - drag.x0) > Math.abs(p.y - drag.y0)) nv = drag.startVal; else nt = drag.startTick;
         }
+        nv = bendSnapVal(l.ctrl, nv, e.altKey);
         drag.point.tick = nt; drag.point.value = nv;
         regenerateCC(l.ctrl); drawLanes();
       } else if (drag.mode === "handle") {
@@ -2745,7 +2751,7 @@
       var H = p.H;
       var hp = hitCCPoint(l, p.x, p.y, H);
       if (hp) { deleteCCPoint(l, hp.point.id); return; }
-      var tick = Math.max(0, Math.round(x2tick(p.x))), val = valAt(p.y, H);
+      var tick = Math.max(0, Math.round(x2tick(p.x))), val = bendSnapVal(l.ctrl, valAt(p.y, H), e.altKey);
       var pts = ccPointsFor(l.ctrl).slice();
       var insertAt = pts.length, inheritInterp = "linear";
       for (var i = 0; i < pts.length; i++) { if (pts[i].tick > tick) { insertAt = i; break; } }
@@ -2942,7 +2948,7 @@
       "sm.rs.gap": "gap larger than the threshold — left as a rest ({n})",
       "sm.rs.short": "not enough room for even one step ({n})",
       "sm.rs.notone": "no intermediate scale tone fits ({n})",
-      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height · with multiple notes selected, dragging in the velocity lane shifts them all together, keeping their differences (hold Alt to set them all to the same value instead).",
+      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height · with multiple notes selected, dragging in the velocity lane shifts them all together, keeping their differences (hold Alt to set them all to the same value instead) · on the pitch bend lane only, dragging or clicking near the center snaps exactly to 0 (no bend) — hold Alt to place a point without snapping.",
       "cat.audio": "Audio",
       "tb.bpm": "BPM", "tb.timesig": "Time sig.", "tb.custom": "Custom", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
@@ -3018,7 +3024,7 @@
       "sm.rs.gap": "隙間が上限より大きいため休符として残した（{n}件）",
       "sm.rs.short": "1ステップ分の場所も確保できない（{n}件）",
       "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
-      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム／複数ノート選択中にベロシティレーンをドラッグすると差を保ったまま全体が連動（Altを押しながらだと全ノートが同じ値に揃う）。",
+      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム／複数ノート選択中にベロシティレーンをドラッグすると差を保ったまま全体が連動（Altを押しながらだと全ノートが同じ値に揃う）／ピッチベンドのレーンのみ、中央(0)付近へドラッグ・クリックすると正確に0（曲げなし）へスナップします。スナップを解除したい場合はAltを押しながら操作してください。",
       "cat.audio": "音声",
       "tb.bpm": "BPM", "tb.timesig": "拍子", "tb.custom": "カスタム", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
