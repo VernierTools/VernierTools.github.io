@@ -1162,6 +1162,14 @@
 
   cvOv.addEventListener("pointerdown", function (e) {
     hideCtx();
+    // ピアノロール側で何らかの操作を始めたら、CCレーン側の「アクティブな制御点」は
+    // 必ず解除する。解除しないと、直前にピッチベンド等の点を編集した状態のまま
+    // ノートを選択してDeleteを押した際、意図せず制御点の方が消えてしまうため。
+    if (activeCCLane || activeCCPointId) {
+      var prevLane = activeCCLane;
+      activeCCLane = null; activeCCPointId = null;
+      if (prevLane) { prevLane.activePoint = null; drawLane(prevLane); }
+    }
     var pt = ovPos(e), x = pt.x, y = pt.y;
     if (e.button === 2) {                       // 右ドラッグ＝範囲選択（動かさずに離せばメニュー）
       if (x < KEYW) return;
