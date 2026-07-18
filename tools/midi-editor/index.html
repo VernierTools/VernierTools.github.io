@@ -1475,12 +1475,21 @@
         if (n < 1) { why.short++; continue; }
         var tones = scaleTonesBetween(N1.pitch, N2.pitch, sset);
         if (!tones.length) { why.notone++; continue; }
+        // N1→N2 の間にある「度数の列」（0=N1自身, 1..degCount-1=中間音, degCount=N2自身）。
+        // 半音距離ではなく、この度数のインデックスをカーブでたどることで、全音・半音が
+        // 混在するスケールでも特定の音だけがサンプルを独り占めしないようにする。
+        var degCount = tones.length + 1;
+        function degreePitch(idx) {
+          if (idx <= 0) return N1.pitch;
+          if (idx >= degCount) return N2.pitch;
+          return tones[idx - 1];
+        }
         // build steps
         var segs = [];
         for (var s = 0; s < n; s++) {
           var u = (s + 1) / (n + 1);
-          var praw = N1.pitch + (N2.pitch - N1.pitch) * fP(u);
-          var pp = nearestScaleTone(praw, sset);
+          var di = clamp(Math.round(fP(u) * degCount), 0, degCount);
+          var pp = degreePitch(di);
           var vv = clamp(Math.round(N1.velocity + (N2.velocity - N1.velocity) * fV(u)), 1, 127);
           segs.push({ start: t0 + s * step, pitch: pp, vel: vv });
         }
@@ -1527,6 +1536,13 @@
         // 末尾が N2 に近すぎる場合も同様に間引く（直前のノートが N2 まで伸びる）
         while (keptB.length && t1 - keptB[keptB.length - 1].t < MINLEN) keptB.pop();
         if (!keptB.length) { why.notone++; continue; }
+        // モードAと同じ理由で、最初の中間音はN1の直後ぴったりに来るとは限らない
+        // （中立設定でも音程比率で決まるため）。N1をそこまで延長して無音を作らない。
+        var n1EndB = keptB[0].t;
+        if (n1EndB !== N1.start + N1.duration) {
+          modNotes.push({ id: N1.id, before: cloneNote(N1),
+            after: { start: N1.start, duration: n1EndB - N1.start, pitch: N1.pitch, velocity: N1.velocity, channel: N1.channel } });
+        }
         for (var b3 = 0; b3 < keptB.length; b3++) {
           var endB = (b3 + 1 < keptB.length) ? keptB[b3 + 1].t : t1;
           var uB = (keptB[b3].t - t0) / span;
