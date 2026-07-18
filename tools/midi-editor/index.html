@@ -450,6 +450,12 @@
   };
   var CCNAMES = { 1: "Mod", 7: "Vol", 10: "Pan", 11: "Expr", 64: "Sus", 66: "Sost", 67: "Soft" };
   var SWITCH_CC = { 64: 1, 66: 1, 67: 1 };
+  var BEND_RANGE_ST = 2; // ピッチベンドの可動域（半音）。GM既定の±2半音で固定。
+  // ピッチベンドは doc.cc の中に ctrl:"bend" という特別な値として同居させる
+  // （0-127のCCとは値域が違うだけで、時間軸の連続値というデータ構造は同じなので、
+  //  制御点・補間・ドラッグ編集のカーブエディタ一式をそのまま流用できる）。
+  function ctrlRange(ctrl) { return ctrl === "bend" ? [-8192, 8191] : [0, 127]; }
+  function ctrlDefault(ctrl) { return ctrl === "bend" ? 0 : 64; }
 
   /* i18n: works with or without shell */
   function T(key) {
@@ -640,6 +646,9 @@
             }
           } else if (type === 0xB0) {
             out.cc.push({ id: cid(), tick: T960, ctrl: d1, value: d2, channel: ch });
+          } else if (type === 0xE0) {
+            var val14 = (d2 << 7) | d1;
+            out.cc.push({ id: cid(), tick: T960, ctrl: "bend", value: val14 - 8192, channel: ch });
           } else {
             var db = (d2 === null) ? [d1] : [d1, d2];
             out.pass.push({ tick: T960, kind: "ch", status: st, data: db });
@@ -685,7 +694,14 @@
       if (pp.kind === "meta") ev.push({ t: pp.tick, o: 0, meta: pp.mt, data: pp.data });
       else ev.push({ t: pp.tick, o: (pp.status & 0xF0) === 0xC0 ? 1 : 3, s: [pp.status].concat(pp.data) });
     });
-    doc.cc.forEach(function (c) { ev.push({ t: c.tick, o: 2, s: [0xB0 | c.channel, c.ctrl & 127, clamp(c.value, 0, 127)] }); });
+    doc.cc.forEach(function (c) {
+      if (c.ctrl === "bend") {
+        var v14 = clamp(Math.round(c.value) + 8192, 0, 16383);
+        ev.push({ t: c.tick, o: 2, s: [0xE0 | c.channel, v14 & 0x7f, (v14 >> 7) & 0x7f] });
+      } else {
+        ev.push({ t: c.tick, o: 2, s: [0xB0 | c.channel, c.ctrl & 127, clamp(c.value, 0, 127)] });
+      }
+    });
     doc.notes.forEach(function (n) {
       ev.push({ t: n.start, o: 5, s: [0x90 | n.channel, n.pitch & 127, clamp(n.velocity, 1, 127)] });
       ev.push({ t: n.start + n.duration, o: 4, s: [0x80 | n.channel, n.pitch & 127, 64] });
@@ -1832,7 +1848,7 @@
       var evs = groups[key].slice().sort(function (a, b) { return a.tick - b.tick; });
       var inRange = evs.filter(function (e) { return e.tick >= t0 && e.tick < t1; });
       if (!inRange.length) return;
-      var parts = key.split(":"), ctrl = +parts[0], ch = +parts[1];
+      var parts = key.split(":"), ctrl = parts[0] === "bend" ? "bend" : +parts[0], ch = +parts[1];
       // state just before t0
       var prev = null;
       for (var i = 0; i < evs.length; i++) { if (evs[i].tick < t0) prev = evs[i]; else break; }
@@ -2024,22 +2040,78 @@
   }
   var voices = [];
   var REL = 0.005;   // リリース（ほぼ0。クリックノイズを避けるためだけの長さ）
-  function voice(pitch, vel, when, durSec, chGain) {
+
+  /* ---- 再生用CCキャッシュ: Sus/Expr/Pan/Bendをチャンネル別・tick順に引けるようにする ----
+     startPlay() のたびに作り直す（曲の長さの割に軽い処理なので、編集のたびの
+     無効化管理はせず毎回作り直す方針）。 */
+  var playCC = {};
+  function buildPlayCC() {
+    playCC = {};
+    doc.cc.forEach(function (c) {
+      var k = c.ctrl + ":" + c.channel;
+      (playCC[k] || (playCC[k] = [])).push(c);
+    });
+    Object.keys(playCC).forEach(function (k) { playCC[k].sort(function (a, b) { return a.tick - b.tick; }); });
+  }
+  // [t0,t1] の範囲の折れ線（t0時点の値を先頭に含む）を返す。自動化のスケジューリングに使う。
+  function ccBreaks(ctrl, channel, t0, t1, dflt) {
+    var arr = playCC[ctrl + ":" + channel] || [], out = [], carry = dflt, i = 0;
+    for (; i < arr.length; i++) { if (arr[i].tick <= t0) carry = arr[i].value; else break; }
+    out.push({ tick: t0, value: carry });
+    for (; i < arr.length; i++) { if (arr[i].tick > t1) break; if (arr[i].tick > t0) out.push({ tick: arr[i].tick, value: arr[i].value }); }
+    return out;
+  }
+  // サステイン(CC64)を考慮した実際の発音終了tickを返す。踏まれていなければ元のoffTickのまま。
+  function sustainOffTick(channel, offTick, ceilTick) {
+    var arr = playCC["64:" + channel] || [], down = false;
+    for (var i = 0; i < arr.length; i++) { if (arr[i].tick <= offTick) down = arr[i].value >= 64; else break; }
+    if (!down) return offTick;
+    for (var j = 0; j < arr.length; j++) { if (arr[j].tick > offTick && arr[j].value < 64) return Math.min(arr[j].tick, ceilTick); }
+    return ceilTick;
+  }
+
+  function voice(pitch, vel, when, durSec, opts) {
     var a = ac();
-    var o = a.createOscillator(), g = a.createGain();
+    var o = a.createOscillator(), g = a.createGain(), pan = a.createStereoPanner();
     o.type = $("wave").value;
-    o.frequency.value = 440 * Math.pow(2, (pitch - 69) / 12);
+    var baseFreq = 440 * Math.pow(2, (pitch - 69) / 12);
     var peak = 0.02 + 0.2 * (vel / 127);
     var end = when + durSec;
-    // アタック2ms・リリース5msのほぼ矩形。ノートが存在する間は必ず鳴らし続ける
-    // （減衰を挟むと長いノートの途中で音が消えるため）。
+    opts = opts || {};
+    // ---- ピッチベンド: 半音オフセット→周波数に変換してリアルタイムに追従させる ----
+    var bendPts = opts.bendPts;
+    if (bendPts && bendPts.length > 1) {
+      bendPts.forEach(function (bp, i) {
+        var st = (bp.value / 8192) * BEND_RANGE_ST;
+        var f = baseFreq * Math.pow(2, st / 12);
+        if (i === 0) o.frequency.setValueAtTime(f, bp.when); else o.frequency.linearRampToValueAtTime(f, bp.when);
+      });
+    } else {
+      o.frequency.value = baseFreq;
+    }
+    // ---- エクスプレッション: ノート本来のエンベロープに音量スケールとして重ねる ----
+    var exprPts = opts.exprPts;
+    var peakAt = function (v) { return peak * clamp(v, 0, 127) / 127; };
+    var p0 = exprPts && exprPts.length ? peakAt(exprPts[0].value) : peak;
     g.gain.setValueAtTime(0, when);
-    g.gain.linearRampToValueAtTime(peak, when + Math.min(0.002, durSec / 4));
-    g.gain.setValueAtTime(peak, end);
+    g.gain.linearRampToValueAtTime(p0, when + Math.min(0.002, durSec / 4));
+    if (exprPts && exprPts.length > 1) {
+      for (var k = 1; k < exprPts.length; k++) g.gain.linearRampToValueAtTime(peakAt(exprPts[k].value), exprPts[k].when);
+    } else {
+      g.gain.setValueAtTime(p0, end);
+    }
     g.gain.linearRampToValueAtTime(0, end + REL);
-    o.connect(g); g.connect(master);
+    // ---- パン: チャンネルのPanカーブに追従させる ----
+    var panPts = opts.panPts;
+    if (panPts && panPts.length) {
+      panPts.forEach(function (pp, i) {
+        var pv = clamp((clamp(pp.value, 0, 127) - 64) / 64, -1, 1);
+        if (i === 0) pan.pan.setValueAtTime(pv, pp.when); else pan.pan.linearRampToValueAtTime(pv, pp.when);
+      });
+    }
+    o.connect(g); g.connect(pan); pan.connect(master);
     o.start(when); o.stop(end + REL + 0.005);
-    var rec = { o: o, g: g };
+    var rec = { o: o, g: g, pan: pan };
     voices.push(rec);
     o.onended = function () { var i = voices.indexOf(rec); if (i >= 0) voices.splice(i, 1); };
     return rec;
@@ -2071,17 +2143,26 @@
     if (!trans.playing) return;
     var a = ac(), horizon = a.currentTime + 0.12;
     var ns = sortedNotes();
+    var ceilTick = loop.on ? loop.b : songEnd();
     while (trans.ptr < ns.length) {
       var n = ns[trans.ptr];
       var noteTick = n.start;
       if (loop.on && noteTick >= loop.b) break;
       if (loop.on && noteTick < loop.a) { trans.ptr++; continue; }
-      var when = trans.startTime + (tickToSec(noteTick) - trans.baseSec) + trans.iter * (tickToSec(loop.b) - tickToSec(loop.a));
+      var loopOffsetSec = trans.iter * (tickToSec(loop.b) - tickToSec(loop.a));
+      var when = trans.startTime + (tickToSec(noteTick) - trans.baseSec) + loopOffsetSec;
       if (when > horizon) break;
-      var durSec = tickToSec(n.start + n.duration) - tickToSec(n.start);
+      var offTick = sustainOffTick(n.channel, n.start + n.duration, ceilTick);
+      var durSec = tickToSec(offTick) - tickToSec(n.start);
       if (when >= a.currentTime - 0.02) {
         var at = Math.max(a.currentTime, when);
-        voice(n.pitch, n.velocity, at, Math.max(0.02, durSec - (at - when)));
+        var tickAbs = function (tick) { return trans.startTime + (tickToSec(tick) - trans.baseSec) + loopOffsetSec; };
+        var mk = function (ctrl, dflt) {
+          return ccBreaks(ctrl, n.channel, n.start, offTick, dflt).map(function (b) { return { when: tickAbs(b.tick), value: b.value }; });
+        };
+        voice(n.pitch, n.velocity, at, Math.max(0.02, durSec - (at - when)), {
+          bendPts: mk("bend", 0), exprPts: mk(11, 127), panPts: mk(10, 64)
+        });
       }
       trans.ptr++;
     }
@@ -2121,6 +2202,7 @@
 
   function startPlay(fromTick) {
     var a = ac();
+    buildPlayCC();
     trans.playing = true;
     trans.startTick = fromTick;
     trans.baseSec = tickToSec(fromTick);
@@ -2240,11 +2322,11 @@
   var lanes = [];
   var lanesBox = $("lanes");
   var LANE_H0 = 88, LANE_ZMIN = 0.5, LANE_ZMAX = 4;
-  function defaultLanes() { return [{ kind: "vel", zoomY: 1 }, { kind: "cc", ctrl: 64, zoomY: 1 }, { kind: "cc", ctrl: 11, zoomY: 1 }]; }
+  function defaultLanes() { return [{ kind: "vel", zoomY: 1 }, { kind: "cc", ctrl: 64, zoomY: 1 }, { kind: "cc", ctrl: 11, zoomY: 1 }, { kind: "cc", ctrl: 10, zoomY: 1 }]; }
   function laneH(l) { return Math.round(LANE_H0 * (l.zoomY || 1)); }
 
   function ccOptions(selCtrl) {
-    var s = "";
+    var s = '<option value="bend"' + (selCtrl === "bend" ? " selected" : "") + '>' + T("cc.bend") + "</option>";
     for (var i = 0; i < 128; i++) {
       var nm = CCNAMES[i] ? (i + " " + CCNAMES[i]) : ("CC" + i);
       s += '<option value="' + i + '"' + (i === selCtrl ? " selected" : "") + ">" + nm + "</option>";
@@ -2278,8 +2360,8 @@
       wireLaneWheel(l);
       wireLaneGrip(l, grip);
 
-      kindSel.addEventListener("change", function () { l.kind = kindSel.value; if (l.kind === "cc" && l.ctrl == null) l.ctrl = +ccSel.value; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } rebuildLanes(); drawLanes(); saveLanes(); });
-      ccSel.addEventListener("change", function () { l.ctrl = +ccSel.value; l.activePoint = null; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } drawLane(l); saveLanes(); });
+      kindSel.addEventListener("change", function () { l.kind = kindSel.value; if (l.kind === "cc" && l.ctrl == null) l.ctrl = ccSel.value === "bend" ? "bend" : +ccSel.value; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } rebuildLanes(); drawLanes(); saveLanes(); });
+      ccSel.addEventListener("change", function () { l.ctrl = ccSel.value === "bend" ? "bend" : +ccSel.value; l.activePoint = null; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } drawLane(l); saveLanes(); });
       up.addEventListener("click", function () { if (idx > 0) { var t = lanes[idx - 1]; lanes[idx - 1] = l; lanes[idx] = t; rebuildLanes(); drawLanes(); saveLanes(); } });
       dn.addEventListener("click", function () { if (idx < lanes.length - 1) { var t = lanes[idx + 1]; lanes[idx + 1] = l; lanes[idx] = t; rebuildLanes(); drawLanes(); saveLanes(); } });
       rm.addEventListener("click", function () { if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } lanes.splice(idx, 1); rebuildLanes(); drawLanes(); saveLanes(); });
@@ -2330,17 +2412,24 @@
     } else {
       ensureCurvePoints(l.ctrl);   // 既存の生データがあれば初回だけ制御点へ簡略化する
       var pts = ccPointsFor(l.ctrl);
-      var valY = function (v) { return H - (v / 127) * (H - 8) - 4; };
+      var rg = ctrlRange(l.ctrl), rgMin = rg[0], rgSpan = rg[1] - rg[0];
+      var valY = function (v) { return H - ((v - rgMin) / rgSpan) * (H - 8) - 4; };
+      if (l.ctrl === "bend") {
+        // ベンドは 0（曲げなし）の位置が常にわかった方がいいので薄い基準線を常時表示
+        ctx.strokeStyle = colA(C["text-3"], 0.35); ctx.lineWidth = 1;
+        var zy = valY(0);
+        ctx.beginPath(); ctx.moveTo(KEYW, zy); ctx.lineTo(W, zy); ctx.stroke();
+      }
       if (!pts.length) {
         // 制御点がまだ無い＝初期状態。既定値のフラットな線を薄く示すだけ
         ctx.strokeStyle = colA(C["text-3"], 0.55); ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
-        var yFlat = valY(64);
+        var yFlat = valY(ctrlDefault(l.ctrl));
         ctx.beginPath(); ctx.moveTo(KEYW, yFlat); ctx.lineTo(W, yFlat); ctx.stroke();
         ctx.setLineDash([]);
       } else {
         var evs = doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).sort(function (a, b) { return a.tick - b.tick; });
         ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.beginPath();
-        var seedV = evs.length ? evs[0].value : 64;
+        var seedV = evs.length ? evs[0].value : ctrlDefault(l.ctrl);
         for (var s = 0; s < evs.length; s++) { if (evs[s].tick <= t0v) seedV = evs[s].value; else break; }
         var lastX = KEYW, lastY = valY(seedV);
         ctx.moveTo(lastX, lastY);
@@ -2449,6 +2538,7 @@
   // 制御点列から実際に書き出す密なCCイベント列を「計算するだけ」の純粋関数（doc.ccには触れない）
   function computeCCEvents(ctrl, pts) {
     var out = [];
+    var rg = ctrlRange(ctrl);
     pts.forEach(function (p, i) {
       out.push(p);   // 参照をそのまま使う（ドラッグ中に regenerateCC を連続呼び出しても
                       // drag.point が doc.cc の実体と切り離されないようにするため。
@@ -2462,7 +2552,7 @@
         for (var k = 1; k < n; k++) {
           var u = k / n, tick = Math.round(p.tick + span * u);
           if (tick <= p.tick || tick >= q.tick) continue;
-          out.push({ id: cid(), tick: tick, ctrl: ctrl, value: clamp(Math.round(f(u)), 0, 127), channel: p.channel });
+          out.push({ id: cid(), tick: tick, ctrl: ctrl, value: clamp(Math.round(f(u)), rg[0], rg[1]), channel: p.channel });
         }
       }
     });
@@ -2514,9 +2604,9 @@
     var simplified = douglasPeucker(raw.map(function (c) { return { tick: c.tick, value: c.value }; }), 2.2, 40);
     var ids = new Set(existing.map(function (c) { return c.id; }));
     doc.cc = doc.cc.filter(function (c) { return !ids.has(c.id); });
-    var ch = raw[0].channel;
+    var ch = raw[0].channel, rg = ctrlRange(ctrl);
     simplified.forEach(function (p) {
-      doc.cc.push({ id: cid(), tick: Math.round(p.tick), ctrl: ctrl, value: clamp(Math.round(p.value), 0, 127), channel: ch, pt: true, interp: "linear" });
+      doc.cc.push({ id: cid(), tick: Math.round(p.tick), ctrl: ctrl, value: clamp(Math.round(p.value), rg[0], rg[1]), channel: ch, pt: true, interp: "linear" });
     });
     markDirty();
   }
@@ -2567,21 +2657,21 @@
   }
   var activeCCLane = null, activeCCPointId = null;
   function hitCCPoint(l, x, y, H) {
-    var pts = ccPointsFor(l.ctrl);
+    var pts = ccPointsFor(l.ctrl), rg = ctrlRange(l.ctrl);
     for (var i = 0; i < pts.length; i++) {
-      var px = tick2x(pts[i].tick), py = H - (pts[i].value / 127) * (H - 8) - 4;
+      var px = tick2x(pts[i].tick), py = H - ((pts[i].value - rg[0]) / (rg[1] - rg[0])) * (H - 8) - 4;
       if (Math.hypot(x - px, y - py) <= 7) return { point: pts[i], index: i };
     }
     return null;
   }
   function hitCCHandle(l, x, y, H) {
-    var pts = ccPointsFor(l.ctrl);
+    var pts = ccPointsFor(l.ctrl), rg = ctrlRange(l.ctrl);
     for (var i = 0; i < pts.length - 1; i++) {
       var p = pts[i]; if (p.interp !== "bezier") continue;
       var q = pts[i + 1];
       var hx = (p.bz && p.bz.t != null) ? p.bz.t : (p.tick + q.tick) / 2;
       var hv = (p.bz && p.bz.v != null) ? p.bz.v : (p.value + q.value) / 2;
-      var hxpx = tick2x(hx), hypx = H - (hv / 127) * (H - 8) - 4;
+      var hxpx = tick2x(hx), hypx = H - ((hv - rg[0]) / (rg[1] - rg[0])) * (H - 8) - 4;
       if (Math.hypot(x - hxpx, y - hypx) <= 7) return { point: p, next: q };
     }
     return null;
@@ -2595,7 +2685,7 @@
   function wireCCLanePointer(l) {
     var cv = l.cv, drag = null;
     function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; }
-    function valAt(y, H) { return clamp(Math.round((1 - (y - 4) / (H - 8)) * 127), 0, 127); }
+    function valAt(y, H) { var rg = ctrlRange(l.ctrl), span = rg[1] - rg[0]; return clamp(Math.round(rg[1] - (y - 4) / (H - 8) * span), rg[0], rg[1]); }
     cv.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
       var p = pos(e); if (p.x < KEYW) return;
@@ -2906,6 +2996,7 @@
       "cl.revdone": "Reversed in time.",
       "lane.vel": "Velocity", "lane.add": "Add lane", "lane.resize": "Drag to resize (or Ctrl+Shift+wheel to zoom)",
       "cc.linear": "Linear", "cc.bezier": "Bezier", "cc.smooth": "Smooth", "cc.step": "Step", "cc.exp": "Exponential", "cc.scurve": "S-curve",
+      "cc.bend": "Pitch bend",
       "menu.delete": "Delete", "menu.dup": "Duplicate", "menu.props": "Properties…",
       "pr.title": "Note properties", "pr.start": "Start (tick)", "pr.dur": "Length (tick)", "pr.pitch": "Pitch (0–127)",
       "pr.vel": "Velocity (1–127)", "pr.ch": "Channel (1–16)", "pr.ok": "Apply", "pr.cancel": "Cancel",
@@ -2981,6 +3072,7 @@
       "cl.revdone": "時間軸で反転しました。",
       "lane.vel": "ベロシティ", "lane.add": "レーンを追加", "lane.resize": "ドラッグで高さを変更（Ctrl+Shift+ホイールでも）",
       "cc.linear": "リニア", "cc.bezier": "ベジェ", "cc.smooth": "スムーズ", "cc.step": "ステップ", "cc.exp": "指数", "cc.scurve": "S字カーブ",
+      "cc.bend": "ピッチベンド",
       "menu.delete": "削除", "menu.dup": "複製", "menu.props": "プロパティ…",
       "pr.title": "ノートのプロパティ", "pr.start": "開始 (tick)", "pr.dur": "長さ (tick)", "pr.pitch": "音高 (0–127)",
       "pr.vel": "ベロシティ (1–127)", "pr.ch": "チャンネル (1–16)", "pr.ok": "適用", "pr.cancel": "キャンセル",
