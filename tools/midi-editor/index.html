@@ -28,6 +28,9 @@
   .med-toolbar .input{ height:34px; }
   .med-toolbar .select{ height:34px; width:auto; }
   .in-bpm{ width:74px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; text-align:right; }
+  .tsig-num{ width:56px; padding:0 6px; text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .tsig-den{ width:60px; padding:0 22px 0 8px; }
+  .tsig-sep{ color:var(--text-3); font-weight:600; }
   .pos{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px; color:var(--text-2); min-width:86px; }
   .zoomrow{ display:flex; align-items:center; gap:6px; }
   .zoomrow .slider{ width:76px; }
@@ -143,9 +146,9 @@
         <option value="5/4">5/4</option><option value="6/8">6/8</option><option value="7/8">7/8</option>
         <option value="custom" data-i18n="tb.custom">Custom</option>
       </select>
-      <input class="input" id="tsig-num" type="number" min="1" max="32" value="4" style="width:46px" hidden>
-      <span class="pos" id="tsig-sep" hidden>/</span>
-      <select class="select" id="tsig-den" hidden>
+      <input class="input tsig-num" id="tsig-num" type="number" min="1" max="32" value="4" hidden>
+      <span class="tsig-sep" id="tsig-sep" hidden>/</span>
+      <select class="select tsig-den" id="tsig-den" hidden>
         <option value="1">1</option><option value="2">2</option><option value="4">4</option>
         <option value="8">8</option><option value="16">16</option><option value="32">32</option>
       </select>
@@ -296,6 +299,10 @@
           </select>
           <div class="cardnote" id="sm-mode-desc" data-i18n="sm.mode.even.desc">For precise synth step sequences — steady rising/falling 16th- or 32nd-note arpeggios, chiptune-style stepped pitch bends, and other mechanically even passages.</div>
         </div>
+        <div class="field" id="sm-transrow"><label class="label" data-i18n="sm.translen">Smoothing length</label><select class="select" id="sm-translen"></select>
+          <div class="cardnote" data-i18n="sm.translen.desc">How much time the generated passing notes occupy, ending right where the next note starts. The first note's end is pulled back automatically if needed to make room.</div></div>
+        <div class="field" id="sm-gaprow"><label class="label" data-i18n="sm.gapmax">Max existing gap to bridge</label><select class="select" id="sm-gapmax"></select>
+          <div class="cardnote" data-i18n="sm.gapmax.desc">Pairs with a bigger gap than this are treated as an intentional rest and left untouched.</div></div>
         <div class="field" id="sm-step-row"><label class="label" data-i18n="sm.step">Step length</label><select class="select" id="sm-step"></select></div>
         <div class="field"><label class="label" data-i18n="sm.tension">Pitch curve tension</label>
           <div class="sliderline"><input class="slider" id="sm-tension" type="range" min="-100" max="100" value="0"><span class="val" id="sm-tensionv">0</span></div>
@@ -1173,6 +1180,7 @@
       // 音高は押した時点のものに固定する（縦にずれても変わらない）。
       var st = Math.max(0, snapTick(t));
       drag = { mode: "create", anchor: st, pitch: (inputMode() === "block") ? lockPitch(y2pitch(y)) : y2pitch(y), cur: st, x0: x, moved: false };
+      startLive(drag.pitch, 100);   // 打ち込みドラッグ中もキーボードクリックと同様にプレビューを鳴らす
       drawOverlay();
     }
   });
@@ -1277,6 +1285,7 @@
       return;
     }
     if (d.mode === "create") {
+      stopLive(d.pitch);              // ドラッグ中鳴らしていたプレビューを止める（作成確定・キャンセル共通）
       if (!d.moved) {                    // ドラッグしていない＝ただのクリック → 選択解除のみ
         if (sel.size) { sel = new Set(); redrawNotes(); drawLanes(); } else drawOverlay();
         return;
@@ -1599,23 +1608,33 @@
     var targets = notesFromSel().sort(function (a, b) { return a.start - b.start; });
     if (targets.length < 2) { $("sm-status").textContent = T("sm.needsel"); return; }
     var step = +$("sm-step").value || 240;
+    var transLen = +$("sm-translen").value || 480;
+    var gapMax = +$("sm-gapmax").value || 0;
     var sset = smoothScale();
     var fP = makeCurve(+$("sm-tension").value, $("sm-eio").checked);
     var fV = makeCurve(+$("sm-vt").value, false);
     var modeB = $("sm-mode").value === "natural";
     var finv = invCurve(+$("sm-tension").value, $("sm-eio").checked);
     var pairs = 0, processed = 0;
-    var why = { pitch: 0, overlap: 0, short: 0, notone: 0 };
+    var why = { pitch: 0, overlap: 0, gap: 0, short: 0, notone: 0 };
     var addNotes = [], modNotes = [];
     for (var i = 0; i < targets.length - 1; i++) {
       var N1 = targets[i], N2 = targets[i + 1];
       pairs++;
       var pd = Math.abs(N2.pitch - N1.pitch);
       if (pd <= 1) { why.pitch++; continue; }
-      if (N1.start + N1.duration > N2.start) { why.overlap++; continue; }   // overlap
-      if (N1.start + N1.duration === N2.start) { why.overlap++; continue; } // no gap
-      var t0 = N1.start + N1.duration, t1 = N2.start, span = t1 - t0;
-      if (span < step) { why.short++; continue; }
+      var n1End0 = N1.start + N1.duration;
+      var realGap = N2.start - n1End0;
+      if (realGap < 0) { why.overlap++; continue; }           // 重なっている → 対象外
+      if (realGap > gapMax) { why.gap++; continue; }          // 隙間が大きい → 意図した休符とみなしそのまま残す
+      // 経過区間は常に「次のノートの頭」で終わる固定長(transLen)にする。
+      // 既存の隙間がそれより短ければ(接している場合も含む)1つ目のノートの終わりを
+      // 必要なぶんだけ縮めて場所を作り、既存の隙間がそれより長ければ縮めずに
+      // 余りをそのまま無音として残す（min(transLen, 実際に確保できる空間)）。
+      var maxRoom = N2.start - N1.start - MINLEN;
+      var span = Math.max(0, Math.min(transLen, maxRoom));
+      var t1 = N2.start, t0 = t1 - span;
+      if (span < 1) { why.short++; continue; }
       if (!modeB) {
         var n = Math.floor(span / step);
         if (n < 1) { why.short++; continue; }
@@ -1651,9 +1670,12 @@
         for (var m = 0; m < keep.length; m++) {
           keep[m].dur = ((m + 1 < keep.length) ? keep[m + 1].start : t1) - keep[m].start;
         }
-        // 先頭ステップを捨てた場合は N1 が最初の生成ノートまで伸びる（隙間を作らない）
+        // 先頭ステップを捨てた場合は N1 が最初の生成ノートまで伸びる（隙間を作らない）。
+        // ただし「縮める」方向にだけ適用する — 既存の隙間が transLen より長く、
+        // 生成ノートが元の終端より後ろから始まる場合は、その手前の無音は
+        // 意図した余白として触らずに残す。
         var n1End = keep[0].start;
-        if (n1End !== N1.start + N1.duration) {
+        if (n1End < N1.start + N1.duration) {
           modNotes.push({ id: N1.id, before: cloneNote(N1),
             after: { start: N1.start, duration: n1End - N1.start, pitch: N1.pitch, velocity: N1.velocity, channel: N1.channel } });
         }
@@ -1683,9 +1705,10 @@
         while (keptB.length && t1 - keptB[keptB.length - 1].t < MINLEN) keptB.pop();
         if (!keptB.length) { why.notone++; continue; }
         // モードAと同じ理由で、最初の中間音はN1の直後ぴったりに来るとは限らない
-        // （中立設定でも音程比率で決まるため）。N1をそこまで延長して無音を作らない。
+        // （中立設定でも音程比率で決まるため）。縮める方向にだけ適用し、
+        // 既存の隙間が transLen より長い場合の手前の無音はそのまま残す。
         var n1EndB = keptB[0].t;
-        if (n1EndB !== N1.start + N1.duration) {
+        if (n1EndB < N1.start + N1.duration) {
           modNotes.push({ id: N1.id, before: cloneNote(N1),
             after: { start: N1.start, duration: n1EndB - N1.start, pitch: N1.pitch, velocity: N1.velocity, channel: N1.channel } });
         }
@@ -1706,6 +1729,7 @@
     var rs = [];
     if (why.pitch) rs.push(fmtT("sm.rs.pitch", { n: why.pitch }));
     if (why.overlap) rs.push(fmtT("sm.rs.overlap", { n: why.overlap }));
+    if (why.gap) rs.push(fmtT("sm.rs.gap", { n: why.gap }));
     if (why.short) rs.push(fmtT("sm.rs.short", { n: why.short }));
     if (why.notone) rs.push(fmtT("sm.rs.notone", { n: why.notone }));
     if (rs.length) msg += " " + T("sm.rs.head") + rs.join(" / ");
@@ -2351,12 +2375,25 @@
     function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; }
     cv.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
+      var p = pos(e);
       cv.setPointerCapture(e.pointerId); painting = true;
-      l._before = new Map(); paintVel(l, pos(e), true);
+      if (sel.size > 1 && p.x >= KEYW) {
+        // 複数選択時: 縦方向のドラッグ量を全選択ノートに同じ増減量として適用し、
+        // ノート間のベロシティ差（ダイナミクス）を維持したまま編集する。
+        l._velMode = "relative";
+        l._before = new Map();
+        notesFromSel().forEach(function (n) { l._before.set(n.id, cloneNote(n)); });
+        l._relY0 = p.y; l._relH = p.H;
+      } else {
+        l._velMode = "paint";
+        l._before = new Map(); paintVel(l, p, true);
+      }
     });
     cv.addEventListener("pointermove", function (e) {
       if (!painting) return;
-      paintVel(l, pos(e), false);
+      var p = pos(e);
+      if (l._velMode === "relative") paintVelRelative(l, p, e.altKey);
+      else paintVel(l, p, false);
     });
     function up(e) {
       if (!painting) return; painting = false;
@@ -2472,6 +2509,28 @@
     markDirty();
   }
 
+  function paintVelRelative(l, p, absolute) {
+    var H = l._relH || p.H;
+    if (absolute) {
+      // Alt: 絶対編集モード。差分を保たず、選択中の全ノートを現在のカーソル高さの
+      // 値ひとつへ揃える（paintVel の単発ペイントと同じ値算出式）。
+      var val = clamp(Math.round((1 - (p.y - 4) / (H - 10)) * 127), 1, 127);
+      l._before.forEach(function (b, id) {
+        var n = byId(id); if (!n) return;
+        n.velocity = val;
+      });
+    } else {
+      // 相対編集モード（既定）。ドラッグ開始位置からの縦方向の移動量だけを見て
+      // 増減量(delta)を求める。delta 自体はクランプしないので、上限/下限に張り付いた
+      // 後でもドラッグを戻せば元の値に正確に復元される（各ノートの表示値だけをクランプする）。
+      var delta = Math.round(((l._relY0 - p.y) / (H - 10)) * 127);
+      l._before.forEach(function (b, id) {
+        var n = byId(id); if (!n) return;
+        n.velocity = clamp(b.velocity + delta, 0, 127);
+      });
+    }
+    redrawNotes(); drawLane(l);
+  }
   function paintVel(l, p, first) {
     if (p.x < KEYW) return;
     var H = p.H, val = clamp(Math.round((1 - (p.y - 4) / (H - 10)) * 127), 1, 127);
@@ -2529,15 +2588,14 @@
       if (e.button !== 0) return;
       var p = pos(e); if (p.x < KEYW) return;
       var H = p.H;
-      if (e.altKey) {
-        var hh = hitCCHandle(l, p.x, p.y, H);
-        if (hh) {
-          var cur = { t: (hh.point.bz && hh.point.bz.t != null) ? hh.point.bz.t : (hh.point.tick + hh.next.tick) / 2,
-                      v: (hh.point.bz && hh.point.bz.v != null) ? hh.point.bz.v : (hh.point.value + hh.next.value) / 2 };
-          drag = { mode: "handle", point: hh.point, x0: p.x, y0: p.y, start: cur, H: H };
-          cv.setPointerCapture(e.pointerId);
-          return;
-        }
+      // ハンドル（四角）は見た目も位置も点（丸）と別なので、Alt無しの素のドラッグで掴めるようにする
+      var hh = hitCCHandle(l, p.x, p.y, H);
+      if (hh) {
+        var cur = { t: (hh.point.bz && hh.point.bz.t != null) ? hh.point.bz.t : (hh.point.tick + hh.next.tick) / 2,
+                    v: (hh.point.bz && hh.point.bz.v != null) ? hh.point.bz.v : (hh.point.value + hh.next.value) / 2 };
+        drag = { mode: "handle", point: hh.point, x0: p.x, y0: p.y, start: cur, H: H };
+        cv.setPointerCapture(e.pointerId);
+        return;
       }
       var hp = hitCCPoint(l, p.x, p.y, H);
       if (hp) {
@@ -2778,10 +2836,11 @@
       "q.strnote": "100% snaps exactly onto the grid. Lower values move each note only part of the way, so pressing Apply again moves it closer again.",
       "sm.rs.head": "Skipped: ",
       "sm.rs.pitch": "pitch interval 1 or less ({n})",
-      "sm.rs.overlap": "notes overlap or leave no gap ({n})",
-      "sm.rs.short": "gap shorter than the step length ({n})",
+      "sm.rs.overlap": "notes overlap ({n})",
+      "sm.rs.gap": "gap larger than the threshold — left as a rest ({n})",
+      "sm.rs.short": "not enough room for even one step ({n})",
       "sm.rs.notone": "no intermediate scale tone fits ({n})",
-      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height.",
+      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height · with multiple notes selected, dragging in the velocity lane shifts them all together, keeping their differences (hold Alt to set them all to the same value instead).",
       "cat.audio": "Audio",
       "tb.bpm": "BPM", "tb.timesig": "Time sig.", "tb.custom": "Custom", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
@@ -2808,6 +2867,11 @@
       "hu.done": "Humanized {n} notes.", "hu.none": "Pick at least one target (timing/velocity/length).",
       "hu.nonotes": "There are no notes to humanize.",
       "sm.title": "Smoothing (glissando)", "sm.step": "Step length", "sm.tension": "Pitch curve tension",
+      "sm.translen": "Smoothing length",
+      "sm.translen.desc": "How much time the generated passing notes occupy, ending right where the next note starts. The first note's end is pulled back automatically if needed to make room.",
+      "sm.gapmax": "Max existing gap to bridge",
+      "sm.gapmax.desc": "Pairs with a bigger gap than this are treated as an intentional rest and left untouched.",
+      "sm.gapmax.opt.0": "0 (touching only)",
       "sm.easeio": "Ease-in-out (S-curve)", "sm.vtension": "Velocity curve tension",
       "sm.mode": "Mode",
       "sm.mode.even": "Even-interval mode",
@@ -2847,10 +2911,11 @@
       "q.strnote": "100%でグリッドにぴったり合わせます。下げるとグリッドへ寄せる割合になり、押すたびに少しずつ近づきます。",
       "sm.rs.head": "スキップ理由: ",
       "sm.rs.pitch": "音高差が1以下（{n}件）",
-      "sm.rs.overlap": "重なっている・隙間が無い（{n}件）",
-      "sm.rs.short": "隙間がステップ長より短い（{n}件）",
+      "sm.rs.overlap": "重なっている（{n}件）",
+      "sm.rs.gap": "隙間が上限より大きいため休符として残した（{n}件）",
+      "sm.rs.short": "1ステップ分の場所も確保できない（{n}件）",
       "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
-      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム。",
+      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム／複数ノート選択中にベロシティレーンをドラッグすると差を保ったまま全体が連動（Altを押しながらだと全ノートが同じ値に揃う）。",
       "cat.audio": "音声",
       "tb.bpm": "BPM", "tb.timesig": "拍子", "tb.custom": "カスタム", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
@@ -2877,6 +2942,11 @@
       "hu.done": "{n}個のノートをヒューマナイズしました。", "hu.none": "対象（タイミング・ベロシティ・ノート長）を少なくとも1つ選んでください。",
       "hu.nonotes": "ヒューマナイズ対象のノートがありません。",
       "sm.title": "スムーズ化（グリッサンド）", "sm.step": "ステップ長", "sm.tension": "音高カーブのテンション",
+      "sm.translen": "スムーズ化する長さ",
+      "sm.translen.desc": "生成する経過音がどれだけの時間を占めるか（次のノートの頭にぴったり合わせて終わります）。必要なら1つ目のノートの終わりを自動的に縮めて場所を作ります。",
+      "sm.gapmax": "反応する隙間の上限",
+      "sm.gapmax.desc": "これより大きい隙間があるペアは意図した休符とみなし、そのまま残します。",
+      "sm.gapmax.opt.0": "0（接している場合のみ）",
       "sm.easeio": "イーズイン・アウト（S字）", "sm.vtension": "ベロシティカーブのテンション",
       "sm.mode": "モード",
       "sm.mode.even": "等間隔モード",
@@ -2951,10 +3021,18 @@
     $("sc-key").disabled = isCustom;
   }
 
+  function fillGapGrid(sel2, def) {
+    var opts = '<option value="0" data-i18n="sm.gapmax.opt.0">' + T("sm.gapmax.opt.0") + "</option>" +
+      GRIDS.map(function (g) { return '<option value="' + g[1] + '"' + (g[1] === def ? " selected" : "") + ">" + g[0] + "</option>"; }).join("");
+    sel2.innerHTML = opts;
+    if (def !== 0) sel2.value = String(def);
+  }
   function initControls() {
     fillGrid($("grid"), 240);
     fillGrid($("q-res"), 240);
     fillGrid($("sm-step"), 240);
+    fillGrid($("sm-translen"), 480);
+    fillGapGrid($("sm-gapmax"), 0);
     fillGrid($("fl-lval"), 240);
     lastDur = 240;
     // channel select
