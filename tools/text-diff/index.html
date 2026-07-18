@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Text Diff — Vernier</title>
+
+<!-- Prevent theme flash -->
+<script>
+(function () {
+    try {
+        const m = localStorage.getItem("tb.theme");
+        const dark = m
+            ? m === "dark"
+            : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute(
+            "data-theme",
+            dark ? "dark" : "light"
+        );
+    } catch (e) {}
+})();
+</script>
+
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+
+<style>
+.diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s5);
+}
+
+.editor-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+}
+
+.editor {
+    position: relative;
+    min-height: 420px;
+}
+
+.highlight {
+    position: absolute;
+    inset: 0;
+    padding: 12px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 14px/1.6 var(--font-mono);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+    pointer-events: none;
+}
+
+.highlight::-webkit-scrollbar {
+    display: none;
+}
+
+.editor textarea {
+    position: absolute;
+    inset: 0;
+    resize: vertical;
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text);
+    font: 14px/1.6 var(--font-mono);
+    white-space: pre;
+    overflow: auto;
+}
+
+.editor textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.add {
+    background: var(--pos-tint);
+    border-radius: 3px;
+    color: var(--text);
+}
+
+.remove {
+    background: var(--neg-tint);
+    border-radius: 3px;
+    color: var(--text-2);
+    text-decoration: line-through;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s4);
+    margin-top: var(--s5);
+}
+
+.stat {
+    padding: var(--s4);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+}
+
+.stat h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--text-2);
+}
+
+.value {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.summary {
+    margin-top: var(--s5);
+}
+
+.summary .readout {
+    width: 100%;
+}
+
+.readout__text {
+    margin-top: var(--s2);
+    color: var(--text-2);
+    font-size: 14px;
+}
+
+@media (max-width: 760px) {
+    .diff-grid {
+        grid-template-columns: 1fr;
+    }
+    .editor {
+        min-height: 280px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<main class="shell">
+
+    <div class="toolhead">
+        <div class="chips">
+            <span class="chip" data-i18n="cat.text">Text</span>
+        </div>
+        <h1 data-i18n="t.title">Text Diff</h1>
+        <p data-i18n="t.desc">Compare two texts and highlight the differences.</p>
+    </div>
+
+    <div class="diff-grid">
+        <div class="editor-card">
+            <label class="label" data-i18n="t.left">Left text</label>
+            <div class="editor">
+                <div id="leftHighlight" class="highlight" aria-hidden="true"></div>
+                <textarea id="leftText" spellcheck="false"></textarea>
+            </div>
+        </div>
+
+        <div class="editor-card">
+            <label class="label" data-i18n="t.right">Right text</label>
+            <div class="editor">
+                <div id="rightHighlight" class="highlight" aria-hidden="true"></div>
+                <textarea id="rightText" spellcheck="false"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <h3 data-i18n="t.leftStats">Left</h3>
+            <div class="value" id="leftCount">0</div>
+            <div id="leftExtra" class="readout__text"></div>
+        </div>
+        <div class="stat">
+            <h3 data-i18n="t.rightStats">Right</h3>
+            <div class="value" id="rightCount">0</div>
+            <div id="rightExtra" class="readout__text"></div>
+        </div>
+    </div>
+
+    <div class="summary">
+        <div class="readout">
+            <div class="readout__head">
+                <span data-i18n="t.summary">Difference</span>
+            </div>
+            <div class="rrow">
+                <div class="value" id="changeCount">0</div>
+            </div>
+            <div id="summaryText" class="readout__text"></div>
+        </div>
+    </div>
+
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+
+<script>
+"use strict";
+
+const leftText = document.getElementById("leftText");
+const rightText = document.getElementById("rightText");
+const leftHighlight = document.getElementById("leftHighlight");
+const rightHighlight = document.getElementById("rightHighlight");
+const leftCount = document.getElementById("leftCount");
+const rightCount = document.getElementById("rightCount");
+const leftExtra = document.getElementById("leftExtra");
+const rightExtra = document.getElementById("rightExtra");
+const changeCount = document.getElementById("changeCount");
+const summaryText = document.getElementById("summaryText");
+
+let inputTimer = null;
+
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function isEnglish(text) {
+    const spaces = (text.match(/\s/g) || []).length;
+    return spaces > text.length * 0.12;
+}
+
+function computeDiff(leftStr, rightStr) {
+    if (leftStr === rightStr) {
+        return [{ type: "equal", value: leftStr }];
+    }
+
+    const a = Array.from(leftStr);
+    const b = Array.from(rightStr);
+
+    // 1. トリミング最適化: 先頭と末尾の共通部分を除外（劇的な高速化）
+    let pref = 0;
+    while (pref < a.length && pref < b.length && a[pref] === b[pref]) {
+        pref++;
+    }
+
+    let suff = 0;
+    while (suff < a.length - pref && suff < b.length - pref && a[a.length - 1 - suff] === b[b.length - 1 - suff]) {
+        suff++;
+    }
+
+    const prefixStr = a.slice(0, pref).join('');
+    const suffixStr = a.slice(a.length - suff).join('');
+
+    const midA = a.slice(pref, a.length - suff);
+    const midB = b.slice(pref, b.length - suff);
+
+    const result = [];
+    if (prefixStr) result.push({ type: "equal", value: prefixStr });
+
+    // 2. 残った中心部分の差分抽出
+    if (midA.length === 0 && midB.length > 0) {
+        result.push({ type: "add", value: midB.join('') });
+    } else if (midB.length === 0 && midA.length > 0) {
+        result.push({ type: "remove", value: midA.join('') });
+    } else if (midA.length > 0 && midB.length > 0) {
+        
+        // 3. 安全装置（リミッター）: 行列の計算規模が400万（例: 2000文字×2000文字）を超える場合はフリーズ回避
+        if (midA.length * midB.length > 4000000) {
+            result.push({ type: "remove", value: midA.join('') });
+            result.push({ type: "add", value: midB.join('') });
+        } else {
+            // LCS計算（トリミング後なので計算量は激減している）
+            const dp = Array.from({ length: midA.length + 1 }, () => new Uint32Array(midB.length + 1));
+            for (let i = midA.length - 1; i >= 0; i--) {
+                for (let j = midB.length - 1; j >= 0; j--) {
+                    if (midA[i] === midB[j]) {
+                        dp[i][j] = dp[i + 1][j + 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+                    }
+                }
+            }
+
+            let i = 0, j = 0;
+            while (i < midA.length && j < midB.length) {
+                if (midA[i] === midB[j]) {
+                    result.push({ type: "equal", value: midA[i] });
+                    i++; j++;
+                } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                    result.push({ type: "remove", value: midA[i] });
+                    i++;
+                } else {
+                    result.push({ type: "add", value: midB[j] });
+                    j++;
+                }
+            }
+            while (i < midA.length) result.push({ type: "remove", value: midA[i++] });
+            while (j < midB.length) result.push({ type: "add", value: midB[j++] });
+        }
+    }
+
+    if (suffixStr) result.push({ type: "equal", value: suffixStr });
+
+    // 4. 同じタイプの要素を結合してDOM要素を減らす
+    const merged = [];
+    for (const item of result) {
+        if (merged.length > 0 && merged[merged.length - 1].type === item.type) {
+            merged[merged.length - 1].value += item.value;
+        } else {
+            merged.push({ ...item }); // コピーを保持
+        }
+    }
+
+    return merged;
+}
+
+function renderSide(diff, isLeft) {
+    let html = "";
+    let added = 0;
+    let removed = 0;
+
+    for (const item of diff) {
+        const value = escapeHTML(item.value);
+
+        if (item.type === "equal") {
+            html += value;
+        } else if (item.type === "add") {
+            if (!isLeft) html += `<span class="add">${value}</span>`;
+            added += Array.from(item.value).length;
+        } else {
+            if (isLeft) html += `<span class="remove">${value}</span>`;
+            removed += Array.from(item.value).length;
+        }
+    }
+
+    return { html, added, removed };
+}
+
+function update() {
+    const left = leftText.value;
+    const right = rightText.value;
+
+    leftCount.textContent = left.length.toLocaleString();
+    rightCount.textContent = right.length.toLocaleString();
+
+    // 文言も Shell.t() から取得し、言語切り替えに対応
+    const txtWords = Shell.t('words');
+    const txtLines = Shell.t('lines');
+
+    if (isEnglish(left)) {
+        const words = left.trim() ? left.trim().split(/\s+/).length : 0;
+        leftExtra.textContent = `${txtWords}: ${words.toLocaleString()}`;
+    } else {
+        const lines = left.split("\n").length;
+        leftExtra.textContent = `${txtLines}: ${lines.toLocaleString()}`;
+    }
+
+    if (isEnglish(right)) {
+        const words = right.trim() ? right.trim().split(/\s+/).length : 0;
+        rightExtra.textContent = `${txtWords}: ${words.toLocaleString()}`;
+    } else {
+        const lines = right.split("\n").length;
+        rightExtra.textContent = `${txtLines}: ${lines.toLocaleString()}`;
+    }
+
+    // 計算実行
+    const diff = computeDiff(left, right);
+
+    const leftRender = renderSide(diff, true);
+    const rightRender = renderSide(diff, false);
+
+    leftHighlight.innerHTML = leftRender.html + (left.endsWith('\n') ? '<br>' : '');
+    rightHighlight.innerHTML = rightRender.html + (right.endsWith('\n') ? '<br>' : '');
+
+    const changes = leftRender.added + leftRender.removed;
+    changeCount.textContent = changes.toLocaleString();
+
+    if (changes === 0) {
+        summaryText.textContent = Shell.t('noDiff');
+    } else {
+        summaryText.textContent = `${Shell.t('diffAdded')} ${leftRender.added.toLocaleString()} / ${Shell.t('diffRemoved')} ${leftRender.removed.toLocaleString()}`;
+    }
+}
+
+// デバウンス処理（入力のもたつきを防止）
+function onInput() {
+    clearTimeout(inputTimer);
+    inputTimer = setTimeout(update, 300);
+}
+
+function syncScroll(source, target) {
+    target.scrollTop = source.scrollTop;
+    target.scrollLeft = source.scrollLeft;
+}
+
+leftText.addEventListener("input", onInput);
+rightText.addEventListener("input", onInput);
+
+leftText.addEventListener("scroll", () => syncScroll(leftText, leftHighlight));
+rightText.addEventListener("scroll", () => syncScroll(rightText, rightHighlight));
+
+Shell.init({
+    id: "text-diff",
+    strings: {
+        en: {
+            title: "Text Diff",
+            desc: "Compare two texts and highlight their differences.",
+            left: "Left text",
+            right: "Right text",
+            leftStats: "Left",
+            rightStats: "Right",
+            summary: "Difference",
+            noDiff: "No differences.",
+            diffAdded: "Added",
+            diffRemoved: "Removed",
+            words: "Words",
+            lines: "Lines"
+        },
+        ja: {
+            title: "文章の差分",
+            desc: "2つの文章を比較し、違いをハイライト表示します。",
+            left: "左の文章",
+            right: "右の文章",
+            leftStats: "左",
+            rightStats: "右",
+            summary: "差分",
+            noDiff: "差異はありません。",
+            diffAdded: "追加",
+            diffRemoved: "削除",
+            words: "単語数",
+            lines: "行数"
+        }
+    },
+    onSettingsChange() {
+        update(); // テーマや言語が変わった際にも再描画
+    }
+});
+
+update();
+</script>
+
+</body>
+</html>
