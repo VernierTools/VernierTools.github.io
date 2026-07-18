@@ -129,7 +129,7 @@
       <button class="icobtn" id="btn-loop" title="Loop" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"/><path d="M20 6H8a5 5 0 0 0-5 5"/><path d="M7 21l-3-3 3-3"/><path d="M4 18h12a5 5 0 0 0 5-5"/></svg></button>
       <button class="icobtn" id="btn-metro" title="Metronome" aria-pressed="false">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20h8"/><path d="M9.5 20L11 4h2l1.5 16"/><path d="M9 10l6 3"/><circle cx="12" cy="4" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20H19"/><path d="M6 20L10 5H14L18 20"/><circle cx="12" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M12 7L16.5 17.5"/><circle cx="15" cy="12.6" r="1.9" fill="currentColor" stroke="none"/></svg></button>
       <span class="pos" id="pos">1.1.000</span>
     </div>
     <div class="tbsep"></div>
@@ -1636,8 +1636,6 @@
       var t1 = N2.start, t0 = t1 - span;
       if (span < 1) { why.short++; continue; }
       if (!modeB) {
-        var n = Math.floor(span / step);
-        if (n < 1) { why.short++; continue; }
         var tones = scaleTonesBetween(N1.pitch, N2.pitch, sset);
         if (!tones.length) { why.notone++; continue; }
         // N1→N2 の間にある「度数の列」（0=N1自身, 1..degCount-1=中間音, degCount=N2自身）。
@@ -1649,14 +1647,28 @@
           if (idx >= degCount) return N2.pitch;
           return tones[idx - 1];
         }
-        // build steps
+        // 生成本数 n の決め方（案B洗練版）:
+        //   nGrid = span をステップ長で刻んだ本数（グリッド由来。これが本来の等間隔）
+        //   nTone = 中間音の数（全構成音を1回ずつ出すのに最低限必要な本数）
+        //   nCap  = MINLEN を割れる物理的な上限
+        // グリッドが十分細かければ nGrid が勝って従来どおり。粗くて全音入り切らない
+        // ときだけ nTone まで本数を増やし、すべての構成音が必ず出るようにする。
+        var nGrid = Math.floor(span / step);
+        var nTone = tones.length;
+        var nCap = Math.floor(span / MINLEN);
+        var n = clamp(Math.max(nGrid, nTone), 1, Math.max(1, nCap));
+        if (n < 1) { why.short++; continue; }
+        // 本数が nGrid 以内ならステップ長ちょうどの位置に置く（＝従来の等間隔グリッド）。
+        // nGrid を超えて増やした場合はグリッドに乗り切らないので、区間 span を等分割して置く。
+        var onGrid = (n <= nGrid);
         var segs = [];
         for (var s = 0; s < n; s++) {
           var u = (s + 1) / (n + 1);
           var di = clamp(Math.round(fP(u) * degCount), 0, degCount);
           var pp = degreePitch(di);
           var vv = clamp(Math.round(N1.velocity + (N2.velocity - N1.velocity) * fV(u)), 1, 127);
-          segs.push({ start: t0 + s * step, pitch: pp, vel: vv });
+          var st = onGrid ? (t0 + s * step) : Math.round(t0 + span * (s / n));
+          segs.push({ start: st, pitch: pp, vel: vv });
         }
         // 発行しないステップ（直前と同音高／着地音 N2 と同音高）は捨てずに、
         // 時間を直前のノートに吸収させる（長さは残ったステップの発音時刻から算出する）。
