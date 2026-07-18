@@ -46,6 +46,11 @@
   .lane__head{ display:flex; gap:6px; align-items:center; padding:4px 8px; border-bottom:1px solid var(--border); background:var(--surface-2); }
   .lane__head .select{ height:26px; font-size:12px; width:auto; padding:0 26px 0 8px; }
   .lane canvas{ display:block; width:100%; height:88px; touch-action:none; }
+  .lane__grip{ height:7px; margin-top:-1px; cursor:ns-resize; background:var(--surface-2);
+    border-top:1px solid var(--border); position:relative; }
+  .lane__grip::after{ content:""; position:absolute; left:50%; top:50%; width:28px; height:3px;
+    transform:translate(-50%,-50%); border-radius:2px; background:var(--border-strong); }
+  .lane__grip:hover::after{ background:var(--text-3); }
   .minibtn{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
     border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
     color:var(--text-3); font-size:12px; cursor:pointer; transition:all var(--tap); }
@@ -115,6 +120,8 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg></button>
       <button class="icobtn" id="btn-loop" title="Loop" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"/><path d="M20 6H8a5 5 0 0 0-5 5"/><path d="M7 21l-3-3 3-3"/><path d="M4 18h12a5 5 0 0 0 5-5"/></svg></button>
+      <button class="icobtn" id="btn-metro" title="Metronome" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20h8"/><path d="M9.5 20L11 4h2l1.5 16"/><path d="M9 10l6 3"/><circle cx="12" cy="4" r="1.3" fill="currentColor" stroke="none"/></svg></button>
       <span class="pos" id="pos">1.1.000</span>
     </div>
     <div class="tbsep"></div>
@@ -180,7 +187,7 @@
       <div id="lanes"></div>
       <button class="btn btn--ghost laneadd" id="lane-add">＋ <span data-i18n="lane.add">Add lane</span></button>
       <div class="statusline" id="status"></div>
-      <div class="cardnote" data-i18n="t.hints">Click the ruler: set the play marker · left-drag empty space: draw a note · right-drag: rubber-band select · right-click a note: menu · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom</div>
+      <div class="cardnote" data-i18n="t.hints">Click the ruler: set the play marker · left-drag empty space: draw a note · right-drag: rubber-band select · drag edges: resize · Ctrl+wheel: zoom · lane: drag its bottom edge, or Ctrl+Shift+wheel, to resize</div>
     </div>
 
     <!-- right: side panel -->
@@ -338,6 +345,7 @@
   var PPQ = 960, MINLEN = 60, KEYW = 52;
   var $ = function (id) { return document.getElementById(id); };
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function mod(v, n) { return ((v % n) + n) % n; }
   function cloneNote(n) { return { id: n.id, start: n.start, duration: n.duration, pitch: n.pitch, velocity: n.velocity, channel: n.channel }; }
   function cloneCC(c) { return { id: c.id, tick: c.tick, ctrl: c.ctrl, value: c.value, channel: c.channel }; }
   var NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -891,6 +899,13 @@
   function scrollStepX() { return clamp(110 * (PPT_REF / view.ppt), 24, Math.max(60, (cw - KEYW) * 0.6)); }
   function scrollStepY() { return clamp(100 * (PPS_REF / view.pps), 24, Math.max(60, chh * 0.6)); }
 
+  // 時間軸ズーム（ピアノロール／レーン共通）。x はビューポート内のピクセル位置。
+  function zoomTimeAt(x, deltaY) {
+    var t = x2tick(x);
+    view.ppt = clamp(view.ppt * (deltaY < 0 ? 1.15 : 0.87), PPT_MIN, PPT_MAX);
+    view.sx = t * view.ppt - (x - KEYW);
+    syncZoomSliders(); clampScroll();
+  }
   function onWheel(e) {
     e.preventDefault();
     var r = rollstack.getBoundingClientRect();
@@ -901,12 +916,10 @@
         var pc = (y + view.sy) / view.pps;
         view.pps = clamp(view.pps * (e.deltaY < 0 ? 1.12 : 0.89), 5, 32);
         view.sy = pc * view.pps - y;
+        syncZoomSliders();
       } else {
-        var t = x2tick(x);
-        view.ppt = clamp(view.ppt * (e.deltaY < 0 ? 1.15 : 0.87), PPT_MIN, PPT_MAX);
-        view.sx = t * view.ppt - (x - KEYW);
+        zoomTimeAt(x, e.deltaY);
       }
-      syncZoomSliders();
     } else if (e.shiftKey) {
       view.sx += ((dy || dx) / 100) * scrollStepX();
     } else {
@@ -916,6 +929,55 @@
     clampScroll();
     drawAll();
   }
+  // レーンのホイール: Ctrl=時間ズーム（ピアノロールと共有）／Shift=横スクロール（共有）／
+  // Ctrl+Shift=そのレーンだけの縦ズーム。修飾キー無しのホイールは何もしない
+  // （ページの通常スクロールに譲る。エディタが勝手に動かないようにするため）。
+  function wireLaneWheel(l) {
+    l.cv.addEventListener("wheel", function (e) {
+      if (!(e.ctrlKey || e.metaKey)) {
+        if (e.shiftKey) {
+          e.preventDefault();
+          view.sx += (wheelPx(e.deltaY, e.deltaMode, cw) / 100) * scrollStepX();
+          clampScroll(); drawAll();
+        }
+        return; // 無修飾ホイールはページスクロールに任せる
+      }
+      e.preventDefault();
+      if (e.shiftKey) {
+        l.zoomY = clamp((l.zoomY || 1) * (e.deltaY < 0 ? 1.15 : 0.87), LANE_ZMIN, LANE_ZMAX);
+        l.cv.style.height = laneH(l) + "px";
+        setupCanvas(l.cv, l.cv.clientWidth || cw, laneH(l));
+        drawLane(l); saveLanes();
+      } else {
+        var r = l.cv.getBoundingClientRect();
+        zoomTimeAt(clamp(e.clientX - r.left, 0, cw), e.deltaY);
+        drawAll();
+      }
+    }, { passive: false });
+  }
+  // 下端のグリップをドラッグしてレーンの高さ（＝縦の拡大率）を直接変更する
+  function wireLaneGrip(l, grip) {
+    grip.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      var y0 = e.clientY, h0 = laneH(l);
+      grip.setPointerCapture(e.pointerId);
+      function move(ev) {
+        var h = clamp(h0 + (ev.clientY - y0), LANE_H0 * LANE_ZMIN, LANE_H0 * LANE_ZMAX);
+        l.zoomY = h / LANE_H0;
+        l.cv.style.height = h + "px";
+        setupCanvas(l.cv, l.cv.clientWidth || cw, h);
+        drawLane(l);
+      }
+      function up() {
+        grip.releasePointerCapture(e.pointerId);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        saveLanes();
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+  }
   rollstack.addEventListener("wheel", onWheel, { passive: false });
   cvRul.addEventListener("wheel", onWheel, { passive: false });
 
@@ -924,7 +986,7 @@
     chh = rollstack.clientHeight || 430;
     setupCanvas(cvBg, cw, chh); setupCanvas(cvNotes, cw, chh); setupCanvas(cvOv, cw, chh);
     setupCanvas(cvRul, cw, 30);
-    lanes.forEach(function (l) { if (l.cv) setupCanvas(l.cv, l.cv.clientWidth || cw, 88); });
+    lanes.forEach(function (l) { if (l.cv) { l.cv.style.height = laneH(l) + "px"; setupCanvas(l.cv, l.cv.clientWidth || cw, laneH(l)); } });
     clampScroll();
     drawAll();
   }
@@ -1738,8 +1800,30 @@
     if (audio.state === "suspended") audio.resume();
     return audio;
   }
-  var trans = { playing: false, startTick: 0, baseSec: 0, startTime: 0, iter: 0, ptr: 0, timer: null };
+  var trans = { playing: false, startTick: 0, baseSec: 0, startTime: 0, iter: 0, ptr: 0, timer: null,
+                metTick: 0, metIter: 0 };
   var marker = 0;   // 再生開始位置。停止するとここへ戻る（定規のクリックで移動）
+  var metroOn = false;
+
+  // メトロノームのクリック音（ごく短いクリック。小節頭は高く・大きく）
+  function clickSound(when, accent) {
+    var a = ac();
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = "square";
+    o.frequency.value = accent ? 1800 : 1200;
+    var peak = accent ? 0.5 : 0.32;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + 0.03);
+    g.gain.linearRampToValueAtTime(0, when + 0.035);
+    o.connect(g); g.connect(master);
+    o.start(when); o.stop(when + 0.04);
+  }
+  // metWhen: ノートのスケジューリングと同じ計算式（tick→秒 + ループ周回ぶんのオフセット）を
+  // メトロノームの合成ビート列にも使えるよう関数化したもの。
+  function metWhen(tick, iter) {
+    return trans.startTime + (tickToSec(tick) - trans.baseSec) + iter * (tickToSec(loop.b) - tickToSec(loop.a));
+  }
   var voices = [];
   var REL = 0.005;   // リリース（ほぼ0。クリックノイズを避けるためだけの長さ）
   function voice(pitch, vel, when, durSec, chGain) {
@@ -1803,6 +1887,21 @@
       }
       trans.ptr++;
     }
+    if (metroOn) {
+      var bt = beatTicks(), guard = 0;
+      while (guard++ < 2000) {
+        if (loop.on) {
+          if (trans.metTick < loop.a) { trans.metTick += bt; continue; }
+          if (trans.metTick >= loop.b) { trans.metTick = loop.a; trans.metIter++; continue; }
+        }
+        var mw = metWhen(trans.metTick, trans.metIter);
+        if (mw > horizon) break;
+        if (mw >= a.currentTime - 0.02) {
+          clickSound(Math.max(a.currentTime, mw), mod(Math.round(trans.metTick), barTicks()) === 0);
+        }
+        trans.metTick += bt;
+      }
+    }
     if (loop.on && trans.ptr >= ns.length) {
       // wrap for next loop iteration
       var wrapWhen = trans.startTime + (tickToSec(loop.b) - trans.baseSec) + trans.iter * (tickToSec(loop.b) - tickToSec(loop.a));
@@ -1831,6 +1930,8 @@
     trans.iter = 0; trans.ptr = 0;
     var ns = sortedNotes();
     while (trans.ptr < ns.length && ns[trans.ptr].start < fromTick) trans.ptr++;
+    var bt0 = beatTicks();
+    trans.metTick = Math.ceil(fromTick / bt0) * bt0; trans.metIter = 0;
     $("btn-play").setAttribute("aria-pressed", "true");
     clearTimeout(trans.timer);
     schedule();
@@ -1911,7 +2012,9 @@
      ===================================================================== */
   var lanes = [];
   var lanesBox = $("lanes");
-  function defaultLanes() { return [{ kind: "vel" }, { kind: "cc", ctrl: 64 }, { kind: "cc", ctrl: 11 }]; }
+  var LANE_H0 = 88, LANE_ZMIN = 0.5, LANE_ZMAX = 4;
+  function defaultLanes() { return [{ kind: "vel", zoomY: 1 }, { kind: "cc", ctrl: 64, zoomY: 1 }, { kind: "cc", ctrl: 11, zoomY: 1 }]; }
+  function laneH(l) { return Math.round(LANE_H0 * (l.zoomY || 1)); }
 
   function ccOptions(selCtrl) {
     var s = "";
@@ -1940,9 +2043,13 @@
       head.appendChild(up); head.appendChild(dn); head.appendChild(rm);
       div.appendChild(head);
       var cv = document.createElement("canvas"); cv.className = "lane-cv"; div.appendChild(cv);
+      var grip = document.createElement("div"); grip.className = "lane__grip"; grip.title = T("lane.resize"); div.appendChild(grip);
       lanesBox.appendChild(div);
       l.cv = cv; l.ctx = cv.getContext("2d");
-      setupCanvas(cv, cv.clientWidth || cw, 88);
+      cv.style.height = laneH(l) + "px";
+      setupCanvas(cv, cv.clientWidth || cw, laneH(l));
+      wireLaneWheel(l);
+      wireLaneGrip(l, grip);
 
       kindSel.addEventListener("change", function () { l.kind = kindSel.value; if (l.kind === "cc" && l.ctrl == null) l.ctrl = +ccSel.value; rebuildLanes(); drawLanes(); saveLanes(); });
       ccSel.addEventListener("change", function () { l.ctrl = +ccSel.value; drawLane(l); saveLanes(); });
@@ -1954,16 +2061,16 @@
     });
     drawLanes();
   }
-  function saveLanes() { try { localStorage.setItem("med.lanes", JSON.stringify(lanes.map(function (l) { return { kind: l.kind, ctrl: l.ctrl }; }))); } catch (e) {} }
+  function saveLanes() { try { localStorage.setItem("med.lanes", JSON.stringify(lanes.map(function (l) { return { kind: l.kind, ctrl: l.ctrl, zoomY: l.zoomY || 1 }; }))); } catch (e) {} }
   function loadLanes() {
-    try { var s = JSON.parse(localStorage.getItem("med.lanes")); if (s && s.length) return s.map(function (o) { return { kind: o.kind, ctrl: o.ctrl }; }); } catch (e) {}
+    try { var s = JSON.parse(localStorage.getItem("med.lanes")); if (s && s.length) return s.map(function (o) { return { kind: o.kind, ctrl: o.ctrl, zoomY: o.zoomY || 1 }; }); } catch (e) {}
     return defaultLanes();
   }
 
   function drawLanes() { lanes.forEach(drawLane); }
   function drawLane(l) {
     if (!l.ctx) return;
-    var W = l.cv.clientWidth || cw, H = 88, ctx = l.ctx;
+    var W = l.cv.clientWidth || cw, H = laneH(l), ctx = l.ctx;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = C["surface-2"]; ctx.fillRect(0, 0, W, H);
     // baseline grid (bars)
@@ -2102,7 +2209,7 @@
     arr.forEach(function (s) { if (last === null || s.v !== last) { add.push({ id: cid(), tick: s.t, ctrl: l.ctrl, value: s.v, channel: curChannel }); last = s.v; } });
     exec({ delCC: del.map(cloneCC), addCC: add });
   }
-  $("lane-add").addEventListener("click", function () { lanes.push({ kind: "cc", ctrl: 1 }); rebuildLanes(); saveLanes(); });
+  $("lane-add").addEventListener("click", function () { lanes.push({ kind: "cc", ctrl: 1, zoomY: 1 }); rebuildLanes(); saveLanes(); });
 
   /* =====================================================================
      import / export / drag&drop / Web MIDI / IndexedDB
@@ -2123,11 +2230,15 @@
     view.sx = 0; view.sy = clamp((127 - 84) * view.pps, 0, Math.max(0, 128 * view.pps - chh));
     syncZoomSliders();
   }
-  function importArrayBuffer(buf) {
+  var importedName = null;   // インポート元の .mid のベース名（拡張子抜き）。書き出しファイル名に使う
+  function baseName(filename) { return String(filename || "").replace(/\.[Mm][Ii][Dd][Ii]?$/, ""); }
+  function exportFileName() { return importedName ? (importedName + " edited.mid") : "edited.mid"; }
+  function importArrayBuffer(buf, filename) {
     try {
       var parsed = parseMIDI(buf);
       loadDoc(parsed, true);
       dirty = false;
+      importedName = filename ? baseName(filename) : null;
       setStatus(fmtT("io.imported", { n: doc.notes.length }));
     } catch (err) {
       setStatus(err.message || T("io.badfile"), true);
@@ -2137,7 +2248,7 @@
   $("file-in").addEventListener("change", function () {
     var f = this.files[0]; if (!f) return;
     var rd = new FileReader();
-    rd.onload = function () { importArrayBuffer(rd.result); };
+    rd.onload = function () { importArrayBuffer(rd.result, f.name); };
     rd.readAsArrayBuffer(f);
     this.value = "";
   });
@@ -2145,10 +2256,11 @@
     var data = buildSMF();
     var blob = new Blob([data], { type: "audio/midi" });
     var url = URL.createObjectURL(blob);
-    var a = document.createElement("a"); a.href = url; a.download = "edited.mid";
+    var name = exportFileName();
+    var a = document.createElement("a"); a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    dirty = false; setStatus(T("io.exported"));
+    dirty = false; setStatus(fmtT("io.exported", { name: name }));
   });
 
   // whole-page drag & drop
@@ -2160,7 +2272,7 @@
     if (!hasFile(e)) return;
     e.preventDefault(); dragDepth = 0; dropcue.classList.remove("on");
     var f = e.dataTransfer.files[0]; if (!f) return;
-    var rd = new FileReader(); rd.onload = function () { importArrayBuffer(rd.result); }; rd.readAsArrayBuffer(f);
+    var rd = new FileReader(); rd.onload = function () { importArrayBuffer(rd.result, f.name); }; rd.readAsArrayBuffer(f);
   });
   function hasFile(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0; }
 
@@ -2219,7 +2331,7 @@
     try { var tx = db.transaction(STORE, "readonly"); var r = tx.objectStore(STORE).get(key); r.onsuccess = function () { cb(r.result); }; r.onerror = function () { cb(null); }; } catch (e) { cb(null); }
   }
   function serialize() {
-    return { v: 1, at: Date.now(), notes: doc.notes, cc: doc.cc, pass: doc.pass, tempo: doc.tempo, timesig: doc.timesig, bpm: bpmSingle, seq: seq };
+    return { v: 1, at: Date.now(), notes: doc.notes, cc: doc.cc, pass: doc.pass, tempo: doc.tempo, timesig: doc.timesig, bpm: bpmSingle, seq: seq, importedName: importedName };
   }
   function autosave() { if (dirty) { dbSet("latest", serialize()); } }
   setInterval(autosave, 30000);
@@ -2234,7 +2346,7 @@
       $("restore-yes").onclick = function () {
         doc.notes = snap.notes; doc.cc = snap.cc || []; doc.pass = snap.pass || []; dupInvalidate();
         doc.tempo = snap.tempo || []; doc.timesig = snap.timesig || { num: 4, den: 4 };
-        bpmSingle = snap.bpm || 120; seq = snap.seq || 1;
+        bpmSingle = snap.bpm || 120; seq = snap.seq || 1; importedName = snap.importedName || null;
         sel = new Set(); undoStack.length = 0; redoStack.length = 0;
         invalidateSort(); invalidateTempo(); fitView(); updateBpmUI(); scanDups(); drawAll(); updatePos();
         bar.hidden = true; dirty = false;
@@ -2257,7 +2369,7 @@
       "sm.rs.overlap": "notes overlap or leave no gap ({n})",
       "sm.rs.short": "gap shorter than the step length ({n})",
       "sm.rs.notone": "no intermediate scale tone fits ({n})",
-      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally.",
+      "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height.",
       "cat.audio": "Audio",
       "tb.bpm": "BPM", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
@@ -2286,13 +2398,13 @@
       "cl.reverse": "Reverse selection in time",
       "cl.revnote": "Reverses notes and CC (sustain as ON regions, continuous CC by resampling). No selection reverses the whole piece.",
       "cl.revdone": "Reversed in time.",
-      "lane.vel": "Velocity", "lane.add": "Add lane",
+      "lane.vel": "Velocity", "lane.add": "Add lane", "lane.resize": "Drag to resize (or Ctrl+Shift+wheel to zoom)",
       "menu.delete": "Delete", "menu.dup": "Duplicate", "menu.props": "Properties…",
       "pr.title": "Note properties", "pr.start": "Start (tick)", "pr.dur": "Length (tick)", "pr.pitch": "Pitch (0–127)",
       "pr.vel": "Velocity (1–127)", "pr.ch": "Channel (1–16)", "pr.ok": "Apply", "pr.cancel": "Cancel",
       "io.drop": "Drop a .mid file to open", "io.badfile": "Not a valid MIDI file.",
       "io.smpte": "SMPTE time division isn't supported.", "io.imported": "Imported {n} notes.",
-      "io.exported": "Exported edited.mid.", "io.restore": "Restore your last session from {t}? ({n} notes)",
+      "io.exported": "Exported {name}.", "io.restore": "Restore your last session from {t}? ({n} notes)",
       "io.restorebtn": "Restore", "io.discard": "Discard",
       "io.nomidi": "This browser has no Web MIDI support.", "io.midion": "MIDI input on. Arm the red button to capture while playing.",
       "io.midifail": "MIDI access was denied.",
@@ -2307,7 +2419,7 @@
       "sm.rs.overlap": "重なっている・隙間が無い（{n}件）",
       "sm.rs.short": "隙間がステップ長より短い（{n}件）",
       "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
-      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。",
+      "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム。",
       "cat.audio": "音声",
       "tb.bpm": "BPM", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
@@ -2336,13 +2448,13 @@
       "cl.reverse": "選択範囲を逆再生",
       "cl.revnote": "ノートとCCを反転します（サステインはON区間、連続CCはリサンプル）。未選択なら曲全体が対象。",
       "cl.revdone": "時間軸で反転しました。",
-      "lane.vel": "ベロシティ", "lane.add": "レーンを追加",
+      "lane.vel": "ベロシティ", "lane.add": "レーンを追加", "lane.resize": "ドラッグで高さを変更（Ctrl+Shift+ホイールでも）",
       "menu.delete": "削除", "menu.dup": "複製", "menu.props": "プロパティ…",
       "pr.title": "ノートのプロパティ", "pr.start": "開始 (tick)", "pr.dur": "長さ (tick)", "pr.pitch": "音高 (0–127)",
       "pr.vel": "ベロシティ (1–127)", "pr.ch": "チャンネル (1–16)", "pr.ok": "適用", "pr.cancel": "キャンセル",
       "io.drop": ".mid ファイルをドロップして開く", "io.badfile": "有効なMIDIファイルではありません。",
       "io.smpte": "SMPTEタイムディビジョンには対応していません。", "io.imported": "{n}個のノートを読み込みました。",
-      "io.exported": "edited.mid を書き出しました。", "io.restore": "{t} の前回セッションを復元しますか？（{n}ノート）",
+      "io.exported": "{name} を書き出しました。", "io.restore": "{t} の前回セッションを復元しますか？（{n}ノート）",
       "io.restorebtn": "復元", "io.discard": "破棄",
       "io.nomidi": "このブラウザはWeb MIDIに対応していません。", "io.midion": "MIDI入力オン。赤ボタンを点灯させると再生中に録音します。",
       "io.midifail": "MIDIアクセスが拒否されました。",
@@ -2427,6 +2539,18 @@
     $("btn-pause").addEventListener("click", togglePlayPause);
     $("btn-stop").addEventListener("click", function () { stopPlay(); setPlayhead(marker); });
     $("btn-loop").addEventListener("click", function () { loop.on = !loop.on; this.setAttribute("aria-pressed", String(loop.on)); drawRuler(); drawOverlay(); });
+    $("btn-metro").addEventListener("click", function () {
+      metroOn = !metroOn; this.setAttribute("aria-pressed", String(metroOn));
+      try { localStorage.setItem("med.metro", metroOn ? "1" : "0"); } catch (e) {}
+      // オンにした瞬間から鳴るよう、再生中ならメトロノームの次の拍を今から数え直す
+      if (metroOn && trans.playing) {
+        var bt = beatTicks();
+        var nowTick = secToTick(ac().currentTime - trans.startTime + trans.baseSec);
+        trans.metTick = Math.ceil(nowTick / bt) * bt; trans.metIter = trans.iter;
+      }
+    });
+    try { metroOn = localStorage.getItem("med.metro") === "1"; } catch (e) {}
+    $("btn-metro").setAttribute("aria-pressed", String(metroOn));
 
     // bpm
     $("bpm").addEventListener("change", function () {
