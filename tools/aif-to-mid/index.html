@@ -8,17 +8,35 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
+
   /* ---- ファイル一覧 ---- */
   .flist{ display:flex; flex-direction:column; gap:6px; }
-  .frow{ appearance:none; cursor:pointer; font:inherit; text-align:left; width:100%;
-    display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
-    padding:8px 10px; border:1px solid var(--border-strong); border-radius:var(--r);
-    background:var(--surface); color:var(--text); transition:all var(--tap); }
+  .frow{ display:flex; align-items:center; gap:var(--s3);
+    padding:4px 4px 4px 0; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); transition:all var(--tap); }
   .frow:hover{ border-color:var(--text-3); }
-  .frow[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent-tint); }
-  .frow__name{ font-family:var(--font-mono); font-size:12.5px; overflow:hidden;
+  .frow[data-active="true"]{ border-color:var(--accent); background:var(--accent-tint); }
+  .frow__namebtn{ appearance:none; cursor:pointer; font:inherit; text-align:left;
+    border:0; background:transparent; color:var(--text); padding:8px 0 8px 10px;
+    flex:1 1 auto; min-width:0; }
+  .frow__name{ display:block; font-family:var(--font-mono); font-size:12.5px; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
+  .frow__right{ display:flex; align-items:center; gap:6px; flex:0 0 auto; }
   .frow .badge{ flex:0 0 auto; }
+  .frow__save{ appearance:none; cursor:pointer; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--accent); width:26px; height:26px; border-radius:var(--r-sm); flex:0 0 auto;
+    display:inline-flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .frow__save:hover{ background:var(--accent-tint); border-color:var(--accent); }
+  .frow__save svg{ width:14px; height:14px; }
+
+  /* ---- ファイル構造（折りたたみ・控えめ） ---- */
+  .structcard{ margin-top:var(--s4); padding:var(--s4) var(--s5); }
+  .structcard summary{ cursor:pointer; font-size:13px; font-weight:600; color:var(--text-2);
+    list-style:revert; }
+  .structcard summary::marker{ color:var(--text-3); }
+  .structcard[open] summary{ margin-bottom:var(--s4); color:var(--text); }
+  .structcard summary:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); border-radius:var(--r-sm); }
 
   /* ---- 署名要素: バイトマップ（ファイル内の位置を帯で示す） ---- */
   .map__label{ position:relative; height:18px; font-size:11px; color:var(--accent);
@@ -80,20 +98,18 @@
           <label class="label" data-i18n="t.files">Loaded files</label>
           <div class="flist" id="flist"></div>
           <div class="btnrow">
-            <button class="btn btn--secondary" id="saveall">
+            <button class="btn btn--primary" id="saveall">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
               <span data-i18n="t.saveall">Save every .mid</span>
             </button>
             <button class="btn btn--ghost" id="clear" data-i18n="t.clear">Clear</button>
           </div>
+          <div class="hint" data-i18n="t.savehint">Click the download icon on a row to save just that file.</div>
         </div>
       </div>
-    </div>
 
-    <!-- 右: 構造の可視化 + readout -->
-    <div>
-      <div class="card" id="mapcard" style="margin-bottom:var(--s4)" hidden>
-        <div class="card__title" data-i18n="t.struct">File structure</div>
+      <details class="card structcard" id="mapcard" hidden>
+        <summary data-i18n="t.struct">File structure</summary>
         <div class="map">
           <div class="map__label" id="map-label"></div>
           <div class="map__bar" id="map-bar"></div>
@@ -115,11 +131,14 @@
             <tbody id="chunkrows"></tbody>
           </table>
         </div>
-      </div>
+      </details>
+    </div>
 
+    <!-- 右: readout -->
+    <div>
       <div class="badges" id="status" style="margin-top:0"></div>
 
-      <div class="readout" style="margin-top:var(--s4)">
+      <div class="readout" style="margin-top:var(--s3)">
         <div class="readout__head">
           <span class="eyebrow" data-i18n="t.output">Output</span>
           <span class="live" id="live" hidden><span class="dot"></span><span data-i18n="t.found">MIDI found</span></span>
@@ -133,13 +152,6 @@
         <div class="rrow"><span class="rrow__label" data-i18n="t.format">Format</span><span class="rrow__value" id="v-format">—</span></div>
         <div class="rrow"><span class="rrow__label" data-i18n="t.size">MIDI size</span><span class="rrow__value" id="v-size">—</span></div>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
-      </div>
-
-      <div class="btnrow">
-        <button class="btn btn--primary btn--block" id="save" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-          <span id="savelbl" data-i18n="t.save">Save .mid</span>
-        </button>
       </div>
     </div>
   </div>
@@ -158,7 +170,8 @@
   var drop = $("drop"), input = $("file"), flist = $("flist"), listfield = $("listfield");
   var mapcard = $("mapcard"), mapLabel = $("map-label"), mapBar = $("map-bar"), mapTotal = $("map-total");
   var chunkRows = $("chunkrows"), statusEl = $("status"), live = $("live");
-  var btnSave = $("save"), btnSaveAll = $("saveall"), btnClear = $("clear");
+  var btnSaveAll = $("saveall"), btnClear = $("clear");
+  var SVG_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v9"/><path d="M8 9.5 12 13.5 16 9.5"/><path d="M4 15.5v2.5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2.5"/></svg>';
 
   function T(k) { return (typeof Shell !== "undefined" && Shell && Shell.t) ? Shell.t(k) : k; }
   function msg(k, a) { return T(k).replace("{0}", a == null ? "" : String(a)); }
@@ -325,9 +338,15 @@
     listfield.hidden = items.length === 0;
     flist.innerHTML = items.map(function (it, i) {
       var st = statusOf(it);
-      return '<button type="button" class="frow" data-i="' + i + '" aria-pressed="' + (i === sel) + '">' +
-        '<span class="frow__name">' + esc(it.name) + '</span>' +
-        '<span class="badge badge--' + st.mod + '"><span class="d"></span>' + esc(T(st.key)) + '</span></button>';
+      var dl = it.isSmf
+        ? '<button type="button" class="frow__save" data-save="' + i + '" title="' +
+          esc(msg("t.savethis", midName(it.name))) + '">' + SVG_DL + "</button>"
+        : "";
+      return '<div class="frow" data-active="' + (i === sel) + '">' +
+        '<button type="button" class="frow__namebtn" data-i="' + i + '" aria-pressed="' + (i === sel) + '">' +
+        '<span class="frow__name">' + esc(it.name) + '</span></button>' +
+        '<span class="frow__right"><span class="badge badge--' + st.mod + '"><span class="d"></span>' +
+        esc(T(st.key)) + "</span>" + dl + "</span></div>";
     }).join("");
     var n = items.filter(function (it) { return it.isSmf; }).length;
     btnSaveAll.disabled = n < 1;
@@ -398,11 +417,6 @@
     setV($("v-name"), m.name || null);
     setV($("v-format"), m.format != null ? m.format + " / " + m.tracks : null, m.format != null ? T("u.tracks") : "");
     setV($("v-size"), it && it.bytes ? it.bytes.length.toLocaleString("en-US") : null, "B");
-
-    var ok = !!(it && it.isSmf);
-    btnSave.disabled = !ok;
-    $("savelbl").textContent = ok ? midName(it.name) : T("t.save");
-    btnSave.title = ok ? midName(it.name) : "";
   }
   function render() { renderList(); renderDetail(); }
 
@@ -433,10 +447,11 @@
   document.addEventListener("drop", function (e) { e.preventDefault(); });
 
   flist.addEventListener("click", function (e) {
-    var b = e.target.closest(".frow"); if (!b) return;
+    var sb = e.target.closest(".frow__save");
+    if (sb) { saveOne(items[parseInt(sb.getAttribute("data-save"), 10)]); return; }
+    var b = e.target.closest(".frow__namebtn"); if (!b) return;
     sel = parseInt(b.getAttribute("data-i"), 10); render();
   });
-  btnSave.addEventListener("click", function () { saveOne(items[sel]); });
   btnSaveAll.addEventListener("click", function () {
     items.filter(function (it) { return it.isSmf; }).forEach(function (it, i) {
       setTimeout(function () { saveOne(it); }, i * 150);
@@ -468,6 +483,8 @@
           "t.len": "Length", "t.name": "Track name", "t.format": "Format", "t.size": "MIDI size",
           "t.smpte": "SMPTE",
           "t.save": "Save .mid",
+          "t.savehint": "Click the download icon on a row to save just that file.",
+          "t.savethis": "Save {0}",
           "t.copyhint": "Click any value to copy.",
           "t.empty": "Drop a file to read its chunks.",
           "t.eok": "MIDI chunk found in FORM {0}",
@@ -500,6 +517,8 @@
           "t.len": "長さ", "t.name": "トラック名", "t.format": "フォーマット", "t.size": "MIDIサイズ",
           "t.smpte": "SMPTE",
           "t.save": ".mid を保存",
+          "t.savehint": "行のダウンロードアイコンで、そのファイルだけ保存できます。",
+          "t.savethis": "{0} を保存",
           "t.copyhint": "数値をクリックでコピー。",
           "t.empty": "ファイルをドロップするとチャンクを表示します。",
           "t.eok": "FORM {0} からMIDIチャンクを検出しました。",
