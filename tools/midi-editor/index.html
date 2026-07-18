@@ -71,6 +71,11 @@
   .row2c{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .row3c{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
   .cardnote{ font-size:11.5px; color:var(--text-3); line-height:1.45; margin-top:6px; }
+  .toggle12{ display:grid; grid-template-columns:repeat(6,1fr); gap:5px; }
+  .toggle12 button{ appearance:none; cursor:pointer; font:inherit; font-size:12px; font-weight:500; height:30px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
+    transition:all var(--tap); }
+  .toggle12 button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .resline{ font-size:12px; color:var(--text-2); margin-top:var(--s2); font-variant-numeric:tabular-nums; }
   .resline.neg{ color:var(--neg); }
   .dupjump{ display:flex; align-items:center; gap:6px; }
@@ -129,6 +134,21 @@
       <label class="label" for="bpm" data-i18n="tb.bpm">BPM</label>
       <input class="input in-bpm" id="bpm" type="number" min="20" max="400" step="0.1" value="120">
       <span class="badge badge--muted" id="bpm-badge" hidden><span class="d"></span><span id="bpm-badge-t"></span></span>
+    </div>
+    <div class="tbsep"></div>
+    <div class="tbg">
+      <label class="label" for="tsig" data-i18n="tb.timesig">Time sig.</label>
+      <select class="select" id="tsig">
+        <option value="2/4">2/4</option><option value="3/4">3/4</option><option value="4/4">4/4</option>
+        <option value="5/4">5/4</option><option value="6/8">6/8</option><option value="7/8">7/8</option>
+        <option value="custom" data-i18n="tb.custom">Custom</option>
+      </select>
+      <input class="input" id="tsig-num" type="number" min="1" max="32" value="4" style="width:46px" hidden>
+      <span class="pos" id="tsig-sep" hidden>/</span>
+      <select class="select" id="tsig-den" hidden>
+        <option value="1">1</option><option value="2">2</option><option value="4">4</option>
+        <option value="8">8</option><option value="16">16</option><option value="32">32</option>
+      </select>
     </div>
     <div class="tbsep"></div>
     <div class="tbg">
@@ -195,10 +215,22 @@
       <div class="card">
         <div class="card__title" data-i18n="sc.title">Key / scale guide</div>
         <div class="row3c">
-          <div class="field"><label class="label" data-i18n="sc.key">Key</label><select class="select" id="sc-key"></select></div>
+          <div class="field" id="sc-key-field"><label class="label" data-i18n="sc.key">Key</label><select class="select" id="sc-key"></select></div>
           <div class="field" style="grid-column:span 2"><label class="label" data-i18n="sc.scale">Scale</label><select class="select" id="sc-type"></select></div>
         </div>
+        <div class="field" id="sc-custom-row" hidden>
+          <label class="label" data-i18n="sc.customtones">Notes in the custom scale</label>
+          <div class="toggle12" id="sc-custom-toggles"></div>
+        </div>
         <label class="checkline"><input type="checkbox" id="sc-show" checked><span data-i18n="sc.show">Show guide on the roll</span></label>
+        <div class="field" style="margin-top:var(--s3)"><label class="label" data-i18n="sc.mode">Input lock</label>
+          <select class="select" id="sc-mode">
+            <option value="off" data-i18n="sc.mode.off">Off — allow any note</option>
+            <option value="block" data-i18n="sc.mode.block">Block out-of-scale notes</option>
+            <option value="correct" data-i18n="sc.mode.correct">Auto-correct to nearest scale tone</option>
+            <option value="highlight" data-i18n="sc.mode.highlight">Allow, but highlight out-of-scale notes</option>
+          </select>
+        </div>
       </div>
 
       <div class="card">
@@ -223,6 +255,35 @@
             <label><input type="radio" name="qend" value="dur"><span data-i18n="q.dur">Round durations to multiples</span></label>
           </div></div>
         <button class="btn btn--primary btn--block" id="q-apply" data-i18n="q.apply">Apply quantize</button>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="hu.title">Humanize</div>
+        <div class="cardnote" data-i18n="hu.desc">Adds small random variation so a mechanically precise performance doesn't sound robotic.</div>
+        <div class="field">
+          <label class="checkline"><input type="checkbox" id="hu-t-on" checked><span data-i18n="hu.timing">Timing</span></label>
+          <div class="sliderline" style="margin-top:6px"><input class="input" id="hu-t-amt" type="number" min="0" value="20" style="width:70px"><span class="val" data-i18n="hu.ticks">± ticks</span></div>
+        </div>
+        <div class="field">
+          <label class="checkline"><input type="checkbox" id="hu-v-on" checked><span data-i18n="hu.velocity">Velocity</span></label>
+          <div class="sliderline" style="margin-top:6px"><input class="input" id="hu-v-amt" type="number" min="0" value="10" style="width:70px"><span class="val" data-i18n="hu.amt">±</span></div>
+        </div>
+        <div class="field">
+          <label class="checkline"><input type="checkbox" id="hu-l-on"><span data-i18n="hu.length">Length</span></label>
+          <div class="sliderline" style="margin-top:6px"><input class="input" id="hu-l-amt" type="number" min="0" value="15" style="width:70px"><span class="val" data-i18n="hu.pct">± %</span></div>
+        </div>
+        <div class="field"><label class="label" data-i18n="hu.scope">Apply to</label>
+          <div class="radios">
+            <label><input type="radio" name="huscope" value="sel" checked><span data-i18n="hu.scopesel">Selected notes only</span></label>
+            <label><input type="radio" name="huscope" value="all"><span data-i18n="hu.scopeall">All notes</span></label>
+          </div></div>
+        <div class="field"><label class="label" data-i18n="hu.seed">Seed</label>
+          <div class="row2c">
+            <input class="input" id="hu-seed" type="number" value="1234">
+            <button class="btn btn--secondary" id="hu-dice" data-i18n="fl.newseed">New seed</button>
+          </div></div>
+        <button class="btn btn--primary btn--block" id="hu-apply" data-i18n="hu.apply">Humanize</button>
+        <div class="resline" id="hu-status"></div>
       </div>
 
       <div class="card">
@@ -322,6 +383,15 @@
   <button id="cm-prop" data-i18n="menu.props">Properties…</button>
 </div>
 
+<div class="ctxmenu" id="ccmenu" hidden>
+  <button data-interp="linear" data-i18n="cc.linear">Linear</button>
+  <button data-interp="bezier" data-i18n="cc.bezier">Bezier</button>
+  <button data-interp="smooth" data-i18n="cc.smooth">Smooth</button>
+  <button data-interp="step" data-i18n="cc.step">Step</button>
+  <button data-interp="exp" data-i18n="cc.exp">Exponential</button>
+  <button data-interp="scurve" data-i18n="cc.scurve">S-curve</button>
+</div>
+
 <div class="modalback" id="prop-modal" hidden>
   <div class="card">
     <div class="card__title" data-i18n="pr.title">Note properties</div>
@@ -354,7 +424,11 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function mod(v, n) { return ((v % n) + n) % n; }
   function cloneNote(n) { return { id: n.id, start: n.start, duration: n.duration, pitch: n.pitch, velocity: n.velocity, channel: n.channel }; }
-  function cloneCC(c) { return { id: c.id, tick: c.tick, ctrl: c.ctrl, value: c.value, channel: c.channel }; }
+  function cloneCC(c) {
+    var o = { id: c.id, tick: c.tick, ctrl: c.ctrl, value: c.value, channel: c.channel };
+    if (c.pt) { o.pt = true; o.interp = c.interp || "linear"; if (c.bz) o.bz = { t: c.bz.t, v: c.bz.v }; }
+    return o;
+  }
   var NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   function noteName(p) { return NAMES[p % 12] + (Math.floor(p / 12) - 1); }
   var GRIDS = [["1/1", 3840], ["1/1T", 2560], ["1/1D", 5760], ["1/2", 1920], ["1/2T", 1280], ["1/2D", 2880],
@@ -596,7 +670,11 @@
     var ev = [];
     var tl = doc.tempo.length ? doc.tempo : [{ tick: 0, uspq: Math.round(60000000 / bpmSingle) }];
     tl.forEach(function (t) { ev.push({ t: t.tick, o: 0, meta: 0x51, data: [(t.uspq >> 16) & 255, (t.uspq >> 8) & 255, t.uspq & 255] }); });
+    // 拍子は doc.timesig を正として1つだけ書き出す。取り込み時に保持していた元ファイルの
+    // 0x58 パススルーをそのまま流すと編集後の値と食い違うため、ここでは除外する。
+    ev.push({ t: 0, o: 0, meta: 0x58, data: [doc.timesig.num & 255, Math.round(Math.log2(doc.timesig.den)) & 255, 24, 8] });
     doc.pass.forEach(function (pp) {
+      if (pp.kind === "meta" && pp.mt === 0x58) return;
       if (pp.kind === "meta") ev.push({ t: pp.tick, o: 0, meta: pp.mt, data: pp.data });
       else ev.push({ t: pp.tick, o: (pp.status & 0xF0) === 0xC0 ? 1 : 3, s: [pp.status].concat(pp.data) });
     });
@@ -671,8 +749,10 @@
     cv.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  /* ---- global scale (guide + smoothing) ---- */
+  /* ---- global scale (guide + smoothing + input lock) ---- */
+  var customScaleSet = new Set([0, 2, 4, 5, 7, 9, 11]); // Custom スケールのデフォルト（長調と同じ音）
   function scaleSet(key, type) {
+    if (type === "custom") return customScaleSet.size ? customScaleSet : null;
     var iv = SCALES[type];
     if (!iv) return null; // chromatic
     var s = new Set();
@@ -680,6 +760,14 @@
     return s;
   }
   function globalScale() { return scaleSet(+$("sc-key").value, $("sc-type").value); }
+  function inScale(pitch, sset) { return !sset || sset.has(((pitch % 12) + 12) % 12); }
+  function inputMode() { return $("sc-mode").value; }
+  // 打ち込みロック用: 現在のスケールへピッチをスナップする（chromatic時はクランプのみ）
+  function lockPitch(p) {
+    var sset = globalScale();
+    if (!sset) return clamp(Math.round(p), 0, 127);
+    return nearestScaleTone(clamp(Math.round(p), 0, 127), sset);
+  }
   var BLACK = { 1: 1, 3: 1, 6: 1, 8: 1, 10: 1 };
 
   function gridTick() { return +$("grid").value || 240; }
@@ -814,6 +902,8 @@
     ctx.save(); ctx.beginPath(); ctx.rect(KEYW, 0, Math.max(0, cw - KEYW), chh); ctx.clip();
     var t0v = x2tick(KEYW), t1v = x2tick(cw);
     var ns = sortedNotes();
+    var highlightMode = inputMode() === "highlight";
+    var hlScale = highlightMode ? globalScale() : null;
     for (var i = firstVisible(t0v); i < ns.length; i++) {
       var n = ns[i];
       if (n.start > t1v) break;
@@ -828,6 +918,16 @@
       ctx.strokeStyle = isSel ? C.surface : chColor(n.channel);
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 1.25, Math.max(1, w - 1), h - 1);
+      if (highlightMode && !inScale(n.pitch, hlScale)) {
+        ctx.save();
+        ctx.strokeStyle = colA(C["text"], 0.85); ctx.lineWidth = 1.25;
+        ctx.setLineDash([3, 2]);
+        ctx.strokeRect(x + 1, y + 1.75, Math.max(1, w - 2), h - 2);
+        ctx.setLineDash([]);
+        ctx.fillStyle = C["text"];
+        ctx.beginPath(); ctx.arc(x + w - 3, y + 3.5, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
       if (dupIds.has(n.id)) {
         ctx.strokeStyle = C.neg; ctx.lineWidth = 1.5;
         ctx.strokeRect(x + 0.75, y + 1.5, Math.max(1, w - 1.5), h - 1.5);
@@ -863,8 +963,10 @@
         ctx.fillRect(rx, ry, rw, rh); ctx.strokeRect(rx + 0.5, ry + 0.5, rw, rh);
       } else if (drag.mode === "clone") {
         ctx.fillStyle = colA(C.accent, 0.45);
+        var blockPreview = inputMode() === "block";
         drag.src.forEach(function (b) {
-          var s = Math.max(0, b.start + drag.dT), pch = clamp(b.pitch + drag.dP, 0, 127);
+          var s = Math.max(0, b.start + drag.dT), pch0 = clamp(b.pitch + drag.dP, 0, 127);
+          var pch = blockPreview ? lockPitch(pch0) : pch0;
           ctx.fillRect(tick2x(s), pitch2y(pch) + 0.75, Math.max(3, b.duration * view.ppt), Math.max(2, view.pps - 1.5));
         });
       } else if (drag.mode === "create") {
@@ -1070,7 +1172,7 @@
       // 左ドラッグ＝押した位置から離した位置までノートを作る。
       // 音高は押した時点のものに固定する（縦にずれても変わらない）。
       var st = Math.max(0, snapTick(t));
-      drag = { mode: "create", anchor: st, pitch: y2pitch(y), cur: st, x0: x, moved: false };
+      drag = { mode: "create", anchor: st, pitch: (inputMode() === "block") ? lockPitch(y2pitch(y)) : y2pitch(y), cur: st, x0: x, moved: false };
       drawOverlay();
     }
   });
@@ -1090,10 +1192,12 @@
       var dT = (snapOn() ? snapTick(nsRaw) : Math.round(nsRaw)) - ref.start;
       var dP = y2pitch(y) - drag.p0;
       var idx = new Map(); doc.notes.forEach(function (n) { idx.set(n.id, n); });
+      var blockMode = inputMode() === "block";
       drag.before.forEach(function (b, id) {
         var n = idx.get(id); if (!n) return;
         n.start = Math.max(0, b.start + dT);
-        n.pitch = clamp(b.pitch + dP, 0, 127);
+        var np = clamp(b.pitch + dP, 0, 127);
+        n.pitch = blockMode ? lockPitch(np) : np;
         dupReindex(n);
       });
       drag.moved = true; invalidateSort(); redrawNotes(); drawLanes();
@@ -1140,6 +1244,9 @@
     if (d.mode === "move" || d.mode === "resl" || d.mode === "resr") {
       if (d.moved) {
         var idx = new Map(); doc.notes.forEach(function (n) { idx.set(n.id, n); });
+        if (d.mode === "move" && inputMode() === "correct") {
+          d.before.forEach(function (b, id) { var n = idx.get(id); if (n) { n.pitch = lockPitch(n.pitch); dupReindex(n); } });
+        }
         var mods = [];
         d.before.forEach(function (b, id) {
           var n = idx.get(id); if (!n) return;
@@ -1159,9 +1266,11 @@
     if (d.mode === "clone") {
       if (d.dT !== 0 || d.dP !== 0) {
         var selBefore = Array.from(sel);
+        var lockClone = inputMode() === "block" || inputMode() === "correct";
         var clones = d.src.map(function (b) {
+          var pc = clamp(b.pitch + d.dP, 0, 127);
           return { id: nid(), start: Math.max(0, b.start + d.dT), duration: b.duration,
-                   pitch: clamp(b.pitch + d.dP, 0, 127), velocity: b.velocity, channel: b.channel };
+                   pitch: lockClone ? lockPitch(pc) : pc, velocity: b.velocity, channel: b.channel };
         });
         exec({ addNotes: clones, selBefore: selBefore, selAfter: clones.map(function (n) { return n.id; }) });
       } else { drawOverlay(); }
@@ -1174,7 +1283,8 @@
       }
       var a = Math.min(d.anchor, d.cur), b2 = Math.max(d.anchor, d.cur);
       var dur = Math.max(b2 - a, MINLEN);
-      var n = { id: nid(), start: a, duration: dur, pitch: d.pitch, velocity: 100, channel: curChannel };
+      var pitchC = (inputMode() === "correct") ? lockPitch(d.pitch) : d.pitch;
+      var n = { id: nid(), start: a, duration: dur, pitch: pitchC, velocity: 100, channel: curChannel };
       lastDur = dur;
       exec({ addNotes: [n], selBefore: Array.from(sel), selAfter: [n.id] });
       return;
@@ -1351,7 +1461,11 @@
     var k = (e.key || "").toLowerCase();
     if (mod && !e.shiftKey && k === "z") { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey && k === "y") || (mod && e.shiftKey && k === "z")) { e.preventDefault(); redo(); return; }
-    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSel(); return; }
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      if (activeCCLane && activeCCPointId) { deleteCCPoint(activeCCLane, activeCCPointId); return; }
+      deleteSel(); return;
+    }
     if (mod && k === "a") { e.preventDefault(); sel = new Set(doc.notes.map(function (n) { return n.id; })); redrawNotes(); drawLanes(); return; }
     if (mod && k === "c") { e.preventDefault(); copySel(); return; }
     if (mod && k === "x") { e.preventDefault(); copySel(); deleteSel(); return; }
@@ -1369,6 +1483,31 @@
   }
 
   /* ---- 5.1 quantize ---- */
+  /* ---- 1. ヒューマナイズ ---- */
+  function humanizeApply() {
+    var tOn = $("hu-t-on").checked, vOn = $("hu-v-on").checked, lOn = $("hu-l-on").checked;
+    if (!tOn && !vOn && !lOn) { $("hu-status").textContent = T("hu.none"); return; }
+    var tAmt = Math.max(0, +$("hu-t-amt").value || 0);
+    var vAmt = Math.max(0, +$("hu-v-amt").value || 0);
+    var lPct = Math.max(0, +$("hu-l-amt").value || 0) / 100;
+    var scopeAll = document.querySelector('input[name="huscope"]:checked').value === "all";
+    var targets = scopeAll ? doc.notes.slice() : notesFromSel();
+    if (!targets.length) { $("hu-status").textContent = T(scopeAll ? "hu.nonotes" : "sm.needsel"); return; }
+    var rng = mulberry32(+$("hu-seed").value || 1);
+    // 一様乱数を [-1,1] の三角分布に寄せる（両端に張り付きにくく、0付近に寄るぶん人間らしい）
+    function tri() { return (rng() - rng()); }
+    var modNotes = targets.map(function (n) {
+      var before = cloneNote(n);
+      var start = n.start, dur = n.duration, vel = n.velocity;
+      if (tOn) start = Math.max(0, Math.round(n.start + tri() * tAmt));
+      if (vOn) vel = clamp(Math.round(n.velocity + tri() * vAmt), 1, 127);
+      if (lOn) dur = Math.max(MINLEN, Math.round(n.duration * (1 + tri() * lPct)));
+      return { id: n.id, before: before, after: { start: start, duration: dur, pitch: n.pitch, velocity: vel, channel: n.channel } };
+    });
+    exec({ modNotes: modNotes });
+    $("hu-status").textContent = fmtT("hu.done", { n: targets.length });
+  }
+
   function quantizeApply() {
     var targets = sel.size ? notesFromSel() : doc.notes.slice();
     if (!targets.length) { setStatus(T("misc.nonotes")); return; }
@@ -2030,6 +2169,35 @@
     }
   }
 
+  /* ---- 拍子 ---- */
+  var TSIG_PRESETS = ["2/4", "3/4", "4/4", "5/4", "6/8", "7/8"];
+  function timesigKey(t) { return t.num + "/" + t.den; }
+  function syncTimesigUI() {
+    var isPreset = TSIG_PRESETS.indexOf(timesigKey(doc.timesig)) >= 0;
+    $("tsig").value = isPreset ? timesigKey(doc.timesig) : "custom";
+    $("tsig-num").hidden = $("tsig-sep").hidden = $("tsig-den").hidden = isPreset;
+    if (!isPreset) { $("tsig-num").value = doc.timesig.num; $("tsig-den").value = doc.timesig.den; }
+  }
+  function setTimesig(num, den) {
+    num = clamp(Math.round(num) || 4, 1, 32);
+    // 分母は MIDI の拍子メタ(0x58)が2のべき乗しか表せないため、一番近い値へ丸める
+    var p = clamp(Math.round(Math.log2(clamp(Math.round(den) || 4, 1, 32))), 0, 5);
+    den = Math.pow(2, p);
+    doc.timesig = { num: num, den: den };
+    markDirty(); drawAll();
+  }
+  $("tsig").addEventListener("change", function () {
+    if (this.value === "custom") {
+      $("tsig-num").hidden = $("tsig-sep").hidden = $("tsig-den").hidden = false;
+      $("tsig-num").value = doc.timesig.num; $("tsig-den").value = doc.timesig.den;
+      return;
+    }
+    $("tsig-num").hidden = $("tsig-sep").hidden = $("tsig-den").hidden = true;
+    var p = this.value.split("/"); setTimesig(+p[0], +p[1]);
+  });
+  $("tsig-num").addEventListener("change", function () { setTimesig(this.value, $("tsig-den").value); });
+  $("tsig-den").addEventListener("change", function () { setTimesig($("tsig-num").value, this.value); });
+
   /* =====================================================================
      lanes — velocity + CC editors
      ===================================================================== */
@@ -2074,11 +2242,11 @@
       wireLaneWheel(l);
       wireLaneGrip(l, grip);
 
-      kindSel.addEventListener("change", function () { l.kind = kindSel.value; if (l.kind === "cc" && l.ctrl == null) l.ctrl = +ccSel.value; rebuildLanes(); drawLanes(); saveLanes(); });
-      ccSel.addEventListener("change", function () { l.ctrl = +ccSel.value; drawLane(l); saveLanes(); });
+      kindSel.addEventListener("change", function () { l.kind = kindSel.value; if (l.kind === "cc" && l.ctrl == null) l.ctrl = +ccSel.value; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } rebuildLanes(); drawLanes(); saveLanes(); });
+      ccSel.addEventListener("change", function () { l.ctrl = +ccSel.value; l.activePoint = null; if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } drawLane(l); saveLanes(); });
       up.addEventListener("click", function () { if (idx > 0) { var t = lanes[idx - 1]; lanes[idx - 1] = l; lanes[idx] = t; rebuildLanes(); drawLanes(); saveLanes(); } });
       dn.addEventListener("click", function () { if (idx < lanes.length - 1) { var t = lanes[idx + 1]; lanes[idx + 1] = l; lanes[idx] = t; rebuildLanes(); drawLanes(); saveLanes(); } });
-      rm.addEventListener("click", function () { lanes.splice(idx, 1); rebuildLanes(); drawLanes(); saveLanes(); });
+      rm.addEventListener("click", function () { if (activeCCLane === l) { activeCCLane = null; activeCCPointId = null; } lanes.splice(idx, 1); rebuildLanes(); drawLanes(); saveLanes(); });
 
       wireLanePointer(l);
     });
@@ -2124,34 +2292,52 @@
         ctx.fillRect(b.x - 1, top - 3, bw2 + 2, 3);                 // 先端のキャップ
       });
     } else {
-      var evs = doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).sort(function (a, b) { return a.tick - b.tick; });
-      // step line
-      ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.beginPath();
-      var started = false, lastY = H;
-      // seed from last event before view
-      var seedV = 0;
-      for (var s = 0; s < evs.length; s++) { if (evs[s].tick <= t0v) seedV = evs[s].value; else break; }
-      lastY = H - (seedV / 127) * (H - 8) - 4;
-      ctx.moveTo(KEYW, lastY); started = true;
-      evs.forEach(function (c) {
-        if (c.tick < t0v || c.tick > t1v) return;
-        var x = tick2x(c.tick), y = H - (c.value / 127) * (H - 8) - 4;
-        ctx.lineTo(x, lastY); ctx.lineTo(x, y); lastY = y;
-      });
-      ctx.lineTo(W, lastY); ctx.stroke();
-      // points
-      ctx.fillStyle = C.accent;
-      evs.forEach(function (c) {
-        if (c.tick < t0v || c.tick > t1v) return;
-        var x = tick2x(c.tick), y = H - (c.value / 127) * (H - 8) - 4;
-        ctx.fillRect(x - 2, y - 2, 4, 4);
-      });
-      // live temp samples overlay
-      if (l._temp && l._temp.length) {
-        ctx.strokeStyle = colA(C.accent, 0.5); ctx.lineWidth = 1; ctx.beginPath();
-        l._temp.forEach(function (s, i) { var x = tick2x(s.t), y = H - (s.v / 127) * (H - 8) - 4; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+      ensureCurvePoints(l.ctrl);   // 既存の生データがあれば初回だけ制御点へ簡略化する
+      var pts = ccPointsFor(l.ctrl);
+      var valY = function (v) { return H - (v / 127) * (H - 8) - 4; };
+      if (!pts.length) {
+        // 制御点がまだ無い＝初期状態。既定値のフラットな線を薄く示すだけ
+        ctx.strokeStyle = colA(C["text-3"], 0.55); ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+        var yFlat = valY(64);
+        ctx.beginPath(); ctx.moveTo(KEYW, yFlat); ctx.lineTo(W, yFlat); ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        var evs = doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).sort(function (a, b) { return a.tick - b.tick; });
+        ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.beginPath();
+        var seedV = evs.length ? evs[0].value : 64;
+        for (var s = 0; s < evs.length; s++) { if (evs[s].tick <= t0v) seedV = evs[s].value; else break; }
+        var lastX = KEYW, lastY = valY(seedV);
+        ctx.moveTo(lastX, lastY);
+        evs.forEach(function (c) {
+          if (c.tick < t0v - 1 || c.tick > t1v + 1) return;
+          var x = tick2x(c.tick), y = valY(c.value);
+          ctx.lineTo(x, y); lastX = x; lastY = y;
+        });
+        ctx.lineTo(W, lastY);
         ctx.stroke();
       }
+      // 制御点（アンカー）。選択中はアクセント色で強調表示する
+      pts.forEach(function (p, i) {
+        if (p.tick < t0v - 400 || p.tick > t1v + 400) return;
+        var x = tick2x(p.tick), y = valY(p.value);
+        var active = l.activePoint === p.id;
+        ctx.beginPath(); ctx.arc(x, y, active ? 5 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = active ? C.accent : C.surface;
+        ctx.fill();
+        ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.stroke();
+        // ベジェハンドル：そのセグメントが bezier のときだけ、細い点線ガイドと共に表示
+        if (p.interp === "bezier" && i < pts.length - 1) {
+          var q = pts[i + 1];
+          var hx = (p.bz && p.bz.t != null) ? p.bz.t : (p.tick + q.tick) / 2;
+          var hv = (p.bz && p.bz.v != null) ? p.bz.v : (p.value + q.value) / 2;
+          var hxpx = tick2x(hx), hypx = valY(hv);
+          ctx.strokeStyle = colA(C.accent, 0.5); ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(hxpx, hypx); ctx.lineTo(tick2x(q.tick), valY(q.value)); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.rect(hxpx - 3, hypx - 3, 6, 6);
+          ctx.fillStyle = C.surface; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.25; ctx.stroke();
+        }
+      });
     }
     // playhead
     var px = tick2x(playhead);
@@ -2159,28 +2345,133 @@
   }
 
   function wireLanePointer(l) {
+    if (l.kind === "cc") { wireCCLanePointer(l); return; }
     var cv = l.cv;
     var painting = false;
     function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; }
     cv.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
       cv.setPointerCapture(e.pointerId); painting = true;
-      if (l.kind === "vel") { l._before = new Map(); paintVel(l, pos(e), true); }
-      else { l._temp = []; paintCC(l, pos(e)); }
+      l._before = new Map(); paintVel(l, pos(e), true);
     });
     cv.addEventListener("pointermove", function (e) {
       if (!painting) return;
-      if (l.kind === "vel") paintVel(l, pos(e), false);
-      else paintCC(l, pos(e));
+      paintVel(l, pos(e), false);
     });
     function up(e) {
       if (!painting) return; painting = false;
-      if (l.kind === "vel") commitVel(l);
-      else commitCC(l);
+      commitVel(l);
     }
     cv.addEventListener("pointerup", up);
     cv.addEventListener("pointercancel", up);
   }
+  /* =====================================================================
+     4. CC カーブエディタ — 制御点ベースの編集
+     doc.cc の中で pt:true が付いたものが「制御点」（ユーザーが配置したアンカー）。
+     制御点の無い区間は pt を持たない密なサンプルで滑らかさを表現し、
+     書き出し(buildSMF)は doc.cc をそのまま使うので変換の手間は無い。
+     ===================================================================== */
+  var CC_SAMPLE_TICKS = 40;      // 1セグメントあたりの目安サンプル間隔
+  var CC_SAMPLE_MIN = 2, CC_SAMPLE_MAX = 64;
+  function ccPointsFor(ctrl) {
+    return doc.cc.filter(function (c) { return c.ctrl === ctrl && c.pt; })
+      .sort(function (a, b) { return a.tick - b.tick; });
+  }
+  function segmentCurve(interp, p, q, prevV, nextV) {
+    var v0 = p.value, v1 = q.value;
+    if (interp === "step") return function () { return v0; };
+    if (interp === "scurve") return function (u) { var s = u * u * (3 - 2 * u); return v0 + (v1 - v0) * s; };
+    if (interp === "exp") return function (u) { return v0 + (v1 - v0) * (u * u); };
+    if (interp === "bezier") {
+      var hx = (p.bz && p.bz.t != null) ? p.bz.t : (p.tick + q.tick) / 2;
+      var hv = (p.bz && p.bz.v != null) ? p.bz.v : (v0 + v1) / 2;
+      return function (u) { var mt = 1 - u; return mt * mt * v0 + 2 * mt * u * hv + u * u * v1; };
+    }
+    if (interp === "smooth") {
+      var P0 = (prevV != null) ? prevV : v0 - (v1 - v0);
+      var P3 = (nextV != null) ? nextV : v1 + (v1 - v0);
+      return function (u) {
+        var u2 = u * u, u3 = u2 * u;
+        return 0.5 * ((2 * v0) + (-P0 + v1) * u + (2 * P0 - 5 * v0 + 4 * v1 - P3) * u2 + (-P0 + 3 * v0 - 3 * v1 + P3) * u3);
+      };
+    }
+    return function (u) { return v0 + (v1 - v0) * u; }; // linear (既定)
+  }
+  // 制御点列から実際に書き出す密なCCイベント列を「計算するだけ」の純粋関数（doc.ccには触れない）
+  function computeCCEvents(ctrl, pts) {
+    var out = [];
+    pts.forEach(function (p, i) {
+      out.push(p);   // 参照をそのまま使う（ドラッグ中に regenerateCC を連続呼び出しても
+                      // drag.point が doc.cc の実体と切り離されないようにするため。
+                      // exec() 経由のコミット時は applyDiff 側で改めて cloneCC されるので問題ない）
+      if (i < pts.length - 1) {
+        var q = pts[i + 1], span = q.tick - p.tick;
+        if (span <= 0 || p.interp === "step") return;
+        var prevV = i > 0 ? pts[i - 1].value : null, nextV = (i + 2 < pts.length) ? pts[i + 2].value : null;
+        var f = segmentCurve(p.interp || "linear", p, q, prevV, nextV);
+        var n = clamp(Math.round(span / CC_SAMPLE_TICKS), CC_SAMPLE_MIN, CC_SAMPLE_MAX);
+        for (var k = 1; k < n; k++) {
+          var u = k / n, tick = Math.round(p.tick + span * u);
+          if (tick <= p.tick || tick >= q.tick) continue;
+          out.push({ id: cid(), tick: tick, ctrl: ctrl, value: clamp(Math.round(f(u)), 0, 127), channel: p.channel });
+        }
+      }
+    });
+    return out;
+  }
+  // 制御点から実イベントを再生成して doc.cc に反映する（ドラッグ中のライブプレビュー用。history は積まない）
+  function regenerateCC(ctrl) {
+    var pts = ccPointsFor(ctrl);
+    var others = doc.cc.filter(function (c) { return c.ctrl !== ctrl; });
+    doc.cc = others.concat(computeCCEvents(ctrl, pts));
+    markDirty();
+  }
+  // 単発の制御点編集（追加・削除・補間タイプ変更）を Undo 可能な1操作として確定する
+  function commitCCPoints(ctrl, newPts) {
+    var before = doc.cc.filter(function (c) { return c.ctrl === ctrl; }).map(cloneCC);
+    var after = computeCCEvents(ctrl, newPts);
+    exec({ delCC: before, addCC: after });
+  }
+  // 値方向の垂直距離だけを見る単純化版Douglas-Peucker（時間軸のスケールに左右されない）
+  function dpValueAt(p0, p1, tick) {
+    if (p1.tick === p0.tick) return p0.value;
+    return p0.value + (p1.value - p0.value) * (tick - p0.tick) / (p1.tick - p0.tick);
+  }
+  function dpSimplify(pts, eps) {
+    if (pts.length < 3) return pts.slice();
+    var p0 = pts[0], p1 = pts[pts.length - 1], maxD = 0, idx = 0;
+    for (var i = 1; i < pts.length - 1; i++) {
+      var d = Math.abs(pts[i].value - dpValueAt(p0, p1, pts[i].tick));
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (maxD > eps) {
+      var left = dpSimplify(pts.slice(0, idx + 1), eps), right = dpSimplify(pts.slice(idx), eps);
+      return left.slice(0, -1).concat(right);
+    }
+    return [p0, p1];
+  }
+  function douglasPeucker(pts, eps, maxPoints) {
+    if (pts.length <= 2) return pts.slice();
+    var out = dpSimplify(pts, eps), e = eps, guard = 0;
+    while (out.length > maxPoints && guard++ < 20) { e *= 1.6; out = dpSimplify(pts, e); }
+    return out;
+  }
+  // 大量点で構成された既存の生CC（インポート由来など）を、セッション中に一度だけ
+  // 間引いて制御点化する。既に pt が付いていれば何もしない（二重変換防止）。
+  function ensureCurvePoints(ctrl) {
+    var existing = doc.cc.filter(function (c) { return c.ctrl === ctrl; });
+    if (!existing.length || existing.some(function (c) { return c.pt; })) return;
+    var raw = existing.slice().sort(function (a, b) { return a.tick - b.tick; });
+    var simplified = douglasPeucker(raw.map(function (c) { return { tick: c.tick, value: c.value }; }), 2.2, 40);
+    var ids = new Set(existing.map(function (c) { return c.id; }));
+    doc.cc = doc.cc.filter(function (c) { return !ids.has(c.id); });
+    var ch = raw[0].channel;
+    simplified.forEach(function (p) {
+      doc.cc.push({ id: cid(), tick: Math.round(p.tick), ctrl: ctrl, value: clamp(Math.round(p.value), 0, 127), channel: ch, pt: true, interp: "linear" });
+    });
+    markDirty();
+  }
+
   function paintVel(l, p, first) {
     if (p.x < KEYW) return;
     var H = p.H, val = clamp(Math.round((1 - (p.y - 4) / (H - 10)) * 127), 1, 127);
@@ -2203,36 +2494,128 @@
     l._before = null;
     if (mods.length) exec({ modNotes: mods });
   }
-  function paintCC(l, p) {
-    if (p.x < KEYW) return;
-    var H = p.H, val = clamp(Math.round((1 - (p.y - 4) / (H - 8)) * 127), 0, 127);
-    var t = Math.max(0, Math.round(x2tick(p.x)));
-    var arr = l._temp;
-    if (arr.length && t <= arr[arr.length - 1].t) {
-      // going backwards: replace tail
-      while (arr.length && arr[arr.length - 1].t >= t) arr.pop();
+  var activeCCLane = null, activeCCPointId = null;
+  function hitCCPoint(l, x, y, H) {
+    var pts = ccPointsFor(l.ctrl);
+    for (var i = 0; i < pts.length; i++) {
+      var px = tick2x(pts[i].tick), py = H - (pts[i].value / 127) * (H - 8) - 4;
+      if (Math.hypot(x - px, y - py) <= 7) return { point: pts[i], index: i };
     }
-    // interpolate from previous sample every ~30 ticks
-    if (arr.length) {
-      var prev = arr[arr.length - 1], gap = t - prev.t;
-      if (gap > 30) { var steps = Math.floor(gap / 30); for (var i = 1; i < steps; i++) { arr.push({ t: prev.t + i * 30, v: Math.round(prev.v + (val - prev.v) * i / steps) }); } }
+    return null;
+  }
+  function hitCCHandle(l, x, y, H) {
+    var pts = ccPointsFor(l.ctrl);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p = pts[i]; if (p.interp !== "bezier") continue;
+      var q = pts[i + 1];
+      var hx = (p.bz && p.bz.t != null) ? p.bz.t : (p.tick + q.tick) / 2;
+      var hv = (p.bz && p.bz.v != null) ? p.bz.v : (p.value + q.value) / 2;
+      var hxpx = tick2x(hx), hypx = H - (hv / 127) * (H - 8) - 4;
+      if (Math.hypot(x - hxpx, y - hypx) <= 7) return { point: p, next: q };
     }
-    arr.push({ t: t, v: val });
-    drawLane(l);
+    return null;
   }
-  function commitCC(l) {
-    var arr = l._temp; l._temp = null;
-    if (!arr || arr.length < 1) return;
-    var tmin = arr[0].t, tmax = arr[arr.length - 1].t;
-    if (tmax <= tmin) { drawLane(l); return; }
-    // delete existing events of this ctrl (all channels) in [tmin,tmax]
-    var del = doc.cc.filter(function (c) { return c.ctrl === l.ctrl && c.tick >= tmin && c.tick <= tmax; });
-    // thin: drop consecutive equal
-    var add = [], last = null;
-    arr.forEach(function (s) { if (last === null || s.v !== last) { add.push({ id: cid(), tick: s.t, ctrl: l.ctrl, value: s.v, channel: curChannel }); last = s.v; } });
-    exec({ delCC: del.map(cloneCC), addCC: add });
+  function deleteCCPoint(l, pointId) {
+    var pts = ccPointsFor(l.ctrl).filter(function (p) { return p.id !== pointId; });
+    commitCCPoints(l.ctrl, pts);
+    if (activeCCPointId === pointId) { activeCCLane = null; activeCCPointId = null; }
+    drawLanes();
   }
-  $("lane-add").addEventListener("click", function () { lanes.push({ kind: "cc", ctrl: 1, zoomY: 1 }); rebuildLanes(); saveLanes(); });
+  function wireCCLanePointer(l) {
+    var cv = l.cv, drag = null;
+    function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; }
+    function valAt(y, H) { return clamp(Math.round((1 - (y - 4) / (H - 8)) * 127), 0, 127); }
+    cv.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      var p = pos(e); if (p.x < KEYW) return;
+      var H = p.H;
+      if (e.altKey) {
+        var hh = hitCCHandle(l, p.x, p.y, H);
+        if (hh) {
+          var cur = { t: (hh.point.bz && hh.point.bz.t != null) ? hh.point.bz.t : (hh.point.tick + hh.next.tick) / 2,
+                      v: (hh.point.bz && hh.point.bz.v != null) ? hh.point.bz.v : (hh.point.value + hh.next.value) / 2 };
+          drag = { mode: "handle", point: hh.point, x0: p.x, y0: p.y, start: cur, H: H };
+          cv.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+      var hp = hitCCPoint(l, p.x, p.y, H);
+      if (hp) {
+        activeCCLane = l; activeCCPointId = hp.point.id; l.activePoint = hp.point.id;
+        drag = { mode: "point", point: hp.point, startTick: hp.point.tick, startVal: hp.point.value, x0: p.x, y0: p.y, H: H,
+                 before: doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).map(cloneCC) };
+        cv.setPointerCapture(e.pointerId);
+        drawLane(l);
+        return;
+      }
+      activeCCLane = null; activeCCPointId = null; l.activePoint = null; drawLane(l);
+    });
+    cv.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var p = pos(e), H = drag.H;
+      if (drag.mode === "point") {
+        var nt = Math.max(0, Math.round(x2tick(p.x))), nv = valAt(p.y, H);
+        if (e.shiftKey) {
+          if (Math.abs(p.x - drag.x0) > Math.abs(p.y - drag.y0)) nv = drag.startVal; else nt = drag.startTick;
+        }
+        drag.point.tick = nt; drag.point.value = nv;
+        regenerateCC(l.ctrl); drawLanes();
+      } else if (drag.mode === "handle") {
+        var nt2 = Math.round(x2tick(p.x)), nv2 = valAt(p.y, H);
+        if (e.shiftKey) {
+          if (Math.abs(p.x - drag.x0) > Math.abs(p.y - drag.y0)) nv2 = drag.start.v; else nt2 = drag.start.t;
+        }
+        drag.point.bz = { t: nt2, v: nv2 };
+        regenerateCC(l.ctrl); drawLanes();
+      }
+    });
+    function up() {
+      if (!drag) return;
+      var d = drag; drag = null;
+      if (d.mode === "point") {
+        var after = doc.cc.filter(function (c) { return c.ctrl === l.ctrl; }).map(cloneCC);
+        pushHistory({ delCC: d.before, addCC: after });
+      }
+      drawLanes();
+    }
+    cv.addEventListener("pointerup", up);
+    cv.addEventListener("pointercancel", up);
+    cv.addEventListener("dblclick", function (e) {
+      var p = pos(e); if (p.x < KEYW) return;
+      var H = p.H;
+      var hp = hitCCPoint(l, p.x, p.y, H);
+      if (hp) { deleteCCPoint(l, hp.point.id); return; }
+      var tick = Math.max(0, Math.round(x2tick(p.x))), val = valAt(p.y, H);
+      var pts = ccPointsFor(l.ctrl).slice();
+      var insertAt = pts.length, inheritInterp = "linear";
+      for (var i = 0; i < pts.length; i++) { if (pts[i].tick > tick) { insertAt = i; break; } }
+      if (insertAt > 0 && pts[insertAt - 1]) inheritInterp = pts[insertAt - 1].interp || "linear";
+      var np = { id: cid(), tick: tick, ctrl: l.ctrl, value: val, channel: curChannel, pt: true, interp: inheritInterp };
+      pts.splice(insertAt, 0, np);
+      commitCCPoints(l.ctrl, pts);
+      activeCCLane = l; activeCCPointId = np.id; l.activePoint = np.id;
+      drawLanes();
+    });
+    cv.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      var p = pos(e); if (p.x < KEYW) return;
+      var hp = hitCCPoint(l, p.x, p.y, p.H);
+      if (!hp || hp.index >= ccPointsFor(l.ctrl).length - 1) return; // 最後の点には次のセグメントが無い
+      openCCMenu(e, l, hp.point);
+    });
+  }
+  var ccmenu = null, ccMenuTarget = null;
+  function openCCMenu(e, l, point) {
+    ccmenu = $("ccmenu"); ccMenuTarget = { l: l, point: point };
+    Array.prototype.forEach.call(ccmenu.querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-interp") === (point.interp || "linear")));
+    });
+    ccmenu.hidden = false;
+    var mw = 160, mh = 210;
+    ccmenu.style.left = Math.min(e.clientX, window.innerWidth - mw) + "px";
+    ccmenu.style.top = Math.min(e.clientY, window.innerHeight - mh) + "px";
+  }
+  function hideCCMenu() { if (ccmenu) ccmenu.hidden = true; ccMenuTarget = null; }
 
   /* =====================================================================
      import / export / drag&drop / Web MIDI / IndexedDB
@@ -2245,7 +2628,7 @@
     sel = new Set(); undoStack.length = 0; redoStack.length = 0; playhead = 0; marker = 0;
     invalidateSort(); invalidateTempo();
     if (resetView) fitView();
-    updateBpmUI(); scanDups(); drawAll(); updatePos();
+    updateBpmUI(); syncTimesigUI(); scanDups(); drawAll(); updatePos();
   }
   function fitView() {
     view.pps = 14; view.ppt = (cw - KEYW) / (4 * barTicks());
@@ -2327,9 +2710,15 @@
       if (h) {
         delete recHeld[key];
         var dur = Math.max(MINLEN, Math.round(playhead) - h.tick);
-        if (dur > 10) {
-          var n = { id: nid(), start: h.tick, duration: dur, pitch: d[1], velocity: h.vel, channel: curChannel };
-          exec({ addNotes: [n], selBefore: Array.from(sel), selAfter: [n.id] });
+        var capPitch = d[1];
+        var mode2 = inputMode();
+        if (mode2 === "block" && !inScale(capPitch, globalScale())) { /* スケール外は録音しない */ }
+        else {
+          if (mode2 === "correct") capPitch = lockPitch(capPitch);
+          if (dur > 10) {
+            var n = { id: nid(), start: h.tick, duration: dur, pitch: capPitch, velocity: h.vel, channel: curChannel };
+            exec({ addNotes: [n], selBefore: Array.from(sel), selAfter: [n.id] });
+          }
         }
       }
     }
@@ -2371,7 +2760,7 @@
         doc.tempo = snap.tempo || []; doc.timesig = snap.timesig || { num: 4, den: 4 };
         bpmSingle = snap.bpm || 120; seq = snap.seq || 1; importedName = snap.importedName || null;
         sel = new Set(); undoStack.length = 0; redoStack.length = 0;
-        invalidateSort(); invalidateTempo(); fitView(); updateBpmUI(); scanDups(); drawAll(); updatePos();
+        invalidateSort(); invalidateTempo(); fitView(); updateBpmUI(); syncTimesigUI(); scanDups(); drawAll(); updatePos();
         bar.hidden = true; dirty = false;
       };
       $("restore-no").onclick = function () { bar.hidden = true; };
@@ -2381,7 +2770,7 @@
   /* =====================================================================
      i18n strings
      ===================================================================== */
-  var SCALE_KEYS = ["chromatic", "major", "minor", "hminor", "mminor", "penta", "mpenta", "blues", "dorian", "mixo"];
+  var SCALE_KEYS = ["chromatic", "major", "minor", "hminor", "mminor", "penta", "mpenta", "blues", "dorian", "mixo", "custom"];
   var STR = {
     en: {
       "t.title": "MIDI editor",
@@ -2394,16 +2783,30 @@
       "sm.rs.notone": "no intermediate scale tone fits ({n})",
       "t.hints": "Click the ruler: set the play marker (Stop returns there) · drag the ruler: loop region · left-drag empty space: draw a note (pitch stays where you clicked) · right-drag: rubber-band select · right-click a note: menu · double-click empty: add note · double-click a note: delete · drag middle: move · drag edges: resize · Alt+drag a note: duplicate · Ctrl+wheel: zoom time · Ctrl+Shift+wheel: zoom pitch · Shift+wheel: scroll horizontally · on a velocity/CC lane: drag its bottom edge to resize, Ctrl+wheel zooms time, Ctrl+Shift+wheel zooms that lane's height.",
       "cat.audio": "Audio",
-      "tb.bpm": "BPM", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
+      "tb.bpm": "BPM", "tb.timesig": "Time sig.", "tb.custom": "Custom", "tb.grid": "Grid", "tb.channel": "Ch", "tb.wave": "Sound",
       "tb.import": "Import", "tb.export": "Export", "tb.tempoN": "{n} tempo changes",
       "sc.title": "Key / scale guide", "sc.key": "Key", "sc.scale": "Scale", "sc.show": "Show guide on the roll",
+      "sc.customtones": "Notes in the custom scale",
+      "sc.mode": "Input lock",
+      "sc.mode.off": "Off — allow any note",
+      "sc.mode.block": "Block out-of-scale notes",
+      "sc.mode.correct": "Auto-correct to nearest scale tone",
+      "sc.mode.highlight": "Allow, but highlight out-of-scale notes",
       "scale.chromatic": "Chromatic (none)", "scale.major": "Major", "scale.minor": "Natural minor",
       "scale.hminor": "Harmonic minor", "scale.mminor": "Melodic minor", "scale.penta": "Major pentatonic",
-      "scale.mpenta": "Minor pentatonic", "scale.blues": "Blues", "scale.dorian": "Dorian", "scale.mixo": "Mixolydian",
+      "scale.mpenta": "Minor pentatonic", "scale.blues": "Blues", "scale.dorian": "Dorian", "scale.mixo": "Mixolydian", "scale.custom": "Custom",
       "q.title": "Quantize", "q.res": "Resolution", "q.strength": "Strength", "q.swing": "Swing",
       "q.window": "Window", "q.offset": "Offset (tick)", "q.start": "Quantize start times", "q.endmode": "Note ends",
       "q.none": "Leave as is", "q.end": "Snap end times to grid", "q.dur": "Round durations to multiples",
       "q.apply": "Apply quantize", "q.done": "Quantized {n} notes.",
+      "hu.title": "Humanize",
+      "hu.desc": "Adds small random variation so a mechanically precise performance doesn't sound robotic.",
+      "hu.timing": "Timing", "hu.velocity": "Velocity", "hu.length": "Length",
+      "hu.ticks": "± ticks", "hu.amt": "±", "hu.pct": "± %",
+      "hu.scope": "Apply to", "hu.scopesel": "Selected notes only", "hu.scopeall": "All notes",
+      "hu.seed": "Seed", "hu.apply": "Humanize",
+      "hu.done": "Humanized {n} notes.", "hu.none": "Pick at least one target (timing/velocity/length).",
+      "hu.nonotes": "There are no notes to humanize.",
       "sm.title": "Smoothing (glissando)", "sm.step": "Step length", "sm.tension": "Pitch curve tension",
       "sm.easeio": "Ease-in-out (S-curve)", "sm.vtension": "Velocity curve tension",
       "sm.mode": "Mode",
@@ -2426,6 +2829,7 @@
       "cl.revnote": "Reverses notes and CC (sustain as ON regions, continuous CC by resampling). No selection reverses the whole piece.",
       "cl.revdone": "Reversed in time.",
       "lane.vel": "Velocity", "lane.add": "Add lane", "lane.resize": "Drag to resize (or Ctrl+Shift+wheel to zoom)",
+      "cc.linear": "Linear", "cc.bezier": "Bezier", "cc.smooth": "Smooth", "cc.step": "Step", "cc.exp": "Exponential", "cc.scurve": "S-curve",
       "menu.delete": "Delete", "menu.dup": "Duplicate", "menu.props": "Properties…",
       "pr.title": "Note properties", "pr.start": "Start (tick)", "pr.dur": "Length (tick)", "pr.pitch": "Pitch (0–127)",
       "pr.vel": "Velocity (1–127)", "pr.ch": "Channel (1–16)", "pr.ok": "Apply", "pr.cancel": "Cancel",
@@ -2448,16 +2852,30 @@
       "sm.rs.notone": "スケール上に中間音が無い（{n}件）",
       "t.hints": "定規をクリック：再生開始マーカー（停止でここへ戻る）／定規をドラッグ：ループ区間／空白を左ドラッグ：ノート追加（音高はクリックした位置で固定）／右ドラッグ：範囲選択／ノートを右クリック：メニュー／空白をダブルクリック：ノート追加／ノートをダブルクリック：削除／中央ドラッグ：移動／端ドラッグ：長さ変更／Alt+ドラッグ：複製／Ctrl+ホイール：時間ズーム／Ctrl+Shift+ホイール：音高ズーム／Shift+ホイール：横スクロール。ベロシティ/CCレーン：下端をドラッグで高さ変更、Ctrl+ホイールで時間ズーム、Ctrl+Shift+ホイールでそのレーンの高さをズーム。",
       "cat.audio": "音声",
-      "tb.bpm": "BPM", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
+      "tb.bpm": "BPM", "tb.timesig": "拍子", "tb.custom": "カスタム", "tb.grid": "グリッド", "tb.channel": "Ch", "tb.wave": "音色",
       "tb.import": "読み込み", "tb.export": "書き出し", "tb.tempoN": "テンポチェンジ {n}件",
       "sc.title": "キー／スケール ガイド", "sc.key": "キー", "sc.scale": "スケール", "sc.show": "ロールにガイドを表示",
+      "sc.customtones": "カスタムスケールの構成音",
+      "sc.mode": "打ち込みロック",
+      "sc.mode.off": "オフ—どの音も入力可",
+      "sc.mode.block": "スケール外の音は入力不可",
+      "sc.mode.correct": "最も近いスケール音へ自動補正",
+      "sc.mode.highlight": "入力は許可し、スケール外の音を色付け表示",
       "scale.chromatic": "クロマチック（なし）", "scale.major": "メジャー", "scale.minor": "ナチュラルマイナー",
       "scale.hminor": "ハーモニックマイナー", "scale.mminor": "メロディックマイナー", "scale.penta": "メジャーペンタ",
-      "scale.mpenta": "マイナーペンタ", "scale.blues": "ブルース", "scale.dorian": "ドリアン", "scale.mixo": "ミクソリディアン",
+      "scale.mpenta": "マイナーペンタ", "scale.blues": "ブルース", "scale.dorian": "ドリアン", "scale.mixo": "ミクソリディアン", "scale.custom": "カスタム",
       "q.title": "クオンタイズ", "q.res": "解像度", "q.strength": "強さ", "q.swing": "スウィング",
       "q.window": "ウィンドウ", "q.offset": "オフセット (tick)", "q.start": "開始位置をクオンタイズ", "q.endmode": "終端の扱い",
       "q.none": "なし", "q.end": "終了位置をグリッドに吸着", "q.dur": "ノート長を整数倍に丸める",
       "q.apply": "クオンタイズ実行", "q.done": "{n}個のノートをクオンタイズしました。",
+      "hu.title": "ヒューマナイズ",
+      "hu.desc": "小さなランダムなばらつきを加えて、機械的に正確すぎる演奏を人間らしくします。",
+      "hu.timing": "タイミング", "hu.velocity": "ベロシティ", "hu.length": "ノート長",
+      "hu.ticks": "± tick", "hu.amt": "±", "hu.pct": "± %",
+      "hu.scope": "適用範囲", "hu.scopesel": "選択中のノートのみ", "hu.scopeall": "全ノート",
+      "hu.seed": "シード", "hu.apply": "ヒューマナイズ実行",
+      "hu.done": "{n}個のノートをヒューマナイズしました。", "hu.none": "対象（タイミング・ベロシティ・ノート長）を少なくとも1つ選んでください。",
+      "hu.nonotes": "ヒューマナイズ対象のノートがありません。",
       "sm.title": "スムーズ化（グリッサンド）", "sm.step": "ステップ長", "sm.tension": "音高カーブのテンション",
       "sm.easeio": "イーズイン・アウト（S字）", "sm.vtension": "ベロシティカーブのテンション",
       "sm.mode": "モード",
@@ -2480,6 +2898,7 @@
       "cl.revnote": "ノートとCCを反転します（サステインはON区間、連続CCはリサンプル）。未選択なら曲全体が対象。",
       "cl.revdone": "時間軸で反転しました。",
       "lane.vel": "ベロシティ", "lane.add": "レーンを追加", "lane.resize": "ドラッグで高さを変更（Ctrl+Shift+ホイールでも）",
+      "cc.linear": "リニア", "cc.bezier": "ベジェ", "cc.smooth": "スムーズ", "cc.step": "ステップ", "cc.exp": "指数", "cc.scurve": "S字カーブ",
       "menu.delete": "削除", "menu.dup": "複製", "menu.props": "プロパティ…",
       "pr.title": "ノートのプロパティ", "pr.start": "開始 (tick)", "pr.dur": "長さ (tick)", "pr.pitch": "音高 (0–127)",
       "pr.vel": "ベロシティ (1–127)", "pr.ch": "チャンネル (1–16)", "pr.ok": "適用", "pr.cancel": "キャンセル",
@@ -2511,6 +2930,26 @@
       s.value = v;
     });
   }
+  // Custom スケール: 12音のトグル。絶対音名（キーに依存しない）で直接指定する
+  function buildCustomToggles() {
+    var box = $("sc-custom-toggles");
+    box.innerHTML = NAMES.map(function (nm, i) {
+      return '<button type="button" data-pc="' + i + '" aria-pressed="' + customScaleSet.has(i) + '">' + nm + "</button>";
+    }).join("");
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      var pc = +b.getAttribute("data-pc");
+      if (customScaleSet.has(pc)) customScaleSet.delete(pc); else customScaleSet.add(pc);
+      b.setAttribute("aria-pressed", customScaleSet.has(pc));
+      drawBg(); redrawNotes();
+    });
+  }
+  function syncScaleUI() {
+    var isCustom = $("sc-type").value === "custom";
+    $("sc-custom-row").hidden = !isCustom;
+    $("sc-key-field").style.opacity = isCustom ? "0.45" : "1";
+    $("sc-key").disabled = isCustom;
+  }
 
   function initControls() {
     fillGrid($("grid"), 240);
@@ -2530,6 +2969,7 @@
     $("sc-key").value = 0; $("sm-key").value = 0;
     fillScaleType($("sc-type")); fillScaleType($("sm-type"));
     $("sc-type").value = "major"; $("sm-type").value = "major";
+    buildCustomToggles();
 
     // slider value displays
     function bindVal(id, vid, suffix, xform) {
@@ -2547,7 +2987,12 @@
     $("chan").addEventListener("change", function () { curChannel = +this.value; });
     // wave / scale guide redraw
     $("wave").addEventListener("change", function () {});
-    ["sc-key", "sc-type", "sc-show"].forEach(function (id) { $(id).addEventListener("change", function () { drawBg(); }); });
+    ["sc-key", "sc-type", "sc-show", "sc-mode"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        syncScaleUI(); drawBg(); redrawNotes();
+      });
+    });
+    syncScaleUI();
 
     // grid / snap
     $("grid").addEventListener("change", function () { lastDur = +this.value; drawBg(); });
@@ -2622,6 +3067,8 @@
 
     // feature buttons
     $("q-apply").addEventListener("click", quantizeApply);
+    $("hu-apply").addEventListener("click", humanizeApply);
+    $("hu-dice").addEventListener("click", function () { $("hu-seed").value = Math.floor(Math.random() * 1e9); });
     $("sm-apply").addEventListener("click", smoothApply);
     $("fl-apply").addEventListener("click", applyFilter);
     $("rev-apply").addEventListener("click", reverseRange);
@@ -2630,6 +3077,25 @@
     $("dup-prev").addEventListener("click", function () { jumpDup(-1); });
     $("dup-next").addEventListener("click", function () { jumpDup(1); });
     $("dup-select").addEventListener("click", function () { if (dupIds.size) { sel = new Set(dupIds); redrawNotes(); drawLanes(); } });
+    $("lane-add").addEventListener("click", function () { lanes.push({ kind: "cc", ctrl: 1, zoomY: 1 }); rebuildLanes(); saveLanes(); });
+
+    // CC カーブの補間タイプメニュー
+    $("ccmenu").addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b || !ccMenuTarget) return;
+      var interp = b.getAttribute("data-interp");
+      var l = ccMenuTarget.l, pt = ccMenuTarget.point;
+      var pts = ccPointsFor(l.ctrl).map(function (p) {
+        if (p.id !== pt.id) return p;
+        var np = { id: p.id, tick: p.tick, ctrl: p.ctrl, value: p.value, channel: p.channel, pt: true, interp: interp };
+        if (interp === "bezier") np.bz = p.bz || null;
+        return np;
+      });
+      commitCCPoints(l.ctrl, pts);
+      hideCCMenu(); drawLanes();
+    });
+    document.addEventListener("pointerdown", function (e) {
+      if (ccmenu && !ccmenu.hidden && !ccmenu.contains(e.target)) hideCCMenu();
+    });
   }
 
   /* =====================================================================
@@ -2671,6 +3137,7 @@
   demo();
   fitView();
   updateBpmUI();
+  syncTimesigUI();
   scanDups();
   drawAll();
   updatePos();
