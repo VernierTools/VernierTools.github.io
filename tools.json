@@ -834,29 +834,33 @@
       "added": "2026-07-11"
     },
     {
-      "id": "normal-map",
+      "id": "normal-map-generator",
       "type": "web",
-      "path": "tools/normal-map/",
+      "path": "tools/normal-map-generator/",
       "categories": [
         "3dcg"
       ],
       "name": {
-        "en": "Normal map tool",
-        "ja": "ノーマルマップツール"
+        "en": "Normal map generator",
+        "ja": "ノーマルマップ生成"
       },
       "description": {
-        "en": "Generate pseudo normal maps and flip DirectX/OpenGL Y.",
-        "ja": "擬似ノーマルマップ生成とDirectX/OpenGLのY反転。"
+        "en": "Turn a seamless texture into a normal map, from luminance, saturation, hue, or a channel.",
+        "ja": "明度・彩度・色相・チャンネルを基準に、シームレステクスチャから疑似ノーマルマップを生成。"
       },
       "keywords": [
         "normal map",
         "directx",
         "opengl",
         "bump",
+        "height",
+        "generator",
         "ノーマルマップ",
-        "法線"
+        "法線",
+        "疑似",
+        "凹凸"
       ],
-      "added": "2026-07-11"
+      "added": "2026-07-18"
     },
     {
       "id": "axis-scale",
