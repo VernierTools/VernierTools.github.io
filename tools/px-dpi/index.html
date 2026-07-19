@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>px to mm / inch — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .pair{ display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:var(--s3); }
+
+  .dpiset{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .dpiset button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:30px; padding:0 12px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .dpiset button:hover{ border-color:var(--text-3); }
+  .dpiset button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .quickset{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .quickset .btn{ height:40px; font-size:13px; }
+  .swaprow{ display:flex; gap:6px; margin-top:6px; }
+  .swaprow .btn{ flex:1; height:36px; font-size:12.5px; }
+
+  .lockfield{ display:flex; align-items:center; justify-content:space-between;
+    padding-top:2px; }
+
+  /* readout: label + Width + Height の3列を常時表示 */
+  .ro-head{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s3); padding:8px var(--s4) 4px; }
+  .ro-head span{ font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); text-align:right; }
+  .rrow3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s3); align-items:baseline; padding:var(--s3) var(--s4); }
+  .rrow3 + .rrow3{ border-top:1px solid var(--border); }
+  .rrow3 .lbl{ font-size:13px; color:var(--text-2); }
+  .rrow3 .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:16px; text-align:right; cursor:pointer; }
+  .rrow3 .v--w{ color:var(--accent); }
+  .rrow3 .v--h{ color:var(--text-2); }
+  .rrow3 .v small{ font-size:11px; color:var(--text-3); margin-left:2px; font-weight:400; }
+
+  .romode{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .romode button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:500; color:var(--text-2); padding:3px 10px; border-radius:4px; transition:all var(--tap); }
+  .romode button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+
+  .dpirow{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s3); align-items:baseline; padding:var(--s3) var(--s4); }
+  .dpirow + .dpirow{ border-top:1px solid var(--border); }
+  .dpirow .lbl{ font-size:13px; color:var(--text-2); font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .dpirow.cur .lbl{ color:var(--accent); font-weight:600; }
+  .dpirow .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15px; text-align:right; cursor:pointer; color:var(--text); }
+
+  .acc-note{ font-size:11px; color:var(--text-3); padding:6px var(--s4) 0; line-height:1.45; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">px to mm / inch</h1>
+    <p data-i18n="t.desc">Convert pixel dimensions and physical size via DPI. Edit any field — the rest follow.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・操作 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.dpi">DPI / PPI</label>
+          <input class="input" id="in-dpi" type="number" min="1" max="20000" step="1" inputmode="decimal">
+          <div class="dpiset" id="dpiset" role="group">
+            <button data-dpi="72">72</button>
+            <button data-dpi="96">96</button>
+            <button data-dpi="150">150</button>
+            <button data-dpi="300">300</button>
+            <button data-dpi="350">350</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.pxsize">Pixel size</label>
+          <div class="pair">
+            <input class="input" id="in-wpx" type="number" step="any" aria-label="Width px">
+            <input class="input" id="in-hpx" type="number" step="any" aria-label="Height px">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.unit">Physical unit</label>
+          <div class="seg" id="seg-unit" role="group">
+            <button data-unit="mm" data-i18n="t.mm">mm</button>
+            <button data-unit="cm" data-i18n="t.cm">cm</button>
+            <button data-unit="in" data-i18n="t.in">inch</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.physize">Physical size</label>
+          <div class="pair">
+            <input class="input" id="in-wu" type="number" step="any" aria-label="Width physical">
+            <input class="input" id="in-hu" type="number" step="any" aria-label="Height physical">
+          </div>
+        </div>
+
+        <div class="field lockfield">
+          <label class="toggle">
+            <input type="checkbox" id="lock-aspect">
+            <span class="track"></span>
+            <span data-i18n="t.lock">Lock aspect ratio</span>
+          </label>
+          <button class="btn btn--ghost" id="swap" type="button">
+            <span aria-hidden="true">⇄</span> <span data-i18n="t.swaplbl">Swap</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.paper">Paper / canvas presets</label>
+        <div class="quickset" id="paperset">
+          <button class="btn btn--secondary" data-paper="a4">A4</button>
+          <button class="btn btn--secondary" data-paper="a3">A3</button>
+          <button class="btn btn--secondary" data-paper="hagaki" data-i18n="t.hagaki">Postcard (Hagaki)</button>
+          <button class="btn btn--secondary" data-paper="letter">Letter</button>
+        </div>
+        <div class="swaprow">
+          <button class="btn btn--ghost" id="reset" type="button" data-i18n="t.reset">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="readout" style="margin-bottom:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <div class="romode" id="ro-mode" role="group">
+            <button data-mode="simple" data-i18n="t.simple" aria-pressed="true">Simple</button>
+            <button data-mode="accurate" data-i18n="t.accurate">Accurate</button>
+          </div></div>
+        <div class="ro-head"><span></span><span data-i18n="t.width">Width</span><span data-i18n="t.height">Height</span></div>
+        <div class="rrow3"><span class="lbl">px</span>
+          <span class="v v--w" id="ro-px-w" data-copy="">0</span><span class="v v--h" id="ro-px-h" data-copy="">0</span></div>
+        <div class="rrow3"><span class="lbl">mm</span>
+          <span class="v v--w" id="ro-mm-w" data-copy="">0</span><span class="v v--h" id="ro-mm-h" data-copy="">0</span></div>
+        <div class="rrow3"><span class="lbl">cm</span>
+          <span class="v v--w" id="ro-cm-w" data-copy="">0</span><span class="v v--h" id="ro-cm-h" data-copy="">0</span></div>
+        <div class="rrow3"><span class="lbl" data-i18n="t.in">inch</span>
+          <span class="v v--w" id="ro-in-w" data-copy="">0</span><span class="v v--h" id="ro-in-h" data-copy="">0</span></div>
+        <div class="acc-note" data-i18n="t.accnote">Accurate shows more decimal places.</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.dpitable">Pixel size at common DPIs</span></div>
+        <div class="ro-head"><span></span><span data-i18n="t.width">Width</span><span data-i18n="t.height">Height</span></div>
+        <div id="dpitable"></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var MM_PER_IN = 25.4;
+  var DPI_PRESETS = [72, 96, 150, 300, 350];
+  var PAPER = { a4:[210,297], a3:[297,420], hagaki:[100,148], letter:[215.9,279.4] };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var inDpi = $("in-dpi"), inWpx = $("in-wpx"), inHpx = $("in-hpx"), inWu = $("in-wu"), inHu = $("in-hu");
+  var lockChk = $("lock-aspect"), dpitable = $("dpitable");
+
+  var dpi = 96;
+  var wMM = pxToMM(1000, 96), hMM = pxToMM(1000, 96);
+  var punit = "mm";
+  var lockAspect = false, lockRatio = 1;
+  var mode = "simple";
+
+  function pxToMM(px, d) { return px / d * MM_PER_IN; }
+  function mmToPx(mm, d) { return mm / MM_PER_IN * d; }
+  function mmToUnit(mm, u) { return u === "mm" ? mm : u === "cm" ? mm / 10 : mm / MM_PER_IN; }
+  function unitToMM(v, u) { return u === "mm" ? v : u === "cm" ? v * 10 : v * MM_PER_IN; }
+  function clamp(v, min, max) { return v < min ? min : v > max ? max : v; }
+
+  var DP = { simple: { px: 0, mm: 1, cm: 2, in: 3 }, accurate: { px: 3, mm: 4, cm: 5, in: 6 } };
+  function fmt(v, kind) {
+    var dp = DP[mode][kind];
+    var s = v.toFixed(dp);
+    if (dp > 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    if (s === "-0") s = "0";
+    return s;
+  }
+
+  function buildDpiTable() {
+    var s = "";
+    DPI_PRESETS.forEach(function (d) {
+      s += '<div class="dpirow" data-row="' + d + '"><span class="lbl">' + d + ' dpi</span>' +
+        '<span class="v" id="dpi-' + d + '-w" data-copy=""></span>' +
+        '<span class="v" id="dpi-' + d + '-h" data-copy=""></span></div>';
+    });
+    dpitable.innerHTML = s;
+  }
+  buildDpiTable();
+
+  function setRO(id, val, kind, unitLabel) {
+    var el = $(id);
+    var text = fmt(val, kind) + (unitLabel ? " " + unitLabel : "");
+    el.textContent = text;
+    el.setAttribute("data-copy", fmt(val, kind) + (unitLabel || ""));
+  }
+
+  function render() {
+    var wPx = mmToPx(wMM, dpi), hPx = mmToPx(hMM, dpi);
+
+    if (document.activeElement !== inDpi) inDpi.value = (dpi % 1 === 0) ? String(dpi) : (Math.round(dpi * 100) / 100).toString();
+    if (document.activeElement !== inWpx) inWpx.value = fmt(wPx, "px");
+    if (document.activeElement !== inHpx) inHpx.value = fmt(hPx, "px");
+    if (document.activeElement !== inWu) inWu.value = fmt(mmToUnit(wMM, punit), punit);
+    if (document.activeElement !== inHu) inHu.value = fmt(mmToUnit(hMM, punit), punit);
+
+    setRO("ro-px-w", wPx, "px", "px"); setRO("ro-px-h", hPx, "px", "px");
+    setRO("ro-mm-w", wMM, "mm", "mm"); setRO("ro-mm-h", hMM, "mm", "mm");
+    setRO("ro-cm-w", wMM / 10, "cm", "cm"); setRO("ro-cm-h", hMM / 10, "cm", "cm");
+    setRO("ro-in-w", wMM / MM_PER_IN, "in", "in"); setRO("ro-in-h", hMM / MM_PER_IN, "in", "in");
+
+    DPI_PRESETS.forEach(function (d) {
+      var w = mmToPx(wMM, d), h = mmToPx(hMM, d);
+      var wEl = $("dpi-" + d + "-w"), hEl = $("dpi-" + d + "-h");
+      wEl.textContent = fmt(w, "px"); wEl.setAttribute("data-copy", fmt(w, "px") + "px");
+      hEl.textContent = fmt(h, "px"); hEl.setAttribute("data-copy", fmt(h, "px") + "px");
+      var row = dpitable.querySelector('[data-row="' + d + '"]');
+      if (row) row.classList.toggle("cur", Math.round(dpi) === d);
+    });
+  }
+
+  function onDpiChange(v) {
+    dpi = clamp(parseFloat(v) || 96, 1, 20000);
+    syncDpiButtons(); render();
+  }
+  inDpi.addEventListener("input", function () { onDpiChange(inDpi.value); });
+  inDpi.addEventListener("blur", function () { if (inDpi.value === "") onDpiChange(96); });
+
+  function syncDpiButtons() {
+    $("dpiset").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(parseInt(b.getAttribute("data-dpi"), 10) === Math.round(dpi)));
+    });
+  }
+  $("dpiset").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    onDpiChange(b.getAttribute("data-dpi"));
+  });
+
+  function applyAspectFromWidth() { if (lockAspect) hMM = wMM / lockRatio; }
+  function applyAspectFromHeight() { if (lockAspect) wMM = hMM * lockRatio; }
+
+  inWpx.addEventListener("input", function () {
+    var v = parseFloat(inWpx.value); if (isNaN(v) || v < 0) return;
+    wMM = pxToMM(v, dpi); applyAspectFromWidth(); render();
+  });
+  inHpx.addEventListener("input", function () {
+    var v = parseFloat(inHpx.value); if (isNaN(v) || v < 0) return;
+    hMM = pxToMM(v, dpi); applyAspectFromHeight(); render();
+  });
+  inWu.addEventListener("input", function () {
+    var v = parseFloat(inWu.value); if (isNaN(v) || v < 0) return;
+    wMM = unitToMM(v, punit); applyAspectFromWidth(); render();
+  });
+  inHu.addEventListener("input", function () {
+    var v = parseFloat(inHu.value); if (isNaN(v) || v < 0) return;
+    hMM = unitToMM(v, punit); applyAspectFromHeight(); render();
+  });
+
+  $("seg-unit").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    punit = b.getAttribute("data-unit"); syncUnitSeg(); render();
+  });
+  function syncUnitSeg() {
+    $("seg-unit").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-unit") === punit));
+    });
+  }
+
+  lockChk.addEventListener("change", function () {
+    lockAspect = lockChk.checked;
+    if (lockAspect) lockRatio = wMM / hMM || 1;
+  });
+
+  $("swap").addEventListener("click", function () {
+    var t = wMM; wMM = hMM; hMM = t;
+    if (lockAspect) lockRatio = wMM / hMM || 1;
+    render();
+  });
+
+  $("paperset").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var p = PAPER[b.getAttribute("data-paper")]; if (!p) return;
+    wMM = p[0]; hMM = p[1];
+    if (lockAspect) lockRatio = wMM / hMM || 1;
+    render();
+  });
+
+  $("reset").addEventListener("click", function () {
+    dpi = 96; wMM = pxToMM(1000, 96); hMM = pxToMM(1000, 96);
+    punit = "mm"; lockAspect = false; lockChk.checked = false;
+    syncDpiButtons(); syncUnitSeg(); render();
+  });
+
+  var roEl = document.querySelector(".readout");
+  $("ro-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode"); syncMode(); render();
+  });
+  function syncMode() {
+    $("ro-mode").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode));
+    });
+  }
+
+  syncDpiButtons(); syncUnitSeg(); syncMode();
+
+  Shell.init({
+    id: "px-dpi",
+    strings: {
+      en: {
+        "t.title": "px to mm / inch",
+        "t.desc": "Convert pixel dimensions and physical size via DPI. Edit any field — the rest follow.",
+        "t.dpi": "DPI / PPI", "t.pxsize": "Pixel size", "t.unit": "Physical unit", "t.physize": "Physical size",
+        "t.mm": "mm", "t.cm": "cm", "t.in": "inch",
+        "t.lock": "Lock aspect ratio", "t.swaplbl": "Swap W/H",
+        "t.paper": "Paper / canvas presets", "t.hagaki": "Postcard (Hagaki)", "t.reset": "Reset to defaults",
+        "t.output": "Output", "t.width": "Width", "t.height": "Height",
+        "t.simple": "Simple", "t.accurate": "Accurate",
+        "t.accnote": "Accurate shows more decimal places.",
+        "t.dpitable": "Pixel size at common DPIs",
+        "t.copyhint": "Click any value to copy."
+      },
+      ja: {
+        "t.title": "px ↔ mm / inch 変換",
+        "t.desc": "DPIを介してピクセル寸法と物理サイズを相互変換します。どの項目を編集しても他が連動します。",
+        "t.dpi": "DPI / PPI", "t.pxsize": "ピクセルサイズ", "t.unit": "物理単位", "t.physize": "物理サイズ",
+        "t.mm": "mm", "t.cm": "cm", "t.in": "インチ",
+        "t.lock": "縦横比を固定", "t.swaplbl": "縦横を入れ替え",
+        "t.paper": "用紙・キャンバスのプリセット", "t.hagaki": "はがき", "t.reset": "初期値に戻す",
+        "t.output": "出力", "t.width": "幅", "t.height": "高さ",
+        "t.simple": "簡易", "t.accurate": "正確",
+        "t.accnote": "「正確」では小数点以下をより多く表示します。",
+        "t.dpitable": "主要DPIでのピクセルサイズ",
+        "t.copyhint": "数値をクリックでコピー。"
+      }
+    },
+    onSettingsChange: function () { render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
