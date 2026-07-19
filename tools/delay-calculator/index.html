@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPM delay / LFO calculator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .adjust{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:var(--s3); }
+  .adjust .btn{ height:36px; font-variant-numeric:tabular-nums; padding:0 4px; }
+  .tapbtn{ position:relative; overflow:hidden; }
+  .tapbtn .pulse{ position:absolute; inset:0; background:var(--accent-tint); opacity:0; transition:opacity .08s ease; pointer-events:none; }
+  .tapbtn.hit .pulse{ opacity:1; transition:none; }
+
+  .romode{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .romode button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:500; color:var(--text-2); padding:3px 10px; border-radius:4px; transition:all var(--tap); }
+  .romode button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+
+  .rofmt{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:10px var(--s4) 2px; }
+  .rofmt button{ appearance:none; cursor:pointer; font:inherit; font-size:12px; font-weight:500; height:30px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
+    transition:all var(--tap); }
+  .rofmt button:hover{ border-color:var(--text-3); }
+  .rofmt button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .dtable{ padding:var(--s2) 0 0; }
+  .dtable__head,.dtable__row{ display:grid; grid-template-columns:52px repeat(3,minmax(0,1fr)); gap:6px; align-items:center; padding:7px var(--s4); }
+  .dtable__head span{ font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3); text-align:center; }
+  .dtable__head span:first-child{ text-align:left; }
+  .dtable__row + .dtable__row{ border-top:1px solid var(--border); }
+  .dtable__row .lbl{ font-size:12.5px; color:var(--text-2); font-weight:500; }
+  .dcell{ text-align:center; cursor:pointer; border-radius:4px; transition:background var(--tap); padding:3px 0; }
+  .dcell:hover{ background:var(--accent-tint); }
+  .dcell .main{ display:block; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px; color:var(--text); }
+  .dcell .sub{ display:block; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:10px; color:var(--text-3); margin-top:1px; }
+
+  .seg--u{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .seg--u button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500; height:34px;
+    border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .seg--u button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .fb-note{ font-size:11px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+  @media (max-width:420px){
+    .dtable__head,.dtable__row{ grid-template-columns:40px repeat(3,minmax(0,1fr)); padding:7px var(--s3); }
+    .dcell .main{ font-size:12.5px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">BPM delay / LFO calculator</h1>
+    <p data-i18n="t.desc">Delay times and LFO rates for any BPM, plus reverse lookup, sample counts, feedback, and arbitrary tuplets.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: BPM入力・逆引き・フィードバック -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.bpm">BPM</label>
+          <div class="inputgroup">
+            <input class="input" id="bpm" type="number" min="20" max="300" step="0.1" value="120" inputmode="decimal">
+            <span class="unit">BPM</span>
+          </div>
+        </div>
+        <div class="adjust" id="bpm-adjust">
+          <button class="btn btn--secondary" data-adj="-10">−10</button>
+          <button class="btn btn--secondary" data-adj="-1">−1</button>
+          <button class="btn btn--secondary" data-adj="1">+1</button>
+          <button class="btn btn--secondary" data-adj="10">+10</button>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary tapbtn" id="tap"><span class="pulse"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V7a3 3 0 0 1 6 0v4"/><path d="M9 11v3a3 3 0 0 0 6 0v-3"/><path d="M12 17v3"/></svg>
+            <span data-i18n="t.tap">Tap tempo</span>
+          </button>
+          <button class="btn btn--ghost" id="bpm-reset" data-i18n="t.bpmreset">Reset to 120</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.reverse">Reverse lookup</div>
+        <div class="field">
+          <label class="label" data-i18n="t.revnote">Note value</label>
+          <select class="select" id="rev-note"></select>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.revunit">Enter as</label>
+          <div class="seg--u" id="rev-unit" role="group">
+            <button data-u="ms" aria-pressed="true">ms</button>
+            <button data-u="hz">Hz</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="inputgroup">
+            <input class="input" id="rev-val" type="number" step="0.01" value="250" inputmode="decimal">
+            <span class="unit" id="rev-unit-lbl">ms</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" data-i18n="t.revbpm">BPM</span>
+            <span class="rrow__value" id="rev-bpm" data-copy="">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.feedback">Feedback calculator</div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" data-i18n="t.fbdelay">Delay time</label>
+            <div class="inputgroup"><input class="input" id="fb-delay" type="number" step="1" min="1" value="250"><span class="unit">ms</span></div>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.fbfade">Fade to −60 dB in</label>
+            <div class="inputgroup"><input class="input" id="fb-fade" type="number" step="0.1" min="0.1" value="2"><span class="unit">s</span></div>
+          </div>
+        </div>
+        <button class="btn btn--secondary btn--block" id="fb-sync" data-i18n="t.fbsync">Use current BPM's quarter note</button>
+        <div class="readout" style="margin-top:var(--s4)">
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" data-i18n="t.fbresult">Feedback</span>
+            <span class="rrow__value" id="fb-result" data-copy="">—</span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.fbrepeats">Repeats in that time</span>
+            <span class="rrow__value" id="fb-repeats" style="font-size:16px">—</span>
+          </div>
+        </div>
+        <div class="fb-note" data-i18n="t.fbnote">Estimates the feedback amount so the repeats decay by 60 dB (roughly inaudible) within the given time. Approximate — actual perceived decay depends on the delay's filtering and saturation.</div>
+      </div>
+    </div>
+
+    <!-- 右: 表 + 任意分割 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.table">Delay / LFO table</span>
+          <div class="romode" id="mode-toggle" role="group">
+            <button data-mode="delay" aria-pressed="true" data-i18n="t.mdelay">Delay</button>
+            <button data-mode="lfo" data-i18n="t.mlfo">LFO</button>
+          </div>
+        </div>
+        <div class="rofmt" id="rate-toggle" role="group">
+          <button data-rate="44100" aria-pressed="true">44.1 kHz</button>
+          <button data-rate="48000">48 kHz</button>
+          <button data-rate="96000">96 kHz</button>
+        </div>
+        <div class="dtable">
+          <div class="dtable__head">
+            <span></span>
+            <span data-i18n="t.normal">Normal</span>
+            <span data-i18n="t.dotted">Dotted</span>
+            <span data-i18n="t.triplet">Triplet</span>
+          </div>
+          <div id="table-body"></div>
+        </div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="card__title" data-i18n="t.custom">Arbitrary division (n-tuplet)</div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" data-i18n="t.custombase">Base note</label>
+            <select class="select" id="custom-base"></select>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.customratio">n : m</label>
+            <div class="row2">
+              <input class="input" id="custom-n" type="number" min="1" max="99" step="1" value="5">
+              <input class="input" id="custom-m" type="number" min="1" max="99" step="1" value="4">
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:-4px;margin-bottom:var(--s4)" data-i18n="t.customhint">
+          n notes played in the time normally taken by m notes of the base value. e.g. quintuplet = 5:4, septuplet = 7:4, dotted = 2:3, triplet = 3:2.
+        </div>
+        <div class="readout">
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" id="custom-label">5:4</span>
+            <span class="rrow__value" id="custom-ms" data-copy="">—</span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.customhz">LFO rate</span>
+            <span class="rrow__value" id="custom-hz" data-copy="" style="font-size:18px">—</span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" id="custom-samples-label" data-i18n="t.customsamples">Samples</span>
+            <span class="rrow__value" id="custom-samples" data-copy="" style="font-size:18px">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var BASES = [
+    { id: "1_1",  label: "1/1",  mult: 4 },
+    { id: "1_2",  label: "1/2",  mult: 2 },
+    { id: "1_4",  label: "1/4",  mult: 1 },
+    { id: "1_8",  label: "1/8",  mult: 0.5 },
+    { id: "1_16", label: "1/16", mult: 0.25 },
+    { id: "1_32", label: "1/32", mult: 0.125 }
+  ];
+  var MODS = [
+    { id: "normal",  n: 1, m: 1 },
+    { id: "dotted",  n: 2, m: 3 },
+    { id: "triplet", n: 3, m: 2 }
+  ];
+
+  var bpm = 120;
+  var mode = "delay";       // delay | lfo
+  var rate = 44100;
+  var revUnit = "ms";
+  var tapTimes = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var bpmEl = $("bpm");
+
+  function clampBpm(v) { if (isNaN(v)) v = 120; if (v < 20) v = 20; if (v > 300) v = 300; return v; }
+  function quarterMs() { return 60000 / bpm; }
+  function msFor(baseMult, ratio) { return quarterMs() * baseMult * ratio; }
+  function hzFor(ms) { return 1000 / ms; }
+  function samplesFor(ms) { return ms / 1000 * rate; }
+
+  function fmtAdaptive(n) {
+    if (!isFinite(n)) return "—";
+    var dp = n >= 100 ? 0 : n >= 10 ? 1 : 2;
+    return n.toFixed(dp);
+  }
+  function fmtInt(n) { if (!isFinite(n)) return "—"; return String(Math.round(n)); }
+
+  /* ---- BASES select 用オプション生成 ---- */
+  function fillBaseSelect(sel) {
+    sel.innerHTML = BASES.map(function (b) { return '<option value="' + b.id + '">' + b.label + '</option>'; }).join("");
+  }
+  function baseById(id) { for (var i = 0; i < BASES.length; i++) if (BASES[i].id === id) return BASES[i]; return BASES[2]; }
+
+  /* ---- reverse lookup: note+mod の全組み合わせ ---- */
+  function fillRevSelect(sel) {
+    var html = "";
+    BASES.forEach(function (b) {
+      MODS.forEach(function (m) {
+        html += '<option value="' + b.id + "|" + m.id + '">' + b.label + " " + modLabel(m.id) + "</option>";
+      });
+    });
+    html += '<option value="custom">' + Shell_t("t.customopt") + "</option>";
+    sel.innerHTML = html;
+  }
+  function modLabel(id) {
+    if (id === "normal") return "";
+    return "(" + Shell_t(id === "dotted" ? "t.dotted" : "t.triplet") + ")";
+  }
+  function Shell_t(key) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(key) : key; }
+
+  /* ---- メインテーブル描画 ---- */
+  function renderTable() {
+    var body = $("table-body"), html = "";
+    BASES.forEach(function (b) {
+      html += '<div class="dtable__row"><span class="lbl">' + b.label + "</span>";
+      MODS.forEach(function (mo) {
+        var ratio = mo.m / mo.n;
+        var ms = msFor(b.mult, ratio);
+        var hz = hzFor(ms);
+        var mainVal, subVal, copyVal;
+        if (mode === "delay") {
+          mainVal = fmtAdaptive(ms) + " ms";
+          var spl = samplesFor(ms);
+          subVal = fmtInt(spl) + " spl";
+          copyVal = fmtAdaptive(ms);
+        } else {
+          mainVal = fmtAdaptive(hz) + " Hz";
+          subVal = fmtAdaptive(ms) + " ms";
+          copyVal = fmtAdaptive(hz);
+        }
+        html += '<span class="dcell" data-copy="' + copyVal + '"><span class="main">' + mainVal + '</span><span class="sub">' + subVal + "</span></span>";
+      });
+      html += "</div>";
+    });
+    body.innerHTML = html;
+  }
+
+  /* ---- カスタム分割 ---- */
+  function renderCustom() {
+    var base = baseById($("custom-base").value);
+    var n = parseInt($("custom-n").value, 10) || 1;
+    var m = parseInt($("custom-m").value, 10) || 1;
+    if (n < 1) n = 1; if (m < 1) m = 1;
+    var ratio = m / n;
+    var ms = msFor(base.mult, ratio);
+    var hz = hzFor(ms);
+    var spl = samplesFor(ms);
+    $("custom-label").textContent = base.label + " · " + n + ":" + m;
+    var msEl = $("custom-ms"); msEl.textContent = fmtAdaptive(ms) + " ms"; msEl.setAttribute("data-copy", fmtAdaptive(ms));
+    var hzEl = $("custom-hz"); hzEl.textContent = fmtAdaptive(hz) + " Hz"; hzEl.setAttribute("data-copy", fmtAdaptive(hz));
+    var spEl = $("custom-samples"); spEl.textContent = fmtInt(spl) + " spl (" + (rate/1000) + "k)"; spEl.setAttribute("data-copy", fmtInt(spl));
+  }
+
+  /* ---- 逆引き ---- */
+  function renderReverse() {
+    var sel = $("rev-note").value;
+    var ratio, label;
+    if (sel === "custom") {
+      var base = baseById($("custom-base").value);
+      var n = parseInt($("custom-n").value, 10) || 1;
+      var m = parseInt($("custom-m").value, 10) || 1;
+      ratio = (m / n) * base.mult;
+    } else {
+      var parts = sel.split("|"); var b = baseById(parts[0]);
+      var mo = null; for (var i = 0; i < MODS.length; i++) if (MODS[i].id === parts[1]) mo = MODS[i];
+      ratio = (mo.m / mo.n) * b.mult;
+    }
+    var v = parseFloat($("rev-val").value);
+    var out = $("rev-bpm");
+    if (!v || v <= 0 || isNaN(v)) { out.textContent = "—"; out.removeAttribute("data-copy"); return; }
+    var ms = revUnit === "ms" ? v : 1000 / v;
+    var computedBpm = 60000 * ratio / ms;
+    if (!isFinite(computedBpm) || computedBpm <= 0) { out.textContent = "—"; return; }
+    var t = fmtAdaptive(computedBpm);
+    out.textContent = t; out.setAttribute("data-copy", t);
+  }
+
+  /* ---- フィードバック ---- */
+  function renderFeedback() {
+    var delayMs = parseFloat($("fb-delay").value);
+    var fadeS = parseFloat($("fb-fade").value);
+    var resEl = $("fb-result"), repEl = $("fb-repeats");
+    if (!delayMs || delayMs <= 0 || !fadeS || fadeS <= 0) { resEl.textContent = "—"; repEl.textContent = "—"; resEl.removeAttribute("data-copy"); return; }
+    var n = (fadeS * 1000) / delayMs;
+    if (n < 1) n = 1;
+    var fb = Math.pow(10, -3 / n); // fb^n = 10^(-60/20) = 0.001
+    var pct = fb * 100;
+    var t = fmtAdaptive(pct) + "%";
+    resEl.textContent = t; resEl.setAttribute("data-copy", fmtAdaptive(pct));
+    repEl.textContent = fmtAdaptive(n) + " " + Shell_t("t.fbtimes");
+  }
+
+  function renderAll() { renderTable(); renderCustom(); renderReverse(); renderFeedback(); }
+
+  /* ---- BPM 入力 ---- */
+  bpmEl.addEventListener("input", function () {
+    var v = parseFloat(bpmEl.value);
+    if (!isNaN(v)) { bpm = clampBpm(v); }
+    renderAll();
+  });
+  bpmEl.addEventListener("blur", function () { bpmEl.value = bpm; });
+
+  $("bpm-adjust").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    bpm = clampBpm(bpm + parseFloat(b.getAttribute("data-adj")));
+    bpmEl.value = (Math.round(bpm * 10) / 10);
+    renderAll();
+  });
+  $("bpm-reset").addEventListener("click", function () { bpm = 120; bpmEl.value = 120; renderAll(); });
+
+  /* ---- タップテンポ ---- */
+  var tapBtn = $("tap");
+  tapBtn.addEventListener("click", function () {
+    var now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
+    tapTimes.push(now);
+    if (tapTimes.length > 8) tapTimes.shift();
+    tapBtn.classList.add("hit"); setTimeout(function () { tapBtn.classList.remove("hit"); }, 90);
+    if (tapTimes.length >= 2) {
+      var intervals = [];
+      for (var i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
+      var avg = intervals.reduce(function (a, b) { return a + b; }, 0) / intervals.length;
+      bpm = clampBpm(60000 / avg);
+      bpmEl.value = Math.round(bpm * 10) / 10;
+      renderAll();
+    }
+  });
+
+  /* ---- テーブルの表示モード / サンプルレート ---- */
+  $("mode-toggle").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode");
+    $("mode-toggle").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    $("rate-toggle").style.display = mode === "delay" ? "grid" : "none";
+    renderTable();
+  });
+  $("rate-toggle").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    rate = parseInt(b.getAttribute("data-rate"), 10);
+    $("rate-toggle").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    renderTable(); renderCustom();
+  });
+
+  /* ---- カスタム分割の入力 ---- */
+  ["custom-base", "custom-n", "custom-m"].forEach(function (id) {
+    $(id).addEventListener("input", function () { renderCustom(); renderReverse(); });
+    $(id).addEventListener("change", function () { renderCustom(); renderReverse(); });
+  });
+
+  /* ---- 逆引き ---- */
+  $("rev-note").addEventListener("change", renderReverse);
+  $("rev-val").addEventListener("input", renderReverse);
+  $("rev-unit").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    revUnit = b.getAttribute("data-u");
+    $("rev-unit").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    $("rev-unit-lbl").textContent = revUnit;
+    renderReverse();
+  });
+
+  /* ---- フィードバック ---- */
+  $("fb-delay").addEventListener("input", renderFeedback);
+  $("fb-fade").addEventListener("input", renderFeedback);
+  $("fb-sync").addEventListener("click", function () {
+    $("fb-delay").value = Math.round(quarterMs() * 10) / 10;
+    renderFeedback();
+  });
+
+  /* ---- 起動 ---- */
+  fillBaseSelect($("custom-base"));
+  fillRevSelect($("rev-note"));
+  $("rate-toggle").style.display = "grid";
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "delay-calculator",
+      strings: {
+        en: {
+          "t.title": "BPM delay / LFO calculator",
+          "t.desc": "Delay times and LFO rates for any BPM, plus reverse lookup, sample counts, feedback, and arbitrary tuplets.",
+          "t.bpm": "BPM", "t.tap": "Tap tempo", "t.bpmreset": "Reset to 120",
+          "t.reverse": "Reverse lookup", "t.revnote": "Note value", "t.revunit": "Enter as", "t.revbpm": "BPM",
+          "t.feedback": "Feedback calculator", "t.fbdelay": "Delay time", "t.fbfade": "Fade to −60 dB in",
+          "t.fbsync": "Use current BPM's quarter note", "t.fbresult": "Feedback", "t.fbrepeats": "Repeats in that time", "t.fbtimes": "times",
+          "t.fbnote": "Estimates the feedback amount so the repeats decay by 60 dB (roughly inaudible) within the given time. Approximate — actual perceived decay depends on the delay's filtering and saturation.",
+          "t.table": "Delay / LFO table", "t.mdelay": "Delay", "t.mlfo": "LFO",
+          "t.normal": "Normal", "t.dotted": "Dotted", "t.triplet": "Triplet",
+          "t.custom": "Arbitrary division (n-tuplet)", "t.custombase": "Base note", "t.customratio": "n : m",
+          "t.customhint": "n notes played in the time normally taken by m notes of the base value. e.g. quintuplet = 5:4, septuplet = 7:4, dotted = 2:3, triplet = 3:2.",
+          "t.customhz": "LFO rate", "t.customsamples": "Samples", "t.customopt": "Custom (below)",
+          "t.copyhint": "Click any value to copy."
+        },
+        ja: {
+          "t.title": "BPMディレイ/LFO計算機",
+          "t.desc": "BPMから各音符のディレイ(ms)とLFO周期(Hz)を一覧表示。逆引き・サンプル数・フィードバック・任意分割にも対応。",
+          "t.bpm": "BPM", "t.tap": "タップテンポ", "t.bpmreset": "120にリセット",
+          "t.reverse": "逆引き", "t.revnote": "音符", "t.revunit": "入力単位", "t.revbpm": "BPM",
+          "t.feedback": "フィードバック計算", "t.fbdelay": "ディレイタイム", "t.fbfade": "この時間で-60dBまで減衰",
+          "t.fbsync": "現在のBPMの4分音符を使う", "t.fbresult": "フィードバック", "t.fbrepeats": "その時間内の反復回数", "t.fbtimes": "回",
+          "t.fbnote": "指定時間内に反復音が60dB（ほぼ聞こえなくなる程度）減衰するようフィードバック量を逆算した目安値です。実際の聞こえ方はディレイのフィルターやサチュレーションに左右されます。",
+          "t.table": "ディレイ/LFO一覧", "t.mdelay": "ディレイ", "t.mlfo": "LFO",
+          "t.normal": "通常", "t.dotted": "付点", "t.triplet": "3連符",
+          "t.custom": "任意の分割（n連符）", "t.custombase": "基準の音符", "t.customratio": "n : m",
+          "t.customhint": "基準音符 m個ぶんの時間に n個の音を鳴らす、という指定です。例: 5連符=5:4、7連符=7:4、付点=2:3、3連符=3:2。",
+          "t.customhz": "LFO周期", "t.customsamples": "サンプル数", "t.customopt": "カスタム（下で設定）",
+          "t.copyhint": "数値をクリックでコピー。"
+        }
+      },
+      onSettingsChange: function () { fillRevSelect($("rev-note")); renderAll(); }
+    });
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>
