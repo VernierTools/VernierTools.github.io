@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio file info — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .dropzone{ margin-bottom:var(--s4); }
+  .dropzone input[type="file"]{ display:none; }
+
+  .filerow{ display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s4); cursor:pointer;
+    transition:background var(--tap); border-radius:var(--r-sm); }
+  .filerow:hover{ background:var(--surface-2); }
+  .filerow[data-active="true"]{ background:var(--accent-tint); }
+  .filerow__main{ flex:1; min-width:0; }
+  .filerow__name{ font-size:13px; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .filerow__sub{ font-size:11.5px; color:var(--text-3); margin-top:2px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .filerow__x{ appearance:none; border:0; background:transparent; color:var(--text-3); cursor:pointer; width:24px; height:24px;
+    border-radius:var(--r-sm); flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .filerow__x:hover{ background:var(--surface); color:var(--neg); }
+  .filerow__x svg{ width:14px; height:14px; }
+  .filelist{ padding:6px; }
+  .filelist .filerow + .filerow{ margin-top:1px; }
+
+  .dtitle{ font-size:13px; font-weight:600; margin:var(--s5) 0 var(--s2); color:var(--text); }
+  .dtitle:first-child{ margin-top:0; }
+  .kv{ display:grid; grid-template-columns:auto 1fr; gap:4px var(--s3); font-size:13px; }
+  .kv dt{ color:var(--text-3); }
+  .kv dd{ margin:0; font-family:var(--font-mono); font-variant-numeric:tabular-nums; color:var(--text); cursor:pointer; }
+  .kv dd:hover{ color:var(--accent); }
+  .kv dd.plain{ font-family:var(--font-sans); cursor:default; }
+  .kv dd.plain:hover{ color:var(--text); }
+  .note{ font-size:11.5px; color:var(--text-3); margin-top:2px; line-height:1.4; }
+
+  .chtable{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; }
+  .chtable th{ text-align:right; font-weight:600; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--text-3); padding:4px 8px; border-bottom:1px solid var(--border); }
+  .chtable th:first-child, .chtable td:first-child{ text-align:left; }
+  .chtable td{ text-align:right; padding:5px 8px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    border-bottom:1px solid var(--border); cursor:pointer; }
+  .chtable td:first-child{ font-family:var(--font-sans); cursor:default; color:var(--text-2); }
+  .chtable td:hover:not(:first-child){ color:var(--accent); }
+  .chtable tr:last-child td{ border-bottom:0; }
+  .chtable td.clip{ color:var(--neg); font-weight:600; }
+
+  .wavewrap{ margin-top:6px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface-2); overflow:hidden; }
+  .wavewrap canvas{ display:block; width:100%; height:80px; }
+
+  .cmpwrap{ overflow-x:auto; }
+  table.cmp{ border-collapse:collapse; width:100%; min-width:760px; font-size:12.5px; }
+  table.cmp th{ text-align:right; font-weight:600; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--text-3); padding:6px 10px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
+  table.cmp th:first-child{ text-align:left; }
+  table.cmp td{ text-align:right; padding:7px 10px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; }
+  table.cmp td:hover{ color:var(--accent); }
+  table.cmp td:first-child{ text-align:left; font-family:var(--font-sans); color:var(--text); cursor:default; font-weight:500; }
+  table.cmp td:first-child:hover{ color:var(--text); }
+  table.cmp tr:last-child td{ border-bottom:0; }
+  table.cmp td.neg{ color:var(--neg); }
+  table.cmp td.muted{ color:var(--text-3); font-family:var(--font-sans); cursor:default; }
+
+  .statusdot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px; }
+  .statusdot--ok{ background:var(--pos); } .statusdot--err{ background:var(--neg); } .statusdot--load{ background:var(--text-3); }
+
+  .toolbar{ display:flex; gap:var(--s2); align-items:center; margin-bottom:var(--s4); flex-wrap:wrap; }
+  .toolbar .sp{ flex:1; }
+  .empty2{ text-align:center; color:var(--text-3); padding:var(--s7) 0; font-size:13px; }
+  .card__title{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Audio file info</h1>
+    <p data-i18n="t.desc">Sample rate, bit depth, and channels — parsed directly from the file header, locally. Add several files to compare them side by side.</p>
+  </div>
+
+  <div class="card dropzone">
+    <div class="drop" id="drop" tabindex="0" role="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <div><b data-i18n="t.dropb">Drop audio files here</b><span data-i18n="t.dropor"> or click to choose</span></div>
+      <small data-i18n="t.dropsmall">WAV · AIFF · FLAC · MP3 · OGG — processed entirely in your browser</small>
+      <input type="file" id="fileinput" accept="audio/*" multiple>
+    </div>
+  </div>
+
+  <div id="empty2" class="empty2" data-i18n="t.empty">No files loaded yet.</div>
+
+  <div id="content" hidden>
+    <div class="card" style="margin-bottom:var(--s4)">
+      <div class="card__title">
+        <span data-i18n="t.compare">Comparison</span>
+        <button class="btn btn--ghost" id="btn-copy-cmp" style="height:28px; padding:0 10px; font-size:12px;">
+          <span data-i18n="t.copytable">Copy as text</span>
+        </button>
+      </div>
+      <div class="cmpwrap">
+        <table class="cmp" id="cmp-table"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="work">
+      <div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:var(--s4) var(--s4) 0;"><span class="eyebrow" data-i18n="t.files">Files</span></div>
+          <div class="filelist" id="filelist"></div>
+          <div class="btnrow" style="padding:0 var(--s4) var(--s4); margin-top:6px;">
+            <button class="btn btn--secondary" id="btn-clear">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              <span data-i18n="t.clearall">Clear all</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="readout" id="detail" style="padding:var(--s4);">
+          <div class="empty2" id="detail-empty" data-i18n="t.selecthint">Select a file on the left to see details.</div>
+          <div id="detail-body" hidden></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint" style="margin-top:var(--s4)" data-i18n="t.hint">Sample rate and bit depth are read directly from the file's header. Peak, RMS, and the waveform are computed from the decoded audio, since compressed formats have no fixed bit depth.</div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var drop = $("drop"), fileInput = $("fileinput"), filelistEl = $("filelist"),
+      contentEl = $("content"), empty2 = $("empty2"),
+      cmpTable = $("cmp-table"), detailEl = $("detail"), detailEmpty = $("detail-empty"), detailBody = $("detail-body");
+
+  var items = [];        // {id,file,name,size,mime,status,error,header,analysis}
+  var idSeq = 0;
+  var selectedId = null;
+  var audioCtx = null;
+
+  function getCtx() {
+    if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); }
+    return audioCtx;
+  }
+
+  /* ================= binary helpers ================= */
+  function ascii(dv, off, len) {
+    var s = ""; var end = Math.min(off + len, dv.byteLength);
+    for (var i = off; i < end; i++) s += String.fromCharCode(dv.getUint8(i));
+    return s;
+  }
+  function cleanStr(s) { return s.replace(/\u0000.*$/, "").replace(/[\u0000-\u001F]+$/,"").trim(); }
+
+  function readExtended80(dv, offset) {
+    var exponent = dv.getUint16(offset);
+    var hiMant = dv.getUint32(offset + 2);
+    var loMant = dv.getUint32(offset + 6);
+    var sign = (exponent & 0x8000) ? -1 : 1;
+    exponent &= 0x7FFF;
+    if (exponent === 0 && hiMant === 0 && loMant === 0) return 0;
+    if (exponent === 0x7FFF) return sign * Infinity;
+    exponent -= 16383;
+    var val = hiMant * Math.pow(2, exponent - 31) + loMant * Math.pow(2, exponent - 63);
+    return sign * val;
+  }
+
+  /* ================= ID3 ================= */
+  function decodeID3Text(dv, offset, len, enc) {
+    try {
+      var bytes = new Uint8Array(dv.buffer, dv.byteOffset + offset, Math.max(0, len));
+      var label = enc === 1 ? "utf-16" : enc === 2 ? "utf-16be" : enc === 3 ? "utf-8" : "latin1";
+      return cleanStr(new TextDecoder(label).decode(bytes));
+    } catch (e) { return ""; }
+  }
+  function parseID3(dv, offset) {
+    var meta = {};
+    if (offset + 10 > dv.byteLength || ascii(dv, offset, 3) !== "ID3") return meta;
+    var verMajor = dv.getUint8(offset + 3);
+    var size = ((dv.getUint8(offset + 6) & 0x7F) << 21) | ((dv.getUint8(offset + 7) & 0x7F) << 14) |
+               ((dv.getUint8(offset + 8) & 0x7F) << 7) | (dv.getUint8(offset + 9) & 0x7F);
+    var p = offset + 10, end = Math.min(offset + 10 + size, dv.byteLength);
+    var map = { TIT2: "title", TT2: "title", TPE1: "artist", TP1: "artist", TALB: "album", TAL: "album",
+                TDRC: "date", TYER: "date", TYE: "date", COMM: "comment", COM: "comment" };
+    var v3 = ascii(dv, offset + 3, 1);
+    var isOld = dv.getUint8(offset + 3) < 3;
+    while (p + 10 <= end) {
+      var id = ascii(dv, p, isOld ? 3 : 4);
+      if (!/^[A-Z0-9]+$/.test(id)) break;
+      var idLen = isOld ? 3 : 4, hdrLen = isOld ? 6 : 10;
+      var fsize;
+      if (isOld) { fsize = (dv.getUint8(p + 3) << 16) | (dv.getUint8(p + 4) << 8) | dv.getUint8(p + 5); }
+      else if (verMajor >= 4) { fsize = ((dv.getUint8(p+4)&0x7F)<<21)|((dv.getUint8(p+5)&0x7F)<<14)|((dv.getUint8(p+6)&0x7F)<<7)|(dv.getUint8(p+7)&0x7F); }
+      else { fsize = dv.getUint32(p + 4, false); }
+      var fbody = p + hdrLen;
+      if (fsize <= 0 || fbody + fsize > dv.byteLength) break;
+      if (map[id]) {
+        var enc = dv.getUint8(fbody);
+        meta[map[id]] = decodeID3Text(dv, fbody + 1, fsize - 1, enc);
+      }
+      p = fbody + fsize;
+    }
+    return meta;
+  }
+
+  /* ================= WAV ================= */
+  function parseWav(dv) {
+    var out = { format: "WAV", channels: null, sampleRate: null, bitDepth: null, bitDepthNote: "",
+      codec: "PCM", dataBytes: 0, metadata: {}, loops: [] };
+    var len = dv.byteLength, pos = 12;
+    while (pos + 8 <= len) {
+      var id = ascii(dv, pos, 4);
+      var size = dv.getUint32(pos + 4, true);
+      var body = pos + 8;
+      if (body + size > len) size = Math.max(0, len - body);
+      try {
+        if (id === "fmt ") {
+          var audioFormat = dv.getUint16(body, true);
+          out.channels = dv.getUint16(body + 2, true);
+          out.sampleRate = dv.getUint32(body + 4, true);
+          out.byteRate = dv.getUint32(body + 8, true);
+          out.blockAlign = dv.getUint16(body + 12, true);
+          out.bitDepth = dv.getUint16(body + 14, true);
+          var tag = audioFormat;
+          if (size >= 40 && audioFormat === 0xFFFE) {
+            var validBits = dv.getUint16(body + 18, true);
+            tag = dv.getUint16(body + 24, true);
+            if (validBits && validBits !== out.bitDepth) out.bitDepthNote = validBits + "-in-" + out.bitDepth;
+          }
+          out.codec = tag === 1 ? "PCM (integer)" : tag === 3 ? "IEEE float" : tag === 6 ? "A-law" : tag === 7 ? "\u00b5-law" : ("format 0x" + tag.toString(16));
+        } else if (id === "data") {
+          out.dataBytes = size;
+        } else if (id === "bext") {
+          out.bext = {
+            description: cleanStr(ascii(dv, body, 256)),
+            originator: cleanStr(ascii(dv, body + 256, 32)),
+            originationDate: cleanStr(ascii(dv, body + 320, 10)),
+            originationTime: cleanStr(ascii(dv, body + 330, 8))
+          };
+        } else if (id === "LIST") {
+          var listType = ascii(dv, body, 4);
+          if (listType === "INFO") {
+            var p2 = body + 4, end2 = body + size;
+            var map = { INAM: "title", IART: "artist", IPRD: "album", ICMT: "comment", ICRD: "date", ISFT: "software" };
+            while (p2 + 8 <= end2) {
+              var subId = ascii(dv, p2, 4);
+              var subSize = dv.getUint32(p2 + 4, true);
+              if (map[subId]) out.metadata[map[subId]] = cleanStr(ascii(dv, p2 + 8, subSize));
+              p2 += 8 + subSize + (subSize % 2);
+            }
+          }
+        } else if (id === "smpl") {
+          var numLoops = dv.getUint32(body + 28, true);
+          for (var i = 0; i < numLoops; i++) {
+            var lo = body + 36 + i * 24;
+            if (lo + 24 > len) break;
+            out.loops.push({ start: dv.getUint32(lo + 8, true), end: dv.getUint32(lo + 12, true) });
+          }
+        } else if (id.toLowerCase() === "id3 ") {
+          Object.assign(out.metadata, parseID3(dv, body));
+        }
+      } catch (e) {}
+      pos = body + size + (size % 2);
+    }
+    return out;
+  }
+
+  /* ================= AIFF ================= */
+  function parseAiff(dv) {
+    var isAifc = ascii(dv, 8, 4) === "AIFC";
+    var out = { format: isAifc ? "AIFF-C" : "AIFF", channels: null, sampleRate: null, bitDepth: null,
+      codec: "PCM", dataBytes: 0, metadata: {}, loops: [] };
+    var len = dv.byteLength, pos = 12;
+    while (pos + 8 <= len) {
+      var id = ascii(dv, pos, 4);
+      var size = dv.getUint32(pos + 4, false);
+      var body = pos + 8;
+      if (body + size > len) size = Math.max(0, len - body);
+      try {
+        if (id === "COMM") {
+          out.channels = dv.getUint16(body, false);
+          out.numFrames = dv.getUint32(body + 2, false);
+          out.bitDepth = dv.getUint16(body + 6, false);
+          out.sampleRate = Math.round(readExtended80(dv, body + 8));
+          if (isAifc && size > 18) {
+            var compType = ascii(dv, body + 18, 4);
+            if (compType && compType !== "NONE") out.codec = compType;
+          }
+        } else if (id === "SSND") {
+          out.dataBytes = Math.max(0, size - 8);
+        } else if (id.toLowerCase() === "id3 ") {
+          Object.assign(out.metadata, parseID3(dv, body));
+        } else if (id === "MARK") {
+          var numMarkers = dv.getUint16(body, false);
+          var p2 = body + 2;
+          for (var i = 0; i < numMarkers; i++) {
+            if (p2 + 7 > len) break;
+            var pos_ = dv.getUint32(p2 + 2, false);
+            var nameLen = dv.getUint8(p2 + 6);
+            out.loops.push({ position: pos_ });
+            var pad = (1 + nameLen) % 2;
+            p2 += 7 + nameLen + pad;
+          }
+        }
+      } catch (e) {}
+      pos = body + size + (size % 2);
+    }
+    return out;
+  }
+
+  /* ================= FLAC ================= */
+  function parseFlac(dv) {
+    var out = { format: "FLAC", channels: null, sampleRate: null, bitDepth: null,
+      codec: "FLAC (lossless, compressed)", dataBytes: dv.byteLength, metadata: {}, loops: [] };
+    var len = dv.byteLength, pos = 4;
+    while (pos + 4 <= len) {
+      var headerByte = dv.getUint8(pos);
+      var isLast = (headerByte & 0x80) !== 0;
+      var blockType = headerByte & 0x7F;
+      var blockLen = (dv.getUint8(pos + 1) << 16) | (dv.getUint8(pos + 2) << 8) | dv.getUint8(pos + 3);
+      var body = pos + 4;
+      try {
+        if (blockType === 0 && body + 34 <= len) {
+          out.minBlockSize = dv.getUint16(body, false);
+          out.maxBlockSize = dv.getUint16(body + 2, false);
+          var big = 0n;
+          for (var i = 0; i < 8; i++) big = (big << 8n) | BigInt(dv.getUint8(body + 10 + i));
+          var sampleRate = Number((big >> 44n) & 0xFFFFFn);
+          var channels = Number((big >> 41n) & 0x7n) + 1;
+          var bits = Number((big >> 36n) & 0x1Fn) + 1;
+          var totalSamples = big & ((1n << 36n) - 1n);
+          out.sampleRate = sampleRate; out.channels = channels; out.bitDepth = bits;
+          out.durationFromHeader = sampleRate ? Number(totalSamples) / sampleRate : null;
+        } else if (blockType === 4) {
+          var p2 = body;
+          var vendorLen = dv.getUint32(p2, true); p2 += 4 + vendorLen;
+          var count = dv.getUint32(p2, true); p2 += 4;
+          var map = { TITLE: "title", ARTIST: "artist", ALBUM: "album", DATE: "date", COMMENT: "comment" };
+          for (var c = 0; c < count && p2 + 4 <= len; c++) {
+            var cl = dv.getUint32(p2, true); p2 += 4;
+            var s = ascii(dv, p2, cl); p2 += cl;
+            var eq = s.indexOf("=");
+            if (eq > 0) { var k = s.slice(0, eq).toUpperCase(); if (map[k]) out.metadata[map[k]] = s.slice(eq + 1); }
+          }
+        }
+      } catch (e) {}
+      pos = body + blockLen;
+      if (isLast || blockLen < 0) break;
+    }
+    return out;
+  }
+
+  /* ================= MP3 ================= */
+  function parseMp3(dv) {
+    var out = { format: "MP3", channels: null, sampleRate: null, bitDepth: null,
+      codec: "MPEG Audio (lossy, compressed)", dataBytes: dv.byteLength, metadata: {}, loops: [], note: "" };
+    var offset = 0, len = dv.byteLength;
+    if (ascii(dv, 0, 3) === "ID3") {
+      var size = ((dv.getUint8(6) & 0x7F) << 21) | ((dv.getUint8(7) & 0x7F) << 14) | ((dv.getUint8(8) & 0x7F) << 7) | (dv.getUint8(9) & 0x7F);
+      Object.assign(out.metadata, parseID3(dv, 0));
+      offset = 10 + size;
+    }
+    var srTables = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+    var brV1L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+    for (var i = offset; i < len - 4; i++) {
+      if (dv.getUint8(i) === 0xFF && (dv.getUint8(i + 1) & 0xE0) === 0xE0) {
+        var b1 = dv.getUint8(i + 1), b2 = dv.getUint8(i + 2), b3 = dv.getUint8(i + 3);
+        var versionBits = (b1 >> 3) & 0x3, layerBits = (b1 >> 1) & 0x3;
+        var bitrateIndex = (b2 >> 4) & 0xF, sampleRateIndex = (b2 >> 2) & 0x3;
+        var channelMode = (b3 >> 6) & 0x3;
+        if (sampleRateIndex === 3) continue;
+        var versions = { 0: "MPEG 2.5", 2: "MPEG 2", 3: "MPEG 1" };
+        var layers = { 1: "Layer III", 2: "Layer II", 3: "Layer I" };
+        out.sampleRate = (srTables[versionBits] || [null, null, null])[sampleRateIndex] || null;
+        out.channels = channelMode === 3 ? 1 : 2;
+        out.codec = (versions[versionBits] || "MPEG") + " " + (layers[layerBits] || "");
+        if (versionBits === 3 && layerBits === 1 && brV1L3[bitrateIndex] !== undefined) out.bitrateKbps = brV1L3[bitrateIndex];
+        out.note = "First-frame header only \u2014 VBR files may vary.";
+        break;
+      }
+    }
+    return out;
+  }
+
+  /* ================= OGG (Vorbis / Opus identification header) ================= */
+  function parseOgg(dv) {
+    var out = { format: "OGG", channels: null, sampleRate: null, bitDepth: null, codec: "unknown",
+      dataBytes: dv.byteLength, metadata: {}, loops: [] };
+    try {
+      if (ascii(dv, 0, 4) !== "OggS") return out;
+      var segCount = dv.getUint8(26);
+      var packetStart = 27 + segCount;
+      if (ascii(dv, packetStart + 1, 6) === "vorbis") {
+        out.codec = "Vorbis (lossy, compressed)";
+        out.channels = dv.getUint8(packetStart + 11);
+        out.sampleRate = dv.getUint32(packetStart + 12, true);
+        var bitrateNominal = dv.getInt32(packetStart + 20, true);
+        if (bitrateNominal > 0) out.bitrateKbps = Math.round(bitrateNominal / 1000);
+      } else if (ascii(dv, packetStart, 8) === "OpusHead") {
+        out.codec = "Opus (lossy, compressed)";
+        out.channels = dv.getUint8(packetStart + 9);
+        out.sampleRate = 48000;
+        out.inputSampleRate = dv.getUint32(packetStart + 12, true);
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function detectAndParse(buf, mime) {
+    var dv = new DataView(buf);
+    try {
+      if (dv.byteLength >= 12 && ascii(dv, 0, 4) === "RIFF" && ascii(dv, 8, 4) === "WAVE") return parseWav(dv);
+      if (dv.byteLength >= 12 && ascii(dv, 0, 4) === "FORM" && (ascii(dv, 8, 4) === "AIFF" || ascii(dv, 8, 4) === "AIFC")) return parseAiff(dv);
+      if (dv.byteLength >= 4 && ascii(dv, 0, 4) === "fLaC") return parseFlac(dv);
+      if (dv.byteLength >= 4 && ascii(dv, 0, 4) === "OggS") return parseOgg(dv);
+      if (dv.byteLength >= 3 && ascii(dv, 0, 3) === "ID3") return parseMp3(dv);
+      for (var i = 0; i < Math.min(dv.byteLength - 1, 8192); i++) {
+        if (dv.getUint8(i) === 0xFF && (dv.getUint8(i + 1) & 0xE0) === 0xE0) return parseMp3(dv);
+      }
+      var guess = (mime || "").split("/").pop();
+      return { format: guess ? guess.toUpperCase() : "unknown", channels: null, sampleRate: null, bitDepth: null,
+        codec: "unknown", dataBytes: dv.byteLength, metadata: {}, loops: [] };
+    } catch (e) {
+      return { format: "parse error", channels: null, sampleRate: null, bitDepth: null, codec: "-", dataBytes: dv.byteLength, metadata: {}, loops: [], parseError: String(e && e.message || e) };
+    }
+  }
+
+  /* ================= decoded-audio analysis ================= */
+  function analyzeAudioBuffer(ab) {
+    var chCount = ab.numberOfChannels;
+    var perChannel = [], totalClipped = 0, totalSamples = 0, threshold = 0.999;
+    for (var c = 0; c < chCount; c++) {
+      var data = ab.getChannelData(c);
+      var peak = 0, sumSq = 0, clipped = 0;
+      for (var i = 0; i < data.length; i++) {
+        var v = data[i], av = v < 0 ? -v : v;
+        if (av > peak) peak = av;
+        sumSq += v * v;
+        if (av >= threshold) clipped++;
+      }
+      var rms = Math.sqrt(sumSq / (data.length || 1));
+      perChannel.push({
+        peak: peak, peakDb: peak > 0 ? 20 * Math.log10(peak) : -Infinity,
+        rms: rms, rmsDb: rms > 0 ? 20 * Math.log10(rms) : -Infinity,
+        clipped: clipped, sampleCount: data.length
+      });
+      totalClipped += clipped; totalSamples += data.length;
+    }
+    var N = 600, len = ab.length, mixCh = ab.getChannelData(0);
+    var bucket = Math.max(1, Math.floor(len / N));
+    var peaks = new Float32Array(Math.min(N, Math.ceil(len / bucket) || 1));
+    for (var b = 0; b < peaks.length; b++) {
+      var start = b * bucket, end = Math.min(len, start + bucket), m = 0;
+      for (var j = start; j < end; j++) { var a2 = mixCh[j] < 0 ? -mixCh[j] : mixCh[j]; if (a2 > m) m = a2; }
+      peaks[b] = m;
+    }
+    var overallPeakDb = -Infinity;
+    perChannel.forEach(function (s) { if (s.peakDb > overallPeakDb) overallPeakDb = s.peakDb; });
+    var overallRms = Math.sqrt(perChannel.reduce(function (acc, s) { return acc + s.rms * s.rms; }, 0) / (perChannel.length || 1));
+    return {
+      sampleRate: ab.sampleRate, channels: chCount, duration: ab.duration, length: ab.length,
+      perChannel: perChannel, overallPeakDb: overallPeakDb,
+      overallRmsDb: overallRms > 0 ? 20 * Math.log10(overallRms) : -Infinity,
+      clippedSamples: totalClipped, totalSamples: totalSamples,
+      clippedPct: totalSamples ? (totalClipped / totalSamples * 100) : 0,
+      waveform: Array.prototype.slice.call(peaks)
+    };
+  }
+
+  /* ================= pipeline ================= */
+  function addFiles(fileList) {
+    var arr = Array.prototype.slice.call(fileList);
+    arr.forEach(function (file) {
+      var item = { id: ++idSeq, file: file, name: file.name, size: file.size, mime: file.type,
+        status: "loading", error: null, header: null, analysis: null };
+      items.push(item);
+      if (selectedId === null) selectedId = item.id;
+      processItem(item);
+    });
+    render();
+  }
+
+  function processItem(item) {
+    item.file.arrayBuffer().then(function (buf) {
+      try { item.header = detectAndParse(buf, item.mime); } catch (e) { item.header = null; }
+      render();
+      var ctx = getCtx();
+      var bufCopy = buf.slice(0);
+      return new Promise(function (resolve, reject) { ctx.decodeAudioData(bufCopy, resolve, reject); });
+    }).then(function (audioBuffer) {
+      item.analysis = analyzeAudioBuffer(audioBuffer);
+      item.status = "ready";
+      render();
+    }).catch(function (err) {
+      item.status = item.header ? "partial" : "error";
+      item.error = err && err.message ? err.message : String(err);
+      render();
+    });
+  }
+
+  function removeItem(id) {
+    items = items.filter(function (it) { return it.id !== id; });
+    if (selectedId === id) selectedId = items.length ? items[0].id : null;
+    render();
+  }
+
+  /* ================= formatting ================= */
+  function locale() { return (typeof Shell !== "undefined" && Shell.lang === "ja") ? "ja-JP" : "en-US"; }
+  function fmtInt(n) { return (n === null || n === undefined || isNaN(n)) ? "\u2014" : Math.round(n).toLocaleString(locale()); }
+  function fmtHz(n) { return (n === null || n === undefined) ? "\u2014" : (n.toLocaleString(locale()) + " Hz"); }
+  function fmtBytes(n) {
+    if (n === null || n === undefined) return "\u2014";
+    var u = ["B", "KB", "MB", "GB"], i = 0, v = n;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v.toFixed(0) : v.toFixed(2)) + " " + u[i];
+  }
+  function fmtDur(sec) {
+    if (sec === null || sec === undefined || isNaN(sec)) return "\u2014";
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    var ss = (s < 10 ? "0" : "") + s.toFixed(3);
+    return h > 0 ? (h + ":" + (m < 10 ? "0" : "") + m + ":" + ss) : (m + ":" + ss);
+  }
+  function fmtDb(db) {
+    if (db === null || db === undefined || db === -Infinity || isNaN(db)) return "\u2212\u221e dB";
+    var sign = db < 0 ? "\u2212" : "";
+    return sign + Math.abs(db).toFixed(1) + " dB";
+  }
+  function fmtPct(p) { return (p === null || p === undefined) ? "\u2014" : p.toFixed(3) + "%"; }
+
+  /* ================= rendering: file list ================= */
+  var svgX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+
+  function statusDot(item) {
+    if (item.status === "error") return '<span class="statusdot statusdot--err"></span>';
+    if (item.status === "loading") return '<span class="statusdot statusdot--load"></span>';
+    return '<span class="statusdot statusdot--ok"></span>';
+  }
+  function shortFormat(item) {
+    return item.header ? item.header.format : "\u2026";
+  }
+
+  function renderFileList() {
+    filelistEl.innerHTML = items.map(function (it) {
+      var sub = shortFormat(it) + " \u00b7 " + fmtBytes(it.size);
+      return '<div class="filerow" data-id="' + it.id + '" data-active="' + (it.id === selectedId) + '">' +
+        '<div class="filerow__main">' +
+          '<div class="filerow__name">' + statusDot(it) + esc(it.name) + '</div>' +
+          '<div class="filerow__sub">' + esc(sub) + '</div>' +
+        '</div>' +
+        '<button class="filerow__x" data-x="' + it.id + '" title="' + Shell.t("t.remove") + '">' + svgX + '</button>' +
+      '</div>';
+    }).join("");
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  /* ================= rendering: comparison table ================= */
+  function cmpValue(it, field) {
+    var h = it.header || {}, a = it.analysis;
+    switch (field) {
+      case "format": return h.format || "\u2014";
+      case "sr": return fmtHz(h.sampleRate != null ? h.sampleRate : (a ? a.sampleRate : null));
+      case "bits": return (h.bitDepth != null) ? (h.bitDepth + (h.bitDepthNote ? (" (" + h.bitDepthNote + ")") : "") + "-bit") : "\u2014";
+      case "ch": return (h.channels != null ? h.channels : (a ? a.channels : null)) || "\u2014";
+      case "dur": return a ? fmtDur(a.duration) : (h.durationFromHeader ? fmtDur(h.durationFromHeader) : "\u2014");
+      case "size": return fmtBytes(it.size);
+      case "br": {
+        var kbps = h.bitrateKbps;
+        if (!kbps && a && a.duration) kbps = Math.round((it.size * 8) / a.duration / 1000);
+        return kbps ? (kbps + " kbps") : "\u2014";
+      }
+      case "peak": return a ? fmtDb(a.overallPeakDb) : "\u2014";
+      case "rms": return a ? fmtDb(a.overallRmsDb) : "\u2014";
+      case "clip": return a ? fmtPct(a.clippedPct) : "\u2014";
+      default: return "\u2014";
+    }
+  }
+  function renderCompare() {
+    var cols = [
+      { f: "format", k: "t.format" }, { f: "sr", k: "t.samplerate" }, { f: "bits", k: "t.bitdepth" },
+      { f: "ch", k: "t.channels" }, { f: "dur", k: "t.duration" }, { f: "size", k: "t.filesize" },
+      { f: "br", k: "t.bitrate" }, { f: "peak", k: "t.peak" }, { f: "rms", k: "t.rms" }, { f: "clip", k: "t.clipping" }
+    ];
+    var thead = "<tr><th>" + Shell.t("t.name") + "</th>" + cols.map(function (c) { return "<th>" + Shell.t(c.k) + "</th>"; }).join("") + "</tr>";
+    var tbody = items.map(function (it) {
+      var cells = cols.map(function (c) {
+        var v = cmpValue(it, c.f);
+        var neg = (c.f === "clip" && it.analysis && it.analysis.clippedPct > 0);
+        var muted = (v === "\u2014");
+        return '<td class="' + (neg ? "neg" : "") + (muted ? " muted" : "") + '" ' + (muted ? "" : ('data-copy="' + esc(String(v)) + '"')) + '>' + esc(v) + '</td>';
+      }).join("");
+      return '<tr data-row="' + it.id + '"><td data-copy="' + esc(it.name) + '">' + esc(it.name) + '</td>' + cells + '</tr>';
+    }).join("");
+    cmpTable.querySelector("thead").innerHTML = thead;
+    cmpTable.querySelector("tbody").innerHTML = tbody || ('<tr><td colspan="' + (cols.length + 1) + '" class="muted">' + Shell.t("t.empty") + '</td></tr>');
+  }
+
+  /* ================= rendering: detail panel ================= */
+  function metaRows(meta) {
+    var labels = { title: "t.mtitle", artist: "t.martist", album: "t.malbum", date: "t.mdate", comment: "t.mcomment", software: "t.msoftware" };
+    var keys = Object.keys(meta || {}).filter(function (k) { return meta[k]; });
+    if (!keys.length) return "";
+    return '<div class="dtitle">' + Shell.t("t.metadata") + '</div><dl class="kv">' +
+      keys.map(function (k) { return '<dt>' + Shell.t(labels[k] || k) + '</dt><dd class="plain">' + esc(meta[k]) + '</dd>'; }).join("") +
+      '</dl>';
+  }
+
+  function renderDetail() {
+    var it = items.find(function (x) { return x.id === selectedId; });
+    if (!it) { detailEmpty.hidden = false; detailBody.hidden = true; return; }
+    detailEmpty.hidden = true; detailBody.hidden = false;
+    var h = it.header || {}, a = it.analysis;
+
+    var html = "";
+    html += '<div class="dtitle" style="margin-top:0">' + Shell.t("t.detail") + '</div>';
+    html += '<dl class="kv">';
+    html += '<dt>' + Shell.t("t.filename") + '</dt><dd class="plain">' + esc(it.name) + '</dd>';
+    html += '<dt>' + Shell.t("t.format") + '</dt><dd class="plain">' + esc(h.format || "\u2014") + (h.codec ? " \u00b7 " + esc(h.codec) : "") + '</dd>';
+    html += '<dt>' + Shell.t("t.samplerate") + '</dt><dd data-copy="' + fmtHz(h.sampleRate) + '">' + fmtHz(h.sampleRate != null ? h.sampleRate : (a ? a.sampleRate : null)) + '</dd>';
+    html += '<dt>' + Shell.t("t.bitdepth") + '</dt><dd data-copy="' + (h.bitDepth || "") + '">' + (h.bitDepth != null ? (h.bitDepth + "-bit" + (h.bitDepthNote ? " (" + esc(h.bitDepthNote) + ")" : "")) : Shell.t("t.na_compressed")) + '</dd>';
+    html += '<dt>' + Shell.t("t.channels") + '</dt><dd data-copy="' + (h.channels || (a ? a.channels : "")) + '">' + (h.channels != null ? h.channels : (a ? a.channels : "\u2014")) + '</dd>';
+    html += '<dt>' + Shell.t("t.duration") + '</dt><dd data-copy="' + (a ? fmtDur(a.duration) : "") + '">' + (a ? fmtDur(a.duration) : (h.durationFromHeader ? fmtDur(h.durationFromHeader) + " (" + Shell.t("t.fromheader") + ")" : "\u2014")) + '</dd>';
+    html += '<dt>' + Shell.t("t.filesize") + '</dt><dd data-copy="' + it.size + '">' + fmtBytes(it.size) + ' (' + it.size.toLocaleString(locale()) + ' B)</dd>';
+    var kbps = h.bitrateKbps;
+    if (!kbps && a && a.duration) kbps = Math.round((it.size * 8) / a.duration / 1000);
+    html += '<dt>' + Shell.t("t.bitrate") + '</dt><dd data-copy="' + (kbps || "") + '">' + (kbps ? kbps + " kbps" + (h.bitrateKbps ? "" : " (" + Shell.t("t.estimated") + ")") : "\u2014") + '</dd>';
+    html += '</dl>';
+    if (h.note) html += '<div class="note">' + esc(h.note) + '</div>';
+    if (h.parseError) html += '<div class="note" style="color:var(--neg)">' + Shell.t("t.headererr") + ': ' + esc(h.parseError) + '</div>';
+    if (it.status === "error") html += '<div class="note" style="color:var(--neg)">' + Shell.t("t.decodeerr") + ': ' + esc(it.error || "") + '</div>';
+
+    html += metaRows(h.metadata);
+
+    if (h.bext) {
+      html += '<div class="dtitle">' + Shell.t("t.bext") + '</div><dl class="kv">';
+      if (h.bext.description) html += '<dt>' + Shell.t("t.bdesc") + '</dt><dd class="plain">' + esc(h.bext.description) + '</dd>';
+      if (h.bext.originator) html += '<dt>' + Shell.t("t.borig") + '</dt><dd class="plain">' + esc(h.bext.originator) + '</dd>';
+      if (h.bext.originationDate) html += '<dt>' + Shell.t("t.bdate") + '</dt><dd class="plain">' + esc(h.bext.originationDate) + (h.bext.originationTime ? " " + esc(h.bext.originationTime) : "") + '</dd>';
+      html += '</dl>';
+    }
+
+    if (h.loops && h.loops.length) {
+      html += '<div class="dtitle">' + Shell.t("t.loops") + ' (' + h.loops.length + ')</div>';
+      html += '<table class="chtable"><thead><tr><th style="text-align:left">#</th><th>' + Shell.t("t.loopstart") + '</th><th>' + Shell.t("t.loopend") + '</th></tr></thead><tbody>';
+      h.loops.slice(0, 12).forEach(function (lp, i) {
+        html += '<tr><td>' + (i + 1) + '</td><td data-copy="' + (lp.start != null ? lp.start : "") + '">' + (lp.start != null ? fmtInt(lp.start) : "\u2014") + '</td><td data-copy="' + (lp.end != null ? lp.end : "") + '">' + (lp.end != null ? fmtInt(lp.end) : "\u2014") + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    if (a) {
+      html += '<div class="dtitle">' + Shell.t("t.levels") + '</div>';
+      html += '<table class="chtable"><thead><tr><th style="text-align:left">' + Shell.t("t.channel") + '</th><th>' + Shell.t("t.peak") + '</th><th>' + Shell.t("t.rms") + '</th><th>' + Shell.t("t.clipping") + '</th></tr></thead><tbody>';
+      a.perChannel.slice(0, 8).forEach(function (s, i) {
+        var pct = s.sampleCount ? (s.clipped / s.sampleCount * 100) : 0;
+        html += '<tr><td>' + Shell.t("t.ch") + ' ' + (i + 1) + '</td>' +
+          '<td data-copy="' + fmtDb(s.peakDb) + '">' + fmtDb(s.peakDb) + '</td>' +
+          '<td data-copy="' + fmtDb(s.rmsDb) + '">' + fmtDb(s.rmsDb) + '</td>' +
+          '<td class="' + (s.clipped > 0 ? "clip" : "") + '" data-copy="' + fmtPct(pct) + '">' + (s.clipped > 0 ? (fmtInt(s.clipped) + " (" + fmtPct(pct) + ")") : "\u2014") + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      if (a.perChannel.length > 8) html += '<div class="note">+' + (a.perChannel.length - 8) + ' ' + Shell.t("t.morechannels") + '</div>';
+
+      html += '<div class="dtitle">' + Shell.t("t.waveform") + '</div>';
+      html += '<div class="wavewrap"><canvas id="wavecanvas"></canvas></div>';
+    } else if (it.status === "loading") {
+      html += '<div class="note" style="margin-top:var(--s4)">' + Shell.t("t.loading") + '\u2026</div>';
+    }
+
+    html += '<div class="btnrow" style="margin-top:var(--s5)">' +
+      '<button class="btn btn--secondary" id="btn-copy-json"><span>' + Shell.t("t.copyjson") + '</span></button></div>';
+
+    detailBody.innerHTML = html;
+
+    if (a) {
+      var cv = document.getElementById("wavecanvas");
+      requestAnimationFrame(function () { drawWaveform(cv, a.waveform); });
+    }
+    var jbtn = document.getElementById("btn-copy-json");
+    if (jbtn) jbtn.addEventListener("click", function () {
+      var payload = { name: it.name, size: it.size, header: it.header, analysis: it.analysis ? {
+        sampleRate: it.analysis.sampleRate, channels: it.analysis.channels, duration: it.analysis.duration,
+        overallPeakDb: it.analysis.overallPeakDb, overallRmsDb: it.analysis.overallRmsDb,
+        clippedSamples: it.analysis.clippedSamples, clippedPct: it.analysis.clippedPct,
+        perChannel: it.analysis.perChannel.map(function (s) { return { peakDb: s.peakDb, rmsDb: s.rmsDb, clipped: s.clipped }; })
+      } : null };
+      // strip BigInt fields (not JSON-serialisable) before export
+      var clean = JSON.parse(JSON.stringify(payload, function (k, v) { return typeof v === "bigint" ? v.toString() : v; }));
+      Shell.copy(JSON.stringify(clean, null, 2), jbtn);
+    });
+  }
+
+  function drawWaveform(canvas, peaks) {
+    if (!canvas || !peaks || !peaks.length) return;
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || 400, cssH = 80;
+    canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    var accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#5457E5";
+    ctx.fillStyle = accent;
+    var n = peaks.length, mid = cssH / 2, barW = Math.max(1, cssW / n);
+    for (var i = 0; i < n; i++) {
+      var x = (i / n) * cssW, h = peaks[i] * mid;
+      ctx.fillRect(x, mid - h, barW + 0.5, h * 2 || 0.5);
+    }
+  }
+
+  function render() {
+    if (!items.length) { contentEl.hidden = true; empty2.hidden = false; return; }
+    contentEl.hidden = false; empty2.hidden = true;
+    renderFileList(); renderCompare(); renderDetail();
+  }
+
+  /* ================= wiring ================= */
+  filelistEl.addEventListener("click", function (e) {
+    var x = e.target.closest("[data-x]");
+    if (x) { removeItem(parseInt(x.getAttribute("data-x"), 10)); return; }
+    var row = e.target.closest(".filerow");
+    if (row) { selectedId = parseInt(row.getAttribute("data-id"), 10); render(); }
+  });
+
+  $("btn-clear").addEventListener("click", function () { items = []; selectedId = null; render(); });
+
+  $("btn-copy-cmp").addEventListener("click", function () {
+    var rows = cmpTable.querySelectorAll("tr");
+    var lines = [];
+    rows.forEach(function (r) {
+      var cells = Array.prototype.map.call(r.children, function (c) { return c.textContent.trim(); });
+      lines.push(cells.join("\t"));
+    });
+    Shell.copy(lines.join("\n"), $("btn-copy-cmp"));
+  });
+
+  drop.addEventListener("click", function () { fileInput.click(); });
+  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener("change", function () { if (fileInput.files.length) addFiles(fileInput.files); fileInput.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); }); });
+  drop.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+  /* ================= init ================= */
+  Shell.init({
+    id: "audio-info",
+    strings: {
+      en: {
+        "t.title": "Audio file info", "t.desc": "Sample rate, bit depth, and channels \u2014 parsed directly from the file header, locally. Add several files to compare them side by side.",
+        "t.dropb": "Drop audio files here", "t.dropor": " or click to choose", "t.dropsmall": "WAV \u00b7 AIFF \u00b7 FLAC \u00b7 MP3 \u00b7 OGG \u2014 processed entirely in your browser",
+        "t.empty": "No files loaded yet.", "t.selecthint": "Select a file on the left to see details.",
+        "t.files": "Files", "t.detail": "Details", "t.compare": "Comparison", "t.copytable": "Copy as text",
+        "t.clearall": "Clear all", "t.remove": "Remove",
+        "t.name": "Name", "t.filename": "File name", "t.format": "Format", "t.samplerate": "Sample rate",
+        "t.bitdepth": "Bit depth", "t.channels": "Channels", "t.duration": "Duration", "t.filesize": "File size",
+        "t.bitrate": "Bitrate", "t.peak": "Peak", "t.rms": "RMS", "t.clipping": "Clipping",
+        "t.na_compressed": "N/A (compressed bitstream)", "t.fromheader": "from header", "t.estimated": "estimated",
+        "t.headererr": "Header parse error", "t.decodeerr": "Decode failed",
+        "t.metadata": "Metadata", "t.mtitle": "Title", "t.martist": "Artist", "t.malbum": "Album",
+        "t.mdate": "Date", "t.mcomment": "Comment", "t.msoftware": "Software",
+        "t.bext": "Broadcast Wave (bext)", "t.bdesc": "Description", "t.borig": "Originator", "t.bdate": "Origination date",
+        "t.loops": "Loop points", "t.loopstart": "Start", "t.loopend": "End",
+        "t.levels": "Peak / RMS levels", "t.channel": "Channel", "t.ch": "Ch", "t.morechannels": "more channels",
+        "t.waveform": "Waveform", "t.copyjson": "Copy details as JSON", "t.loading": "Analyzing",
+        "t.hint": "Sample rate and bit depth are read directly from the file's header. Peak, RMS, and the waveform are computed from the decoded audio, since compressed formats have no fixed bit depth.",
+        "cat.audio": "Audio"
+      },
+      ja: {
+        "t.title": "音声ファイル情報ビューア", "t.desc": "サンプルレート・ビット深度・チャンネル数を、ファイルヘッダーから直接ローカルで解析します。複数ファイルを追加すると並べて比較できます。",
+        "t.dropb": "音声ファイルをドロップ", "t.dropor": " またはクリックして選択", "t.dropsmall": "WAV・AIFF・FLAC・MP3・OGG対応 \u2014 すべてブラウザ内で処理",
+        "t.empty": "まだファイルがありません。", "t.selecthint": "左のファイルを選ぶと詳細が表示されます。",
+        "t.files": "ファイル", "t.detail": "詳細", "t.compare": "比較", "t.copytable": "テキストでコピー",
+        "t.clearall": "すべてクリア", "t.remove": "削除",
+        "t.name": "名前", "t.filename": "ファイル名", "t.format": "形式", "t.samplerate": "サンプルレート",
+        "t.bitdepth": "ビット深度", "t.channels": "チャンネル数", "t.duration": "長さ", "t.filesize": "ファイルサイズ",
+        "t.bitrate": "ビットレート", "t.peak": "ピーク", "t.rms": "RMS", "t.clipping": "クリッピング",
+        "t.na_compressed": "非対応（圧縮ビットストリーム）", "t.fromheader": "ヘッダー由来", "t.estimated": "推定値",
+        "t.headererr": "ヘッダー解析エラー", "t.decodeerr": "デコード失敗",
+        "t.metadata": "メタデータ", "t.mtitle": "タイトル", "t.martist": "アーティスト", "t.malbum": "アルバム",
+        "t.mdate": "日付", "t.mcomment": "コメント", "t.msoftware": "ソフトウェア",
+        "t.bext": "Broadcast Wave (bext)", "t.bdesc": "説明", "t.borig": "制作者", "t.bdate": "制作日",
+        "t.loops": "ループポイント", "t.loopstart": "開始", "t.loopend": "終了",
+        "t.levels": "ピーク／RMSレベル", "t.channel": "チャンネル", "t.ch": "Ch", "t.morechannels": "チャンネルを追加表示",
+        "t.waveform": "波形", "t.copyjson": "詳細をJSONでコピー", "t.loading": "解析中",
+        "t.hint": "サンプルレートとビット深度はファイルヘッダーを直接解析した値です。ピーク・RMS・波形はデコード後の音声データから算出しています（圧縮形式には固定のビット深度が存在しないため）。",
+        "cat.audio": "音声"
+      }
+    },
+    onSettingsChange: function () { render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
