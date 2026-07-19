@@ -101,6 +101,16 @@
     background:color-mix(in srgb, var(--accent) 12%, transparent); border:3px dashed var(--accent);
     font-size:16px; font-weight:600; color:var(--accent); pointer-events:none; }
   .dropcue.on{ display:flex; }
+
+  /* 右側パネルのカードの折りたたみ */
+  .med-side > .card > .card__title--collapsible{ cursor:pointer; user-select:none;
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s4); }
+  .med-side > .card > .card__title--collapsible::after{ content:""; width:7px; height:7px; flex:0 0 auto; margin-left:var(--s3);
+    border-right:1.6px solid var(--text-3); border-bottom:1.6px solid var(--text-3);
+    transform:rotate(45deg); transition:transform var(--tap); }
+  .med-side > .card.collapsed > .card__title--collapsible{ margin-bottom:0; }
+  .med-side > .card.collapsed > .card__title--collapsible::after{ transform:rotate(-45deg); }
+  .med-side > .card.collapsed > *:not(.card__title--collapsible){ display:none; }
 </style>
 </head>
 <body>
@@ -2708,7 +2718,7 @@
       if (hh) {
         var cur = { t: (hh.point.bz && hh.point.bz.t != null) ? hh.point.bz.t : (hh.point.tick + hh.next.tick) / 2,
                     v: (hh.point.bz && hh.point.bz.v != null) ? hh.point.bz.v : (hh.point.value + hh.next.value) / 2 };
-        drag = { mode: "handle", point: hh.point, x0: p.x, y0: p.y, start: cur, H: H };
+        drag = { mode: "handle", point: hh.point, next: hh.next, x0: p.x, y0: p.y, start: cur, H: H };
         cv.setPointerCapture(e.pointerId);
         return;
       }
@@ -2727,7 +2737,9 @@
       if (!drag) return;
       var p = pos(e), H = drag.H;
       if (drag.mode === "point") {
-        var nt = Math.max(0, Math.round(x2tick(p.x))), nv = valAt(p.y, H);
+        // tick は上限もクランプする。青天井のままだと、キャンバス外まで大きくドラッグして
+        // 離した時に、その点が現実的にスクロールで戻れない位置へ飛んで二度と触れなくなる。
+        var nt = clamp(Math.round(x2tick(p.x)), 0, songEnd() + PPQ * 16), nv = valAt(p.y, H);
         if (e.shiftKey) {
           if (Math.abs(p.x - drag.x0) > Math.abs(p.y - drag.y0)) nv = drag.startVal; else nt = drag.startTick;
         }
@@ -2735,7 +2747,9 @@
         drag.point.tick = nt; drag.point.value = nv;
         regenerateCC(l.ctrl); drawLanes();
       } else if (drag.mode === "handle") {
-        var nt2 = Math.round(x2tick(p.x)), nv2 = valAt(p.y, H);
+        // ハンドルは前後のアンカー点の tick 区間の外へは出さない。
+        // 区間内に留めておけば、対応する2つの点が見えている限り必ず再度掴める。
+        var nt2 = clamp(Math.round(x2tick(p.x)), drag.point.tick, drag.next.tick), nv2 = valAt(p.y, H);
         if (e.shiftKey) {
           if (Math.abs(p.x - drag.x0) > Math.abs(p.y - drag.y0)) nv2 = drag.start.v; else nt2 = drag.start.t;
         }
@@ -3145,6 +3159,25 @@
     sel2.innerHTML = opts;
     if (def !== 0) sel2.value = String(def);
   }
+  // ---- 右側パネルのカード（クオンタイズ等）を折りたたみ可能にする ----
+  function initCollapsibleCards() {
+    var STORE_KEY = "mid.cardCollapse";
+    var state = {};
+    try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) {}
+    var cards = document.querySelectorAll(".med-side > .card");
+    cards.forEach(function (card, i) {
+      var title = card.querySelector(".card__title");
+      if (!title) return;
+      var key = title.getAttribute("data-i18n") || ("card" + i);
+      title.classList.add("card__title--collapsible");
+      if (state[key]) card.classList.add("collapsed");
+      title.addEventListener("click", function () {
+        card.classList.toggle("collapsed");
+        state[key] = card.classList.contains("collapsed");
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+      });
+    });
+  }
   function initControls() {
     fillGrid($("grid"), 240);
     fillGrid($("q-res"), 240);
@@ -3320,6 +3353,7 @@
   lanes = loadLanes();
   sizeCanvases();
   rebuildLanes();
+  initCollapsibleCards();
 
   if (window.Shell && Shell.init) {
     Shell.init({
