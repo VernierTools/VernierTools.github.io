@@ -12,6 +12,9 @@
   .swapbtn svg{ width:16px; height:16px; transition:transform var(--tap); }
   .swapbtn:active svg{ transform:rotate(180deg); }
 
+  .compatcard{ background:var(--neg-tint); border:1px solid color-mix(in srgb, var(--neg) 35%, var(--border)); border-radius:var(--r-lg); overflow:hidden; margin-bottom:var(--s4); }
+  .compatcard .verdict{ border-top:none; }
+  .compatcard .verdict span b{ display:block; margin-bottom:2px; }
   .axiscard{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; margin-bottom:var(--s4); }
   .axiscard__title{ font-size:13px; font-weight:600; padding:var(--s5) var(--s5) 0; }
   .axisviz{ display:flex; align-items:center; justify-content:center; gap:var(--s3); padding:var(--s3) var(--s5) var(--s4); }
@@ -80,6 +83,10 @@
 
     <!-- 右: 結果 -->
     <div>
+      <div class="compatcard" id="compat-card" hidden>
+        <div class="verdict verdict--warn" id="compat-verdict" style="padding:var(--s4) var(--s5)"><span></span></div>
+      </div>
+
       <div class="readout" style="margin-bottom:var(--s4)">
         <div class="readout__head"><span class="eyebrow" data-i18n="t.scale">Scale factor</span></div>
         <div class="scalehero">
@@ -124,69 +131,115 @@
     { id:"slicer", name:{ en:"3D printer slicers",        ja:"3Dプリンタ・スライサー" } }
   ];
 
+  // フォーマット対応: exp=書き出せるか, imp=読み込めるか。true|false|"plugin"（追加アドオン/プラグインが要る）
+  function F(exp, imp){ return { exp:exp, imp:imp }; }
+  var NO_FMT = { exp:false, imp:false };
+
   var SW = [
     { id:"blender", name:{en:"Blender",ja:"Blender"}, group:"dcc", upAxis:"Z", axisCfg:false, handed:"right", unit:"m", unitCfg:true, versionCaveat:false,
+      fmt:{ fbx:F(true,true), gltf:F(true,true), usd:F(true,true), obj:F(true,true), stl:F(true,true) },
       notes:{en:"FBX export applies a 0.01 scale by default (Blender works in meters internally; FBX convention is centimeters) — the most common source of 100× scale bugs.",
              ja:"FBX書き出しは既定でスケール0.01が付く（内部はm、FBXの慣習はcmのため）。Unity/Unrealへの100倍・1/100事故の最大要因。"} },
     { id:"maya", name:{en:"Maya",ja:"Maya"}, group:"dcc", upAxis:"Y", axisCfg:true, handed:"right", unit:"cm", unitCfg:true, versionCaveat:false,
-      notes:{en:"Z-up mode exists but is rarely used in production; treat Y-up as the practical default.",
-             ja:"Z-Upモードもあるが実務ではほぼ使われない。実質Y-Upが既定と考えてよい。"} },
+      fmt:{ fbx:F(true,true), gltf:F("plugin","plugin"), usd:F(true,true), obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Z-up mode exists but is rarely used in production; treat Y-up as the practical default. glTF needs a third-party plugin — it isn't built in. STL needs the bundled stlTranslator plugin enabled in the Plug-in Manager.",
+             ja:"Z-Upモードもあるが実務ではほぼ使われない。実質Y-Upが既定と考えてよい。glTFは同梱されておらずサードパーティ製プラグインが必要。STLは同梱のstlTranslatorプラグインをPlug-in Managerで有効化する必要がある。"} },
     { id:"3ds-max", name:{en:"3ds Max",ja:"3ds Max"}, group:"dcc", upAxis:"Z", axisCfg:false, handed:"right", unit:"inch", unitCfg:true, versionCaveat:false,
-      notes:{en:"Default system unit is 1.0 inch (not centimeters, despite the common assumption). Many studios set it to centimeters manually for Maya/game-engine compatibility.",
-             ja:"既定のシステム単位は1インチ（cmだと誤解されがち）。Maya・ゲームエンジンとの互換のため手動でcmに変更する現場が多い。"} },
+      fmt:{ fbx:F(true,true), gltf:F("plugin","plugin"), usd:F(true,true), obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Default system unit is 1.0 inch (not centimeters, despite the common assumption). Many studios set it to centimeters manually for Maya/game-engine compatibility. glTF import/export needs a separate plugin (e.g. the Khronos-sponsored open-source one) — it isn't built in.",
+             ja:"既定のシステム単位は1インチ（cmだと誤解されがち）。Maya・ゲームエンジンとの互換のため手動でcmに変更する現場が多い。glTFの入出力は同梱されておらず別途プラグイン（Khronos後援のオープンソース版など）が必要。"} },
     { id:"cinema-4d", name:{en:"Cinema 4D",ja:"Cinema 4D"}, group:"dcc", upAxis:"Y", axisCfg:false, handed:"left", unit:"cm", unitCfg:true, versionCaveat:false,
+      fmt:{ fbx:F(true,true), gltf:F(true,true), usd:F(true,true), obj:F(true,true), stl:F(true,true) },
       notes:{en:"Left-handed — unlike Maya/Houdini which are also Y-up but right-handed. Expect mirroring/flipped-normal issues more than pure up-axis issues.",
              ja:"同じY-Up系のMaya/Houdiniと違い左手系。Up軸そのものより鏡像反転（法線の裏返り）が起きやすい。"} },
     { id:"houdini", name:{en:"Houdini",ja:"Houdini"}, group:"dcc", upAxis:"Y", axisCfg:true, handed:"right", unit:"m", unitCfg:true, versionCaveat:true,
+      fmt:{ fbx:F(true,true), gltf:F(true,true), usd:F(true,true), obj:F(true,true), stl:F(true,true) },
       notes:{en:"Y-up by default, but often switched to Z-up to match Maya/Max in VFX pipelines. Confirm the project convention.",
              ja:"既定はY-Upだが、パイプライン内のMaya/Max等に合わせZ-Upへ変更されるVFX現場も多い。プロジェクトの取り決めを確認。"} },
     { id:"zbrush", name:{en:"ZBrush",ja:"ZBrush"}, group:"dcc", upAxis:"Y", axisCfg:false, handed:"left", unit:"depends", unitCfg:false, versionCaveat:false,
-      notes:{en:"Axis/scale handling is non-standard, often described as 'inverse' relative to other Y-up left-handed tools. The Export menu's auto-flip option is a common source of confusion — verify orientation after every export.",
-             ja:"軸・スケールの扱いが特殊で、他の左手Y-Up系ツールに対し『インバース』気味と言われる。Exportメニューの自動反転設定が混乱の元。書き出しごとに向きを確認すること。"} },
+      fmt:{ fbx:F(true,true), gltf:NO_FMT, usd:F(true,true), obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Axis/scale handling is non-standard, often described as 'inverse' relative to other Y-up left-handed tools. The Export menu's auto-flip option is a common source of confusion — verify orientation after every export. No glTF support at all (not even via plugin as of this writing) — go through OBJ or FBX instead.",
+             ja:"軸・スケールの扱いが特殊で、他の左手Y-Up系ツールに対し『インバース』気味と言われる。Exportメニューの自動反転設定が混乱の元。書き出しごとに向きを確認すること。glTFは現時点でプラグインも含め非対応。OBJかFBX経由にする。"} },
     { id:"substance-painter", name:{en:"Substance Painter",ja:"Substance Painter"}, group:"dcc", upAxis:"Y", axisCfg:false, handed:"right", unit:"depends", unitCfg:false, versionCaveat:false,
-      notes:{en:"Has no scale of its own — it inherits whatever unit/axis convention the imported mesh already carries.",
-             ja:"独自のスケールを持たず、読み込んだメッシュが持つ単位・軸の慣習をそのまま継承する。"} },
+      fmt:{ fbx:F(true,true), gltf:F(true,true), usd:F(true,true), obj:F(true,true), stl:F(false,true) },
+      notes:{en:"Has no scale of its own — it inherits whatever unit/axis convention the imported mesh already carries. Built primarily for importing a mesh to paint, not exporting one back out, so STL is import-only.",
+             ja:"独自のスケールを持たず、読み込んだメッシュが持つ単位・軸の慣習をそのまま継承する。テクスチャを塗るためにメッシュを読み込むのが主目的のツールなので、STLは読み込み専用。"} },
     { id:"unity", name:{en:"Unity",ja:"Unity"}, group:"game", upAxis:"Y", axisCfg:false, handed:"left", unit:"m", unitCfg:false, versionCaveat:false,
-      notes:{en:"1 Unity unit is treated as 1 meter by convention, not a hard rule — but physics, lighting and most built-in assets assume meters.",
-             ja:"1 Unity unit＝1mは厳密な規定ではなく慣習だが、物理演算・ライティング・多くの標準アセットはメートル前提。"} },
+      fmt:{ fbx:F(false,true), gltf:F("plugin","plugin"), usd:F("plugin","plugin"), obj:F(false,true), stl:F(false,false) },
+      notes:{en:"1 Unity unit is treated as 1 meter by convention, not a hard rule — but physics, lighting and most built-in assets assume meters. glTF and USD need Unity's official but separate packages (com.unity.cloud.gltfast / USD for Unity) — not built into a default install. STL isn't supported at all without a third-party asset.",
+             ja:"1 Unity unit＝1mは厳密な規定ではなく慣習だが、物理演算・ライティング・多くの標準アセットはメートル前提。glTFとUSDはUnity公式だが別パッケージ（com.unity.cloud.gltfast／USD for Unity）が必要で、初期状態には含まれない。STLはサードパーティ製アセットなしでは一切非対応。"} },
     { id:"unreal-engine", name:{en:"Unreal Engine",ja:"Unreal Engine"}, group:"game", upAxis:"Z", axisCfg:false, handed:"left", unit:"cm", unitCfg:true, versionCaveat:false,
-      notes:{en:"Standard scale is 1 Unreal Unit (uu) = 1 cm. A meter-scale model exported in centimeters matches Unreal with no extra scaling.",
-             ja:"標準スケールは1 Unreal Unit(uu)＝1cm。m単位のモデルをcm換算で書き出せば追加スケーリングなしで一致する。"} },
+      fmt:{ fbx:F(false,true), gltf:F(false,true), usd:F(true,true), obj:F(false,true), stl:F(false,false) },
+      notes:{en:"Standard scale is 1 Unreal Unit (uu) = 1 cm. A meter-scale model exported in centimeters matches Unreal with no extra scaling. glTF import is native since UE 5.4 (Interchange framework). USD Stage is a built-in plugin (just needs enabling). STL has no built-in import.",
+             ja:"標準スケールは1 Unreal Unit(uu)＝1cm。m単位のモデルをcm換算で書き出せば追加スケーリングなしで一致する。glTFインポートはUE5.4以降ネイティブ（Interchangeフレームワーク）。USD StageはビルトインプラグインでOK（有効化が必要）。STLは標準では読み込み不可。"} },
     { id:"godot", name:{en:"Godot",ja:"Godot"}, group:"game", upAxis:"Y", axisCfg:false, handed:"right", unit:"m", unitCfg:false, versionCaveat:false,
-      notes:{en:"Right-handed Y-up, closely matching glTF's coordinate convention — one reason glTF is the recommended format for Godot.",
-             ja:"右手系Y-Upで、glTFの座標系にほぼ一致する。GodotでglTFが推奨される理由の一つ。"} },
-    { id:"cryengine", name:{en:"CryEngine",ja:"CryEngine"}, group:"game", upAxis:"Z", axisCfg:false, handed:"right", unit:"m", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} },
+      fmt:{ fbx:F(false,true), gltf:F(true,true), usd:NO_FMT, obj:F(false,true), stl:NO_FMT },
+      notes:{en:"Right-handed Y-up, closely matching glTF's coordinate convention — one reason glTF is the recommended format for Godot. FBX import is built in (via the bundled ufbx library since Godot 4.3) but limited; USD and STL aren't supported.",
+             ja:"右手系Y-Upで、glTFの座標系にほぼ一致する。GodotでglTFが推奨される理由の一つ。FBXインポートはGodot 4.3以降、同梱のufbxライブラリで対応済み（機能は限定的）。USDとSTLは非対応。"} },
+    { id:"cryengine", name:{en:"CryEngine",ja:"CryEngine"}, group:"game", upAxis:"Z", axisCfg:false, handed:"right", unit:"m", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:F(false,true), gltf:NO_FMT, usd:NO_FMT, obj:F(false,true), stl:NO_FMT },
+      notes:{en:"The FBX Importer (preferred pipeline) also accepts OBJ, DXF, DAE and 3DS on the way in. No glTF, USD or STL support.",
+             ja:"FBXインポーター（推奨パイプライン）はOBJ・DXF・DAE・3DSも読み込める。glTF・USD・STLは非対応。"} },
     { id:"fusion", name:{en:"Fusion",ja:"Fusion"}, group:"cad", upAxis:"Z", axisCfg:true, handed:"right", unit:"mm", unitCfg:true, versionCaveat:true,
-      notes:{en:"Default modeling orientation is currently Z-up (3D-printing-optimized), but this changed over the product's history — older installs/tutorials assume Y-up to match Inventor/SolidWorks. Confirm before assuming.",
-             ja:"現行の既定モデリング方向はZ-Up（3Dプリント向け）。ただし過去はInventor/SolidWorksに合わせたY-Up既定だった時期がある。断定せず確認を。"} },
+      fmt:{ fbx:F(true,true), gltf:F("plugin",false), usd:NO_FMT, obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Default modeling orientation is currently Z-up (3D-printing-optimized), but this changed over the product's history — older installs/tutorials assume Y-up to match Inventor/SolidWorks. Confirm before assuming. No native glTF export (a marketplace plugin adds it) and no USD at all.",
+             ja:"現行の既定モデリング方向はZ-Up（3Dプリント向け）。ただし過去はInventor/SolidWorksに合わせたY-Up既定だった時期がある。断定せず確認を。glTF書き出しは標準では無く（マーケットプレイスのプラグインで追加可能）、USDは完全に非対応。"} },
     { id:"solidworks", name:{en:"SOLIDWORKS",ja:"SOLIDWORKS"}, group:"cad", upAxis:"Y", axisCfg:true, handed:"right", unit:"depends", unitCfg:true, versionCaveat:false,
-      notes:{en:"Default unit depends on the template chosen (mm or inch) at file creation.",
-             ja:"既定単位は新規作成時に選ぶテンプレート（mm/inch）依存。"} },
-    { id:"inventor", name:{en:"Inventor",ja:"Inventor"}, group:"cad", upAxis:"Y", axisCfg:true, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false, notes:{en:null,ja:null} },
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Default unit depends on the template chosen (mm or inch) at file creation. No native FBX, glTF, or USD — SOLIDWORKS' 3D-printing/visualization exports are limited to STL, OBJ and 3MF.",
+             ja:"既定単位は新規作成時に選ぶテンプレート（mm/inch）依存。FBX・glTF・USDは標準では非対応。3Dプリント／可視化向けの書き出しはSTL・OBJ・3MFに限られる。"} },
+    { id:"inventor", name:{en:"Inventor",ja:"Inventor"}, group:"cad", upAxis:"Y", axisCfg:true, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:F(true,false), obj:F(true,true), stl:F(true,true) },
+      notes:{en:"No FBX export at all (a frequent, long-standing user request Autodesk hasn't added). USDZ export was added in 2023, export-only. No glTF.",
+             ja:"FBX書き出しは一切無い（ユーザーから長年要望が出ているが未実装）。USDZ書き出しは2023年に追加されたが書き出し専用。glTFは非対応。"} },
     { id:"openscad", name:{en:"OpenSCAD",ja:"OpenSCAD"}, group:"cad", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:false, versionCaveat:false,
-      notes:{en:"Coordinates have no declared unit; millimeters is the near-universal convention among users and downstream slicers.",
-             ja:"座標に単位の宣言は無いが、ユーザーと後段のスライサー間でほぼ例外なくmmとして扱われる。"} },
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(true,false), stl:F(true,true) },
+      notes:{en:"Coordinates have no declared unit; millimeters is the near-universal convention among users and downstream slicers. Export-only for OBJ; no FBX, glTF, or USD.",
+             ja:"座標に単位の宣言は無いが、ユーザーと後段のスライサー間でほぼ例外なくmmとして扱われる。OBJは書き出し専用。FBX・glTF・USDは非対応。"} },
     { id:"autocad", name:{en:"AutoCAD",ja:"AutoCAD"}, group:"cad", upAxis:"Z", axisCfg:false, handed:"right", unit:"depends", unitCfg:true, versionCaveat:false,
-      notes:{en:"Default unit depends on the template (imperial acad.dwt vs. metric acadiso.dwt). Check the drawing's units setting explicitly.",
-             ja:"既定単位はテンプレート依存（acad.dwt系＝インチ、acadiso.dwt系＝mm）。図面ごとに単位設定を確認。"} },
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:NO_FMT, stl:F(true,true) },
+      notes:{en:"Default unit depends on the template (imperial acad.dwt vs. metric acadiso.dwt). Check the drawing's units setting explicitly. Surprisingly limited for a 3D-adjacent tool: standard AutoCAD can export STL (STLOUT, for 3D printing) but has no native OBJ, FBX, glTF, or USD — those all need a third-party plugin (e.g. Automesher).",
+             ja:"既定単位はテンプレート依存（acad.dwt系＝インチ、acadiso.dwt系＝mm）。図面ごとに単位設定を確認。意外に対応が狭く、標準のAutoCADはSTL書き出し（STLOUTコマンド、3Dプリント用）はできるが、OBJ・FBX・glTF・USDはネイティブ非対応。いずれもサードパーティ製プラグイン（Automesher等）が必要。"} },
     { id:"ijcad", name:{en:"IJCAD",ja:"IJCAD"}, group:"cad", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false,
-      notes:{en:"AutoCAD-compatible, DWG-native Japanese CAD, primarily used for 2D drafting; 3D behavior follows AutoCAD conventions.",
-             ja:"AutoCAD互換・DWGネイティブの国産CAD。主に2次元図面作成向けで、3D挙動はAutoCADに準じる。"} },
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:NO_FMT, stl:F(true,true) },
+      notes:{en:"AutoCAD-compatible, DWG-native Japanese CAD, primarily used for 2D drafting; 3D behavior follows AutoCAD conventions. Format support is inferred from that AutoCAD compatibility (STL only, no native OBJ/FBX/glTF/USD) rather than independently confirmed — verify against your specific version before relying on it.",
+             ja:"AutoCAD互換・DWGネイティブの国産CAD。主に2次元図面作成向けで、3D挙動はAutoCADに準じる。フォーマット対応はAutoCAD互換という性質からの推測（STLのみ、OBJ/FBX/glTF/USDはネイティブ非対応）であり、個別に確認したものではない。実際に使う版で必ず確認すること。"} },
     { id:"revit", name:{en:"Revit",ja:"Revit"}, group:"arch", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false,
-      notes:{en:"Regardless of the metric/imperial template chosen, Revit's internal coordinates are always stored in feet — display unit and internal unit are different things (matters for API/scripting).",
-             ja:"メートル法／インペリアルどちらのテンプレートでも、内部座標は常にフィートで保持される。表示単位と内部単位は別物（API・スクリプト時に注意）。"} },
-    { id:"archicad", name:{en:"Archicad",ja:"Archicad"}, group:"arch", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false, notes:{en:null,ja:null} },
+      fmt:{ fbx:F(true,false), gltf:NO_FMT, usd:NO_FMT, obj:NO_FMT, stl:F(true,false) },
+      notes:{en:"Regardless of the metric/imperial template chosen, Revit's internal coordinates are always stored in feet — display unit and internal unit are different things (matters for API/scripting). Revit can export FBX and STL but cannot import either back in, and has no native OBJ, glTF, or USD at all.",
+             ja:"メートル法／インペリアルどちらのテンプレートでも、内部座標は常にフィートで保持される。表示単位と内部単位は別物（API・スクリプト時に注意）。RevitはFBXとSTLの書き出しはできるが、どちらも読み込みは不可。OBJ・glTF・USDは完全に非対応。"} },
+    { id:"archicad", name:{en:"Archicad",ja:"Archicad"}, group:"arch", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false,
+      fmt:{ fbx:F(true,false), gltf:NO_FMT, usd:NO_FMT, obj:F(true,true), stl:F(true,true) },
+      notes:{en:"FBX is export-only (no import back into Archicad). No native glTF or USD.",
+             ja:"FBXは書き出し専用（Archicadへの読み込みは不可）。glTF・USDは非対応。"} },
     { id:"vectorworks", name:{en:"Vectorworks",ja:"Vectorworks"}, group:"arch", upAxis:"Z", axisCfg:false, handed:"right", unit:"mm", unitCfg:true, versionCaveat:false,
-      notes:{en:"Civil/site-scale drawings sometimes use meters instead.",
-             ja:"土木・敷地スケールの図面ではm単位が使われることもある。"} },
+      fmt:{ fbx:F(true,false), gltf:NO_FMT, usd:NO_FMT, obj:F(true,true), stl:F(true,true) },
+      notes:{en:"Civil/site-scale drawings sometimes use meters instead. FBX export works well, but Vectorworks still can't import FBX back in (a long-standing user request). No glTF or USD.",
+             ja:"土木・敷地スケールの図面ではm単位が使われることもある。FBX書き出しは良好に動くが、Vectorworksは今なおFBXの読み込みができない（ユーザーからの積年の要望）。glTF・USDは非対応。"} },
     { id:"jw-cad", name:{en:"Jw_cad",ja:"Jw_cad"}, group:"arch", upAxis:"none", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:true, versionCaveat:false,
-      notes:{en:"Pure 2D CAD — there is no up-axis or 3D coordinate concept to convert.",
-             ja:"純粋な2次元CADのため、変換すべき『Up軸』や3D座標の概念自体が存在しない。"} },
-    { id:"bambu-studio", name:{en:"Bambu Studio",ja:"Bambu Studio"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} },
-    { id:"orca-slicer", name:{en:"Orca Slicer",ja:"Orca Slicer"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} },
-    { id:"prusaslicer", name:{en:"PrusaSlicer",ja:"PrusaSlicer"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} },
-    { id:"ultimaker-cura", name:{en:"UltiMaker Cura",ja:"UltiMaker Cura"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} },
-    { id:"simplify3d", name:{en:"Simplify3D",ja:"Simplify3D"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false, notes:{en:null,ja:null} }
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:NO_FMT, stl:NO_FMT },
+      notes:{en:"Pure 2D CAD — there is no up-axis or 3D coordinate concept to convert, and none of these 3D interchange formats apply at all (it works with its own .jww format and 2D DXF).",
+             ja:"純粋な2次元CADのため、変換すべき『Up軸』や3D座標の概念自体が存在せず、これら3D用フォーマットはそもそも対象外（独自の.jww形式と2D DXFで完結する）。"} },
+    { id:"bambu-studio", name:{en:"Bambu Studio",ja:"Bambu Studio"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(false,true), stl:F(false,true) },
+      notes:{en:"Slicers read a finished mesh, they don't re-export one — geometry formats here are import-only. Accepts STL, OBJ, STEP, AMF and 3MF; no FBX, glTF, or USD at all.",
+             ja:"スライサーは完成したメッシュを読み込むだけで書き出しはしないため、ここでのフォーマットはすべて読み込み専用。対応はSTL・OBJ・STEP・AMF・3MF。FBX・glTF・USDは一切非対応。"} },
+    { id:"orca-slicer", name:{en:"Orca Slicer",ja:"Orca Slicer"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(false,true), stl:F(false,true) },
+      notes:{en:"A Bambu Studio fork with the same format support: STL, OBJ, STEP, AMF and 3MF (all import-only). No FBX, glTF, or USD.",
+             ja:"Bambu Studioの派生版で対応フォーマットも同じ：STL・OBJ・STEP・AMF・3MF（すべて読み込み専用）。FBX・glTF・USDは非対応。"} },
+    { id:"prusaslicer", name:{en:"PrusaSlicer",ja:"PrusaSlicer"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(false,true), stl:F(false,true) },
+      notes:{en:"Accepts STL, STEP, 3MF, OBJ and AMF (import-only). No FBX, glTF, or USD.",
+             ja:"対応はSTL・STEP・3MF・OBJ・AMF（すべて読み込み専用）。FBX・glTF・USDは非対応。"} },
+    { id:"ultimaker-cura", name:{en:"UltiMaker Cura",ja:"UltiMaker Cura"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:F(false,"plugin"), usd:NO_FMT, obj:F(false,true), stl:F(false,true) },
+      notes:{en:"Accepts STL, OBJ, X3D, 3MF, AMF (import-only); the most permissive slicer here, with some builds able to read glTF too. Still no FBX or USD.",
+             ja:"対応はSTL・OBJ・X3D・3MF・AMF（すべて読み込み専用）。ここに挙げたスライサーの中では最も対応が広く、ビルドによってはglTFも読める。それでもFBX・USDは非対応。"} },
+    { id:"simplify3d", name:{en:"Simplify3D",ja:"Simplify3D"}, group:"slicer", upAxis:"Z", axisCfg:false, handed:"n/a", unit:"mm", unitCfg:false, versionCaveat:false,
+      fmt:{ fbx:NO_FMT, gltf:NO_FMT, usd:NO_FMT, obj:F(false,true), stl:F(false,true) },
+      notes:{en:"Only STL, OBJ and 3MF are accepted (import-only). No FBX, glTF, or USD — and no STEP either, unlike the other slicers listed here.",
+             ja:"対応はSTL・OBJ・3MFのみ（読み込み専用）。FBX・glTF・USDは非対応。他のスライサーと違いSTEPも非対応。"} }
   ];
   var SWBYID = {}; SW.forEach(function(s){ SWBYID[s.id] = s; });
 
@@ -325,10 +378,45 @@
       viaFormat: { en:"via {f}: source exports as {fu}, target reads {fu} \u2014 net effect is automatic, no manual multiplier needed.",
                    ja:"{f}経由: 元は{fu}として書き出され、先は{fu}として読み込みます。差分は自動で吸収されるため手動の倍率調整は不要です。" },
       refOnly: { en:"(reference only \u2014 actual conversion follows the file's own metadata)", ja:"（参考値。実際の変換はファイル自身のメタデータに従います）" },
-      versionCaveatBadge: { en:"Setting-dependent", ja:"設定・版依存" }
+      versionCaveatBadge: { en:"Setting-dependent", ja:"設定・版依存" },
+      cantExport: { en:"{sw} doesn't export {fmt} by default.", ja:"{sw}は標準では{fmt}を書き出せません。" },
+      cantImport: { en:"{sw} doesn't import {fmt} by default.", ja:"{sw}は標準では{fmt}を読み込めません。" },
+      needsPluginExport: { en:"{sw} can only export {fmt} with an add-on plugin, not out of the box.", ja:"{sw}は{fmt}の書き出しに追加プラグインが必要で、標準機能だけではできません。" },
+      needsPluginImport: { en:"{sw} can only import {fmt} with an add-on plugin, not out of the box.", ja:"{sw}は{fmt}の読み込みに追加プラグインが必要で、標準機能だけではできません。" },
+      compatHeading: { en:"This combination won't work as described:", ja:"この組み合わせは、記載の方法では通りません：" },
+      compatSuggestion: { en:"Formats both sides support without a plugin: {list}.", ja:"どちらも追加プラグインなしで対応しているフォーマット: {list}" },
+      compatSuggestionNone: { en:"No format in this list is supported by both sides without a plugin — you'll need an intermediate conversion (e.g. via Blender) or a paid plugin.", ja:"このリストの中で両者が追加プラグインなしに対応しているフォーマットはありません。中間変換（Blender経由など）か有償プラグインが必要です。" }
     };
     function s(key){ return STR[key][L] || STR[key].en; }
     function tpl(key, map){ var str = s(key); return str.replace(/\{(\w+)\}/g, function(_, k){ return map[k] != null ? map[k] : ""; }); }
+
+    /* ---- フォーマット対応チェック（そもそもこの組み合わせで読み書きできるか） ---- */
+    var compatCard = $("compat-card"), compatVerdict = $("compat-verdict");
+    if (fmt.id !== "unspecified" && from.id !== to.id && from.fmt && to.fmt && from.fmt[fmt.id] && to.fmt[fmt.id]){
+      var fromSup = from.fmt[fmt.id], toSup = to.fmt[fmt.id];
+      var issues = [];
+      if (fromSup.exp === false) issues.push(tpl("cantExport", { sw: pick(from.name), fmt: fmt.name }));
+      else if (fromSup.exp === "plugin") issues.push(tpl("needsPluginExport", { sw: pick(from.name), fmt: fmt.name }));
+      if (toSup.imp === false) issues.push(tpl("cantImport", { sw: pick(to.name), fmt: fmt.name }));
+      else if (toSup.imp === "plugin") issues.push(tpl("needsPluginImport", { sw: pick(to.name), fmt: fmt.name }));
+
+      if (issues.length){
+        var alts = FMT.filter(function(f){
+          return f.id !== "unspecified" && from.fmt[f.id] && to.fmt[f.id] &&
+                 from.fmt[f.id].exp === true && to.fmt[f.id].imp === true;
+        }).map(function(f){ return f.name; });
+        var sugg = alts.length ? tpl("compatSuggestion", { list: alts.join(", ") }) : s("compatSuggestionNone");
+        compatCard.hidden = false;
+        compatVerdict.innerHTML = verdictIcon("warn") +
+          "<span><b>" + esc(s("compatHeading")) + "</b>" +
+          issues.map(function(t){ return esc(t); }).join("<br>") +
+          "<br><br>" + esc(sugg) + "</span>";
+      } else {
+        compatCard.hidden = true;
+      }
+    } else {
+      compatCard.hidden = true;
+    }
 
     /* ---- 軸ビジュアル ---- */
     var axisHtml =
