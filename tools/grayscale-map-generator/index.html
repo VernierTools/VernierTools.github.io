@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Normal map generator — Vernier</title>
+<title>Grayscale map generator — Vernier</title>
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
@@ -33,16 +33,16 @@
   .out-empty{ color:var(--text-3); font-size:13px; padding:var(--s7) var(--s5); text-align:center; }
   .out-empty[hidden]{ display:none; }
 
-  .toggle small{ color:var(--text-3); font-weight:400; }
-  .fieldnote{ font-size:12px; color:var(--text-3); margin-top:6px; }
+  .subfields{ margin-top:var(--s4); padding-top:var(--s4); border-top:1px solid var(--border); }
+  .subfields[hidden]{ display:none; }
 </style>
 </head>
 <body>
 <main class="shell">
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.3dcg">3DCG</span></div>
-    <h1 data-i18n="t.title">Normal map generator</h1>
-    <p data-i18n="t.desc">Turn a seamless texture into a normal map, driven by luminance, saturation, hue, or a single channel.</p>
+    <h1 data-i18n="t.title">Grayscale map generator</h1>
+    <p data-i18n="t.desc">Roughness, specular, alpha, displacement, approximate metallic, and pseudo-AO cavity maps — from one texture.</p>
   </div>
 
   <div class="work">
@@ -67,6 +67,22 @@
             </div>
           </div>
           <input type="file" id="file-input" accept="image/*" hidden>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.preset">Preset</label>
+          <select class="select" id="preset" disabled>
+            <option value="custom" data-i18n="t.pCustom">Custom</option>
+            <option value="roughness" data-i18n="t.pRough">Roughness</option>
+            <option value="specular" data-i18n="t.pSpec">Specular</option>
+            <option value="alpha" data-i18n="t.pAlpha">Alpha / Opacity</option>
+            <option value="metallic" data-i18n="t.pMetal">Metallic (approximate)</option>
+            <option value="displacement" data-i18n="t.pDisp">Displacement / Height</option>
+            <option value="cavity" data-i18n="t.pCavity">Cavity (pseudo AO)</option>
+          </select>
+          <div class="hint" data-i18n="t.presetHint">Presets just fill in starting values below — everything stays editable, and picking a preset for "metallic" is only an approximation.</div>
         </div>
       </div>
 
@@ -103,30 +119,42 @@
       </div>
 
       <div class="card">
-        <div class="card__title" data-i18n="t.heightRange">Height range</div>
+        <div class="card__title" data-i18n="t.heightRange">Value range</div>
         <div class="field">
           <label class="label" data-i18n="t.reference">Reference level</label>
           <div class="sliderrow"><input type="range" class="slider" id="reference" min="0" max="100" value="50" disabled><span class="val mono" id="reference-val">50%</span></div>
         </div>
         <div class="field">
-          <label class="label" data-i18n="t.upper">Peak limit (above reference)</label>
+          <label class="label" data-i18n="t.upper">Upper limit (above reference)</label>
           <div class="sliderrow"><input type="range" class="slider" id="upper" min="0" max="200" value="100" disabled><span class="val mono" id="upper-val">100%</span></div>
         </div>
         <div class="field">
-          <label class="label" data-i18n="t.lower">Valley limit (below reference)</label>
+          <label class="label" data-i18n="t.lower">Lower limit (below reference)</label>
           <div class="sliderrow"><input type="range" class="slider" id="lower" min="0" max="200" value="100" disabled><span class="val mono" id="lower-val">100%</span></div>
-        </div>
-        <div class="hint" data-i18n="t.heightHint">Peaks and valleys can be scaled independently around the reference level, for asymmetric bumps.</div>
-      </div>
-
-      <div class="card">
-        <div class="field">
-          <label class="label" data-i18n="t.strength">Strength</label>
-          <div class="sliderrow"><input type="range" class="slider" id="strength" min="1" max="50" value="8" disabled><span class="val mono" id="strength-val">8</span></div>
         </div>
         <div class="field">
           <label class="label" data-i18n="t.smoothing">Smoothing</label>
           <div class="sliderrow"><input type="range" class="slider" id="smoothing" min="0" max="4" value="0" disabled><span class="val mono" id="smoothing-val">0</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="toggle"><input type="checkbox" id="cavity" disabled><span class="track"></span><span data-i18n="t.cavityToggle">Cavity mode (pseudo AO)</span></label>
+          <div class="hint" data-i18n="t.cavityDesc">Darkens grooves and seams by comparing the value map to a blurred version of itself. Not real ambient occlusion.</div>
+        </div>
+        <div class="subfields" id="cavity-fields" hidden>
+          <div class="field">
+            <label class="label" data-i18n="t.cavRadius">Cavity blur radius</label>
+            <div class="sliderrow"><input type="range" class="slider" id="cav-radius" min="1" max="12" value="4" disabled><span class="val mono" id="cav-radius-val">4</span></div>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.cavStrength">Cavity strength</label>
+            <div class="sliderrow"><input type="range" class="slider" id="cav-strength" min="0" max="200" value="100" disabled><span class="val mono" id="cav-strength-val">100%</span></div>
+          </div>
+          <div class="field">
+            <label class="toggle"><input type="checkbox" id="cav-invert" checked disabled><span class="track"></span><span data-i18n="t.cavInvert">Darken grooves (instead of lighten)</span></label>
+          </div>
         </div>
       </div>
 
@@ -139,21 +167,17 @@
     <div>
       <div class="preview" id="out-wrap" style="margin-bottom:var(--s4)">
         <canvas id="out-canvas" hidden></canvas>
-        <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the normal map here.</div>
+        <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the generated map here.</div>
       </div>
 
       <div class="card" style="margin-bottom:var(--s4)">
-        <label class="toggle"><input type="checkbox" id="conv-dx" disabled><span class="track"></span>
-          <span><span data-i18n="t.dxToggle">Preview as DirectX (Y−)</span> <small id="conv-current">— OpenGL (Y+)</small></span>
-        </label>
         <div class="badges" id="badges"></div>
       </div>
 
       <div class="btnrow">
-        <button class="btn btn--secondary" id="dl-gl" disabled data-i18n="t.dlgl">Download OpenGL (Y+)</button>
-        <button class="btn btn--secondary" id="dl-dx" disabled data-i18n="t.dldx">Download DirectX (Y−)</button>
+        <button class="btn btn--primary" id="dl-btn" disabled data-i18n="t.download">Download map</button>
       </div>
-      <div class="hint" data-i18n="t.tileHint">Gradients are sampled with wrap-around, so seamless input stays seamless.</div>
+      <div class="hint" data-i18n="t.tileHint">Smoothing and the cavity blur are sampled with wrap-around, so seamless input stays seamless.</div>
     </div>
   </div>
 </main>
@@ -164,39 +188,55 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
 
-  var FULL_MAX = 2048;   // ダウンロード時の作業解像度上限
-  var WORK_MAX = 640;    // ライブプレビュー用の作業解像度上限
+  var FULL_MAX = 2048;
+  var WORK_MAX = 640;
 
   var el = {
     dropZone: $("drop"), dropEmpty: $("drop-empty"), dropLoaded: $("drop-loaded"),
     fileInput: $("file-input"), thumbImg: $("thumb-img"), metaName: $("meta-name"), metaDims: $("meta-dims"),
+    preset: $("preset"),
     basis: $("basis"), hintHue: $("hint-hue"), hintAlpha: $("hint-alpha"), invert: $("invert"),
     black: $("black"), blackVal: $("black-val"), white: $("white"), whiteVal: $("white-val"),
     reference: $("reference"), referenceVal: $("reference-val"),
     upper: $("upper"), upperVal: $("upper-val"), lower: $("lower"), lowerVal: $("lower-val"),
-    strength: $("strength"), strengthVal: $("strength-val"), smoothing: $("smoothing"), smoothingVal: $("smoothing-val"),
+    smoothing: $("smoothing"), smoothingVal: $("smoothing-val"),
+    cavity: $("cavity"), cavityFields: $("cavity-fields"),
+    cavRadius: $("cav-radius"), cavRadiusVal: $("cav-radius-val"),
+    cavStrength: $("cav-strength"), cavStrengthVal: $("cav-strength-val"), cavInvert: $("cav-invert"),
     resetBtn: $("reset-btn"),
     outWrap: $("out-wrap"), outCanvas: $("out-canvas"), outEmpty: $("out-empty"),
-    convDx: $("conv-dx"), convCurrent: $("conv-current"), badges: $("badges"),
-    dlGl: $("dl-gl"), dlDx: $("dl-dx")
+    badges: $("badges"), dlBtn: $("dl-btn")
   };
   var outCtx = el.outCanvas.getContext("2d");
 
-  var DEFAULTS = { basis:"luminance", invert:false, black:0, white:100, reference:50, upper:100, lower:100, strength:8, smoothing:0 };
+  var DEFAULTS = { basis:"luminance", invert:false, black:0, white:100, reference:50, upper:100, lower:100, smoothing:0,
+    cavity:false, cavRadius:4, cavStrength:100, cavInvert:true };
+
+  var PRESETS = {
+    roughness:    { basis:"luminance",  invert:false, black:0,  white:100, reference:50, upper:100, lower:100, smoothing:1, cavity:false },
+    specular:     { basis:"luminance",  invert:true,  black:0,  white:100, reference:50, upper:100, lower:100, smoothing:1, cavity:false },
+    alpha:        { basis:"luminance",  invert:false, black:30, white:70,  reference:50, upper:150, lower:150, smoothing:0, cavity:false },
+    metallic:     { basis:"saturation", invert:false, black:40, white:60,  reference:50, upper:150, lower:150, smoothing:0, cavity:false },
+    displacement: { basis:"luminance",  invert:false, black:0,  white:100, reference:50, upper:100, lower:100, smoothing:0, cavity:false },
+    cavity:       { basis:"luminance",  invert:false, black:0,  white:100, reference:50, upper:100, lower:100, smoothing:0, cavity:true,
+                     cavRadius:4, cavStrength:100, cavInvert:true }
+  };
+  var SUFFIX = { custom:"map", roughness:"roughness", specular:"specular", alpha:"alpha", metallic:"metallic_approx", displacement:"displacement", cavity:"cavity_ao" };
 
   var state = {
     fullData:null, fullW:0, fullH:0,
     workData:null, workW:0, workH:0,
-    gradX:null, gradY:null, normals:null,
-    baseName:"normalmap", srcW:0, srcH:0
+    gray:null, baseName:"map"
   };
+  var applyingPreset = false;
 
   function params(){
     return {
       basis: el.basis.value, invert: el.invert.checked,
       black: +el.black.value, white: +el.white.value,
       reference: +el.reference.value, upper: +el.upper.value, lower: +el.lower.value,
-      strength: +el.strength.value, smoothing: +el.smoothing.value
+      smoothing: +el.smoothing.value,
+      cavity: el.cavity.checked, cavRadius: +el.cavRadius.value, cavStrength: +el.cavStrength.value, cavInvert: el.cavInvert.checked
     };
   }
 
@@ -254,93 +294,60 @@
     return out;
   }
 
-  function computeGradients(height, w, h){
-    var gx = new Float32Array(w*h), gy = new Float32Array(w*h);
-    for (var y=0; y<h; y++){
-      for (var x=0; x<w; x++){
-        var i = y*w+x;
-        var tl=height[idx(x-1,y-1,w,h)], tm=height[idx(x,y-1,w,h)], tr=height[idx(x+1,y-1,w,h)];
-        var ml=height[idx(x-1,y,w,h)],                                  mr=height[idx(x+1,y,w,h)];
-        var bl=height[idx(x-1,y+1,w,h)], bm=height[idx(x,y+1,w,h)], br=height[idx(x+1,y+1,w,h)];
-        gx[i] = (tr+2*mr+br) - (tl+2*ml+bl);
-        gy[i] = (bl+2*bm+br) - (tl+2*tm+tr);
-      }
+  function computeGray(data, w, h, p){
+    var height = computeHeightField(data, w, h, p);
+    if (!p.cavity) return height;
+    var low = height;
+    for (var i=0; i<p.cavRadius; i++) low = boxBlur(low, w, h);
+    var n = w*h;
+    var out = new Float32Array(n);
+    var strength = p.cavStrength/100;
+    for (var k=0; k<n; k++){
+      var d = (height[k]-low[k]) * strength;
+      out[k] = 0.5 + (p.cavInvert ? -d : d);
     }
-    return { gx:gx, gy:gy };
+    return out;
   }
 
-  function computeNormals(gx, gy, strength){
-    var n = gx.length;
-    var nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n);
-    for (var i=0; i<n; i++){
-      var X = -gx[i]*strength, Y = -gy[i]*strength, Z = 1;
-      var len = Math.sqrt(X*X+Y*Y+Z*Z);
-      nx[i]=X/len; ny[i]=Y/len; nz[i]=Z/len;
-    }
-    return { nx:nx, ny:ny, nz:nz };
-  }
-
-  function toRGBA(n, w, h, convention){
+  function toRGBA(gray, w, h){
     var out = new Uint8ClampedArray(w*h*4);
     for (var i=0; i<w*h; i++){
-      var o = i*4;
-      var yv = (convention === "directx") ? -n.ny[i] : n.ny[i];
-      out[o]   = Math.round((n.nx[i]*0.5+0.5)*255);
-      out[o+1] = Math.round((yv*0.5+0.5)*255);
-      out[o+2] = Math.round((n.nz[i]*0.5+0.5)*255);
-      out[o+3] = 255;
+      var o = i*4, v = Math.round(gray[i]*255);
+      out[o]=v; out[o+1]=v; out[o+2]=v; out[o+3]=255;
     }
     return out;
   }
 
   /* ---- ライブプレビュー ---- */
   var rafPending = false;
-  function schedule(){ if (rafPending) return; rafPending = true; requestAnimationFrame(function(){ rafPending=false; recomputeHeavy(); }); }
-
-  function recomputeHeavy(){
+  function schedule(){ if (rafPending) return; rafPending = true; requestAnimationFrame(function(){ rafPending=false; recompute(); }); }
+  function recompute(){
     if (!state.workData) return;
     var p = params();
-    var height = computeHeightField(state.workData, state.workW, state.workH, p);
-    var g = computeGradients(height, state.workW, state.workH);
-    state.gradX = g.gx; state.gradY = g.gy;
-    recomputeLight();
-  }
-  function recomputeLight(){
-    if (!state.gradX) return;
-    var p = params();
-    state.normals = computeNormals(state.gradX, state.gradY, p.strength/10);
-    drawPreview();
-  }
-  function drawPreview(){
-    var conv = el.convDx.checked ? "directx" : "opengl";
-    var rgba = toRGBA(state.normals, state.workW, state.workH, conv);
-    var imgData = new ImageData(rgba, state.workW, state.workH);
-    outCtx.putImageData(imgData, 0, 0);
-    el.convCurrent.textContent = conv === "directx"
-      ? (Shell.lang === "ja" ? "— DirectX (Y−)" : "— DirectX (Y−)")
-      : (Shell.lang === "ja" ? "— OpenGL (Y+)" : "— OpenGL (Y+)");
+    state.gray = computeGray(state.workData, state.workW, state.workH, p);
+    var rgba = toRGBA(state.gray, state.workW, state.workH);
+    outCtx.putImageData(new ImageData(rgba, state.workW, state.workH), 0, 0);
   }
 
   /* ---- ダウンロード（元解像度で再計算） ---- */
-  function downloadConvention(conv, btn){
+  function download(){
     if (!state.fullData) return;
-    var label = btn.textContent;
-    btn.disabled = true; btn.textContent = Shell.t("t.generating");
+    var label = el.dlBtn.textContent;
+    el.dlBtn.disabled = true; el.dlBtn.textContent = Shell.t("t.generating");
     setTimeout(function(){
       var p = params();
-      var height = computeHeightField(state.fullData, state.fullW, state.fullH, p);
-      var g = computeGradients(height, state.fullW, state.fullH);
-      var n = computeNormals(g.gx, g.gy, p.strength/10);
-      var rgba = toRGBA(n, state.fullW, state.fullH, conv);
+      var gray = computeGray(state.fullData, state.fullW, state.fullH, p);
+      var rgba = toRGBA(gray, state.fullW, state.fullH);
       var c = document.createElement("canvas"); c.width = state.fullW; c.height = state.fullH;
       c.getContext("2d").putImageData(new ImageData(rgba, state.fullW, state.fullH), 0, 0);
       c.toBlob(function(blob){
         var url = URL.createObjectURL(blob);
         var a = document.createElement("a");
-        a.href = url; a.download = state.baseName + "_normal_" + conv + ".png";
+        var suf = SUFFIX[el.preset.value] || "map";
+        a.href = url; a.download = state.baseName + "_" + suf + ".png";
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-        btn.disabled = false; btn.textContent = label;
+        el.dlBtn.disabled = false; el.dlBtn.textContent = label;
       }, "image/png");
     }, 30);
   }
@@ -370,8 +377,7 @@
       el.outCanvas.width = ww; el.outCanvas.height = wh;
       el.outCanvas.hidden = false; el.outEmpty.hidden = true;
 
-      state.baseName = file.name.replace(/\.[^.]+$/, "") || "normalmap";
-      state.srcW = iw; state.srcH = ih;
+      state.baseName = file.name.replace(/\.[^.]+$/, "") || "map";
 
       el.thumbImg.src = url;
       el.metaName.textContent = file.name;
@@ -395,28 +401,43 @@
   }
 
   function setControlsEnabled(on){
-    [el.basis, el.invert, el.black, el.white, el.reference, el.upper, el.lower,
-     el.strength, el.smoothing, el.resetBtn, el.convDx, el.dlGl, el.dlDx].forEach(function(node){
+    [el.preset, el.basis, el.invert, el.black, el.white, el.reference, el.upper, el.lower, el.smoothing,
+     el.cavity, el.cavRadius, el.cavStrength, el.cavInvert, el.resetBtn, el.dlBtn].forEach(function(node){
       node.disabled = !on;
     });
   }
 
-  /* ---- スライダー表示・levels の相互ガード ---- */
-  function fmtPct(v){ return v + "%"; }
   function syncSliderLabels(){
-    el.blackVal.textContent = fmtPct(el.black.value);
-    el.whiteVal.textContent = fmtPct(el.white.value);
-    el.referenceVal.textContent = fmtPct(el.reference.value);
-    el.upperVal.textContent = fmtPct(el.upper.value);
-    el.lowerVal.textContent = fmtPct(el.lower.value);
-    el.strengthVal.textContent = el.strength.value;
+    el.blackVal.textContent = el.black.value + "%";
+    el.whiteVal.textContent = el.white.value + "%";
+    el.referenceVal.textContent = el.reference.value + "%";
+    el.upperVal.textContent = el.upper.value + "%";
+    el.lowerVal.textContent = el.lower.value + "%";
     el.smoothingVal.textContent = el.smoothing.value;
+    el.cavRadiusVal.textContent = el.cavRadius.value;
+    el.cavStrengthVal.textContent = el.cavStrength.value + "%";
   }
   function updateBasisHint(){
     var v = el.basis.value;
     el.hintHue.hidden = v !== "hue";
     el.hintAlpha.hidden = v !== "alpha";
   }
+  function updateCavityVisibility(){ el.cavityFields.hidden = !el.cavity.checked; }
+
+  function applyPreset(name){
+    var p = PRESETS[name]; if (!p) return;
+    applyingPreset = true;
+    el.basis.value = p.basis; el.invert.checked = p.invert;
+    el.black.value = p.black; el.white.value = p.white;
+    el.reference.value = p.reference; el.upper.value = p.upper; el.lower.value = p.lower;
+    el.smoothing.value = p.smoothing;
+    el.cavity.checked = p.cavity;
+    if (p.cavity){ el.cavRadius.value = p.cavRadius; el.cavStrength.value = p.cavStrength; el.cavInvert.checked = p.cavInvert; }
+    updateBasisHint(); updateCavityVisibility(); syncSliderLabels();
+    applyingPreset = false;
+    schedule();
+  }
+  function markCustom(){ if (!applyingPreset) el.preset.value = "custom"; }
 
   /* ---- ドロップゾーン ---- */
   el.dropZone.addEventListener("click", function(){ el.fileInput.click(); });
@@ -430,48 +451,60 @@
   el.fileInput.addEventListener("change", function(){ if (el.fileInput.files[0]) loadFile(el.fileInput.files[0]); });
 
   /* ---- コントロール配線 ---- */
-  el.basis.addEventListener("change", function(){ updateBasisHint(); schedule(); });
-  el.invert.addEventListener("change", schedule);
+  el.preset.addEventListener("change", function(){ applyPreset(el.preset.value); });
+  el.basis.addEventListener("change", function(){ updateBasisHint(); markCustom(); schedule(); });
+  el.invert.addEventListener("change", function(){ markCustom(); schedule(); });
   [el.black, el.white].forEach(function(node){
     node.addEventListener("input", function(){
       if (+el.black.value >= +el.white.value){
         if (node === el.black) el.white.value = Math.min(100, +el.black.value+1);
         else el.black.value = Math.max(0, +el.white.value-1);
       }
-      syncSliderLabels(); schedule();
+      syncSliderLabels(); markCustom(); schedule();
     });
   });
-  [el.reference, el.upper, el.lower].forEach(function(node){
-    node.addEventListener("input", function(){ syncSliderLabels(); schedule(); });
+  [el.reference, el.upper, el.lower, el.smoothing].forEach(function(node){
+    node.addEventListener("input", function(){ syncSliderLabels(); markCustom(); schedule(); });
   });
-  el.strength.addEventListener("input", function(){ syncSliderLabels(); recomputeLight(); });
-  el.smoothing.addEventListener("input", function(){ syncSliderLabels(); schedule(); });
-  el.convDx.addEventListener("change", drawPreview);
+  el.cavity.addEventListener("change", function(){ updateCavityVisibility(); markCustom(); schedule(); });
+  [el.cavRadius, el.cavStrength].forEach(function(node){
+    node.addEventListener("input", function(){ syncSliderLabels(); markCustom(); schedule(); });
+  });
+  el.cavInvert.addEventListener("change", function(){ markCustom(); schedule(); });
 
   el.resetBtn.addEventListener("click", function(){
+    applyingPreset = true;
+    el.preset.value = "custom";
     el.basis.value = DEFAULTS.basis; el.invert.checked = DEFAULTS.invert;
     el.black.value = DEFAULTS.black; el.white.value = DEFAULTS.white;
     el.reference.value = DEFAULTS.reference; el.upper.value = DEFAULTS.upper; el.lower.value = DEFAULTS.lower;
-    el.strength.value = DEFAULTS.strength; el.smoothing.value = DEFAULTS.smoothing;
-    updateBasisHint(); syncSliderLabels(); schedule();
+    el.smoothing.value = DEFAULTS.smoothing;
+    el.cavity.checked = DEFAULTS.cavity;
+    el.cavRadius.value = DEFAULTS.cavRadius; el.cavStrength.value = DEFAULTS.cavStrength; el.cavInvert.checked = DEFAULTS.cavInvert;
+    updateBasisHint(); updateCavityVisibility(); syncSliderLabels();
+    applyingPreset = false;
+    schedule();
   });
 
-  el.dlGl.addEventListener("click", function(){ downloadConvention("opengl", el.dlGl); });
-  el.dlDx.addEventListener("click", function(){ downloadConvention("directx", el.dlDx); });
+  el.dlBtn.addEventListener("click", download);
 
   /* ---- 起動 ---- */
-  syncSliderLabels(); updateBasisHint();
+  syncSliderLabels(); updateBasisHint(); updateCavityVisibility();
 
   Shell.init({
-    id: "normal-map-generator",
+    id: "grayscale-map-generator",
     strings: {
       en: {
-        "t.title": "Normal map generator",
-        "t.desc": "Turn a seamless texture into a normal map, driven by luminance, saturation, hue, or a single channel.",
+        "t.title": "Grayscale map generator",
+        "t.desc": "Roughness, specular, alpha, displacement, approximate metallic, and pseudo-AO cavity maps — from one texture.",
         "t.texture": "Texture",
         "t.dropTitle": "Click or drop an image",
         "t.dropHint": "PNG / JPG / WebP — ideally a seamless texture",
         "t.change": "Change",
+        "t.preset": "Preset",
+        "t.pCustom": "Custom", "t.pRough": "Roughness", "t.pSpec": "Specular", "t.pAlpha": "Alpha / Opacity",
+        "t.pMetal": "Metallic (approximate)", "t.pDisp": "Displacement / Height", "t.pCavity": "Cavity (pseudo AO)",
+        "t.presetHint": "Presets just fill in starting values below — everything stays editable, and \u201cmetallic\u201d is only an approximation.",
         "t.basis": "Basis",
         "t.bLum": "Luminance", "t.bSat": "Saturation", "t.bHue": "Hue",
         "t.bR": "Red channel", "t.bG": "Green channel", "t.bB": "Blue channel", "t.bA": "Alpha channel",
@@ -479,24 +512,29 @@
         "t.alphaHint": "If the image has no real alpha channel, this produces a flat result.",
         "t.invert": "Invert",
         "t.levels": "Levels", "t.black": "Black point", "t.white": "White point",
-        "t.heightRange": "Height range", "t.reference": "Reference level",
-        "t.upper": "Peak limit (above reference)", "t.lower": "Valley limit (below reference)",
-        "t.heightHint": "Peaks and valleys can be scaled independently around the reference level, for asymmetric bumps.",
-        "t.strength": "Strength", "t.smoothing": "Smoothing",
+        "t.heightRange": "Value range", "t.reference": "Reference level",
+        "t.upper": "Upper limit (above reference)", "t.lower": "Lower limit (below reference)",
+        "t.smoothing": "Smoothing",
+        "t.cavityToggle": "Cavity mode (pseudo AO)",
+        "t.cavityDesc": "Darkens grooves and seams by comparing the value map to a blurred version of itself. Not real ambient occlusion.",
+        "t.cavRadius": "Cavity blur radius", "t.cavStrength": "Cavity strength", "t.cavInvert": "Darken grooves (instead of lighten)",
         "t.reset": "Reset settings",
-        "t.emptyPreview": "Load a texture to see the normal map here.",
-        "t.dxToggle": "Preview as DirectX (Y−)",
-        "t.dlgl": "Download OpenGL (Y+)", "t.dldx": "Download DirectX (Y−)",
-        "t.tileHint": "Gradients are sampled with wrap-around, so seamless input stays seamless.",
+        "t.emptyPreview": "Load a texture to see the generated map here.",
+        "t.download": "Download map",
+        "t.tileHint": "Smoothing and the cavity blur are sampled with wrap-around, so seamless input stays seamless.",
         "t.resWork": "preview", "t.generating": "Generating…"
       },
       ja: {
-        "t.title": "ノーマルマップ生成",
-        "t.desc": "明度・彩度・色相、または単一チャンネルを基準に、シームレステクスチャから疑似ノーマルマップを生成します。",
+        "t.title": "グレースケールマップ生成",
+        "t.desc": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・疑似AO(カビティ)を、1枚のテクスチャから生成。",
         "t.texture": "テクスチャ",
         "t.dropTitle": "クリックまたはドロップして画像を読み込み",
         "t.dropHint": "PNG / JPG / WebP — シームレステクスチャ推奨",
         "t.change": "変更",
+        "t.preset": "プリセット",
+        "t.pCustom": "カスタム", "t.pRough": "ラフネス", "t.pSpec": "スペキュラー", "t.pAlpha": "アルファ／不透明度",
+        "t.pMetal": "メタリック（簡易）", "t.pDisp": "ディスプレイスメント／ハイト", "t.pCavity": "カビティ（疑似AO）",
+        "t.presetHint": "プリセットは下の値の初期値を入れるだけで、すべて編集可能です。「メタリック」はあくまで簡易的な近似です。",
         "t.basis": "基準",
         "t.bLum": "明度（輝度）", "t.bSat": "彩度", "t.bHue": "色相",
         "t.bR": "Rチャンネル", "t.bG": "Gチャンネル", "t.bB": "Bチャンネル", "t.bA": "アルファチャンネル",
@@ -504,19 +542,19 @@
         "t.alphaHint": "画像に実質的なアルファチャンネルが無い場合、平坦な結果になります。",
         "t.invert": "反転",
         "t.levels": "レベル補正", "t.black": "黒点", "t.white": "白点",
-        "t.heightRange": "凹凸の範囲", "t.reference": "基準レベル",
-        "t.upper": "山の上限（基準より明るい側）", "t.lower": "谷の上限（基準より暗い側）",
-        "t.heightHint": "基準レベルを中心に、山と谷の強さをそれぞれ独立に調整できます（非対称な凹凸）。",
-        "t.strength": "強度", "t.smoothing": "スムージング",
+        "t.heightRange": "値の範囲", "t.reference": "基準レベル",
+        "t.upper": "上限（基準より明るい側）", "t.lower": "下限（基準より暗い側）",
+        "t.smoothing": "スムージング",
+        "t.cavityToggle": "カビティモード（疑似AO）",
+        "t.cavityDesc": "値マップとそのぼかし版を比較して、溝や継ぎ目を暗くします。本物のアンビエントオクルージョンではありません。",
+        "t.cavRadius": "カビティのぼかし半径", "t.cavStrength": "カビティの強さ", "t.cavInvert": "溝を暗く（明るくの逆）",
         "t.reset": "設定をリセット",
-        "t.emptyPreview": "テクスチャを読み込むとノーマルマップがここに表示されます。",
-        "t.dxToggle": "DirectX (Y−) でプレビュー",
-        "t.dlgl": "OpenGL (Y+) をダウンロード", "t.dldx": "DirectX (Y−) をダウンロード",
-        "t.tileHint": "勾配計算は周回（ラップアラウンド）参照のため、シームレスな入力は継ぎ目なく仕上がります。",
+        "t.emptyPreview": "テクスチャを読み込むと生成されたマップがここに表示されます。",
+        "t.download": "マップをダウンロード",
+        "t.tileHint": "スムージングとカビティのぼかしは周回（ラップアラウンド）参照のため、シームレスな入力は継ぎ目なく仕上がります。",
         "t.resWork": "プレビュー", "t.generating": "生成中…"
       }
-    },
-    onSettingsChange: function(){ if (state.normals) drawPreview(); }
+    }
   });
 })();
 </script>
