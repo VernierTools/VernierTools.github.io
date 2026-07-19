@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Value / saturation crop — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- channel enable/disable dimming ---- */
+  .cbody{ transition:opacity var(--tap); margin-top:var(--s4); }
+  .cbody.off{ opacity:.4; pointer-events:none; }
+  .chanhead{ display:flex; align-items:center; justify-content:space-between; }
+  .chanhead .label{ margin-bottom:0; }
+
+  /* ---- segmented button row (see clock tool for the pattern) ---- */
+  .seg{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:var(--s3); }
+  .seg--3{ grid-template-columns:repeat(3,1fr); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:32px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+
+  /* ---- dual-thumb range ---- */
+  .rangehead{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:7px; }
+  .rangehead .val{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--accent); font-weight:600; }
+  .dual{ position:relative; height:20px; }
+  .dual .trk{ position:absolute; top:8px; left:0; right:0; height:4px; border-radius:100px; background:var(--border-strong); }
+  .dual .fill{ position:absolute; top:8px; height:4px; border-radius:100px; background:var(--accent); }
+  .dual input[type=range]{ position:absolute; top:0; left:0; width:100%; height:20px; margin:0;
+    background:none; pointer-events:none; -webkit-appearance:none; appearance:none; }
+  .dual input[type=range]::-webkit-slider-thumb{ pointer-events:all; -webkit-appearance:none; appearance:none;
+    width:16px; height:16px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:var(--shadow-sm); cursor:pointer; }
+  .dual input[type=range]::-moz-range-thumb{ pointer-events:all; width:16px; height:16px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--border-strong); cursor:pointer; }
+  .dual input[type=range]:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 3px var(--accent-ring); }
+
+  /* gradient bands: these represent the actual visual quantity (hue/lightness), not decoration */
+  .band{ height:6px; border-radius:100px; margin-top:var(--s3); }
+  .band--sat{ background:linear-gradient(90deg,var(--text-3),#b8903c,#c84040,#b040b0,#4060c0); opacity:.65; }
+  .band--val{ background:linear-gradient(90deg,#000,#fff); border:1px solid var(--border); }
+  .band-lab{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:6px; }
+
+  /* ---- marker color swatches ---- */
+  .swatches{ display:flex; gap:8px; margin-top:var(--s3); }
+  .swatch{ width:26px; height:26px; border-radius:var(--r-sm); cursor:pointer; flex-shrink:0;
+    border:1px solid var(--border-strong); transition:border-color var(--tap), box-shadow var(--tap); }
+  .swatch[aria-pressed="true"]{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-ring); }
+
+  /* ---- preview stage ---- */
+  .stage{ position:relative; margin-bottom:var(--s4); min-height:220px; display:flex; align-items:center; justify-content:center; }
+  .stage canvas{ display:block; width:100%; height:auto; }
+  .stage canvas.hidden{ display:none; }
+  .stage[data-bg="black"]{ background:#000; }
+  .stage[data-bg="white"]{ background:#fff; }
+  .stage-empty{ display:flex; flex-direction:column; align-items:center; gap:var(--s3); padding:var(--s7) var(--s4);
+    color:var(--text-3); text-align:center; cursor:pointer; width:100%; }
+  .stage-empty svg{ width:28px; height:28px; }
+  .stage-empty b{ color:var(--text); font-weight:600; font-size:13px; }
+  .stage-empty small{ font-size:11.5px; }
+  .stage.dragover{ outline:2px dashed var(--accent); outline-offset:-2px; }
+  .compare-tags{ position:absolute; top:8px; left:0; right:0; display:none; justify-content:space-between;
+    padding:0 8px; pointer-events:none; }
+  .stage[data-compare="1"] .compare-tags{ display:flex; }
+  .compare-tags span{ font-size:10px; letter-spacing:.06em; font-weight:600; color:#fff;
+    background:color-mix(in srgb, var(--text) 55%, transparent); padding:2px 8px; border-radius:100px; }
+  .handle{ position:absolute; top:0; bottom:0; width:2px; background:var(--accent); display:none; pointer-events:none; }
+  .stage[data-compare="1"] .handle{ display:block; }
+  .handle::after{ content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:10px; height:24px; background:var(--accent); border-radius:3px; box-shadow:0 0 0 2px var(--surface); }
+
+  .sizehint{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+
+  .btn--ghost[aria-pressed="true"]{ background:var(--accent-tint); color:var(--accent); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Value / saturation crop</h1>
+    <p data-i18n="t.desc">Mask an image by brightness and saturation range, then export a transparent PNG. Everything runs locally in your browser.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・操作 -->
+    <div>
+      <div class="card">
+        <div class="stage-empty" id="drop" tabindex="0" role="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l4.5-4.5a2 2 0 0 1 2.8 0L17 17"/><circle cx="15" cy="8" r="1.6"/>
+          </svg>
+          <div><b data-i18n="t.dropb">Click to open an image</b></div>
+          <small data-i18n="t.dropsmall">…or drag &amp; drop, or paste from the clipboard.</small>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+
+      <div class="card">
+        <div class="chanhead">
+          <label class="label" data-i18n="t.sat">Saturation</label>
+          <label class="toggle"><input type="checkbox" id="satOn" checked aria-label="Enable saturation mask"><span class="track"></span></label>
+        </div>
+        <div class="cbody" id="satBody">
+          <div class="rangehead"><span class="eyebrow" data-i18n="t.range">Range</span>
+            <span class="val"><span id="vsatMin">40</span>–<span id="vsatMax">100</span></span></div>
+          <div class="dual">
+            <div class="trk"></div><div class="fill" id="satFill"></div>
+            <input type="range" id="satMin" min="0" max="100" value="40" aria-label="Saturation range min">
+            <input type="range" id="satMax" min="0" max="100" value="100" aria-label="Saturation range max">
+          </div>
+          <div class="band band--sat"></div>
+          <div class="band-lab"><span data-i18n="t.satlo">Low (gray)</span><span data-i18n="t.sathi">High (vivid)</span></div>
+          <div class="seg" id="modeSegSat" role="group">
+            <button data-mode="inside" aria-pressed="true" data-i18n="t.modein">Remove inside</button>
+            <button data-mode="outside" data-i18n="t.modeout">Remove outside</button>
+          </div>
+          <div class="hint" id="modeDescSat"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chanhead">
+          <label class="label" data-i18n="t.val">Value / brightness</label>
+          <label class="toggle"><input type="checkbox" id="valOn" aria-label="Enable value mask"><span class="track"></span></label>
+        </div>
+        <div class="cbody off" id="valBody">
+          <div class="rangehead"><span class="eyebrow" data-i18n="t.range">Range</span>
+            <span class="val"><span id="vvalMin">0</span>–<span id="vvalMax">100</span></span></div>
+          <div class="dual">
+            <div class="trk"></div><div class="fill" id="valFill"></div>
+            <input type="range" id="valMin" min="0" max="100" value="0" aria-label="Value range min">
+            <input type="range" id="valMax" min="0" max="100" value="100" aria-label="Value range max">
+          </div>
+          <div class="band band--val"></div>
+          <div class="band-lab"><span data-i18n="t.vallo">Dark (black)</span><span data-i18n="t.valhi">Light (white)</span></div>
+          <div class="seg" id="modeSegVal" role="group">
+            <button data-mode="inside" aria-pressed="true" data-i18n="t.modein">Remove inside</button>
+            <button data-mode="outside" data-i18n="t.modeout">Remove outside</button>
+          </div>
+          <div class="hint" id="modeDescVal"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.mask">Mask</label>
+        <div class="field">
+          <span class="eyebrow" data-i18n="t.combine">Combine</span>
+          <div class="seg" id="combineSeg" role="group">
+            <button data-combine="and" aria-pressed="true">AND</button>
+            <button data-combine="or">OR</button>
+          </div>
+          <div class="hint" id="combineDesc"></div>
+        </div>
+        <div class="field">
+          <div class="rangehead"><span class="eyebrow" data-i18n="t.soft">Softness</span><span class="val" id="vSoft">8</span></div>
+          <input type="range" id="soft" min="0" max="60" value="8">
+          <div class="hint" data-i18n="t.softdesc">0 gives a hard, two-tone cutoff. Raise it to blend the edge of the range smoothly.</div>
+        </div>
+        <div class="field">
+          <div class="rangehead"><span class="eyebrow" data-i18n="t.feather">Edge feather</span><span class="val" id="vFeather">2 px</span></div>
+          <input type="range" id="feather" min="0" max="30" value="2">
+          <div class="hint" data-i18n="t.featherdesc">Blurs the cutout outline to soften jagged edges.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chanhead">
+          <label class="label" data-i18n="t.hl">Removed-area highlight</label>
+          <label class="toggle"><input type="checkbox" id="hlOn" aria-label="Enable removed-area highlight"><span class="track"></span></label>
+        </div>
+        <div class="cbody off" id="hlBody">
+          <div class="hint" style="margin-top:0" data-i18n="t.hldesc">Paints removed regions in the chosen color, for checking your settings. It never affects the exported file.</div>
+          <span class="eyebrow" data-i18n="t.marker">Marker color</span>
+          <div class="swatches" id="swatches" role="group">
+            <button class="swatch" data-c="magenta" style="background:#e83fce" aria-pressed="true" aria-label="Magenta"></button>
+            <button class="swatch" data-c="green"   style="background:#33c25a" aria-label="Green"></button>
+            <button class="swatch" data-c="cyan"    style="background:#1fb8d6" aria-label="Cyan"></button>
+            <button class="swatch" data-c="red"     style="background:#e04040" aria-label="Red"></button>
+            <button class="swatch" data-c="yellow"  style="background:#e0b020" aria-label="Yellow"></button>
+          </div>
+          <label class="toggle" style="margin-top:var(--s4)">
+            <input type="checkbox" id="blinkOn"><span class="track"></span><span data-i18n="t.blink">Blink</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: プレビュー・出力 -->
+    <div>
+      <div class="preview stage" id="stage" data-bg="checker" data-compare="0">
+        <canvas id="view"></canvas>
+        <div class="compare-tags" id="ctags"><span data-i18n="t.before">Before</span><span data-i18n="t.after">After</span></div>
+        <div class="handle" id="handle"></div>
+        <div class="stage-empty" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l4.5-4.5a2 2 0 0 1 2.8 0L17 17"/><circle cx="15" cy="8" r="1.6"/>
+          </svg>
+          <b data-i18n="t.emptytitle">No image loaded</b>
+          <small data-i18n="t.emptydesc">Open, drop, or paste an image to begin.</small>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--s4)">
+        <div class="chanhead" style="margin-bottom:0">
+          <span class="eyebrow" data-i18n="t.previewbg">Preview background</span>
+          <button class="btn btn--ghost" id="cmpBtn" disabled style="height:28px;padding:0 10px;font-size:12.5px" data-i18n="t.compare">⇆ Compare</button>
+        </div>
+        <div class="seg seg--3" id="bgSeg" role="group">
+          <button data-bg="checker" aria-pressed="true" data-i18n="t.bgchecker">Checker</button>
+          <button data-bg="black" data-i18n="t.bgblack">Black</button>
+          <button data-bg="white" data-i18n="t.bgwhite">White</button>
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live"><span class="dot" id="sizeDot"></span><span class="sizehint" id="sizeText">–</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.sat">Saturation</span><span class="rrow__value" id="roSat" style="font-size:16px">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.val">Value / brightness</span><span class="rrow__value" id="roVal" style="font-size:16px">–</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.removed">Removed</span>
+          <span class="rrow__value" id="roRemoved" data-copy="0%">0<span class="u">%</span></span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click the removed amount to copy.</div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn btn--secondary" id="undoBtn" disabled data-i18n="t.undo">↩ Undo</button>
+        <button class="btn btn--secondary" id="resetBtn" disabled data-i18n="t.reset">⟳ Reset</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="exportBtn" disabled data-i18n="t.export">⬇ Export transparent PNG</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ── state ────────────────────────────────────────────────────────────
+  var DEFAULTS = {
+    sat: { on: true,  min: 40, max: 100, mode: "inside" },
+    val: { on: false, min: 0,  max: 100, mode: "inside" },
+    combine: "and",
+    soft: 8, feather: 2
+  };
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  var P = clone(DEFAULTS);
+  var bgMode = "checker";
+  var compare = false, split = 0.5, dragging = false;
+  var origFull = null, origPrev = null, prevW = 0, prevH = 0;
+  var undoStack = [];
+
+  var cutCv = document.createElement("canvas");
+  var origCv = document.createElement("canvas");
+  var highlightCv = document.createElement("canvas");
+  var highlightCtx = highlightCv.getContext("2d");
+
+  var HL_COLORS = {
+    magenta: [232, 63, 206], green: [51, 194, 90], cyan: [31, 184, 214],
+    red: [224, 64, 64], yellow: [224, 176, 32]
+  };
+  var hlOn = false, hlColor = "magenta", blinkOn = false;
+  var hlImage = null, lastKeep = null, lastRemoved = 0;
+
+  // ── dom refs ─────────────────────────────────────────────────────────
+  var view = $("view"), vctx = view.getContext("2d");
+  var stage = $("stage"), emptyState = $("emptyState");
+  var handle = $("handle"), ctags = $("ctags");
+  var fileInput = $("file"), dropEl = $("drop");
+  var satMin = $("satMin"), satMax = $("satMax");
+  var valMin = $("valMin"), valMax = $("valMax");
+  var softEl = $("soft"), featherEl = $("feather");
+
+  // ── color math ───────────────────────────────────────────────────────
+  function smoothstep(e0, e1, x) {
+    if (e0 === e1) return x < e0 ? 0 : 1;
+    var t = (x - e0) / (e1 - e0); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t);
+  }
+  function satOf(r, g, b) {
+    var mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    return mx === 0 ? 0 : (mx - mn) / mx * 100;
+  }
+  function valOf(r, g, b) { return (r > g ? (r > b ? r : b) : (g > b ? g : b)) / 255 * 100; }
+  function removeFactor(x, band, soft) {
+    var half = soft / 2, lo = band.min, hi = band.max;
+    var li = (lo <= 0) ? 1 : smoothstep(lo - half, lo + half, x);
+    var ui = (hi >= 100) ? 1 : (1 - smoothstep(hi - half, hi + half, x));
+    var inside = li * ui;
+    return band.mode === "inside" ? inside : 1 - inside;
+  }
+
+  // ── box blur (2-pass) ────────────────────────────────────────────────
+  function blurMask(mask, w, h, radius) {
+    if (radius < 0.5) return mask;
+    var r = Math.round(radius), passes = 2;
+    var tmp = new Float32Array(w * h), norm = 1 / (2 * r + 1);
+    var src = mask;
+    for (var pass = 0; pass < passes; pass++) {
+      for (var y = 0; y < h; y++) {
+        var row = y * w, acc = 0, i;
+        for (i = -r; i <= r; i++) acc += src[row + Math.min(w - 1, Math.max(0, i))];
+        for (var x = 0; x < w; x++) {
+          tmp[row + x] = acc * norm;
+          acc += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+        }
+      }
+      for (x = 0; x < w; x++) {
+        acc = 0;
+        for (i = -r; i <= r; i++) acc += tmp[Math.min(h - 1, Math.max(0, i)) * w + x];
+        for (y = 0; y < h; y++) {
+          src[y * w + x] = acc * norm;
+          acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+        }
+      }
+    }
+    return src;
+  }
+
+  // ── process ──────────────────────────────────────────────────────────
+  function process(srcImg, p) {
+    var w = srcImg.width, h = srcImg.height, n = w * h;
+    var sd = srcImg.data, out = new ImageData(w, h), od = out.data;
+    var lutS = new Float32Array(1025), lutV = new Float32Array(1025);
+    for (var i = 0; i <= 1024; i++) {
+      var x = i / 1024 * 100;
+      lutS[i] = removeFactor(x, p.sat, p.soft);
+      lutV[i] = removeFactor(x, p.val, p.soft);
+    }
+    var useS = p.sat.on, useV = p.val.on, AND = p.combine === "and";
+    var mask = new Float32Array(n);
+    for (var k = 0, j = 0; k < n; k++, j += 4) {
+      var r = sd[j], g = sd[j + 1], b = sd[j + 2], rem;
+      if (useS && useV) {
+        var rS = lutS[(satOf(r, g, b) * 10.24) | 0], rV = lutV[(valOf(r, g, b) * 10.24) | 0];
+        rem = AND ? rS * rV : 1 - (1 - rS) * (1 - rV);
+      } else if (useS) { rem = lutS[(satOf(r, g, b) * 10.24) | 0]; }
+        else if (useV) { rem = lutV[(valOf(r, g, b) * 10.24) | 0]; }
+        else { rem = 0; }
+      mask[k] = 1 - rem;
+    }
+    var keep = blurMask(mask, w, h, p.feather);
+    var removed = 0;
+    for (k = 0, j = 0; k < n; k++, j += 4) {
+      od[j] = sd[j]; od[j + 1] = sd[j + 1]; od[j + 2] = sd[j + 2];
+      var a = sd[j + 3] * keep[k]; a = a < 0 ? 0 : a > 255 ? 255 : a;
+      od[j + 3] = a;
+      if (a < 128) removed++;
+    }
+    return { img: out, removedPct: removed / n * 100, keep: keep };
+  }
+
+  // ── render ───────────────────────────────────────────────────────────
+  var renderPending = false;
+  function scheduleRender() {
+    if (renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(function () { renderPending = false; doRender(); });
+  }
+  function doRender() {
+    if (!origPrev) return;
+    var r = process(origPrev, P);
+    lastRemoved = r.removedPct; lastKeep = r.keep;
+    cutCv.getContext("2d").putImageData(r.img, 0, 0);
+    if (hlOn) buildHighlight(r.keep);
+    updateReadout(); manageBlink(); frame();
+  }
+  function buildHighlight(keep) {
+    if (!keep || !hlImage) return;
+    var n = prevW * prevH, d = hlImage.data, od = origPrev.data, col = HL_COLORS[hlColor];
+    for (var i = 0, j = 0; i < n; i++, j += 4) {
+      var rem = 1 - keep[i];
+      d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2];
+      var a = rem * (od[j + 3] / 255) * 255; d[j + 3] = a < 0 ? 0 : a > 255 ? 255 : a;
+    }
+    highlightCtx.putImageData(hlImage, 0, 0);
+  }
+  function blinkAlpha() { return 0.06 + 0.94 * (0.5 - 0.5 * Math.cos(performance.now() * .001 * Math.PI * 2 * 1.4)); }
+  function frame() {
+    if (!origPrev) return;
+    var w = prevW, h = prevH;
+    vctx.clearRect(0, 0, w, h);
+    var overlayA = (hlOn && blinkOn) ? blinkAlpha() : 1;
+    if (compare) {
+      var sx = Math.round(w * split);
+      vctx.save(); vctx.beginPath(); vctx.rect(0, 0, sx, h); vctx.clip();
+      vctx.drawImage(origCv, 0, 0); vctx.restore();
+      vctx.save(); vctx.beginPath(); vctx.rect(sx, 0, w - sx, h); vctx.clip();
+      vctx.drawImage(cutCv, 0, 0);
+      if (hlOn) { vctx.globalAlpha = overlayA; vctx.drawImage(highlightCv, 0, 0); vctx.globalAlpha = 1; }
+      vctx.restore();
+      handle.style.left = (split * 100) + "%";
+    } else {
+      vctx.drawImage(cutCv, 0, 0);
+      if (hlOn) { vctx.globalAlpha = overlayA; vctx.drawImage(highlightCv, 0, 0); vctx.globalAlpha = 1; }
+    }
+  }
+  var blinkRAF = null;
+  function manageBlink() {
+    var want = origPrev && hlOn && blinkOn;
+    if (want && !blinkRAF) {
+      (function loop() { frame(); blinkRAF = requestAnimationFrame(loop); })();
+    } else if (!want && blinkRAF) { cancelAnimationFrame(blinkRAF); blinkRAF = null; frame(); }
+  }
+
+  // ── readout ──────────────────────────────────────────────────────────
+  function updateReadout() {
+    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+    $("sizeText").textContent = origFull ? (origFull.width + "×" + origFull.height) : "–";
+    $("sizeDot").style.background = origFull ? "var(--pos)" : "var(--text-3)";
+    $("roSat").textContent = P.sat.on ? (P.sat.min + "–" + P.sat.max + " " + (P.sat.mode === "inside" ? t("t.modein") : t("t.modeout"))) : t("t.off");
+    $("roVal").textContent = P.val.on ? (P.val.min + "–" + P.val.max + " " + (P.val.mode === "inside" ? t("t.modein") : t("t.modeout"))) : t("t.off");
+    var pct = origFull ? lastRemoved.toFixed(1) : "0";
+    $("roRemoved").innerHTML = pct + '<span class="u">%</span>';
+    $("roRemoved").setAttribute("data-copy", pct + "%");
+  }
+
+  // ── undo ─────────────────────────────────────────────────────────────
+  function pushUndo() {
+    if (!origPrev) return;
+    undoStack.push(clone(P));
+    if (undoStack.length > 50) undoStack.shift();
+    $("undoBtn").disabled = false;
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    P = undoStack.pop();
+    if (!undoStack.length) $("undoBtn").disabled = true;
+    syncControlsFromState(); scheduleRender();
+  }
+
+  // ── UI sync ──────────────────────────────────────────────────────────
+  function updateBandUI(kind) {
+    var b = P[kind];
+    $("v" + kind + "Min").textContent = b.min;
+    $("v" + kind + "Max").textContent = b.max;
+    var fill = $(kind + "Fill");
+    fill.style.left = b.min + "%"; fill.style.width = (b.max - b.min) + "%";
+    var minEl = kind === "sat" ? satMin : valMin, maxEl = kind === "sat" ? satMax : valMax;
+    var raiseMin = (b.min + b.max) > 100;
+    minEl.style.zIndex = raiseMin ? "4" : "2";
+    maxEl.style.zIndex = raiseMin ? "2" : "4";
+  }
+  function setSeg(segId, value, attr) {
+    document.querySelectorAll("#" + segId + " button").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.dataset[attr] === value));
+    });
+  }
+  function chanLabel(kind) {
+    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+    return kind === "sat" ? t("t.sat") : t("t.val");
+  }
+  function updateModeDesc(kind) {
+    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+    var mode = P[kind].mode;
+    var el = $(kind === "sat" ? "modeDescSat" : "modeDescVal");
+    var tmpl = mode === "inside" ? t("t.modedescin") : t("t.modedescout");
+    el.textContent = tmpl.replace("{c}", chanLabel(kind).toLowerCase());
+  }
+  function updateCombineDesc() {
+    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+    $("combineDesc").textContent = P.combine === "and" ? t("t.combineand") : t("t.combineor");
+  }
+  function updateBgUI() {
+    stage.setAttribute("data-bg", bgMode);
+    setSeg("bgSeg", bgMode, "bg");
+  }
+  function syncControlsFromState() {
+    satMin.value = P.sat.min; satMax.value = P.sat.max;
+    valMin.value = P.val.min; valMax.value = P.val.max;
+    $("satOn").checked = P.sat.on; $("valOn").checked = P.val.on;
+    $("satBody").classList.toggle("off", !P.sat.on);
+    $("valBody").classList.toggle("off", !P.val.on);
+    softEl.value = P.soft; $("vSoft").textContent = P.soft;
+    featherEl.value = P.feather; $("vFeather").textContent = P.feather + " px";
+    updateBandUI("sat"); updateBandUI("val");
+    setSeg("modeSegSat", P.sat.mode, "mode");
+    setSeg("modeSegVal", P.val.mode, "mode");
+    setSeg("combineSeg", P.combine, "combine");
+    updateModeDesc("sat"); updateModeDesc("val"); updateCombineDesc();
+  }
+
+  // ── dual range ───────────────────────────────────────────────────────
+  function liveBand(kind, movedMax) {
+    var minEl = kind === "sat" ? satMin : valMin, maxEl = kind === "sat" ? satMax : valMax;
+    if (+minEl.value > +maxEl.value) {
+      if (movedMax) minEl.value = maxEl.value; else maxEl.value = minEl.value;
+    }
+    P[kind].min = +minEl.value; P[kind].max = +maxEl.value;
+    updateBandUI(kind); scheduleRender();
+  }
+  satMin.addEventListener("input", function () { liveBand("sat", false); });
+  satMax.addEventListener("input", function () { liveBand("sat", true); });
+  valMin.addEventListener("input", function () { liveBand("val", false); });
+  valMax.addEventListener("input", function () { liveBand("val", true); });
+  [satMin, satMax, valMin, valMax, softEl, featherEl].forEach(function (el) { el.addEventListener("pointerdown", pushUndo); });
+  softEl.addEventListener("input", function () { P.soft = +softEl.value; $("vSoft").textContent = P.soft; scheduleRender(); });
+  featherEl.addEventListener("input", function () { P.feather = +featherEl.value; $("vFeather").textContent = P.feather + " px"; scheduleRender(); });
+
+  // ── toggles ──────────────────────────────────────────────────────────
+  $("satOn").addEventListener("change", function () {
+    pushUndo(); P.sat.on = $("satOn").checked;
+    $("satBody").classList.toggle("off", !P.sat.on); scheduleRender();
+  });
+  $("valOn").addEventListener("change", function () {
+    pushUndo(); P.val.on = $("valOn").checked;
+    $("valBody").classList.toggle("off", !P.val.on); scheduleRender();
+  });
+  $("hlOn").addEventListener("change", function () {
+    hlOn = $("hlOn").checked;
+    $("hlBody").classList.toggle("off", !hlOn);
+    if (hlOn && lastKeep) buildHighlight(lastKeep);
+    manageBlink(); frame();
+  });
+  $("blinkOn").addEventListener("change", function () { blinkOn = $("blinkOn").checked; manageBlink(); frame(); });
+
+  // ── mode / combine / bg segments ────────────────────────────────────
+  document.querySelectorAll("#modeSegSat button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (P.sat.mode === b.dataset.mode) return;
+      pushUndo(); P.sat.mode = b.dataset.mode;
+      setSeg("modeSegSat", P.sat.mode, "mode"); updateModeDesc("sat"); scheduleRender();
+    });
+  });
+  document.querySelectorAll("#modeSegVal button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (P.val.mode === b.dataset.mode) return;
+      pushUndo(); P.val.mode = b.dataset.mode;
+      setSeg("modeSegVal", P.val.mode, "mode"); updateModeDesc("val"); scheduleRender();
+    });
+  });
+  document.querySelectorAll("#combineSeg button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (P.combine === b.dataset.combine) return;
+      pushUndo(); P.combine = b.dataset.combine;
+      setSeg("combineSeg", P.combine, "combine"); updateCombineDesc(); scheduleRender();
+    });
+  });
+  document.querySelectorAll("#bgSeg button").forEach(function (b) {
+    b.addEventListener("click", function () { bgMode = b.dataset.bg; updateBgUI(); });
+  });
+
+  // ── highlight swatches ───────────────────────────────────────────────
+  document.querySelectorAll("#swatches .swatch").forEach(function (s) {
+    s.addEventListener("click", function () {
+      hlColor = s.dataset.c;
+      document.querySelectorAll("#swatches .swatch").forEach(function (x) { x.setAttribute("aria-pressed", String(x === s)); });
+      if (hlOn && lastKeep) buildHighlight(lastKeep);
+      frame();
+    });
+  });
+
+  // ── compare / split ──────────────────────────────────────────────────
+  function setCompare(on) {
+    compare = on; $("cmpBtn").classList.toggle("active", on);
+    $("cmpBtn").setAttribute("aria-pressed", String(on));
+    stage.setAttribute("data-compare", on ? "1" : "0");
+    stage.style.cursor = on ? "ew-resize" : "";
+    frame();
+  }
+  $("cmpBtn").addEventListener("click", function () { setCompare(!compare); });
+  function dragSplit(clientX) {
+    var r = stage.getBoundingClientRect();
+    split = Math.min(1, Math.max(0, (clientX - r.left) / r.width)); frame();
+  }
+  stage.addEventListener("pointerdown", function (e) {
+    if (!compare || !origPrev) return;
+    dragging = true; dragSplit(e.clientX); stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove", function (e) { if (dragging) dragSplit(e.clientX); });
+  stage.addEventListener("pointerup", function () { dragging = false; });
+
+  // ── footer actions ───────────────────────────────────────────────────
+  $("exportBtn").addEventListener("click", exportPNG);
+  $("undoBtn").addEventListener("click", undo);
+  $("resetBtn").addEventListener("click", function () {
+    pushUndo(); P = clone(DEFAULTS); syncControlsFromState(); scheduleRender();
+  });
+  window.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+  });
+
+  // ── file / drop / paste ──────────────────────────────────────────────
+  function loadImage(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    var url = URL.createObjectURL(file);
+    var im = new Image();
+    im.onload = function () {
+      URL.revokeObjectURL(url);
+      var fc = document.createElement("canvas");
+      fc.width = im.naturalWidth; fc.height = im.naturalHeight;
+      fc.getContext("2d").drawImage(im, 0, 0);
+      origFull = fc.getContext("2d").getImageData(0, 0, fc.width, fc.height);
+      var CAP = 820, scale = Math.min(1, CAP / Math.max(fc.width, fc.height));
+      prevW = Math.max(1, Math.round(fc.width * scale));
+      prevH = Math.max(1, Math.round(fc.height * scale));
+      var pc = document.createElement("canvas");
+      pc.width = prevW; pc.height = prevH;
+      var px = pc.getContext("2d");
+      px.imageSmoothingQuality = "high";
+      px.drawImage(im, 0, 0, prevW, prevH);
+      origPrev = px.getImageData(0, 0, prevW, prevH);
+      view.width = cutCv.width = origCv.width = highlightCv.width = prevW;
+      view.height = cutCv.height = origCv.height = highlightCv.height = prevH;
+      origCv.getContext("2d").putImageData(origPrev, 0, 0);
+      hlImage = new ImageData(prevW, prevH); lastKeep = null;
+      P = clone(DEFAULTS); undoStack = [];
+      syncControlsFromState();
+      emptyState.style.display = "none";
+      view.classList.remove("hidden");
+      $("exportBtn").disabled = false;
+      $("resetBtn").disabled = false;
+      $("undoBtn").disabled = true;
+      $("cmpBtn").disabled = false;
+      if (compare) setCompare(false);
+      scheduleRender();
+    };
+    im.onerror = function () {
+      var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+      alert(t("t.loaderror"));
+    };
+    im.src = url;
+  }
+  view.classList.add("hidden");
+  fileInput.addEventListener("change", function (e) { loadImage(e.target.files[0]); });
+  dropEl.addEventListener("click", function () { fileInput.click(); });
+  dropEl.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+  emptyState.addEventListener("click", function () { fileInput.click(); });
+
+  [dropEl, stage].forEach(function (el) {
+    el.addEventListener("dragover", function (e) { e.preventDefault(); el.classList.add("dragover"); });
+    el.addEventListener("dragleave", function () { el.classList.remove("dragover"); });
+    el.addEventListener("drop", function (e) {
+      e.preventDefault(); el.classList.remove("dragover");
+      var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadImage(f);
+    });
+  });
+  window.addEventListener("paste", function (e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) if (items[i].type.indexOf("image/") === 0) { loadImage(items[i].getAsFile()); break; }
+  });
+
+  // ── i18n / init ──────────────────────────────────────────────────────
+  function onSettingsChange() { syncControlsFromState(); updateReadout(); }
+
+  syncControlsFromState(); updateBgUI(); updateReadout();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "value-saturation-crop",
+      strings: {
+        en: {
+          "t.title": "Value / saturation crop",
+          "t.desc": "Mask an image by brightness and saturation range, then export a transparent PNG. Everything runs locally in your browser.",
+          "t.dropb": "Click to open an image",
+          "t.dropsmall": "…or drag & drop, or paste from the clipboard.",
+          "t.sat": "Saturation", "t.val": "Value / brightness",
+          "t.range": "Range", "t.satlo": "Low (gray)", "t.sathi": "High (vivid)",
+          "t.vallo": "Dark (black)", "t.valhi": "Light (white)",
+          "t.modein": "Remove inside", "t.modeout": "Remove outside",
+          "t.modedescin": "Pixels within the {c} range become transparent; everything else is kept.",
+          "t.modedescout": "Pixels outside the {c} range become transparent; the range itself is kept.",
+          "t.mask": "Mask", "t.combine": "Combine",
+          "t.combineand": "AND — removes only pixels that match both the saturation and value conditions.",
+          "t.combineor": "OR — removes pixels that match either the saturation or the value condition.",
+          "t.soft": "Softness", "t.softdesc": "0 gives a hard, two-tone cutoff. Raise it to blend the edge of the range smoothly.",
+          "t.feather": "Edge feather", "t.featherdesc": "Blurs the cutout outline to soften jagged edges.",
+          "t.previewbg": "Preview background", "t.compare": "⇆ Compare",
+          "t.bgchecker": "Checker", "t.bgblack": "Black", "t.bgwhite": "White",
+          "t.hl": "Removed-area highlight",
+          "t.hldesc": "Paints removed regions in the chosen color, for checking your settings. It never affects the exported file.",
+          "t.marker": "Marker color", "t.blink": "Blink",
+          "t.before": "Before", "t.after": "After",
+          "t.output": "Output", "t.removed": "Removed",
+          "t.copyhint": "Click the removed amount to copy.",
+          "t.undo": "↩ Undo", "t.reset": "⟳ Reset", "t.export": "⬇ Export transparent PNG", "t.exporting": "Exporting…",
+          "t.emptytitle": "No image loaded", "t.emptydesc": "Open, drop, or paste an image to begin.",
+          "t.loaderror": "Couldn't load that image.", "t.off": "off"
+        },
+        ja: {
+          "t.title": "明度・彩度で切り抜き",
+          "t.desc": "明度・彩度の範囲で画像をマスクし、透明PNGとして書き出します。処理はすべてブラウザ内で完結します。",
+          "t.dropb": "クリックして画像を開く",
+          "t.dropsmall": "…またはドラッグ&ドロップ、クリップボードから貼り付け。",
+          "t.sat": "彩度", "t.val": "明度",
+          "t.range": "範囲", "t.satlo": "低彩度（グレー）", "t.sathi": "高彩度（鮮やか）",
+          "t.vallo": "暗（黒）", "t.valhi": "明（白）",
+          "t.modein": "範囲内を除去", "t.modeout": "範囲外を除去",
+          "t.modedescin": "指定した{c}の範囲のピクセルを透明化し、それ以外を残します。",
+          "t.modedescout": "指定した{c}の範囲の外側を透明化し、範囲内を残します。",
+          "t.mask": "マスク", "t.combine": "結合方法",
+          "t.combineand": "AND：彩度・明度の両方の条件に当てはまる箇所だけを除去します。",
+          "t.combineor": "OR：彩度・明度のどちらか一方でも当てはまれば除去します。",
+          "t.soft": "ソフトネス幅", "t.softdesc": "0で閾値をバッサリ二値カット。上げると範囲の境目がなだらかに抜けます。",
+          "t.feather": "エッジぼかし", "t.featherdesc": "切り抜き輪郭をぼかし、ギザつきを抑えてなじませます。",
+          "t.previewbg": "プレビュー背景", "t.compare": "⇆ 比較",
+          "t.bgchecker": "市松", "t.bgblack": "黒", "t.bgwhite": "白",
+          "t.hl": "除去ハイライト",
+          "t.hldesc": "除去された領域を選択色で塗って確認できます。書き出し結果には影響しません。",
+          "t.marker": "マーカー色", "t.blink": "点滅させる",
+          "t.before": "変更前", "t.after": "変更後",
+          "t.output": "出力", "t.removed": "除去率",
+          "t.copyhint": "除去率をクリックでコピー。",
+          "t.undo": "↩ 取り消し", "t.reset": "⟳ リセット", "t.export": "⬇ 透明PNGで書き出し", "t.exporting": "処理中…",
+          "t.emptytitle": "画像が未読み込みです", "t.emptydesc": "画像を開く・ドロップ・貼り付けして開始します。",
+          "t.loaderror": "画像を読み込めませんでした。", "t.off": "オフ"
+        }
+      },
+      onSettingsChange: onSettingsChange
+    });
+  }
+  updateReadout();
+
+  // ── export ───────────────────────────────────────────────────────────
+  function exportPNG() {
+    if (!origFull) return;
+    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
+    var btn = $("exportBtn"), label = btn.textContent;
+    btn.textContent = t("t.exporting"); btn.disabled = true;
+    setTimeout(function () {
+      var pFull = clone(P);
+      if (origPrev && origPrev.width > 0) pFull.feather = P.feather * (origFull.width / origPrev.width);
+      var r = process(origFull, pFull);
+      var oc = document.createElement("canvas");
+      oc.width = r.img.width; oc.height = r.img.height;
+      oc.getContext("2d").putImageData(r.img, 0, 0);
+      oc.toBlob(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "value-saturation-crop.png"; a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        btn.textContent = label; btn.disabled = false;
+      }, "image/png");
+    }, 30);
+  }
+})();
+</script>
+</body>
+</html>
