@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metronome — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---------- ダイヤル（BPMノブ） ---------- */
+  .dialwrap{ display:flex; flex-direction:column; align-items:center; gap:var(--s3); }
+  .dial{ width:220px; height:220px; touch-action:none; cursor:grab; }
+  .dial:active{ cursor:grabbing; }
+  .dial-center{ cursor:pointer; }
+  .dial-bpm{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:44px; font-weight:600;
+    fill:var(--text); }
+  .dial-unit{ font-size:12px; fill:var(--text-3); font-weight:500; }
+  .dial-track{ fill:none; stroke:var(--border-strong); stroke-width:10; stroke-linecap:round; }
+  .dial-prog{ fill:none; stroke:var(--accent); stroke-width:10; stroke-linecap:round; }
+  .dial-knob{ fill:var(--surface); stroke:var(--accent); stroke-width:3; }
+  .dial-tap-hint{ font-size:11px; fill:var(--text-3); }
+
+  .bpmrow{ display:flex; align-items:center; justify-content:center; gap:8px; margin-top:var(--s3); flex-wrap:wrap; }
+  .steprow{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:var(--s3); }
+  .steprow button, .tapbtn{ height:38px; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); color:var(--text-2); font:inherit; font-size:13px; font-weight:500; cursor:pointer;
+    transition:all var(--tap); }
+  .steprow button:hover, .tapbtn:hover{ border-color:var(--text-3); color:var(--text); }
+  .tapbtn{ width:100%; height:44px; font-size:14px; }
+  .tapbtn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .taprow{ display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:var(--s3); align-items:center; }
+  .miniseg{ display:inline-flex; padding:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .miniseg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:11.5px;
+    font-weight:500; color:var(--text-2); padding:5px 8px; border-radius:4px; }
+  .miniseg button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+
+  /* ---------- テンキー（オリジナル数値入力） ---------- */
+  .numpad-overlay{ position:fixed; inset:0; background:color-mix(in srgb, var(--bg) 70%, transparent);
+    backdrop-filter:blur(4px); display:flex; align-items:flex-end; justify-content:center; z-index:80; }
+  @media (min-width:600px){ .numpad-overlay{ align-items:center; } }
+  .numpad{ width:100%; max-width:340px; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--r-lg) var(--r-lg) 0 0; padding:var(--s5); box-shadow:var(--shadow-md); }
+  @media (min-width:600px){ .numpad{ border-radius:var(--r-lg); } }
+  .numpad-disp{ text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:40px;
+    font-weight:600; color:var(--text); padding:var(--s3) 0; min-height:56px; }
+  .numpad-disp .cur{ color:var(--text-3); }
+  .numpad-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:var(--s3); }
+  .numpad-grid button{ height:56px; border-radius:var(--r); border:1px solid var(--border-strong);
+    background:var(--surface-2); color:var(--text); font-size:20px; font-weight:500; cursor:pointer; transition:all var(--tap); }
+  .numpad-grid button:hover{ background:var(--accent-tint); border-color:var(--accent); }
+  .numpad-grid button:active{ transform:scale(.96); }
+  .numpad-actions{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:var(--s3); }
+
+  /* ---------- 拍子・アクセント編集 ---------- */
+  .beatrow{ display:flex; gap:6px; flex-wrap:wrap; margin-top:var(--s2); }
+  .beat{ width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border-strong); background:var(--surface);
+    color:var(--text-2); font-family:var(--font-mono); font-size:11px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all var(--tap); user-select:none; }
+  .beat[data-lvl="0"]{ opacity:.4; }
+  .beat[data-lvl="1"]{ background:var(--surface-2); }
+  .beat[data-lvl="2"]{ background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+  .beat.live{ box-shadow:0 0 0 3px var(--accent-ring); }
+
+  /* ---------- レイヤー ---------- */
+  .layer{ border:1px solid var(--border); border-radius:var(--r); padding:var(--s3); margin-top:var(--s3); background:var(--surface-2); }
+  .layer__head{ display:flex; align-items:center; gap:8px; }
+  .layer__name{ font-size:13px; font-weight:600; flex:1; }
+  .iconbtn{ width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--text-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .iconbtn:hover{ border-color:var(--text-3); color:var(--text); }
+  .iconbtn.on--mute{ background:var(--neg-tint); border-color:var(--neg); color:var(--neg); }
+  .iconbtn.on--solo{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
+  .layer__grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .layer__grid .select,.layer__grid .input{ height:32px; font-size:12.5px; }
+  .layer__slider{ margin-top:8px; }
+  .layer__slider .lbl{ font-size:11px; color:var(--text-3); display:flex; justify-content:space-between; }
+  .addlayer{ width:100%; margin-top:var(--s3); }
+
+  /* ---------- 波形トリマー ---------- */
+  .wfcanvas-wrap{ position:relative; margin-top:var(--s3); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; background:var(--surface-2); }
+  .wfcanvas{ display:block; width:100%; height:100px; }
+  .wfhandle{ position:absolute; top:0; bottom:0; width:10px; margin-left:-5px; cursor:ew-resize; touch-action:none; }
+  .wfhandle::after{ content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--accent); transform:translateX(-50%); }
+  .wfhandle::before{ content:""; position:absolute; left:50%; top:4px; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); transform:translateX(-50%); border:2px solid var(--surface); }
+  .wfshade{ position:absolute; top:0; bottom:0; background:color-mix(in srgb, var(--text) 30%, transparent); pointer-events:none; }
+  .customlist{ display:flex; flex-direction:column; gap:6px; margin-top:var(--s3); }
+  .customitem{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:6px 8px; border:1px solid var(--border);
+    border-radius:var(--r-sm); background:var(--surface); }
+  .customitem span{ flex:1; }
+
+  /* ---------- トランスポート／プレビュー ---------- */
+  .transport{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s5); text-align:center; }
+  .playbtn{ width:84px; height:84px; border-radius:50%; border:none; background:var(--accent); color:#fff; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; transition:all var(--tap); box-shadow:var(--shadow-md); }
+  .playbtn:hover{ background:var(--accent-hover); }
+  .playbtn svg{ width:32px; height:32px; }
+  .barbeat{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text-3); margin-top:var(--s3); }
+  .dots{ display:flex; justify-content:center; gap:8px; margin-top:var(--s4); flex-wrap:wrap; }
+  .dot{ width:12px; height:12px; border-radius:50%; background:var(--border-strong); transition:background .05s, transform .05s; }
+  .dot.on{ background:var(--accent); transform:scale(1.3); }
+  .dot.accent-on{ background:var(--neg); }
+  .fsbtn{ margin-top:var(--s4); }
+
+  /* ---------- 全画面フラッシュ ---------- */
+  .fsflash{ position:fixed; inset:0; background:var(--bg); z-index:100; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:var(--s5); }
+  .fsflash .pulse{ width:min(60vw,320px); height:min(60vw,320px); border-radius:50%; background:var(--fs-color, var(--accent));
+    opacity:.15; transition:opacity .06s linear, transform .06s linear; transform:scale(.9); }
+  .fsflash .pulse.hit{ opacity:1; transform:scale(1); }
+  .fsflash .fsbpm{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15vw; font-weight:700; color:var(--text); position:absolute; }
+  .fsflash .fsexit{ position:absolute; top:var(--s5); right:var(--s5); }
+  .fscolors{ position:absolute; bottom:var(--s6); display:flex; gap:10px; }
+  .fscolors button{ width:28px; height:28px; border-radius:50%; border:2px solid var(--surface); cursor:pointer; box-shadow:var(--shadow-sm); }
+  .fscolors button[aria-pressed="true"]{ outline:2px solid var(--text); outline-offset:2px; }
+
+  /* ---------- プリセット / エクスポート ---------- */
+  .presetlist{ display:flex; flex-direction:column; gap:6px; margin-top:var(--s3); max-height:220px; overflow:auto; }
+  .presetitem{ display:flex; align-items:center; gap:8px; font-size:13px; padding:8px; border:1px solid var(--border);
+    border-radius:var(--r-sm); background:var(--surface); }
+  .presetitem b{ flex:1; font-weight:500; }
+  .presetnamerow{ display:flex; gap:8px; }
+  .taparea textarea{ width:100%; min-height:80px; font-family:var(--font-mono); font-size:12px; border:1px solid var(--border-strong);
+    border-radius:var(--r); padding:8px; background:var(--surface); color:var(--text); resize:vertical; }
+  .kbdhint{ font-size:11.5px; color:var(--text-3); line-height:1.7; margin-top:var(--s2); }
+  .kbdhint kbd{ font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--border-strong);
+    border-radius:4px; padding:1px 5px; font-size:10.5px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Metronome</h1>
+    <p data-i18n="t.desc">A deeply configurable metronome: layered rhythms, custom sounds, a flash mode you can practice to silently, and tools for real practice sessions.</p>
+  </div>
+
+  <div class="work">
+    <!-- ============ 左: 操作 ============ -->
+    <div>
+      <div class="card">
+        <label class="label" data-i18n="t.tempo">Tempo</label>
+        <div class="dialwrap">
+          <svg class="dial" id="dial" viewBox="0 0 200 200" role="slider" tabindex="0"
+               aria-valuemin="20" aria-valuemax="300" aria-label="BPM">
+            <path id="dial-track" class="dial-track"></path>
+            <path id="dial-prog" class="dial-prog"></path>
+            <circle id="dial-knob" class="dial-knob" r="9"></circle>
+            <g class="dial-center" id="dial-center">
+              <text x="100" y="96" text-anchor="middle" class="dial-bpm" id="dial-bpm-text">120</text>
+              <text x="100" y="118" text-anchor="middle" class="dial-unit" data-i18n="t.bpm">BPM (tap to type)</text>
+            </g>
+          </svg>
+          <div class="steprow">
+            <button data-step="-5">−5</button>
+            <button data-step="-1">−1</button>
+            <button data-step="1">+1</button>
+            <button data-step="5">+5</button>
+          </div>
+          <div class="taprow">
+            <button class="tapbtn" id="tapbtn" data-i18n="t.tap">TAP</button>
+            <div class="miniseg" id="tapmode" role="group">
+              <button data-tapmode="decimal" data-i18n="t.decimal" aria-pressed="true">0.1</button>
+              <button data-tapmode="integer" data-i18n="t.integer">Int</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.timesig">Time signature</label>
+        <div class="row2">
+          <select class="select" id="tsNum"></select>
+          <select class="select" id="tsDen">
+            <option value="4">/4</option><option value="8">/8</option><option value="2">/2</option><option value="16">/16</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:var(--s3)">
+          <label class="label" data-i18n="t.grouping">Grouping (for mixed meter, e.g. 3+2+2)</label>
+          <input class="input" id="tsGroup" placeholder="4" inputmode="text">
+        </div>
+        <label class="label" style="margin-top:var(--s3)" data-i18n="t.accentpattern">Accent pattern (tap to cycle: off → normal → accent)</label>
+        <div class="beatrow" id="beatrow"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.layers">Rhythm layers</div>
+        <div id="layers"></div>
+        <button class="btn btn--secondary addlayer" id="addlayer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="t.addlayer">Add layer</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.practice">Practice tools</div>
+
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="ciEnabled"><span class="track"></span><span data-i18n="t.countin">Count-in</span></label>
+        </div>
+        <div class="row2" style="margin-top:8px" id="ciFields">
+          <div><label class="label" data-i18n="t.bars">Bars</label><input class="input" type="number" id="ciBars" min="1" max="8" value="1"></div>
+        </div>
+
+        <div class="toggles" style="margin-top:var(--s4)">
+          <label class="toggle"><input type="checkbox" id="ttEnabled"><span class="track"></span><span data-i18n="t.trainer">Tempo trainer</span></label>
+        </div>
+        <div class="row2" style="margin-top:8px" id="ttFields">
+          <div><label class="label" data-i18n="t.endbpm">Target BPM</label><input class="input" type="number" id="ttEnd" min="20" max="300" value="160"></div>
+          <div><label class="label" data-i18n="t.step">+BPM</label><input class="input" type="number" id="ttStep" min="1" max="20" value="2"></div>
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label class="label" data-i18n="t.everybars">Every N bars</label>
+          <input class="input" type="number" id="ttEvery" min="1" max="16" value="4">
+        </div>
+
+        <div class="toggles" style="margin-top:var(--s4)">
+          <label class="toggle"><input type="checkbox" id="rmEnabled"><span class="track"></span><span data-i18n="t.randmute">Random mute</span></label>
+        </div>
+        <div class="sliderrow" style="margin-top:8px">
+          <input class="slider" type="range" id="rmProb" min="0" max="90" value="20">
+          <span class="val" id="rmProbVal">20%</span>
+        </div>
+
+        <label class="label" style="margin-top:var(--s4)" data-i18n="t.swing">Swing</label>
+        <div class="sliderrow">
+          <input class="slider" type="range" id="swing" min="0" max="75" value="0">
+          <span class="val" id="swingVal">0%</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.customsound">Custom sounds</div>
+        <div class="drop" id="drop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <div><b data-i18n="t.dropb">Choose an audio file</b> <span data-i18n="t.dropt">or drop it here</span></div>
+          <small data-i18n="t.droph">Trim it so the sound's attack starts exactly at playback.</small>
+          <input type="file" id="fileInput" accept="audio/*" style="display:none">
+        </div>
+        <div id="wfEditor" hidden>
+          <div class="wfcanvas-wrap">
+            <canvas class="wfcanvas" id="wfCanvas"></canvas>
+            <div class="wfshade" id="wfShadeL"></div>
+            <div class="wfshade" id="wfShadeR"></div>
+            <div class="wfhandle" id="wfHandleL"></div>
+            <div class="wfhandle" id="wfHandleR"></div>
+          </div>
+          <div class="btnrow">
+            <button class="btn btn--secondary" id="wfPreview" data-i18n="t.preview">▶ Preview</button>
+            <button class="btn btn--primary" id="wfAdd" data-i18n="t.addsound">Add to sound list</button>
+          </div>
+        </div>
+        <div class="customlist" id="customlist"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.output">Output & session</div>
+        <label class="label" data-i18n="t.mastervol">Master volume</label>
+        <div class="sliderrow">
+          <input class="slider" type="range" id="masterVol" min="0" max="100" value="80">
+          <span class="val" id="masterVolVal">80%</span>
+        </div>
+        <div class="toggles" style="margin-top:var(--s4)">
+          <label class="toggle"><input type="checkbox" id="vibEnabled"><span class="track"></span><span data-i18n="t.vibration">Vibration on beat (mobile)</span></label>
+        </div>
+        <div class="kbdhint" data-i18n="t.kbdhint">
+          Space play/stop · ←/→ BPM ±1 (Shift ±5) · T tap tempo · F flash mode
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.presets">Presets</div>
+        <div class="presetnamerow">
+          <input class="input" id="presetName" data-i18n-ph="t.presetname" placeholder="Preset name">
+          <button class="btn btn--secondary" id="presetSave" data-i18n="t.save">Save</button>
+        </div>
+        <div class="presetlist" id="presetlist"></div>
+        <div class="taparea" style="margin-top:var(--s4)">
+          <label class="label" data-i18n="t.sharelink">Share link (settings only, no custom sounds)</label>
+          <div class="btnrow" style="margin-top:0">
+            <button class="btn btn--secondary" id="copyLink" data-i18n="t.copylink">Copy link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 右: プレビュー ============ -->
+    <div>
+      <div class="transport">
+        <button class="playbtn" id="playbtn" aria-label="Play">
+          <svg id="playicon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <div class="barbeat" id="barbeat">— / —</div>
+        <div class="dots" id="dots"></div>
+        <button class="btn btn--secondary btnrow fsbtn" id="fsbtn" style="margin:var(--s4) auto 0; display:inline-flex;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          <span data-i18n="t.flashmode">Flash mode</span>
+        </button>
+      </div>
+
+      <div class="readout" style="margin-top:var(--s4)" data-acc="0">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live" id="liveind"><span class="dot"></span><span data-i18n="t.stopped">Stopped</span></span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.tempo">Tempo</span>
+          <span class="rrow__value" id="ro-bpm" data-copy="">120<span class="u">BPM</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.timesig">Time signature</span>
+          <span class="rrow__value" id="ro-ts" style="font-size:17px" data-copy="">4/4</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.elapsed">Elapsed</span>
+          <span class="rrow__value" id="ro-elapsed" style="font-size:17px" data-copy="">00:00</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ テンキー ============ -->
+<div class="numpad-overlay" id="numpadOverlay" hidden>
+  <div class="numpad">
+    <div class="numpad-disp"><span id="numpadDisp" class="cur">120</span></div>
+    <div class="numpad-grid">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button data-k=".">.</button><button data-k="0">0</button><button data-k="back">⌫</button>
+    </div>
+    <div class="numpad-actions">
+      <button class="btn btn--secondary" id="numpadCancel" data-i18n="t.cancel">Cancel</button>
+      <button class="btn btn--primary" id="numpadOk" data-i18n="t.set">Set</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 全画面フラッシュ ============ -->
+<div class="fsflash" id="fsflash" hidden>
+  <div class="fsbpm" id="fsbpmtext">120</div>
+  <div class="pulse" id="fspulse"></div>
+  <button class="btn btn--secondary fsexit" id="fsexit" data-i18n="t.exit">Exit</button>
+  <div class="fscolors" id="fscolors"></div>
+</div>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var MINB = 20, MAXB = 300;
+
+  /* ============================================================
+     状態
+     ============================================================ */
+  var ST = {
+    bpm: 120,
+    tapMode: "decimal",           // decimal | integer
+    ts: { num: 4, den: 4, grouping: "" },
+    accent: [2,1,1,1],            // 0=off 1=normal 2=accent, length===num
+    layers: [
+      { id:1, name:"Main", subdivision:1, sound:"click", volume:0.9, pan:0, mute:false, solo:false, isMain:true }
+    ],
+    customSounds: [],             // {name, buffer, trimStart, trimEnd}
+    countIn: { enabled:false, bars:1 },
+    trainer: { enabled:false, start:120, end:160, step:2, every:4 },
+    randomMute: { enabled:false, prob:20 },
+    swing: 0,
+    masterVolume: 0.8,
+    vibration: false
+  };
+  var nextLayerId = 2;
+
+  var BUILTIN_SOUNDS = [
+    { id:"click", en:"Click", ja:"クリック" },
+    { id:"beep",  en:"Beep",  ja:"ビープ" },
+    { id:"wood",  en:"Wood block", ja:"ウッドブロック" },
+    { id:"cowbell", en:"Cowbell", ja:"カウベル" },
+    { id:"hihat", en:"Hi-hat", ja:"ハイハット" },
+    { id:"clap",  en:"Clap",  ja:"クラップ" }
+  ];
+  var SUBDIVS = [1,2,3,4,6,8];
+
+  /* ============================================================
+     Audio エンジン（合成音 + カスタム音）
+     ============================================================ */
+  var actx = null;
+  function ctx(){ if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state==="suspended") actx.resume(); return actx; }
+  function noiseBuffer(c){
+    if (c._noise) return c._noise;
+    var len = Math.floor(c.sampleRate * 0.3), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (var i=0;i<len;i++) d[i] = Math.random()*2-1;
+    c._noise = buf; return buf;
+  }
+  function envGain(c, time, peak, attack, decay){
+    var g = c.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(Math.max(peak,0.001), time+attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+attack+decay);
+    return g;
+  }
+  function panNode(c, pan){ try { return new StereoPannerNode(c, { pan: pan||0 }); } catch(e){ var g=c.createGain(); return g; } }
+
+  function playBuiltin(type, time, opts){
+    var c = ctx(), gain = opts.gain, accent = opts.accent, pan = panNode(c, opts.pan);
+    pan.connect(c.destination);
+    var boost = accent ? 1.6 : 1;
+    if (type === "click" || type === "beep"){
+      var osc = c.createOscillator();
+      osc.type = type === "click" ? "sine" : "square";
+      osc.frequency.value = (type==="click" ? (accent?1500:1000) : (accent?900:600));
+      var dur = type==="click" ? 0.05 : 0.1;
+      var g = envGain(c, time, gain*boost, 0.001, dur);
+      osc.connect(g).connect(pan);
+      osc.start(time); osc.stop(time+dur+0.02);
+    } else if (type === "cowbell"){
+      var o1=c.createOscillator(), o2=c.createOscillator();
+      o1.type="square"; o2.type="square"; o1.frequency.value=800; o2.frequency.value=accent?587:540;
+      var g2 = envGain(c, time, gain*0.5*boost, 0.001, 0.12);
+      o1.connect(g2); o2.connect(g2); g2.connect(pan);
+      o1.start(time); o2.start(time); o1.stop(time+0.15); o2.stop(time+0.15);
+    } else { // wood / hihat / clap = filtered noise burst
+      var src = c.createBufferSource(); src.buffer = noiseBuffer(c);
+      var filt = c.createBiquadFilter();
+      var dur2 = 0.06;
+      if (type==="wood"){ filt.type="bandpass"; filt.frequency.value=accent?1500:1100; filt.Q.value=6; dur2=0.05; }
+      else if (type==="hihat"){ filt.type="highpass"; filt.frequency.value=accent?7000:6000; dur2=0.04; }
+      else { filt.type="bandpass"; filt.frequency.value=1200; filt.Q.value=1.2; dur2=0.09; }
+      var g3 = envGain(c, time, gain*boost, 0.001, dur2);
+      src.connect(filt).connect(g3).connect(pan);
+      src.start(time, 0, dur2+0.02);
+    }
+  }
+  function playCustom(cs, time, opts){
+    var c = ctx(), pan = panNode(c, opts.pan); pan.connect(c.destination);
+    var src = c.createBufferSource(); src.buffer = cs.buffer;
+    var g = c.createGain(); g.gain.value = opts.gain * (opts.accent?1.3:1);
+    src.connect(g).connect(pan);
+    var dur = Math.max(0.01, cs.trimEnd - cs.trimStart);
+    src.start(time, cs.trimStart, dur);
+  }
+  function playSound(soundRef, time, opts){
+    var cs = ST.customSounds.find(function(s){ return "custom:"+s.name === soundRef; });
+    if (cs) playCustom(cs, time, opts); else playBuiltin(soundRef, time, opts);
+  }
+
+  /* ============================================================
+     スケジューラー（先読み方式）
+     ============================================================ */
+  var LOOKAHEAD = 25, SCHED_AHEAD = 0.12;
+  var playing = false, timerId = null;
+  var nextBeatTime = 0, curBeat = 0, curBar = 1;
+  var phase = "play";          // countin | play
+  var countinBarsLeft = 0;
+  var barsSincePlayStart = 0;
+  var sessionStartMs = 0, elapsedTimer = null;
+  var visualQ = [];
+  var wakeLock = null;
+
+  function beatDuration(){ return 60 / ST.bpm; }
+
+  function scheduler(){
+    var c = ctx();
+    while (nextBeatTime < c.currentTime + SCHED_AHEAD){
+      scheduleBeat(curBeat, nextBeatTime, curBar);
+      nextBeatTime += beatDuration();
+      curBeat++;
+      if (curBeat >= (phase==="countin" ? ST.ts.num : ST.ts.num)){
+        curBeat = 0; curBar++;
+        onBarBoundary();
+      }
+    }
+  }
+  function onBarBoundary(){
+    if (phase === "countin"){
+      countinBarsLeft--;
+      if (countinBarsLeft <= 0){ phase = "play"; curBar = 1; }
+      return;
+    }
+    barsSincePlayStart++;
+    if (ST.trainer.enabled){
+      var dir = ST.trainer.end >= ST.trainer.start ? 1 : -1;
+      if (barsSincePlayStart % ST.trainer.every === 0){
+        var nb = ST.bpm + dir*ST.trainer.step;
+        if ((dir>0 && nb<=ST.trainer.end) || (dir<0 && nb>=ST.trainer.end)){ ST.bpm = nb; syncBpmUI(); }
+      }
+    }
+  }
+  function scheduleBeat(beatIdx, t, bar){
+    var acc = ST.accent[beatIdx] !== undefined ? ST.accent[beatIdx] : 1;
+    if (phase === "countin"){
+      if (acc !== 0) playBuiltin("beep", t, { gain: 0.5, accent: beatIdx===0, pan:0 });
+      pushVisual(t, { beat:beatIdx, bar:bar, accent: beatIdx===0, countin:true });
+      return;
+    }
+    pushVisual(t, { beat:beatIdx, bar:bar, accent: acc===2, mainOff: acc===0 });
+    var soloed = ST.layers.some(function(l){ return l.solo; });
+    ST.layers.forEach(function(layer){
+      if (layer.mute) return;
+      if (soloed && !layer.solo) return;
+      var n = layer.subdivision, step = beatDuration()/n;
+      for (var i=0;i<n;i++){
+        var nt = t + i*step;
+        if (n%2===0 && i%2===1 && ST.swing>0) nt += (ST.swing/100) * step;
+        var isAccentNote = (i===0 && layer.isMain && acc===2);
+        var skip = (i===0 && layer.isMain && acc===0);
+        if (!skip && ST.randomMute.enabled && Math.random()*100 < ST.randomMute.prob) skip = true;
+        if (skip) continue;
+        var g = layer.volume * ST.masterVolume;
+        playSound(layer.sound, nt, { gain:g, accent:isAccentNote, pan:layer.pan });
+      }
+    });
+  }
+  function pushVisual(t, info){ visualQ.push({ time:t, info:info }); }
+
+  var rafId = null;
+  function visualLoop(){
+    var c = ctx(), now = c.currentTime;
+    while (visualQ.length && visualQ[0].time <= now){
+      var ev = visualQ.shift();
+      onVisualBeat(ev.info);
+    }
+    rafId = requestAnimationFrame(visualLoop);
+  }
+  function onVisualBeat(info){
+    $("barbeat").textContent = (info.countin ? Shell.t("t.countin") + " " : (info.bar + " / " + (info.beat+1)));
+    var dots = $("dots").children;
+    for (var i=0;i<dots.length;i++) dots[i].classList.remove("on","accent-on");
+    if (dots[info.beat]) { dots[info.beat].classList.add("on"); if (info.accent) dots[info.beat].classList.add("accent-on"); }
+    var beatEls = $("beatrow").children;
+    for (var j=0;j<beatEls.length;j++) beatEls[j].classList.remove("live");
+    if (!info.countin && beatEls[info.beat]) beatEls[info.beat].classList.add("live");
+    if (ST.vibration && navigator.vibrate) navigator.vibrate(info.accent ? 40 : 18);
+    flashPulse(info.accent);
+  }
+
+  function start(){
+    if (playing) return;
+    var c = ctx();
+    playing = true; curBeat = 0; curBar = 1; barsSincePlayStart = 0; visualQ.length = 0;
+    if (ST.countIn.enabled){ phase = "countin"; countinBarsLeft = ST.countIn.bars; } else { phase = "play"; }
+    if (ST.trainer.enabled) ST.trainer.start = ST.bpm;
+    nextBeatTime = c.currentTime + 0.06;
+    timerId = setInterval(scheduler, LOOKAHEAD);
+    rafId = requestAnimationFrame(visualLoop);
+    sessionStartMs = Date.now();
+    elapsedTimer = setInterval(updateElapsed, 500);
+    requestWakeLock();
+    syncPlayUI();
+  }
+  function stop(){
+    playing = false;
+    clearInterval(timerId); cancelAnimationFrame(rafId); clearInterval(elapsedTimer);
+    $("barbeat").textContent = "— / —";
+    Array.prototype.forEach.call($("dots").children, function(d){ d.classList.remove("on","accent-on"); });
+    Array.prototype.forEach.call($("beatrow").children, function(d){ d.classList.remove("live"); });
+    releaseWakeLock();
+    syncPlayUI();
+  }
+  function updateElapsed(){
+    var s = Math.floor((Date.now()-sessionStartMs)/1000);
+    var m = Math.floor(s/60); s = s%60;
+    var t = (m<10?"0":"")+m+":"+(s<10?"0":"")+s;
+    $("ro-elapsed").textContent = t; $("ro-elapsed").setAttribute("data-copy", t);
+  }
+  function syncPlayUI(){
+    $("playicon").innerHTML = playing
+      ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+    $("liveind").innerHTML = playing
+      ? '<span class="dot" style="background:var(--pos)"></span><span>'+Shell.t("t.playing")+'</span>'
+      : '<span class="dot"></span><span>'+Shell.t("t.stopped")+'</span>';
+  }
+  async function requestWakeLock(){ try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){} }
+  function releaseWakeLock(){ try { if (wakeLock){ wakeLock.release(); wakeLock=null; } } catch(e){} }
+
+  /* ============================================================
+     フラッシュモード
+     ============================================================ */
+  var FS_COLORS = ["#5457E5","#1F9D57","#E0484D","#E5A72A","#E8EAED"];
+  var fsColorIdx = 0;
+  function flashPulse(accent){
+    if ($("fsflash").hidden) return;
+    var p = $("fspulse"); p.classList.add("hit");
+    setTimeout(function(){ p.classList.remove("hit"); }, accent?140:80);
+  }
+  function buildFsColors(){
+    var box = $("fscolors"); box.innerHTML = "";
+    FS_COLORS.forEach(function(c,i){
+      var b = document.createElement("button");
+      b.style.background = c; b.setAttribute("aria-pressed", String(i===fsColorIdx));
+      b.addEventListener("click", function(){ fsColorIdx=i; document.documentElement.style.setProperty("--fs-color", c);
+        Array.prototype.forEach.call(box.children,function(x,xi){x.setAttribute("aria-pressed",String(xi===i));}); });
+      box.appendChild(b);
+    });
+    document.documentElement.style.setProperty("--fs-color", FS_COLORS[0]);
+  }
+  function enterFlash(){
+    $("fsflash").hidden = false;
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){});
+    requestWakeLock();
+    $("fsbpmtext").textContent = Math.round(ST.bpm);
+  }
+  function exitFlash(){
+    $("fsflash").hidden = true;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function(){});
+    if (!playing) releaseWakeLock();
+  }
+
+  /* ============================================================
+     ダイヤル（ノブ）
+     ============================================================ */
+  var dial = $("dial"), dTrack = $("dial-track"), dProg = $("dial-prog"), dKnob = $("dial-knob"), dText = $("dial-bpm-text");
+  function pt(angleDeg, r){ var rad = angleDeg*Math.PI/180; return [100+r*Math.sin(rad), 100-r*Math.cos(rad)]; }
+  function fN(n){ return Math.round(n*100)/100; }
+  function arcPath(a1,a2,r){
+    var A=pt(a1,r), B=pt(a2,r), span=a2-a1, large = span>180?1:0;
+    return "M"+fN(A[0])+" "+fN(A[1])+" A"+r+" "+r+" 0 "+large+" 1 "+fN(B[0])+" "+fN(B[1]);
+  }
+  function valToAngle(v){ return -135 + (Math.min(MAXB,Math.max(MINB,v))-MINB)/(MAXB-MINB)*270; }
+  function renderDial(){
+    dTrack.setAttribute("d", arcPath(-135,135,84));
+    dProg.setAttribute("d", arcPath(-135, valToAngle(ST.bpm), 84));
+    var p = pt(valToAngle(ST.bpm), 84);
+    dKnob.setAttribute("cx", fN(p[0])); dKnob.setAttribute("cy", fN(p[1]));
+    dText.textContent = (ST.bpm % 1 === 0) ? ST.bpm : ST.bpm.toFixed(1);
+    dial.setAttribute("aria-valuenow", Math.round(ST.bpm));
+  }
+  var draggingDial = false;
+  function dialAngleFromEvent(e){
+    var r = dial.getBoundingClientRect();
+    var dx = e.clientX-(r.left+r.width/2), dy = e.clientY-(r.top+r.height/2);
+    var raw = Math.atan2(dx,-dy)*180/Math.PI;
+    return Math.max(-135, Math.min(135, raw));
+  }
+  function setBpm(v, skipTrainerReset){
+    ST.bpm = Math.round(Math.max(MINB, Math.min(MAXB, v))*10)/10;
+    if (!skipTrainerReset) { /* keep as-is */ }
+    syncBpmUI();
+  }
+  function syncBpmUI(){
+    renderDial();
+    $("ro-bpm").innerHTML = (ST.bpm%1===0?ST.bpm:ST.bpm.toFixed(1)) + '<span class="u">BPM</span>';
+    $("ro-bpm").setAttribute("data-copy", ST.bpm);
+    if (!$("fsflash").hidden) $("fsbpmtext").textContent = Math.round(ST.bpm);
+  }
+  dial.addEventListener("pointerdown", function(e){ draggingDial=true; setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); });
+  window.addEventListener("pointermove", function(e){ if (draggingDial) setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); });
+  window.addEventListener("pointerup", function(){ draggingDial=false; });
+  dial.addEventListener("keydown", function(e){
+    if (e.key==="ArrowRight"||e.key==="ArrowUp"){ setBpm(ST.bpm+1); e.preventDefault(); }
+    else if (e.key==="ArrowLeft"||e.key==="ArrowDown"){ setBpm(ST.bpm-1); e.preventDefault(); }
+  });
+  $("dial-center").addEventListener("click", function(){ openNumpad(); });
+  $("dial-center").style.cursor = "pointer";
+
+  /* ---- ±ステップボタン ---- */
+  document.querySelectorAll(".steprow button").forEach(function(b){
+    b.addEventListener("click", function(){ setBpm(ST.bpm + parseInt(b.getAttribute("data-step"),10)); });
+  });
+
+  /* ---- タップテンポ ---- */
+  var tapTimes = [];
+  $("tapbtn").addEventListener("click", function(){
+    var now = performance.now();
+    tapTimes.push(now); if (tapTimes.length>6) tapTimes.shift();
+    if (tapTimes.length>=2){
+      var intervals=[]; for (var i=1;i<tapTimes.length;i++) intervals.push(tapTimes[i]-tapTimes[i-1]);
+      var avg = intervals.reduce(function(a,b){return a+b;},0)/intervals.length;
+      var bpm = 60000/avg;
+      setBpm(ST.tapMode==="integer" ? Math.round(bpm) : Math.round(bpm*10)/10);
+    }
+    $("tapbtn").classList.add("active"); setTimeout(function(){ $("tapbtn").classList.remove("active"); },100);
+    clearTimeout($("tapbtn")._to); $("tapbtn")._to = setTimeout(function(){ tapTimes.length=0; }, 2000);
+  });
+  $("tapmode").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    ST.tapMode = b.getAttribute("data-tapmode");
+    $("tapmode").querySelectorAll("button").forEach(function(x){ x.setAttribute("aria-pressed", String(x===b)); });
+  });
+
+  /* ============================================================
+     テンキー
+     ============================================================ */
+  var numpadVal = "";
+  function openNumpad(){
+    numpadVal = "";
+    $("numpadDisp").textContent = (ST.bpm%1===0?ST.bpm:ST.bpm.toFixed(1));
+    $("numpadDisp").className = "cur";
+    $("numpadOverlay").hidden = false;
+  }
+  function closeNumpad(){ $("numpadOverlay").hidden = true; }
+  document.querySelectorAll(".numpad-grid button").forEach(function(b){
+    b.addEventListener("click", function(){
+      var k = b.getAttribute("data-k");
+      if (k==="back"){ numpadVal = numpadVal.slice(0,-1); }
+      else if (k==="."){ if (numpadVal.indexOf(".")<0) numpadVal += "."; }
+      else { if (numpadVal.replace(".","").length<3) numpadVal += k; }
+      $("numpadDisp").textContent = numpadVal || "0";
+      $("numpadDisp").className = numpadVal ? "" : "cur";
+    });
+  });
+  $("numpadCancel").addEventListener("click", closeNumpad);
+  $("numpadOk").addEventListener("click", function(){
+    var v = parseFloat(numpadVal); if (!isNaN(v)) setBpm(v); closeNumpad();
+  });
+  $("numpadOverlay").addEventListener("click", function(e){ if (e.target===$("numpadOverlay")) closeNumpad(); });
+
+  /* ============================================================
+     拍子・アクセント
+     ============================================================ */
+  (function fillTsNum(){
+    var sel = $("tsNum");
+    for (var i=1;i<=12;i++){ var o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o); }
+  })();
+  function normalizeAccent(){
+    var n = ST.ts.num, a = ST.accent;
+    while (a.length<n) a.push(1);
+    a.length = n;
+    if (a[0]!==0) a[0]=2;
+  }
+  function renderBeatrow(){
+    normalizeAccent();
+    var row = $("beatrow"); row.innerHTML = "";
+    for (var i=0;i<ST.ts.num;i++){
+      var b = document.createElement("button");
+      b.className = "beat"; b.setAttribute("data-lvl", ST.accent[i]); b.type="button";
+      b.textContent = (i+1);
+      (function(idx){
+        b.addEventListener("click", function(){
+          ST.accent[idx] = (ST.accent[idx]+1)%3;
+          b.setAttribute("data-lvl", ST.accent[idx]);
+        });
+      })(i);
+      row.appendChild(b);
+    }
+  }
+  function renderDots(){
+    var box = $("dots"); box.innerHTML = "";
+    for (var i=0;i<ST.ts.num;i++){ var d=document.createElement("div"); d.className="dot"; box.appendChild(d); }
+  }
+  function syncTsReadout(){
+    var t = ST.ts.num + "/" + ST.ts.den;
+    $("ro-ts").textContent = t; $("ro-ts").setAttribute("data-copy", t);
+  }
+  function applyTimeSig(){
+    ST.ts.num = parseInt($("tsNum").value,10); ST.ts.den = parseInt($("tsDen").value,10);
+    renderBeatrow(); renderDots(); syncTsReadout();
+  }
+  $("tsNum").addEventListener("change", applyTimeSig);
+  $("tsDen").addEventListener("change", applyTimeSig);
+  $("tsGroup").addEventListener("change", function(){
+    ST.ts.grouping = $("tsGroup").value.trim();
+    var parts = ST.ts.grouping.split("+").map(function(s){return parseInt(s,10);}).filter(function(n){return n>0;});
+    if (parts.length && parts.reduce(function(a,b){return a+b;},0)===ST.ts.num){
+      var acc = []; parts.forEach(function(p){ acc.push(2); for (var i=1;i<p;i++) acc.push(1); });
+      ST.accent = acc; renderBeatrow();
+    }
+  });
+
+  /* ============================================================
+     レイヤー UI
+     ============================================================ */
+  function soundOptionsHTML(sel){
+    var h = BUILTIN_SOUNDS.map(function(s){ return '<option value="'+s.id+'"'+(sel===s.id?" selected":"")+'>'+ (Shell.lang==="ja"?s.ja:s.en) +'</option>'; }).join("");
+    h += ST.customSounds.map(function(s){ var v="custom:"+s.name; return '<option value="'+v+'"'+(sel===v?" selected":"")+'>♪ '+s.name+'</option>'; }).join("");
+    return h;
+  }
+  function renderLayers(){
+    var box = $("layers"); box.innerHTML = "";
+    ST.layers.forEach(function(layer){
+      var el = document.createElement("div"); el.className = "layer";
+      el.innerHTML =
+        '<div class="layer__head">'+
+          '<span class="layer__name">'+(layer.isMain? Shell.t("t.mainlayer") : layer.name)+'</span>'+
+          '<button class="iconbtn'+(layer.solo?" on--solo":"")+'" data-act="solo" title="Solo">S</button>'+
+          '<button class="iconbtn'+(layer.mute?" on--mute":"")+'" data-act="mute" title="Mute">M</button>'+
+          (layer.isMain?"":'<button class="iconbtn" data-act="del" title="Delete">✕</button>')+
+        '</div>'+
+        '<div class="layer__grid">'+
+          '<select class="select" data-f="subdivision">'+SUBDIVS.map(function(n){return '<option value="'+n+'"'+(layer.subdivision===n?" selected":"")+'>'+n+'/beat</option>';}).join("")+'</select>'+
+          '<select class="select" data-f="sound">'+soundOptionsHTML(layer.sound)+'</select>'+
+        '</div>'+
+        '<div class="layer__slider"><div class="lbl"><span data-i18n="t.volume">Volume</span><span data-v>'+Math.round(layer.volume*100)+'%</span></div>'+
+          '<input class="slider" type="range" min="0" max="100" value="'+Math.round(layer.volume*100)+'" data-f="volume"></div>'+
+        '<div class="layer__slider"><div class="lbl"><span data-i18n="t.pan">Pan</span><span data-v>'+layer.pan+'</span></div>'+
+          '<input class="slider" type="range" min="-100" max="100" value="'+Math.round(layer.pan*100)+'" data-f="pan"></div>';
+      box.appendChild(el);
+      el.querySelector('[data-act="solo"]').addEventListener("click", function(){ layer.solo=!layer.solo; renderLayers(); });
+      el.querySelector('[data-act="mute"]').addEventListener("click", function(){ layer.mute=!layer.mute; renderLayers(); });
+      var delBtn = el.querySelector('[data-act="del"]'); if (delBtn) delBtn.addEventListener("click", function(){ ST.layers = ST.layers.filter(function(l){return l.id!==layer.id;}); renderLayers(); });
+      el.querySelector('[data-f="subdivision"]').addEventListener("change", function(e){ layer.subdivision = parseInt(e.target.value,10); });
+      el.querySelector('[data-f="sound"]').addEventListener("change", function(e){ layer.sound = e.target.value; });
+      el.querySelector('[data-f="volume"]').addEventListener("input", function(e){ layer.volume = e.target.value/100; el.querySelector('.layer__slider .lbl [data-v]') && 0; el.querySelectorAll("[data-v]")[0].textContent = e.target.value+"%"; });
+      el.querySelector('[data-f="pan"]').addEventListener("input", function(e){ layer.pan = e.target.value/100; el.querySelectorAll("[data-v]")[1].textContent = layer.pan.toFixed(2); });
+    });
+  }
+  $("addlayer").addEventListener("click", function(){
+    ST.layers.push({ id: nextLayerId++, name: Shell.t("t.layer")+" "+ST.layers.length, subdivision:2, sound:"hihat", volume:0.6, pan:0, mute:false, solo:false, isMain:false });
+    renderLayers();
+  });
+
+  /* ============================================================
+     練習ツール系のイベント
+     ============================================================ */
+  $("ciEnabled").addEventListener("change", function(){ ST.countIn.enabled = $("ciEnabled").checked; });
+  $("ciBars").addEventListener("change", function(){ ST.countIn.bars = parseInt($("ciBars").value,10)||1; });
+  $("ttEnabled").addEventListener("change", function(){ ST.trainer.enabled = $("ttEnabled").checked; });
+  $("ttEnd").addEventListener("change", function(){ ST.trainer.end = parseInt($("ttEnd").value,10)||160; });
+  $("ttStep").addEventListener("change", function(){ ST.trainer.step = parseInt($("ttStep").value,10)||2; });
+  $("ttEvery").addEventListener("change", function(){ ST.trainer.every = parseInt($("ttEvery").value,10)||4; });
+  $("rmEnabled").addEventListener("change", function(){ ST.randomMute.enabled = $("rmEnabled").checked; });
+  $("rmProb").addEventListener("input", function(){ ST.randomMute.prob = parseInt($("rmProb").value,10); $("rmProbVal").textContent = ST.randomMute.prob+"%"; });
+  $("swing").addEventListener("input", function(){ ST.swing = parseInt($("swing").value,10); $("swingVal").textContent = ST.swing+"%"; });
+  $("masterVol").addEventListener("input", function(){ ST.masterVolume = $("masterVol").value/100; $("masterVolVal").textContent = $("masterVol").value+"%"; });
+  $("vibEnabled").addEventListener("change", function(){ ST.vibration = $("vibEnabled").checked; });
+
+  /* ============================================================
+     カスタムサウンド（波形トリマー）
+     ============================================================ */
+  var pendingBuffer = null, trimStart = 0, trimEnd = 1;
+  $("drop").addEventListener("click", function(){ $("fileInput").click(); });
+  $("drop").addEventListener("dragover", function(e){ e.preventDefault(); $("drop").classList.add("dragover"); });
+  $("drop").addEventListener("dragleave", function(){ $("drop").classList.remove("dragover"); });
+  $("drop").addEventListener("drop", function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
+  $("fileInput").addEventListener("change", function(e){ if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
+
+  function loadAudioFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      ctx().decodeAudioData(reader.result.slice(0), function(buf){
+        pendingBuffer = buf; trimStart = 0; trimEnd = buf.duration;
+        $("wfEditor").hidden = false;
+        drawWaveform(); layoutHandles();
+      }, function(){});
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  function drawWaveform(){
+    var cv = $("wfCanvas"), dpr = window.devicePixelRatio||1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = w*dpr; cv.height = h*dpr;
+    var g = cv.getContext("2d"); g.scale(dpr,dpr);
+    g.clearRect(0,0,w,h);
+    var data = pendingBuffer.getChannelData(0), step = Math.ceil(data.length/w), mid = h/2;
+    g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text-3");
+    g.beginPath();
+    for (var x=0;x<w;x++){
+      var min=1,max=-1;
+      for (var i=0;i<step;i++){ var v=data[x*step+i]||0; if (v<min) min=v; if (v>max) max=v; }
+      g.moveTo(x, mid+min*mid); g.lineTo(x, mid+max*mid);
+    }
+    g.stroke();
+  }
+  function layoutHandles(){
+    var w = $("wfCanvas").clientWidth, dur = pendingBuffer.duration;
+    var xL = (trimStart/dur)*w, xR = (trimEnd/dur)*w;
+    $("wfHandleL").style.left = xL+"px"; $("wfHandleR").style.left = xR+"px";
+    $("wfShadeL").style.left = "0"; $("wfShadeL").style.width = xL+"px";
+    $("wfShadeR").style.left = xR+"px"; $("wfShadeR").style.width = (w-xR)+"px";
+  }
+  function wireHandle(el, isLeft){
+    el.addEventListener("pointerdown", function(e){
+      e.preventDefault();
+      function move(ev){
+        var rect = $("wfCanvas").getBoundingClientRect();
+        var frac = Math.min(1,Math.max(0,(ev.clientX-rect.left)/rect.width));
+        var t = frac*pendingBuffer.duration;
+        if (isLeft) trimStart = Math.min(t, trimEnd-0.01); else trimEnd = Math.max(t, trimStart+0.01);
+        layoutHandles();
+      }
+      function up(){ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); }
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    });
+  }
+  wireHandle($("wfHandleL"), true); wireHandle($("wfHandleR"), false);
+  $("wfPreview").addEventListener("click", function(){
+    if (!pendingBuffer) return;
+    var c = ctx(), src = c.createBufferSource(); src.buffer = pendingBuffer;
+    src.connect(c.destination); src.start(c.currentTime, trimStart, Math.max(0.01,trimEnd-trimStart));
+  });
+  $("wfAdd").addEventListener("click", function(){
+    if (!pendingBuffer) return;
+    var name = "Sound " + (ST.customSounds.length+1);
+    ST.customSounds.push({ name:name, buffer:pendingBuffer, trimStart:trimStart, trimEnd:trimEnd });
+    pendingBuffer = null; $("wfEditor").hidden = true; $("fileInput").value = "";
+    renderCustomList(); renderLayers();
+  });
+  function renderCustomList(){
+    var box = $("customlist"); box.innerHTML = "";
+    ST.customSounds.forEach(function(s){
+      var row = document.createElement("div"); row.className = "customitem";
+      row.innerHTML = '<span>♪ '+s.name+'</span><button class="iconbtn" title="Delete">✕</button>';
+      row.querySelector("button").addEventListener("click", function(){
+        ST.customSounds = ST.customSounds.filter(function(x){ return x!==s; });
+        ST.layers.forEach(function(l){ if (l.sound==="custom:"+s.name) l.sound="click"; });
+        renderCustomList(); renderLayers();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  /* ============================================================
+     プリセット & 共有リンク
+     ============================================================ */
+  var PKEY = "vernier.metronome.presets";
+  function loadPresets(){ try { return JSON.parse(localStorage.getItem(PKEY)||"[]"); } catch(e){ return []; } }
+  function savePresets(list){ try { localStorage.setItem(PKEY, JSON.stringify(list)); } catch(e){} }
+  function serializeState(){
+    return {
+      bpm: ST.bpm, ts: ST.ts, accent: ST.accent,
+      layers: ST.layers.map(function(l){ return { name:l.name, subdivision:l.subdivision,
+        sound: l.sound.indexOf("custom:")===0 ? "click" : l.sound, volume:l.volume, pan:l.pan, mute:l.mute, solo:l.solo, isMain:l.isMain }; }),
+      countIn: ST.countIn, trainer: ST.trainer, randomMute: ST.randomMute, swing: ST.swing, masterVolume: ST.masterVolume
+    };
+  }
+  function applyState(s){
+    ST.bpm = s.bpm||120; ST.ts = s.ts||ST.ts; ST.accent = s.accent||ST.accent;
+    ST.layers = (s.layers||ST.layers).map(function(l,i){ return Object.assign({ id: i+1 }, l); });
+    nextLayerId = ST.layers.length+1;
+    ST.countIn = s.countIn||ST.countIn; ST.trainer = s.trainer||ST.trainer;
+    ST.randomMute = s.randomMute||ST.randomMute; ST.swing = s.swing||0; ST.masterVolume = (s.masterVolume!=null?s.masterVolume:0.8);
+    refreshAllUI();
+  }
+  function refreshAllUI(){
+    $("tsNum").value = ST.ts.num; $("tsDen").value = ST.ts.den; $("tsGroup").value = ST.ts.grouping||"";
+    renderBeatrow(); renderDots(); syncTsReadout(); syncBpmUI(); renderLayers();
+    $("ciEnabled").checked = ST.countIn.enabled; $("ciBars").value = ST.countIn.bars;
+    $("ttEnabled").checked = ST.trainer.enabled; $("ttEnd").value = ST.trainer.end; $("ttStep").value = ST.trainer.step; $("ttEvery").value = ST.trainer.every;
+    $("rmEnabled").checked = ST.randomMute.enabled; $("rmProb").value = ST.randomMute.prob; $("rmProbVal").textContent = ST.randomMute.prob+"%";
+    $("swing").value = ST.swing; $("swingVal").textContent = ST.swing+"%";
+    $("masterVol").value = Math.round(ST.masterVolume*100); $("masterVolVal").textContent = Math.round(ST.masterVolume*100)+"%";
+  }
+  function renderPresetList(){
+    var list = loadPresets(), box = $("presetlist"); box.innerHTML = "";
+    list.forEach(function(p,idx){
+      var row = document.createElement("div"); row.className = "presetitem";
+      row.innerHTML = '<b>'+p.name+'</b><button class="btn btn--secondary" data-a="load">'+Shell.t("t.load")+'</button><button class="iconbtn" data-a="del">✕</button>';
+      row.querySelector('[data-a="load"]').addEventListener("click", function(){ applyState(p.data); });
+      row.querySelector('[data-a="del"]').addEventListener("click", function(){ var l=loadPresets(); l.splice(idx,1); savePresets(l); renderPresetList(); });
+      box.appendChild(row);
+    });
+  }
+  $("presetSave").addEventListener("click", function(){
+    var name = $("presetName").value.trim(); if (!name) return;
+    var list = loadPresets(); list.push({ name:name, data: serializeState() }); savePresets(list);
+    $("presetName").value = ""; renderPresetList();
+  });
+  $("copyLink").addEventListener("click", function(){
+    var json = JSON.stringify(serializeState());
+    var b64 = btoa(unescape(encodeURIComponent(json)));
+    var url = location.origin + location.pathname + "#s=" + b64;
+    Shell.copy(url, $("copyLink"));
+  });
+  (function readHashState(){
+    var h = location.hash.replace(/^#/, "");
+    var m = h.split("&").find(function(kv){ return kv.indexOf("s=")===0; });
+    if (m){ try { applyState(JSON.parse(decodeURIComponent(escape(atob(m.slice(2)))))); } catch(e){} }
+  })();
+
+  /* ============================================================
+     再生ボタン・全画面・キーボード
+     ============================================================ */
+  $("playbtn").addEventListener("click", function(){ playing ? stop() : start(); });
+  $("fsbtn").addEventListener("click", enterFlash);
+  $("fsexit").addEventListener("click", exitFlash);
+  document.addEventListener("fullscreenchange", function(){ if (!document.fullscreenElement && !$("fsflash").hidden) exitFlash(); });
+  buildFsColors();
+
+  document.addEventListener("keydown", function(e){
+    var tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (tag==="INPUT" || tag==="TEXTAREA" || tag==="SELECT") return;
+    if (e.code==="Space"){ e.preventDefault(); playing?stop():start(); }
+    else if (e.key==="ArrowRight"){ setBpm(ST.bpm + (e.shiftKey?5:1)); }
+    else if (e.key==="ArrowLeft"){ setBpm(ST.bpm - (e.shiftKey?5:1)); }
+    else if (e.key==="t" || e.key==="T"){ $("tapbtn").click(); }
+    else if (e.key==="f" || e.key==="F"){ $("fsflash").hidden ? enterFlash() : exitFlash(); }
+  });
+
+  /* ============================================================
+     起動
+     ============================================================ */
+  refreshAllUI();
+  renderCustomList();
+  renderPresetList();
+
+  Shell.init({
+    id: "metronome",
+    strings: {
+      en: {
+        "t.title":"Metronome",
+        "t.desc":"A deeply configurable metronome: layered rhythms, custom sounds, a flash mode you can practice to silently, and tools for real practice sessions.",
+        "t.tempo":"Tempo","t.bpm":"BPM (tap to type)","t.tap":"TAP","t.decimal":"0.1","t.integer":"Int",
+        "t.timesig":"Time signature","t.grouping":"Grouping (for mixed meter, e.g. 3+2+2)",
+        "t.accentpattern":"Accent pattern (tap to cycle: off → normal → accent)",
+        "t.layers":"Rhythm layers","t.addlayer":"Add layer","t.mainlayer":"Main beat","t.layer":"Layer",
+        "t.volume":"Volume","t.pan":"Pan",
+        "t.practice":"Practice tools","t.countin":"Count-in","t.bars":"Bars",
+        "t.trainer":"Tempo trainer","t.endbpm":"Target BPM","t.step":"+BPM","t.everybars":"Every N bars",
+        "t.randmute":"Random mute","t.swing":"Swing",
+        "t.customsound":"Custom sounds","t.dropb":"Choose an audio file","t.dropt":"or drop it here",
+        "t.droph":"Trim it so the sound's attack starts exactly at playback.",
+        "t.preview":"▶ Preview","t.addsound":"Add to sound list",
+        "t.output":"Output & session","t.mastervol":"Master volume","t.vibration":"Vibration on beat (mobile)",
+        "t.kbdhint":"Space play/stop · ←/→ BPM ±1 (Shift ±5) · T tap tempo · F flash mode",
+        "t.presets":"Presets","t.presetname":"Preset name","t.save":"Save","t.load":"Load",
+        "t.sharelink":"Share link (settings only, no custom sounds)","t.copylink":"Copy link",
+        "t.flashmode":"Flash mode","t.exit":"Exit","t.cancel":"Cancel","t.set":"Set",
+        "t.playing":"Playing","t.stopped":"Stopped","t.elapsed":"Elapsed","t.copyhint":"Click any value to copy."
+      },
+      ja: {
+        "t.title":"メトロノーム",
+        "t.desc":"拍子・アクセント、多層リズム、カスタムサウンド、音を出さずに練習できる全画面フラッシュモード、テンポトレーナーなど、実践的な練習に使える高機能メトロノーム。",
+        "t.tempo":"テンポ","t.bpm":"BPM（タップで数値入力）","t.tap":"TAP","t.decimal":"小数","t.integer":"整数",
+        "t.timesig":"拍子","t.grouping":"グルーピング（変拍子用。例: 3+2+2）",
+        "t.accentpattern":"アクセントパターン（タップで オフ→通常→アクセント と循環）",
+        "t.layers":"リズムレイヤー","t.addlayer":"レイヤーを追加","t.mainlayer":"メイン拍","t.layer":"レイヤー",
+        "t.volume":"音量","t.pan":"パン",
+        "t.practice":"練習ツール","t.countin":"カウントイン","t.bars":"小節数",
+        "t.trainer":"テンポトレーナー","t.endbpm":"目標BPM","t.step":"+BPM","t.everybars":"何小節ごと",
+        "t.randmute":"ランダムミュート","t.swing":"スウィング",
+        "t.customsound":"カスタムサウンド","t.dropb":"音声ファイルを選択","t.dropt":"またはここにドロップ",
+        "t.droph":"再生時にアタックが即座に鳴るよう、波形の前後を切り取れます。",
+        "t.preview":"▶ プレビュー","t.addsound":"サウンド一覧に追加",
+        "t.output":"出力・セッション","t.mastervol":"マスター音量","t.vibration":"拍でバイブレーション（モバイル）",
+        "t.kbdhint":"スペース 再生/停止 ・ ←/→ BPM±1（Shiftで±5）・ T タップテンポ ・ F フラッシュモード",
+        "t.presets":"プリセット","t.presetname":"プリセット名","t.save":"保存","t.load":"読込",
+        "t.sharelink":"共有リンク（設定のみ。カスタムサウンドは含まれません）","t.copylink":"リンクをコピー",
+        "t.flashmode":"フラッシュモード","t.exit":"閉じる","t.cancel":"キャンセル","t.set":"設定",
+        "t.playing":"再生中","t.stopped":"停止中","t.elapsed":"経過時間","t.copyhint":"数値をクリックでコピー。"
+      }
+    },
+    onSettingsChange: function(){ refreshAllUI(); renderLayers(); renderPresetList(); syncPlayUI(); }
+  });
+  syncPlayUI();
+})();
+</script>
+</body>
+</html>
