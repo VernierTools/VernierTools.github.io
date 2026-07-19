@@ -863,6 +863,39 @@
       "added": "2026-07-18"
     },
     {
+      "id": "grayscale-map-generator",
+      "type": "web",
+      "path": "tools/grayscale-map-generator/",
+      "categories": [
+        "3dcg"
+      ],
+      "name": {
+        "en": "Grayscale map generator",
+        "ja": "グレースケールマップ生成"
+      },
+      "description": {
+        "en": "Roughness, specular, alpha, displacement, approximate metallic, and pseudo-AO cavity maps from one texture.",
+        "ja": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・疑似AO(カビティ)を1枚のテクスチャから生成。"
+      },
+      "keywords": [
+        "roughness",
+        "specular",
+        "metallic",
+        "displacement",
+        "height",
+        "cavity",
+        "ao",
+        "alpha",
+        "opacity",
+        "ラフネス",
+        "メタリック",
+        "ディスプレイスメント",
+        "疑似AO",
+        "カビティ"
+      ],
+      "added": "2026-07-18"
+    },
+    {
       "id": "axis-scale",
       "type": "web",
       "path": "tools/axis-scale/",
