@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aspect ratio calculator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg--2{ grid-template-columns:repeat(2,1fr); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .presetgrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:var(--s3); }
+  .presetgrid button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:34px; border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-2); font-family:var(--font-mono); font-variant-numeric:tabular-nums; transition:all var(--tap); }
+  .presetgrid button:hover{ border-color:var(--text-3); }
+  .presetgrid button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .customratio{ display:flex; align-items:center; gap:var(--s2); }
+  .customratio .input{ text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .customratio .colon{ color:var(--text-3); font-weight:600; }
+
+  .previewbox{ background:var(--surface); padding:var(--s4); }
+  .previewbox svg{ display:block; width:100%; height:auto; }
+
+  .rrow__value .u{ font-size:13px; color:var(--text-3); margin-left:4px; font-weight:400; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Aspect ratio calculator</h1>
+    <p data-i18n="t.desc">Calculate a missing side, detect a ratio from a size, or fit a ratio inside a bounding box.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: モード・入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.mode">Mode</label>
+          <div class="seg" id="seg-mode" role="group">
+            <button data-mode="toSize" data-i18n="t.m.toSize">Ratio → Size</button>
+            <button data-mode="toRatio" data-i18n="t.m.toRatio">Size → Ratio</button>
+            <button data-mode="fit" data-i18n="t.m.fit">Fit in box</button>
+          </div>
+        </div>
+
+        <div class="field" id="grp-ratio">
+          <label class="label" data-i18n="t.ratio">Aspect ratio</label>
+          <div class="presetgrid" id="presets"></div>
+          <div class="customratio">
+            <input class="input" id="cw" type="number" min="1" inputmode="decimal" aria-label="Ratio width">
+            <span class="colon">:</span>
+            <input class="input" id="ch" type="number" min="1" inputmode="decimal" aria-label="Ratio height">
+          </div>
+        </div>
+
+        <div class="field" id="grp-tosize">
+          <label class="label" data-i18n="t.knownside">Known side</label>
+          <div class="seg seg--2" id="seg-side" role="group">
+            <button data-side="w" data-i18n="t.width">Width</button>
+            <button data-side="h" data-i18n="t.height">Height</button>
+          </div>
+          <div class="field" style="margin-top:var(--s3); margin-bottom:0">
+            <label class="label" id="lbl-known" data-i18n="t.width">Width</label>
+            <div class="inputgroup"><input class="input" id="known-val" type="number" min="0" inputmode="decimal" value="1920"><span class="unit">px</span></div>
+          </div>
+        </div>
+
+        <div class="field" id="grp-toratio" hidden>
+          <label class="label" data-i18n="t.size">Size</label>
+          <div class="row2">
+            <div class="inputgroup"><input class="input" id="size-w" type="number" min="0" inputmode="decimal" value="1920"><span class="unit">px</span></div>
+            <div class="inputgroup"><input class="input" id="size-h" type="number" min="0" inputmode="decimal" value="1080"><span class="unit">px</span></div>
+          </div>
+        </div>
+
+        <div class="field" id="grp-fit" hidden>
+          <label class="label" data-i18n="t.box">Bounding box (max size)</label>
+          <div class="row2">
+            <div class="inputgroup"><input class="input" id="box-w" type="number" min="0" inputmode="decimal" value="800"><span class="unit">px</span></div>
+            <div class="inputgroup"><input class="input" id="box-h" type="number" min="0" inputmode="decimal" value="600"><span class="unit">px</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: プレビュー + 出力 -->
+    <div>
+      <div class="preview previewbox" style="margin-bottom:var(--s4)">
+        <svg viewBox="0 0 240 150" role="img" aria-label="Ratio preview">
+          <rect id="pv-box" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="4 3" rx="2"></rect>
+          <rect id="pv-rect" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2" rx="2"></rect>
+          <text id="pv-label" text-anchor="middle" font-family="var(--font-mono)" font-size="11" font-weight="600" fill="var(--text-2)"></text>
+        </svg>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div id="readout-body"></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var PRESETS = [[1,1],[4,3],[3,2],[16,9],[21,9],[4,5],[2,3],[9,16]];
+  var REF = PRESETS.concat([[5,4],[16,10],[10,16],[3,4]]);
+
+  var state = {
+    mode: "toSize",
+    ratioW: 16, ratioH: 9,
+    side: "w", knownVal: 1920,
+    sizeW: 1920, sizeH: 1080,
+    boxW: 800, boxH: 600
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function gcd(a, b) { a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b)); while (b) { var t = b; b = a % b; a = t; } return a || 1; }
+  function reduceRatio(a, b) { var g = gcd(a, b) || 1; return [Math.round(a / g), Math.round(b / g)]; }
+  function fmtNum(n) { var v = Math.round(n * 100) / 100; return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/, "").replace(/\.$/, ""); }
+  function fmtPx(n) { return String(Math.round(n)); }
+  function safe(n, fallback) { n = parseFloat(n); return (isFinite(n) && n > 0) ? n : fallback; }
+
+  /* ---- 各モードの計算 ---- */
+  function computeToSize() {
+    var rw = state.ratioW, rh = state.ratioH, kv = state.knownVal;
+    var w, h;
+    if (state.side === "w") { w = kv; h = kv * (rh / rw); }
+    else { h = kv; w = kv * (rw / rh); }
+    return { w: w, h: h };
+  }
+  function computeToRatio() {
+    var w = state.sizeW, h = state.sizeH;
+    var dec = w / h;
+    var red = reduceRatio(w, h);
+    var best = null, bestDiff = Infinity;
+    REF.forEach(function (p) {
+      var d = p[0] / p[1];
+      var diff = Math.abs(d - dec) / d * 100;
+      if (diff < bestDiff) { bestDiff = diff; best = p; }
+    });
+    return { dec: dec, red: red, closest: best, diff: bestDiff };
+  }
+  function computeFit() {
+    var rw = state.ratioW, rh = state.ratioH, bw = state.boxW, bh = state.boxH;
+    var w = bw, h = bw * (rh / rw);
+    if (h > bh) { h = bh; w = bh * (rw / rh); }
+    var fillPct = (w * h) / (bw * bh) * 100;
+    var marginAxis, marginVal;
+    if (Math.round(w) < Math.round(bw)) { marginAxis = "w"; marginVal = bw - w; }
+    else if (Math.round(h) < Math.round(bh)) { marginAxis = "h"; marginVal = bh - h; }
+    else { marginAxis = null; marginVal = 0; }
+    return { w: w, h: h, fillPct: fillPct, marginAxis: marginAxis, marginVal: marginVal };
+  }
+
+  /* ---- readout 描画 ---- */
+  function rrow(label, valueText, copyText, hero) {
+    return '<div class="rrow' + (hero ? " rrow--hero" : "") + '"><span class="rrow__label">' + label +
+      '</span><span class="rrow__value" data-copy="' + copyText.replace(/"/g, "&quot;") + '">' + valueText + '</span></div>';
+  }
+
+  function renderReadout() {
+    var body = $("readout-body"), html = "";
+    if (state.mode === "toSize") {
+      var r = computeToSize();
+      var ratioText = state.ratioW + ":" + state.ratioH;
+      html += rrow(Shell.t("t.width"), fmtPx(r.w) + '<span class="u">px</span>', fmtPx(r.w), true);
+      html += rrow(Shell.t("t.height"), fmtPx(r.h) + '<span class="u">px</span>', fmtPx(r.h), false);
+      html += rrow(Shell.t("t.ratiodec"), ratioText + " (" + fmtNum(state.ratioW / state.ratioH) + ")", ratioText, false);
+    } else if (state.mode === "toRatio") {
+      var t = computeToRatio();
+      var redText = t.red[0] + ":" + t.red[1];
+      var closestText = t.closest[0] + ":" + t.closest[1];
+      html += rrow(Shell.t("t.reduced"), redText, redText, true);
+      html += rrow(Shell.t("t.ratiodec"), fmtNum(t.dec) + " : 1", fmtNum(t.dec) + ":1", false);
+      html += rrow(Shell.t("t.closest"), closestText + " (" + Shell.t("t.diff") + " " + fmtNum(t.diff) + "%)", closestText, false);
+    } else {
+      var f = computeFit();
+      html += rrow(Shell.t("t.width"), fmtPx(f.w) + '<span class="u">px</span>', fmtPx(f.w), true);
+      html += rrow(Shell.t("t.height"), fmtPx(f.h) + '<span class="u">px</span>', fmtPx(f.h), false);
+      html += rrow(Shell.t("t.fill"), fmtNum(f.fillPct) + "%", fmtNum(f.fillPct) + "%", false);
+      if (f.marginAxis) {
+        html += rrow(Shell.t("t.margin"), fmtPx(f.marginVal) + '<span class="u">px</span>', fmtPx(f.marginVal), false);
+      }
+    }
+    body.innerHTML = html;
+  }
+
+  /* ---- プレビュー描画 ---- */
+  var pvBox = $("pv-box"), pvRect = $("pv-rect"), pvLabel = $("pv-label");
+  var AW = 200, AH = 104, OX = 20, OY = 14;
+
+  function drawPreview() {
+    if (state.mode === "fit") {
+      var bw = state.boxW, bh = state.boxH, f = computeFit();
+      var s = Math.min(AW / bw, AH / bh);
+      var bwp = bw * s, bhp = bh * s, bxp = OX + (AW - bwp) / 2, byp = OY + (AH - bhp) / 2;
+      pvBox.setAttribute("x", bxp); pvBox.setAttribute("y", byp);
+      pvBox.setAttribute("width", bwp); pvBox.setAttribute("height", bhp);
+      pvBox.removeAttribute("display");
+      var fwp = f.w * s, fhp = f.h * s, fxp = bxp + (bwp - fwp) / 2, fyp = byp + (bhp - fhp) / 2;
+      pvRect.setAttribute("x", fxp); pvRect.setAttribute("y", fyp);
+      pvRect.setAttribute("width", fwp); pvRect.setAttribute("height", fhp);
+      pvLabel.setAttribute("x", 120); pvLabel.setAttribute("y", OY + AH + 22);
+      pvLabel.textContent = fmtPx(f.w) + " × " + fmtPx(f.h) + " px";
+    } else {
+      pvBox.setAttribute("display", "none");
+      var w, h;
+      if (state.mode === "toSize") { var r = computeToSize(); w = r.w; h = r.h; }
+      else { w = state.sizeW; h = state.sizeH; }
+      w = Math.max(w, 0.001); h = Math.max(h, 0.001);
+      var sc = Math.min(AW / w, AH / h);
+      var rw = w * sc, rh = h * sc, rx = OX + (AW - rw) / 2, ry = OY + (AH - rh) / 2;
+      pvRect.setAttribute("x", rx); pvRect.setAttribute("y", ry);
+      pvRect.setAttribute("width", rw); pvRect.setAttribute("height", rh);
+      pvLabel.setAttribute("x", 120); pvLabel.setAttribute("y", OY + AH + 22);
+      if (state.mode === "toSize") pvLabel.textContent = fmtPx(w) + " × " + fmtPx(h) + " px";
+      else pvLabel.textContent = fmtNum(w / h) + " : 1";
+    }
+  }
+
+  function render() {
+    renderReadout();
+    drawPreview();
+  }
+
+  /* ---- グループ表示切替 ---- */
+  function syncGroups() {
+    var m = state.mode;
+    $("grp-ratio").hidden = (m === "toRatio");
+    $("grp-tosize").hidden = (m !== "toSize");
+    $("grp-toratio").hidden = (m !== "toRatio");
+    $("grp-fit").hidden = (m !== "fit");
+  }
+
+  /* ---- モード セグメント ---- */
+  $("seg-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.mode = b.getAttribute("data-mode");
+    syncSegPressed("seg-mode", "data-mode", state.mode);
+    syncGroups(); render();
+  });
+  function syncSegPressed(id, attr, val) {
+    $(id).querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute(attr) === val));
+    });
+  }
+
+  /* ---- 既知の辺 セグメント ---- */
+  $("seg-side").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.side = b.getAttribute("data-side");
+    syncSegPressed("seg-side", "data-side", state.side);
+    updateKnownLabel(); render();
+  });
+  function updateKnownLabel() {
+    $("lbl-known").textContent = Shell.t(state.side === "w" ? "t.width" : "t.height");
+  }
+
+  /* ---- 比率プリセット ---- */
+  function buildPresets() {
+    var box = $("presets"), html = "";
+    PRESETS.forEach(function (p) {
+      html += '<button data-w="' + p[0] + '" data-h="' + p[1] + '">' + p[0] + ":" + p[1] + "</button>";
+    });
+    box.innerHTML = html;
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      state.ratioW = parseFloat(b.getAttribute("data-w"));
+      state.ratioH = parseFloat(b.getAttribute("data-h"));
+      $("cw").value = state.ratioW; $("ch").value = state.ratioH;
+      syncPresetPressed(); render();
+    });
+  }
+  function syncPresetPressed() {
+    $("presets").querySelectorAll("button").forEach(function (b) {
+      var match = (parseFloat(b.getAttribute("data-w")) === state.ratioW && parseFloat(b.getAttribute("data-h")) === state.ratioH);
+      b.setAttribute("aria-pressed", String(match));
+    });
+  }
+
+  /* ---- カスタム比率入力 ---- */
+  $("cw").addEventListener("input", function () { state.ratioW = safe($("cw").value, state.ratioW); syncPresetPressed(); render(); });
+  $("ch").addEventListener("input", function () { state.ratioH = safe($("ch").value, state.ratioH); syncPresetPressed(); render(); });
+
+  /* ---- toSize: 既知の値 ---- */
+  $("known-val").addEventListener("input", function () { state.knownVal = safe($("known-val").value, state.knownVal); render(); });
+
+  /* ---- toRatio: サイズ入力 ---- */
+  $("size-w").addEventListener("input", function () { state.sizeW = safe($("size-w").value, state.sizeW); render(); });
+  $("size-h").addEventListener("input", function () { state.sizeH = safe($("size-h").value, state.sizeH); render(); });
+
+  /* ---- fit: ボックス入力 ---- */
+  $("box-w").addEventListener("input", function () { state.boxW = safe($("box-w").value, state.boxW); render(); });
+  $("box-h").addEventListener("input", function () { state.boxH = safe($("box-h").value, state.boxH); render(); });
+
+  /* ---- 起動 ---- */
+  buildPresets();
+  $("cw").value = state.ratioW; $("ch").value = state.ratioH;
+  syncSegPressed("seg-mode", "data-mode", state.mode);
+  syncSegPressed("seg-side", "data-side", state.side);
+  syncPresetPressed();
+  syncGroups();
+
+  Shell.init({
+    id: "aspect-ratio",
+    strings: {
+      en: {
+        "t.title": "Aspect ratio calculator",
+        "t.desc": "Calculate a missing side, detect a ratio from a size, or fit a ratio inside a bounding box.",
+        "t.mode": "Mode",
+        "t.m.toSize": "Ratio → Size", "t.m.toRatio": "Size → Ratio", "t.m.fit": "Fit in box",
+        "t.ratio": "Aspect ratio", "t.knownside": "Known side",
+        "t.width": "Width", "t.height": "Height", "t.size": "Size", "t.box": "Bounding box (max size)",
+        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "t.ratiodec": "Ratio", "t.reduced": "Reduced ratio", "t.closest": "Closest common ratio",
+        "t.diff": "diff", "t.fill": "Box fill", "t.margin": "Unused margin"
+      },
+      ja: {
+        "t.title": "アスペクト比計算機",
+        "t.desc": "片方の辺から指定比率でもう一方を算出。サイズから比率を逆算、または枠に収まる最大サイズも計算できます。",
+        "t.mode": "モード",
+        "t.m.toSize": "比率→サイズ", "t.m.toRatio": "サイズ→比率", "t.m.fit": "枠に収める",
+        "t.ratio": "アスペクト比", "t.knownside": "指定する辺",
+        "t.width": "幅", "t.height": "高さ", "t.size": "サイズ", "t.box": "枠のサイズ（最大）",
+        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "t.ratiodec": "比率", "t.reduced": "既約比率", "t.closest": "近い一般比率",
+        "t.diff": "誤差", "t.fill": "枠に対する充填率", "t.margin": "余白"
+      }
+    },
+    onSettingsChange: function () { updateKnownLabel(); render(); }
+  });
+  updateKnownLabel();
+  render();
+})();
+</script>
+</body>
+</html>
