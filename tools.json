@@ -834,50 +834,25 @@
       "added": "2026-07-11"
     },
     {
-      "id": "normal-map-generator",
+      "id": "texture-map-generator",
       "type": "web",
-      "path": "tools/normal-map-generator/",
+      "path": "tools/texture-map-generator/",
       "categories": [
         "3dcg"
       ],
       "name": {
-        "en": "Normal map generator",
-        "ja": "ノーマルマップ生成"
+        "en": "Texture map generator",
+        "ja": "テクスチャマップ生成"
       },
       "description": {
-        "en": "Turn a seamless texture into a normal map, from luminance, saturation, hue, or a channel.",
-        "ja": "明度・彩度・色相・チャンネルを基準に、シームレステクスチャから疑似ノーマルマップを生成。"
+        "en": "Generate roughness, specular, alpha, displacement, approximate metallic, cavity (pseudo AO), and normal maps from one texture.",
+        "ja": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・カビティ(疑似AO)・ノーマルマップを1枚のテクスチャから生成。"
       },
       "keywords": [
         "normal map",
         "directx",
         "opengl",
         "bump",
-        "height",
-        "generator",
-        "ノーマルマップ",
-        "法線",
-        "疑似",
-        "凹凸"
-      ],
-      "added": "2026-07-18"
-    },
-    {
-      "id": "grayscale-map-generator",
-      "type": "web",
-      "path": "tools/grayscale-map-generator/",
-      "categories": [
-        "3dcg"
-      ],
-      "name": {
-        "en": "Grayscale map generator",
-        "ja": "グレースケールマップ生成"
-      },
-      "description": {
-        "en": "Roughness, specular, alpha, displacement, approximate metallic, and pseudo-AO cavity maps from one texture.",
-        "ja": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・疑似AO(カビティ)を1枚のテクスチャから生成。"
-      },
-      "keywords": [
         "roughness",
         "specular",
         "metallic",
@@ -887,6 +862,10 @@
         "ao",
         "alpha",
         "opacity",
+        "ノーマルマップ",
+        "法線",
+        "疑似",
+        "凹凸",
         "ラフネス",
         "メタリック",
         "ディスプレイスメント",
