@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Motion auto-shutter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- tool-local tokens (derived from shell tokens, no raw hex) ---- */
+  .msTool{ max-width:540px; }
+
+  /* ---- mode switch (large sliding segmented control) ---- */
+  .modebar{ margin:0 0 var(--s4); }
+  .seg-lg{ position:relative; display:flex; width:100%; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg); padding:3px; }
+  .seg-lg button{ position:relative; z-index:1; flex:1; appearance:none; border:0; background:transparent; cursor:pointer;
+    font:inherit; font-weight:600; font-size:15px; letter-spacing:.02em; color:var(--text-2); padding:13px 10px;
+    border-radius:var(--r); transition:color var(--tap); }
+  .seg-lg button.on{ color:#fff; }
+  .seg-lg .knob{ position:absolute; top:3px; bottom:3px; border-radius:var(--r); background:var(--accent); z-index:0;
+    transition:transform .26s cubic-bezier(.34,1.3,.5,1), width .26s; box-shadow:var(--shadow-md); }
+  .mode-hint{ font-size:12px; color:var(--text-3); text-align:center; margin-top:var(--s3); }
+
+  /* ---- status pill (armed / detecting) ---- */
+  .statuswrap{ display:flex; justify-content:center; margin-bottom:var(--s4); }
+  .statuschip{ display:inline-flex; align-items:center; gap:7px; font-family:var(--font-mono); font-size:11px;
+    font-weight:600; letter-spacing:.1em; color:var(--text-3); padding:6px 12px; border-radius:100px;
+    border:1px solid var(--border); background:var(--surface); transition:color var(--tap),border-color var(--tap),background var(--tap); }
+  .statuschip .d{ width:7px; height:7px; border-radius:50%; background:var(--text-3); transition:background var(--tap); }
+  .statuschip.armed{ color:var(--accent); border-color:color-mix(in srgb, var(--accent) 40%, transparent); background:var(--accent-tint); }
+  .statuschip.armed .d{ background:var(--accent); box-shadow:0 0 8px var(--accent); animation:breathe 1.8s ease-in-out infinite; }
+  .statuschip.fire{ color:var(--neg); border-color:color-mix(in srgb, var(--neg) 50%, transparent); background:var(--neg-tint); }
+  .statuschip.fire .d{ background:var(--neg); box-shadow:0 0 10px var(--neg); animation:none; }
+  @keyframes breathe{ 50%{ opacity:.35; } }
+
+  /* ---- viewfinder: a live video feed can't follow the site theme, so this
+     block intentionally stays dark chrome-on-black, like a camera app ---- */
+  .finder{ position:relative; border-radius:var(--r-lg); overflow:hidden; background:#000;
+    aspect-ratio:3/4; border:1px solid var(--border-strong); }
+  video{ width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+  .finder.idle video{ opacity:0; }
+  .finder.idle .idleMsg{ opacity:1; }
+  .idleMsg{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:var(--s3); color:#8a94a1; text-align:center; padding:var(--s6); opacity:0; transition:opacity .3s; }
+  .idleMsg .big{ font-family:var(--font-sans); font-weight:600; font-size:15px; color:#f3f6f8; }
+  .idleMsg .sub{ font-size:12px; line-height:1.6; max-width:240px; }
+  .idleMsg svg{ width:34px; height:34px; color:#4a525c; }
+
+  .bracket{ position:absolute; width:26px; height:26px; border:2px solid rgba(255,255,255,.55); pointer-events:none; opacity:0; transition:opacity .3s; }
+  .finder.live .bracket{ opacity:.7; }
+  .bracket.tl{ top:14px; left:14px; border-right:0; border-bottom:0; border-top-left-radius:5px; }
+  .bracket.tr{ top:14px; right:14px; border-left:0; border-bottom:0; border-top-right-radius:5px; }
+  .bracket.bl{ bottom:182px; left:14px; border-right:0; border-top:0; border-bottom-left-radius:5px; }
+  .bracket.br{ bottom:182px; right:14px; border-left:0; border-top:0; border-bottom-right-radius:5px; }
+
+  .crop{ position:absolute; left:15%; top:15%; width:70%; height:70%; display:none;
+    border:2px solid var(--accent); border-radius:6px; pointer-events:none;
+    box-shadow:0 0 0 9999px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.5) inset; }
+  .finder.live.cropping .crop{ display:block; }
+  .finder.cropping .bracket{ display:none; }
+  .crop .ch{ position:absolute; width:14px; height:14px; border:2px solid #fff; opacity:.92; }
+  .crop .ch.tl{ top:-2px; left:-2px; border-right:0; border-bottom:0; }
+  .crop .ch.tr{ top:-2px; right:-2px; border-left:0; border-bottom:0; }
+  .crop .ch.bl{ bottom:-2px; left:-2px; border-right:0; border-top:0; }
+  .crop .ch.br{ bottom:-2px; right:-2px; border-left:0; border-top:0; }
+
+  .shutter{ position:absolute; left:50%; bottom:106px; transform:translateX(-50%);
+    width:64px; height:64px; border-radius:50%; border:3px solid rgba(255,255,255,.92);
+    background:transparent; padding:0; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.45);
+    opacity:0; pointer-events:none; transition:opacity .3s, transform .12s; }
+  .shutter::after{ content:""; position:absolute; inset:5px; border-radius:50%; background:#fff; transition:transform .12s, background .12s; }
+  .finder.live .shutter{ opacity:1; pointer-events:auto; }
+  .shutter:active{ transform:translateX(-50%) scale(.96); }
+  .shutter:active::after{ transform:scale(.84); background:#e6e6e6; }
+  .shutter.snap::after{ animation:snap .3s ease-out; }
+  @keyframes snap{ 0%{ transform:scale(.7); background:#cfcfcf; } 100%{ transform:scale(1); background:#fff; } }
+  .shutter:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
+
+  .rec{ position:absolute; top:14px; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; color:#fff; background:rgba(0,0,0,.42);
+    backdrop-filter:blur(8px); padding:6px 12px; border-radius:100px; border:1px solid rgba(255,255,255,.16); opacity:0; transition:opacity .3s; }
+  .finder.live .rec{ opacity:1; }
+  .rec .d{ width:8px; height:8px; border-radius:50%; background:#34e3c4; box-shadow:0 0 8px #34e3c4; }
+  .rec .resTag{ color:rgba(255,255,255,.62); letter-spacing:.05em; padding-left:7px; margin-left:5px; border-left:1px solid rgba(255,255,255,.22); }
+  .rec .resTag:empty{ display:none; }
+  .finder.modeCal .rec .d{ background:#ffce3a; box-shadow:0 0 8px #ffce3a; }
+
+  .flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .flash.fire{ animation:flash .3s ease-out; }
+  @keyframes flash{ 0%{ opacity:.9; } 100%{ opacity:0; } }
+  .detect{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.85); display:flex; align-items:center; gap:9px;
+    font-family:var(--font-mono); font-size:13px; letter-spacing:.14em; color:#fff; background:rgba(0,0,0,.5);
+    backdrop-filter:blur(8px); padding:11px 16px; border-radius:100px; border:1px solid rgba(255,77,109,.6); opacity:0; pointer-events:none; }
+  .detect .d{ width:10px; height:10px; border-radius:50%; background:#ff4d6d; box-shadow:0 0 12px #ff4d6d; }
+  .detect.fire{ animation:pop .42s ease-out; }
+  @keyframes pop{ 0%{ opacity:0; transform:translate(-50%,-50%) scale(.7); } 30%{ opacity:1; transform:translate(-50%,-50%) scale(1.05); } 100%{ opacity:0; transform:translate(-50%,-50%) scale(1); } }
+
+  .hud{ position:absolute; left:12px; right:12px; bottom:12px; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.18));
+    backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.12); border-radius:13px; padding:11px 13px; }
+  .hud-top{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:9px; }
+  .hud-metric{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .hud-metric.right{ align-items:flex-end; text-align:right; }
+  .hud-lab{ font-family:var(--font-mono); font-size:9px; letter-spacing:.16em; color:#aab2bb; }
+  .hud-val{ font-family:var(--font-mono); font-weight:600; font-size:25px; line-height:1; color:#f3f6f8; font-variant-numeric:tabular-nums; }
+  .hud-val small{ font-size:12px; color:#8a94a1; font-weight:400; margin-left:2px; }
+  .hud-time{ font-family:var(--font-mono); font-weight:600; font-size:16px; line-height:1.1; color:#34e3c4; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .hud-time.stale{ color:#8a94a1; }
+  .bar-wrap{ padding:11px 0; margin:-9px 0 -5px; touch-action:none; cursor:ew-resize; }
+  .bar{ position:relative; height:7px; border-radius:6px; background:rgba(255,255,255,.14); overflow:visible; }
+  .bar .fill{ position:absolute; inset:0 auto 0 0; width:0%; border-radius:6px;
+    background:linear-gradient(90deg, #34e3c4, #ffce3a 70%, #ff4d6d); transition:width .07s linear; }
+  .bar.over .fill{ box-shadow:0 0 12px rgba(255,77,109,.7); }
+  .bar .tick{ position:absolute; top:-4px; bottom:-4px; width:2px; left:30%; border-radius:2px; background:#fff; box-shadow:0 0 5px rgba(0,0,0,.8); }
+  .bar .tick .grip{ position:absolute; left:50%; top:-9px; transform:translateX(-50%); width:16px; height:16px; border-radius:50%;
+    background:#fff; border:2px solid rgba(0,0,0,.25); box-shadow:0 1px 5px rgba(0,0,0,.6); transition:transform .12s; }
+  .bar-wrap:active .tick .grip{ transform:translateX(-50%) scale(1.18); }
+
+  /* ---- settings: faders / toggles / accordions ---- */
+  .fader{ margin-top:var(--s5); }
+  .fader:first-child{ margin-top:0; }
+  .fader .head{ display:flex; justify-content:space-between; align-items:flex-end; gap:var(--s3); margin-bottom:6px; }
+  .fader .name{ font-size:13px; font-weight:500; color:var(--text); }
+  .fader .name em{ display:block; font-style:normal; font-size:11.5px; color:var(--text-3); margin-top:3px; font-weight:400; line-height:1.4; }
+  .fader .v{ flex:0 0 auto; font-family:var(--font-mono); font-weight:600; font-size:14px; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .subfader{ margin-top:var(--s4); padding-left:var(--s3); border-left:2px solid var(--border); transition:opacity var(--tap); }
+  .subfader[data-off="true"]{ opacity:.45; }
+  .fieldrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); }
+
+  .presetchips{ display:flex; gap:6px; flex-wrap:wrap; }
+  .presetchip{ appearance:none; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-2);
+    font-family:var(--font-mono); font-size:11.5px; font-weight:600; letter-spacing:.03em; padding:6px 11px;
+    border-radius:var(--r-sm); cursor:pointer; transition:color var(--tap),border-color var(--tap),background var(--tap); }
+  .presetchip.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
+  .presetchip:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .cropSize{ margin-top:var(--s4); font-family:var(--font-mono); font-size:11.5px; color:var(--text-3); }
+
+  .accordion{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); margin-top:var(--s4); }
+  .acc-head{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+    background:transparent; border:0; cursor:pointer; padding:var(--s4) var(--s5); color:var(--text); text-align:left; }
+  .acc-title{ display:flex; flex-direction:column; gap:3px; font-weight:600; font-size:14px; }
+  .acc-title em{ font-style:normal; font-weight:400; font-size:11.5px; color:var(--text-3); }
+  .chev{ flex:0 0 auto; width:9px; height:9px; margin-right:3px; border-right:2px solid var(--text-3); border-bottom:2px solid var(--text-3);
+    transform:rotate(45deg); transition:transform .28s ease; }
+  .accordion:not(.collapsed) .chev{ transform:rotate(-135deg); }
+  .acc-body{ max-height:1600px; overflow:hidden; transition:max-height .32s ease; }
+  .accordion.collapsed .acc-body{ max-height:0; }
+  .acc-inner{ padding:0 var(--s5) var(--s5); }
+  .acc-head:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; border-radius:var(--r-lg); }
+
+  /* ---- action buttons ---- */
+  .btn--danger{ background:transparent; color:var(--neg); border:1px solid color-mix(in srgb, var(--neg) 45%, var(--border-strong)); }
+  .btn--danger:hover{ background:var(--neg-tint); }
+  .btn .n{ font-family:var(--font-mono); opacity:.75; font-weight:500; }
+
+  .notice{ margin-top:var(--s4); font-size:12.5px; line-height:1.5; color:var(--neg);
+    border:1px solid color-mix(in srgb, var(--neg) 35%, transparent); background:var(--neg-tint);
+    border-radius:var(--r); padding:var(--s3) var(--s4); display:none; }
+  .notice.show{ display:block; }
+
+  /* ---- gallery ---- */
+  .g-head{ display:flex; justify-content:space-between; align-items:center; margin:var(--s6) 0 var(--s3); }
+  .g-head h2{ font-family:var(--font-mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-3); margin:0; font-weight:600; }
+  .g-head .clear{ font-family:var(--font-mono); font-size:12px; color:var(--text-3); background:none; border:0; cursor:pointer; padding:4px; }
+  .g-head .clear:disabled{ opacity:.35; }
+  .strip{ display:flex; gap:var(--s2); overflow-x:auto; padding:2px 2px var(--s3); scroll-behavior:smooth; -webkit-overflow-scrolling:touch; }
+  .strip::-webkit-scrollbar{ height:0; }
+  .gempty{ color:var(--text-3); font-size:12.5px; line-height:1.6; padding:var(--s4) 6px; max-width:300px; }
+  .thumb{ position:relative; flex:0 0 auto; width:78px; height:104px; border-radius:var(--r); overflow:hidden; border:1px solid var(--border-strong); background:#000; }
+  .thumb img{ width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
+  .thumb .x{ position:absolute; top:4px; right:4px; width:21px; height:21px; border-radius:50%; border:0;
+    background:rgba(0,0,0,.62); backdrop-filter:blur(4px); color:#fff; font-size:14px; line-height:21px; cursor:pointer; padding:0; }
+  .thumb .idx{ position:absolute; bottom:4px; left:5px; font-family:var(--font-mono); font-size:9px; color:#fff;
+    background:rgba(0,0,0,.5); padding:1px 5px; border-radius:4px; letter-spacing:.05em; }
+
+  /* ---- fullscreen viewer ---- */
+  .viewer{ position:fixed; inset:0; background:rgba(4,5,7,.93); backdrop-filter:blur(6px); display:none; z-index:50;
+    flex-direction:column; align-items:center; justify-content:center; padding:var(--s5); touch-action:none; }
+  .viewer.open{ display:flex; }
+  .viewer img{ max-width:100%; max-height:76vh; border-radius:var(--r-lg); box-shadow:0 20px 60px -20px #000; -webkit-user-drag:none; user-select:none; touch-action:none; }
+  .viewer p{ color:#8a94a1; font-size:12px; margin:var(--s4) 0 0; text-align:center; line-height:1.6; max-width:300px; }
+  .viewer .close{ position:absolute; top:calc(env(safe-area-inset-top) + 12px); right:18px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,.1); border:0; color:#fff; font-size:22px; cursor:pointer; z-index:2; }
+  .vnav{ position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.12);
+    border:0; color:#fff; font-size:26px; line-height:1; cursor:pointer; z-index:2; display:flex; align-items:center; justify-content:center; transition:opacity .2s; }
+  .vnav.prev{ left:14px; } .vnav.next{ right:14px; }
+  .vnav:disabled{ opacity:.2; pointer-events:none; }
+  .vcount{ margin-top:var(--s4); font-family:var(--font-mono); font-size:12px; color:#cbd2da; letter-spacing:.08em; }
+
+  /* ---- confirm modal ---- */
+  .modal{ position:fixed; inset:0; background:rgba(4,5,7,.7); backdrop-filter:blur(6px); display:none; z-index:60; align-items:center; justify-content:center; padding:var(--s5); }
+  .modal.open{ display:flex; }
+  .modal-card{ background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r-lg); padding:var(--s5); max-width:340px; width:100%; box-shadow:var(--shadow-md); }
+  .modal-title{ font-weight:600; font-size:17px; margin-bottom:var(--s3); color:var(--text); }
+  .modal-body{ font-size:13.5px; color:var(--text-2); line-height:1.6; margin-bottom:var(--s5); }
+  .modal-body b{ color:var(--text); font-family:var(--font-mono); }
+  .modal-actions{ display:flex; gap:var(--s3); }
+  .modal-actions .btn{ flex:1; }
+
+  .foot{ font-size:11.5px; color:var(--text-3); line-height:1.7; margin:var(--s4) 4px 0; }
+  .foot code{ font-family:var(--font-mono); color:var(--text-2); }
+
+  @media (prefers-reduced-motion: reduce){ .msTool *{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Motion auto-shutter</h1>
+    <p data-i18n="t.desc">Capture automatically when the camera sees enough motion.</p>
+  </div>
+
+  <div class="msTool">
+
+    <div class="modebar">
+      <div class="seg-lg" id="seg">
+        <span class="knob" id="knob"></span>
+        <button data-mode="capture" class="on" data-i18n="t.modeCapture">Capture</button>
+        <button data-mode="calibrate" data-i18n="t.modeCalibrate">Calibrate</button>
+      </div>
+      <div class="mode-hint" id="modeHint" data-i18n="t.hintCapture">Takes a photo whenever motion is detected.</div>
+    </div>
+
+    <div class="statuswrap">
+      <div class="statuschip" id="chip"><span class="d"></span><span id="chipText" data-i18n="t.statusIdle">Idle</span></div>
+    </div>
+
+    <div class="finder idle" id="finder">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="crop" id="crop"><span class="ch tl"></span><span class="ch tr"></span><span class="ch bl"></span><span class="ch br"></span></div>
+      <span class="bracket tl"></span><span class="bracket tr"></span>
+      <span class="bracket bl"></span><span class="bracket br"></span>
+      <div class="rec"><span class="d"></span><span id="recText" data-i18n="t.recWatching">Watching</span><span class="resTag" id="resTag"></span></div>
+      <div class="flash" id="flash"></div>
+      <div class="detect" id="detect"><span class="d"></span><span data-i18n="t.detect">Detected</span></div>
+
+      <div class="idleMsg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="12" cy="12" r="9.2"/><path d="M12 2.8 L15.5 9 M21.2 12 L14 12.8 M15.5 21 L12 14.6 M2.8 12 L9.6 11.2 M8.5 3 L12 9.4 M3 15.5 L9.4 12"/>
+        </svg>
+        <div class="big" data-i18n="t.idleTitle">Camera is off</div>
+        <div class="sub" data-i18n="t.idleSub">Press Start to begin watching. It'll shoot automatically when it sees motion.</div>
+      </div>
+
+      <button class="shutter" id="shutterBtn" aria-label="Take a photo now"></button>
+
+      <div class="hud">
+        <div class="hud-top">
+          <div class="hud-metric">
+            <div class="hud-lab" data-i18n="t.motion">MOTION</div>
+            <div class="hud-val"><span id="metVal">0.0</span><small>%</small></div>
+          </div>
+          <div class="hud-metric right">
+            <div class="hud-lab" data-i18n="t.lastShot">LAST SHOT</div>
+            <div class="hud-time" id="lastShot">—</div>
+          </div>
+        </div>
+        <div class="bar-wrap" id="barWrap">
+          <div class="bar" id="bar"><div class="fill" id="fill"></div><div class="tick" id="tick"><span class="grip"></span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g-head">
+      <h2 data-i18n="t.galleryTitle">Photos</h2>
+      <button class="clear" id="clearBtn" disabled data-i18n="t.clearAll">Clear all</button>
+    </div>
+    <div class="strip" id="strip">
+      <div class="gempty" data-i18n="t.emptyGallery">No photos yet. Start watching and auto-captured shots will appear here.</div>
+    </div>
+
+    <div class="accordion collapsed" id="acc-detect">
+      <button class="acc-head" aria-expanded="false">
+        <span class="acc-title"><span data-i18n="t.detectSettings">Sensitivity &amp; shutter</span><em data-i18n="t.detectSettingsSub">Tune how motion is picked up</em></span>
+        <span class="chev"></span>
+      </button>
+      <div class="acc-body"><div class="acc-inner">
+        <div class="fader">
+          <div class="head"><div class="name"><span data-i18n="t.areaName">Trigger area</span><em data-i18n="t.areaSub">% of the frame that must move to trigger (drag the marker on the meter too)</em></div><div class="v" id="areaV">5.0%</div></div>
+          <input type="range" class="slider" id="area" min="1" max="400" value="50">
+        </div>
+        <div class="fader">
+          <div class="head"><div class="name"><span data-i18n="t.pixName">Noise tolerance</span><em data-i18n="t.pixSub">How much small brightness flicker is ignored</em></div><div class="v" id="pixV">25</div></div>
+          <input type="range" class="slider" id="pix" min="5" max="80" value="25">
+        </div>
+        <div class="fader">
+          <div class="head"><div class="name"><span data-i18n="t.cmpName">Compare interval</span><em data-i18n="t.cmpSub">Short = catches fast motion / long = also catches slow changes</em></div><div class="v" id="cmpV">0.08s</div></div>
+          <input type="range" class="slider" id="cmp" min="80" max="3000" step="20" value="80">
+        </div>
+        <div class="fader">
+          <div class="fieldrow">
+            <div class="name" style="flex:1"><span data-i18n="t.delayName">Shutter timing</span><em id="delayHint" data-i18n="t.delayHintOff">Shoots the instant motion is detected</em></div>
+            <label class="toggle"><input type="checkbox" id="delayToggle"><span class="track"></span></label>
+          </div>
+          <div class="subfader" id="delayRow" data-off="true">
+            <div class="head"><div class="name"><span data-i18n="t.delayAmountName">Delay</span><em data-i18n="t.delayAmountSub">Wait time between detection and the shot</em></div><div class="v" id="delayV">0.30s</div></div>
+            <input type="range" class="slider" id="delay" min="1" max="100" step="1" value="30" disabled>
+          </div>
+        </div>
+        <div class="fader">
+          <div class="head"><div class="name"><span data-i18n="t.coolName">Cooldown</span><em data-i18n="t.coolSub">Minimum wait before the next shot</em></div><div class="v" id="coolV">0.8s</div></div>
+          <input type="range" class="slider" id="cool" min="200" max="3000" step="100" value="800">
+        </div>
+        <div class="fader">
+          <div class="head"><div class="name" data-i18n="t.cameraName">Camera / lens</div></div>
+          <select class="select" id="camSelect" style="margin-top:10px"><option data-i18n="t.cameraPlaceholder">Shown after Start</option></select>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="accordion collapsed" id="acc-crop">
+      <button class="acc-head" aria-expanded="false">
+        <span class="acc-title"><span data-i18n="t.cropSettings">Detection &amp; capture area</span><em id="cropHint" data-i18n="t.cropHintOff">Uses the whole frame</em></span>
+        <span class="chev"></span>
+      </button>
+      <div class="acc-body"><div class="acc-inner">
+        <div class="fader" style="margin-top:0">
+          <div class="fieldrow">
+            <div class="name" style="flex:1"><span data-i18n="t.cropEnableName">Limit the area</span><em data-i18n="t.cropEnableSub">Only use part of the frame</em></div>
+            <label class="toggle"><input type="checkbox" id="cropToggle"><span class="track"></span></label>
+          </div>
+          <div class="subfader" id="cropRow" data-off="true">
+            <div class="presetchips" id="cropPresets">
+              <button class="presetchip" data-w="0.96" data-h="0.405">16:9</button>
+              <button class="presetchip" data-w="0.96" data-h="0.54">4:3</button>
+              <button class="presetchip" data-w="0.96" data-h="0.72">1:1</button>
+              <button class="presetchip" data-w="0.9" data-h="0.9">3:4</button>
+              <button class="presetchip" data-w="0.72" data-h="0.96">9:16</button>
+            </div>
+            <div class="fader">
+              <div class="head"><div class="name" data-i18n="t.cropWName">Width</div><div class="v" id="cropWV">70%</div></div>
+              <input type="range" class="slider" id="cropW" min="20" max="100" step="1" value="70" disabled>
+            </div>
+            <div class="fader">
+              <div class="head"><div class="name" data-i18n="t.cropHName">Height</div><div class="v" id="cropHV">70%</div></div>
+              <input type="range" class="slider" id="cropH" min="20" max="100" step="1" value="70" disabled>
+            </div>
+            <div class="fader">
+              <div class="head"><div class="name" data-i18n="t.posXName">Horizontal position</div><div class="v" id="posXV">Center</div></div>
+              <input type="range" class="slider" id="posX" min="0" max="100" step="1" value="50" disabled>
+            </div>
+            <div class="fader">
+              <div class="head"><div class="name" data-i18n="t.posYName">Vertical position</div><div class="v" id="posYV">Center</div></div>
+              <input type="range" class="slider" id="posY" min="0" max="100" step="1" value="50" disabled>
+            </div>
+            <div class="cropSize" id="cropSize" data-i18n="t.cropSizeFull">Using the whole frame</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="startBtn" data-i18n="t.start">Start</button>
+        <button class="btn btn--danger btn--block" id="stopBtn" disabled data-i18n="t.stop">Stop</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn btn--secondary btn--block" id="saveBtn" disabled><span data-i18n="t.save">Save photos</span> <span class="n" id="saveN"></span></button>
+      </div>
+      <div class="notice" id="notice"></div>
+    </div>
+
+    <p class="foot" data-i18n="t.footNote">The camera only starts on an <code>https://</code> page (not <code>file://</code> on iPhone) — host it on GitHub Pages or similar. On iOS, saving needs a confirmation: "Save photos" opens the share sheet, then choose "Save Image" to add them all at once.</p>
+
+    <div class="viewer" id="viewer">
+      <button class="close" id="viewerClose" aria-label="Close">&times;</button>
+      <button class="vnav prev" id="vPrev" aria-label="Previous photo">&#8249;</button>
+      <img id="viewerImg" alt="Captured photo" draggable="false">
+      <button class="vnav next" id="vNext" aria-label="Next photo">&#8250;</button>
+      <div class="vcount" id="viewerCount"></div>
+      <p data-i18n="t.viewerHint">Swipe or use the arrow keys to move between photos. To save just this one, press and hold the image → "Add to Photos".</p>
+    </div>
+
+    <div class="modal" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal-card">
+        <div class="modal-title" id="confirmTitle" data-i18n="t.confirmTitle">Delete all photos?</div>
+        <div class="modal-body"><span data-i18n="t.confirmBodyPre">This will delete</span> <b id="confirmN">0</b> <span data-i18n="t.confirmBodyPost">photos. This can't be undone.</span></div>
+        <div class="modal-actions">
+          <button class="btn btn--secondary" id="confirmCancel" data-i18n="t.confirmCancel">Cancel</button>
+          <button class="btn btn--danger" id="confirmOk" data-i18n="t.confirmOk">Delete</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const finder=$('finder'), video=$('video'), flash=$('flash'), detect=$('detect');
+const chip=$('chip'), chipText=$('chipText'), recText=$('recText');
+const fill=$('fill'), bar=$('bar'), metVal=$('metVal'), tick=$('tick');
+const camSelect=$('camSelect'), notice=$('notice');
+const startBtn=$('startBtn'), stopBtn=$('stopBtn'), saveBtn=$('saveBtn');
+const shutterBtn=$('shutterBtn'), lastShot=$('lastShot');
+
+let lastCaptureTime=null;           // ms timestamp of the most recent saved photo
+
+let running=false, mode='capture';
+let stream=null, currentDeviceId=null, startGen=0;
+let prev=null, lastTrigger=0, rafId=null, lastProc=0;
+let shots=[];                       // {blob, url} | null  (null = removed; index kept stable)
+
+/* detection runs on a tiny offscreen canvas */
+const SW=64, SH=48;
+const dCanvas=document.createElement('canvas'); dCanvas.width=SW; dCanvas.height=SH;
+const dCtx=dCanvas.getContext('2d',{willReadFrequently:true});
+
+/* tunables */
+let areaThresh=0.05, pixThresh=25, coolMs=800;
+let compareMs=80;                  // how far apart compared frames are (snappy vs slow-change); 80ms matches the original feel
+let delayOn=false, delayMs=300;    // capture instantly, or wait a moment after detection
+let pendingShot=false;             // a delayed capture is already queued
+let delayTimer=null;               // id of the pending delayed-capture timer (so we can cancel it)
+let captureGen=0;                  // session token: invalidates in-flight captures on stop/switch/clear
+let cropOn=false, cropW=0.70, cropH=0.70;  // detection/capture window as a fraction of the finder
+let posX=0.5, posY=0.5;            // window position: 0=flush left/top, 0.5=centered, 1=flush right/bottom
+const SCALE_MAX=0.40;              // meter spans 0..40%, matching the area slider's max
+
+/* ── faders ──────────────────────────── */
+function setAreaThresh(at){
+  at=Math.max(0.001, Math.min(0.4, at));           // matches the slider's 1..400 range
+  areaThresh=at;
+  $('area').value=Math.round(at*1000);
+  $('areaV').textContent=(at*100).toFixed(1)+'%';
+  positionTick();
+}
+$('area').addEventListener('input',e=>{ setAreaThresh((+e.target.value)/1000); });
+$('pix').addEventListener('input',e=>{ pixThresh=+e.target.value; $('pixV').textContent=pixThresh; });
+$('cmp').addEventListener('input',e=>{ compareMs=+e.target.value; $('cmpV').textContent=(compareMs/1000).toFixed(2)+'s'; });
+$('cool').addEventListener('input',e=>{ coolMs=+e.target.value; $('coolV').textContent=(coolMs/1000).toFixed(1)+'s'; });
+$('delay').addEventListener('input',e=>{ delayMs=(+e.target.value)*10; $('delayV').textContent=(delayMs/1000).toFixed(2)+'s'; });
+$('delayToggle').addEventListener('change',e=>{
+  delayOn=e.target.checked;
+  $('delay').disabled=!delayOn;
+  $('delayRow').dataset.off = delayOn ? 'false' : 'true';
+  $('delayHint').textContent = delayOn ? Shell.t('t.delayHintOn') : Shell.t('t.delayHintOff');
+});
+function positionTick(){ tick.style.left=Math.min(100, areaThresh/SCALE_MAX*100).toFixed(1)+'%'; }
+positionTick();
+
+/* drag the MOTION threshold marker directly — linked to trigger area */
+const barWrap=$('barWrap');
+let draggingTick=false;
+function thresholdFromX(clientX){
+  const r=bar.getBoundingClientRect();
+  const frac=Math.max(0, Math.min(1, (clientX-r.left)/r.width));
+  setAreaThresh(frac*SCALE_MAX);
+}
+barWrap.addEventListener('pointerdown',e=>{
+  draggingTick=true; barWrap.setPointerCapture(e.pointerId);
+  thresholdFromX(e.clientX); e.preventDefault();
+});
+barWrap.addEventListener('pointermove',e=>{ if(draggingTick) thresholdFromX(e.clientX); });
+barWrap.addEventListener('pointerup',()=>{ draggingTick=false; });
+barWrap.addEventListener('pointercancel',()=>{ draggingTick=false; });
+
+/* ── crop / detection-capture window ─── */
+const cropEl=$('crop');
+function applyCropStyle(){
+  cropEl.style.width=(cropW*100).toFixed(1)+'%';
+  cropEl.style.height=(cropH*100).toFixed(1)+'%';
+  cropEl.style.left=(posX*(1-cropW)*100).toFixed(1)+'%';
+  cropEl.style.top=(posY*(1-cropH)*100).toFixed(1)+'%';
+  finder.classList.toggle('cropping', cropOn);
+}
+// map the (positioned) crop window to source-video pixels, accounting for object-fit:cover
+function srcRect(){
+  const Vw=video.videoWidth, Vh=video.videoHeight;
+  if(!cropOn || !Vw || !Vh) return {sx:0,sy:0,sw:Vw,sh:Vh};
+  const Fw=finder.clientWidth, Fh=finder.clientHeight;
+  const scale=Math.max(Fw/Vw, Fh/Vh);               // cover scale
+  const offX=(Vw*scale-Fw)/2, offY=(Vh*scale-Fh)/2; // displayed-video overflow per side
+  const fLeft=posX*(1-cropW)*Fw, fTop=posY*(1-cropH)*Fh;  // window position in finder px
+  let sx=(fLeft+offX)/scale, sy=(fTop+offY)/scale;  // → source px
+  let sw=(cropW*Fw)/scale, sh=(cropH*Fh)/scale;
+  sx=Math.max(0,Math.min(sx,Vw)); sy=Math.max(0,Math.min(sy,Vh));
+  sw=Math.max(1,Math.min(sw,Vw-sx)); sh=Math.max(1,Math.min(sh,Vh-sy));
+  return {sx,sy,sw,sh};
+}
+function updateCropSize(){
+  if(!cropOn){ $('cropSize').textContent=Shell.t('t.cropSizeFull'); return; }
+  if(!running || !video.videoWidth){ $('cropSize').textContent=Shell.t('t.cropSizePending'); return; }
+  const r=srcRect();
+  $('cropSize').textContent=Shell.t('t.cropSizeLabel')+`: ~${Math.round(r.sw)}×${Math.round(r.sh)} px`;
+}
+function markPreset(){
+  document.querySelectorAll('#cropPresets .presetchip').forEach(b=>{
+    b.classList.toggle('on', Math.abs((+b.dataset.w)-cropW)<0.005 && Math.abs((+b.dataset.h)-cropH)<0.005);
+  });
+}
+$('cropToggle').addEventListener('change',e=>{
+  cropOn=e.target.checked;
+  $('cropW').disabled=!cropOn; $('cropH').disabled=!cropOn;
+  $('posX').disabled=!cropOn; $('posY').disabled=!cropOn;
+  $('cropRow').dataset.off = cropOn ? 'false' : 'true';
+  $('cropHint').textContent = cropOn ? Shell.t('t.cropHintOn') : Shell.t('t.cropHintOff');
+  applyCropStyle(); prev=null; updateCropSize();
+});
+$('cropW').addEventListener('input',e=>{
+  cropW=(+e.target.value)/100; $('cropWV').textContent=e.target.value+'%';
+  applyCropStyle(); markPreset(); prev=null; updateCropSize();
+});
+$('cropH').addEventListener('input',e=>{
+  cropH=(+e.target.value)/100; $('cropHV').textContent=e.target.value+'%';
+  applyCropStyle(); markPreset(); prev=null; updateCropSize();
+});
+function posLabel(v,loKey,hiKey){ return v===50 ? Shell.t('t.center') : Shell.t(loKey<0?loKey:(v<50?loKey:hiKey))+' '+Math.round(Math.abs(v-50)*2)+'%'; }
+$('posX').addEventListener('input',e=>{
+  posX=(+e.target.value)/100; $('posXV').textContent=posLabel(+e.target.value,'t.left','t.right');
+  applyCropStyle(); prev=null; updateCropSize();
+});
+$('posY').addEventListener('input',e=>{
+  posY=(+e.target.value)/100; $('posYV').textContent=posLabel(+e.target.value,'t.top','t.bottom');
+  applyCropStyle(); prev=null; updateCropSize();
+});
+document.querySelectorAll('#cropPresets .presetchip').forEach(b=>b.addEventListener('click',()=>{
+  cropW=+b.dataset.w; cropH=+b.dataset.h;
+  $('cropW').value=Math.round(cropW*100); $('cropWV').textContent=Math.round(cropW*100)+'%';
+  $('cropH').value=Math.round(cropH*100); $('cropHV').textContent=Math.round(cropH*100)+'%';
+  applyCropStyle(); markPreset(); prev=null; updateCropSize();
+}));
+applyCropStyle();
+
+/* ── mode segmented control ──────────── */
+const knob=$('knob'), segBtns=document.querySelectorAll('#seg button');
+function layoutKnob(){
+  const on=document.querySelector('#seg button.on');
+  knob.style.width=on.offsetWidth+'px';
+  knob.style.transform=`translateX(${on.offsetLeft-3}px)`;
+}
+segBtns.forEach(b=>b.addEventListener('click',()=>{
+  segBtns.forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); layoutKnob();
+  mode=b.dataset.mode;
+  finder.classList.toggle('modeCal', mode==='calibrate');
+  recText.textContent = mode==='capture' ? Shell.t('t.recWatching') : Shell.t('t.recCalibrating');
+  $('modeHint').textContent = mode==='capture' ? Shell.t('t.hintCapture') : Shell.t('t.hintCalibrate');
+}));
+window.addEventListener('load',layoutKnob);
+window.addEventListener('resize',layoutKnob);
+
+/* ── collapsible blocks ──────────────── */
+document.querySelectorAll('.acc-head').forEach(h=>h.addEventListener('click',()=>{
+  const acc=h.closest('.accordion');
+  acc.classList.toggle('collapsed');
+  h.setAttribute('aria-expanded', String(!acc.classList.contains('collapsed')));
+}));
+
+/* ── notice helper ───────────────────── */
+let noticeTimer=null;
+function showNotice(msg){
+  notice.textContent=msg; notice.classList.add('show');
+  clearTimeout(noticeTimer); noticeTimer=setTimeout(()=>notice.classList.remove('show'),6000);
+}
+function clearNotice(){ notice.classList.remove('show'); }
+
+/* ── camera list ─────────────────────── */
+async function listCameras(selectId){
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const cams=devices.filter(d=>d.kind==='videoinput');
+    camSelect.innerHTML='';
+    cams.forEach((c,i)=>{
+      const o=document.createElement('option');
+      o.value=c.deviceId; o.textContent=c.label || (Shell.t('t.cameraFallback')+' '+(i+1));
+      camSelect.appendChild(o);
+    });
+    if(selectId) camSelect.value=selectId;
+  }catch(_){ /* enumerate can fail before permission; ignore */ }
+}
+
+/* ── start / stop ────────────────────── */
+async function start(deviceId){
+  if(!navigator.mediaDevices?.getUserMedia){
+    showNotice(Shell.t('t.noticeNoCamera')); return;
+  }
+  clearNotice();
+  const myGen=++startGen;           // re-entrancy guard: invalidate any in-flight start
+  const prevDeviceId=currentDeviceId;
+  const wasRunning=running;
+  stopStream();                     // release current stream/loop only (keep UI until we know the result)
+
+  // request a high-resolution stream; ideal is best-effort and never fails the call
+  // 1080p keeps photos sharp while keeping detection steady; 4K made AE/AF wobble and frame-drops
+  // skew the motion meter. Raise this if you specifically want more megapixels.
+  const hi = { width:{ideal:1920}, height:{ideal:1080} };
+  const constraints = deviceId
+    ? { video:{ deviceId:{exact:deviceId}, ...hi }, audio:false }
+    : { video:{ facingMode:{ideal:'environment'}, ...hi }, audio:false };
+
+  let newStream;
+  try{
+    newStream=await navigator.mediaDevices.getUserMedia(constraints);
+  }catch(e){
+    if(myGen!==startGen){ return; }                 // superseded by a newer start
+    // failure recovery: if we were switching cameras, fall back; otherwise stop cleanly
+    if(wasRunning && prevDeviceId && prevDeviceId!==deviceId){
+      showNotice(Shell.t('t.noticeSwitchFailed'));
+      return start(prevDeviceId);
+    }
+    showNotice(Shell.t('t.noticeCameraFailed')+'：'+(e?.message||e));
+    setStopped();
+    return;
+  }
+
+  if(myGen!==startGen){             // a newer start won the race — discard this stream
+    newStream.getTracks().forEach(t=>t.stop());
+    return;
+  }
+
+  stream=newStream;
+  video.srcObject=stream;
+  try{ await video.play(); }catch(_){}
+  if(myGen!==startGen){ stopStream(); return; }      // check again after the await
+
+  currentDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId || deviceId || null;
+  await listCameras(currentDeviceId);
+  if(myGen!==startGen){ stopStream(); return; }
+
+  const st=stream.getVideoTracks()[0]?.getSettings()||{};
+  $('resTag').textContent = (st.width&&st.height) ? `${st.width}×${st.height}` : '';
+
+  running=true; prev=null; lastProc=0;
+  finder.classList.remove('idle'); finder.classList.add('live');
+  chip.classList.remove('fire'); chip.classList.add('armed');
+  chipText.textContent = mode==='capture' ? Shell.t('t.recWatching') : Shell.t('t.recCalibrating');
+  startBtn.disabled=true; stopBtn.disabled=false;
+  updateCropSize();
+  loop();
+}
+
+/* stop only the media + loop, no UI change */
+function stopStream(){
+  running=false;
+  if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+  if(delayTimer){ clearTimeout(delayTimer); delayTimer=null; }   // kill any queued delayed shot
+  pendingShot=false;
+  captureGen++;                                                  // invalidate in-flight captures
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+}
+
+/* full stop: media + UI back to the resting state */
+function setStopped(){
+  stopStream();
+  pendingShot=false;
+  currentDeviceId=null;
+  video.srcObject=null;             // clear the frozen last frame
+  finder.classList.remove('live'); finder.classList.add('idle');
+  chip.classList.remove('armed','fire'); chipText.textContent=Shell.t('t.statusIdle');
+  startBtn.disabled=false; stopBtn.disabled=true;
+  $('resTag').textContent='';
+  fill.style.width='0%'; bar.classList.remove('over'); metVal.textContent='0.0'; metVal.style.color='';
+  updateCropSize();
+}
+
+startBtn.addEventListener('click',()=>start());
+stopBtn.addEventListener('click',()=>{ ++startGen; setStopped(); });
+camSelect.addEventListener('change',e=>{ if(running) start(e.target.value); });
+
+/* ── detection loop (~12.5 fps) ──────── */
+function loop(){
+  if(!running) return;
+  rafId=requestAnimationFrame(loop);
+  if(video.readyState<2) return;            // not ready: skip without spending a slot
+  const now=performance.now();
+  if(now-lastProc < compareMs) return;       // cadence = chosen comparison interval
+  lastProc=now;
+
+  const r=srcRect();
+  dCtx.drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, SW, SH);
+  const curr=dCtx.getImageData(0,0,SW,SH).data;
+
+  if(prev){
+    let changed=0; const total=SW*SH;
+    for(let i=0;i<curr.length;i+=4){
+      const d=(Math.abs(curr[i]-prev[i])+Math.abs(curr[i+1]-prev[i+1])+Math.abs(curr[i+2]-prev[i+2]))/3;
+      if(d>pixThresh) changed++;
+    }
+    const ratio=changed/total;
+    updateMeter(ratio);
+    if(ratio>areaThresh && now-lastTrigger>coolMs){ lastTrigger=now; trigger(); }
+  }
+  prev=curr;
+}
+
+function updateMeter(ratio){
+  fill.style.width=Math.min(100, ratio/SCALE_MAX*100).toFixed(1)+'%';
+  const over=ratio>areaThresh;
+  bar.classList.toggle('over',over);
+  metVal.textContent=(ratio*100).toFixed(1);
+  metVal.style.color = over ? '#ff4d6d' : '';
+}
+
+/* ── trigger ─────────────────────────── */
+function trigger(){
+  chip.classList.add('fire'); chipText.textContent=Shell.t('t.detect');
+  setTimeout(()=>{ if(running){ chip.classList.remove('fire'); chip.classList.add('armed');
+    chipText.textContent = mode==='capture' ? Shell.t('t.recWatching') : Shell.t('t.recCalibrating'); } },420);
+  if(mode==='capture'){
+    if(delayOn && delayMs>0){
+      if(pendingShot) return;                 // don't stack multiple delayed shots
+      pendingShot=true;
+      delayTimer=setTimeout(()=>{ delayTimer=null; pendingShot=false; if(running) doShot(); }, delayMs);
+    }else{
+      doShot();
+    }
+  }else{
+    detect.classList.remove('fire'); void detect.offsetWidth; detect.classList.add('fire');
+  }
+}
+
+/* take the actual photo (auto or manual), with the shutter flash */
+function doShot(){
+  flash.classList.remove('fire'); void flash.offsetWidth; flash.classList.add('fire');
+  capture();
+}
+
+function capture(){
+  if(!running) return;
+  if(!video.videoWidth || !video.videoHeight) return;
+  const r=srcRect();
+  const w=Math.round(r.sw), h=Math.round(r.sh);
+  if(!w||!h) return;
+  const myGen=captureGen;                      // remember which session this shot belongs to
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.getContext('2d').drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, w, h);
+  c.toBlob(blob=>{
+    // toBlob is async: drop the result if the session ended or was cleared meanwhile
+    if(!blob || !running || myGen!==captureGen) return;
+    const url=URL.createObjectURL(blob);
+    shots.push({blob,url});
+    lastCaptureTime=Date.now();
+    renderLastShot();
+    addThumb(shots.length-1);
+    refreshGallery();
+  },'image/jpeg',0.92);
+}
+
+/* ── gallery ─────────────────────────── */
+const strip=$('strip');
+function addThumb(i){
+  const empty=strip.querySelector('.gempty'); if(empty) empty.remove();
+  const t=document.createElement('div'); t.className='thumb';
+  const img=document.createElement('img'); img.src=shots[i].url; img.alt=Shell.t('t.thumbAlt');
+  img.addEventListener('click',()=>{ const s=shots[i]; if(!s) return; openViewerAt(liveShots().indexOf(s)); });
+  const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label',Shell.t('t.deleteAlt'));
+  x.addEventListener('click',ev=>{ ev.stopPropagation(); removeShot(i,t); });
+  const idx=document.createElement('span'); idx.className='idx'; idx.textContent=String(liveShots().length+1).padStart(2,'0');
+  t.append(img,x,idx); strip.appendChild(t);
+  strip.scrollLeft=strip.scrollWidth;
+}
+function removeShot(i,el){
+  if(shots[i]){ URL.revokeObjectURL(shots[i].url); shots[i]=null; }
+  el.remove(); refreshGallery();
+  if(shots.every(s=>!s)) showEmpty();
+}
+function showEmpty(){ strip.innerHTML='<div class="gempty">'+Shell.t('t.emptyGallery')+'</div>'; }
+function liveShots(){ return shots.filter(Boolean); }
+function refreshGallery(){
+  const n=liveShots().length;
+  saveBtn.disabled = n===0; $('saveN').textContent = n ? `(${n})` : '';
+  $('clearBtn').disabled = n===0;
+  if(n===0){ lastCaptureTime=null; renderLastShot(); }
+}
+function doClearAll(){
+  captureGen++;                                // a shot still encoding must not repopulate the gallery
+  shots.forEach(s=>s&&URL.revokeObjectURL(s.url)); shots=[];
+  showEmpty(); refreshGallery();
+}
+const confirmModal=$('confirm');
+function openConfirm(){
+  const n=liveShots().length; if(!n) return;
+  $('confirmN').textContent=n; confirmModal.classList.add('open');
+}
+function closeConfirm(){ confirmModal.classList.remove('open'); }
+$('clearBtn').addEventListener('click',openConfirm);
+$('confirmOk').addEventListener('click',()=>{ doClearAll(); closeConfirm(); });
+$('confirmCancel').addEventListener('click',closeConfirm);
+confirmModal.addEventListener('click',e=>{ if(e.target===confirmModal) closeConfirm(); });
+
+/* ── viewer (with swipe / arrow navigation) ── */
+const viewerEl=$('viewer'), viewerImg=$('viewerImg');
+let viewerList=[], viewerIdx=0;
+function renderViewer(){
+  if(!viewerList.length){ viewerEl.classList.remove('open'); return; }
+  viewerIdx=Math.max(0, Math.min(viewerIdx, viewerList.length-1));
+  viewerImg.src=viewerList[viewerIdx];
+  $('viewerCount').textContent=`${viewerIdx+1} / ${viewerList.length}`;
+  $('vPrev').disabled = viewerIdx===0;
+  $('vNext').disabled = viewerIdx===viewerList.length-1;
+}
+function openViewerAt(pos){
+  viewerList=liveShots().map(s=>s.url);
+  if(!viewerList.length) return;
+  viewerIdx=pos; renderViewer(); viewerEl.classList.add('open');
+}
+function viewerPrev(){ if(viewerIdx>0){ viewerIdx--; renderViewer(); } }
+function viewerNext(){ if(viewerIdx<viewerList.length-1){ viewerIdx++; renderViewer(); } }
+function closeViewer(){ viewerEl.classList.remove('open'); }
+
+$('viewerClose').addEventListener('click',closeViewer);
+$('vPrev').addEventListener('click',viewerPrev);
+$('vNext').addEventListener('click',viewerNext);
+
+// swipe + tap-to-close (without closing on a swipe)
+let vx=null, vy=null, vMoved=false;
+viewerEl.addEventListener('pointerdown',e=>{ vx=e.clientX; vy=e.clientY; vMoved=false; });
+viewerEl.addEventListener('pointermove',e=>{ if(vx!=null && Math.abs(e.clientX-vx)>8) vMoved=true; });
+viewerEl.addEventListener('pointerup',e=>{
+  if(vx==null) return;
+  const dx=e.clientX-vx, dy=e.clientY-vy; const sx=vx; vx=null;
+  if(Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)){ dx<0 ? viewerNext() : viewerPrev(); return; }
+  if(!vMoved && e.target===viewerEl) closeViewer();   // tap on backdrop closes
+});
+
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ closeViewer(); closeConfirm(); }
+  if(!viewerEl.classList.contains('open')) return;
+  if(e.key==='ArrowLeft') viewerPrev();
+  if(e.key==='ArrowRight') viewerNext();
+});
+
+/* ── save (Web Share, batched) ───────── */
+saveBtn.addEventListener('click',async()=>{
+  const list=liveShots(); if(!list.length) return;
+  const files=list.map((s,i)=>new File([s.blob],`shot_${String(i+1).padStart(2,'0')}.jpg`,{type:'image/jpeg'}));
+  if(navigator.canShare && navigator.canShare({files})){
+    try{ await navigator.share({files}); }catch(_){ /* cancelled */ }
+  }else{
+    showNotice(Shell.t('t.noticeShareUnsupported'));
+  }
+});
+
+/* free object URLs if the page is closed */
+window.addEventListener('pagehide',()=>{ shots.forEach(s=>s&&URL.revokeObjectURL(s.url)); });
+
+/* ── manual shutter ──────────────────── */
+shutterBtn.addEventListener('click',()=>{
+  if(!running) return;                       // only meaningful with a live feed
+  shutterBtn.classList.remove('snap'); void shutterBtn.offsetWidth; shutterBtn.classList.add('snap');
+  lastTrigger=performance.now();             // count manual shots toward the burst interval too
+  doShot();                                  // always immediate, regardless of mode or delay setting
+});
+
+/* ── "last shot" elapsed time ─────────── */
+function fmtAgo(ms){
+  const s=Math.floor(ms/1000);
+  const ja = Shell.lang==='ja';
+  if(s<1)  return Shell.t('t.justNow');
+  if(s<60) return ja ? (s+'秒前') : (s+'s ago');
+  const m=Math.floor(s/60), rs=s%60;
+  if(m<60) return ja ? (rs?`${m}分${rs}秒前`:`${m}分前`) : (rs?`${m}m ${rs}s ago`:`${m}m ago`);
+  const h=Math.floor(m/60); return ja ? `${h}時間${m%60}分前` : `${h}h ${m%60}m ago`;
+}
+function renderLastShot(){
+  if(lastCaptureTime==null){ lastShot.textContent='—'; lastShot.classList.add('stale'); return; }
+  const ago=Date.now()-lastCaptureTime;
+  lastShot.textContent=fmtAgo(ago);
+  lastShot.classList.toggle('stale', ago>=5000);   // fades from accent once it's "old"
+}
+setInterval(renderLastShot,1000);
+
+/* ── re-render runtime (non data-i18n) text when language changes ── */
+function redrawDynamic(){
+  chipText.textContent = running ? (mode==='capture'?Shell.t('t.recWatching'):Shell.t('t.recCalibrating')) : Shell.t('t.statusIdle');
+  recText.textContent = mode==='capture' ? Shell.t('t.recWatching') : Shell.t('t.recCalibrating');
+  $('modeHint').textContent = mode==='capture' ? Shell.t('t.hintCapture') : Shell.t('t.hintCalibrate');
+  $('delayHint').textContent = delayOn ? Shell.t('t.delayHintOn') : Shell.t('t.delayHintOff');
+  $('cropHint').textContent = cropOn ? Shell.t('t.cropHintOn') : Shell.t('t.cropHintOff');
+  updateCropSize();
+  if(liveShots().length===0 && strip.querySelector('.gempty')) showEmpty();
+  renderLastShot();
+}
+
+/* ── boot ─────────────────────────────── */
+Shell.init({
+  id:"motion-shutter",
+  strings:{
+    en:{
+      "t.title":"Motion auto-shutter",
+      "t.desc":"Capture automatically when the camera sees enough motion.",
+      "t.modeCapture":"Capture", "t.modeCalibrate":"Calibrate",
+      "t.hintCapture":"Takes a photo whenever motion is detected.",
+      "t.hintCalibrate":"Shows the reaction only — nothing is saved.",
+      "t.statusIdle":"Idle", "t.recWatching":"Watching", "t.recCalibrating":"Calibrating", "t.detect":"Detected",
+      "t.idleTitle":"Camera is off",
+      "t.idleSub":"Press Start to begin watching. It'll shoot automatically when it sees motion.",
+      "t.shutterAlt":"Take a photo now",
+      "t.motion":"MOTION", "t.lastShot":"LAST SHOT",
+      "t.galleryTitle":"Photos", "t.clearAll":"Clear all",
+      "t.emptyGallery":"No photos yet. Start watching and auto-captured shots will appear here.",
+      "t.thumbAlt":"Captured photo", "t.deleteAlt":"Delete",
+      "t.detectSettings":"Sensitivity & shutter", "t.detectSettingsSub":"Tune how motion is picked up",
+      "t.areaName":"Trigger area", "t.areaSub":"% of the frame that must move to trigger (drag the marker on the meter too)",
+      "t.pixName":"Noise tolerance", "t.pixSub":"How much small brightness flicker is ignored",
+      "t.cmpName":"Compare interval", "t.cmpSub":"Short = catches fast motion / long = also catches slow changes",
+      "t.delayName":"Shutter timing",
+      "t.delayHintOff":"Shoots the instant motion is detected",
+      "t.delayHintOn":"Waits a moment after detection before shooting",
+      "t.delayAmountName":"Delay", "t.delayAmountSub":"Wait time between detection and the shot",
+      "t.coolName":"Cooldown", "t.coolSub":"Minimum wait before the next shot",
+      "t.cameraName":"Camera / lens", "t.cameraPlaceholder":"Shown after Start", "t.cameraFallback":"Camera",
+      "t.cropSettings":"Detection & capture area",
+      "t.cropHintOff":"Uses the whole frame", "t.cropHintOn":"Detects and captures only inside the frame",
+      "t.cropEnableName":"Limit the area", "t.cropEnableSub":"Only use part of the frame",
+      "t.cropWName":"Width", "t.cropHName":"Height", "t.posXName":"Horizontal position", "t.posYName":"Vertical position",
+      "t.center":"Center", "t.left":"Left", "t.right":"Right", "t.top":"Top", "t.bottom":"Bottom",
+      "t.cropSizeFull":"Using the whole frame", "t.cropSizePending":"Capture size: shown after Start", "t.cropSizeLabel":"Capture size",
+      "t.start":"Start", "t.stop":"Stop", "t.save":"Save photos",
+      "t.footNote":"The camera only starts on an https:// page (not file:// on iPhone) — host it on GitHub Pages or similar. On iOS, saving needs a confirmation: \"Save photos\" opens the share sheet, then choose \"Save Image\" to add them all at once.",
+      "t.viewerHint":"Swipe or use the arrow keys to move between photos. To save just this one, press and hold the image → \"Add to Photos\".",
+      "t.confirmTitle":"Delete all photos?", "t.confirmBodyPre":"This will delete", "t.confirmBodyPost":"photos. This can't be undone.",
+      "t.confirmCancel":"Cancel", "t.confirmOk":"Delete",
+      "t.noticeNoCamera":"This browser/connection can't access a camera (https is required).",
+      "t.noticeCameraFailed":"Couldn't start the camera",
+      "t.noticeSwitchFailed":"Couldn't switch to that camera. Switching back to the previous one.",
+      "t.noticeShareUnsupported":"Batch saving isn't supported here. Press and hold each photo to save it individually.",
+      "t.justNow":"just now"
+    },
+    ja:{
+      "t.title":"モーション検知オートシャッター",
+      "t.desc":"一定以上の動きを検知したときだけ自動撮影。",
+      "t.modeCapture":"撮影", "t.modeCalibrate":"調整",
+      "t.hintCapture":"動きを検知したら写真を撮ります",
+      "t.hintCalibrate":"撮らずに反応だけ表示します",
+      "t.statusIdle":"待機中", "t.recWatching":"監視中", "t.recCalibrating":"調整中", "t.detect":"検知",
+      "t.idleTitle":"カメラは停止中",
+      "t.idleSub":"「開始」を押すと監視を始め、動きを検知して自動で撮影します。",
+      "t.shutterAlt":"手動で撮影",
+      "t.motion":"MOTION", "t.lastShot":"前回の撮影",
+      "t.galleryTitle":"撮影した写真", "t.clearAll":"すべて消去",
+      "t.emptyGallery":"まだ写真はありません。監視を始めると、ここに自動撮影した写真が並びます。",
+      "t.thumbAlt":"撮影した写真", "t.deleteAlt":"削除",
+      "t.detectSettings":"検知の感度・撮影設定", "t.detectSettingsSub":"動きの拾い方を調整",
+      "t.areaName":"検知範囲", "t.areaSub":"何%動いたら反応するか（メーターの印を動かしても調整可）",
+      "t.pixName":"ノイズ耐性", "t.pixSub":"小さな明るさの揺らぎを無視する強さ",
+      "t.cmpName":"比較間隔", "t.cmpSub":"短い＝素早い動き / 長い＝ゆっくりした変化も拾う",
+      "t.delayName":"撮影タイミング",
+      "t.delayHintOff":"検知した瞬間に撮影します",
+      "t.delayHintOn":"検知してから少し待って撮影します",
+      "t.delayAmountName":"遅延量", "t.delayAmountSub":"検知してから撮るまでの待ち時間",
+      "t.coolName":"連写間隔", "t.coolSub":"1回撮ってから次までの最短待ち時間",
+      "t.cameraName":"カメラ / レンズ", "t.cameraPlaceholder":"開始すると一覧表示", "t.cameraFallback":"カメラ",
+      "t.cropSettings":"検知・撮影範囲",
+      "t.cropHintOff":"映像全体を使います", "t.cropHintOn":"フレーム内だけを検知・撮影します",
+      "t.cropEnableName":"範囲を限定", "t.cropEnableSub":"フレーム内だけを使う",
+      "t.cropWName":"横幅", "t.cropHName":"縦幅", "t.posXName":"左右の位置", "t.posYName":"上下の位置",
+      "t.center":"中央", "t.left":"左", "t.right":"右", "t.top":"上", "t.bottom":"下",
+      "t.cropSizeFull":"映像全体を使用中", "t.cropSizePending":"撮影サイズ：開始すると表示", "t.cropSizeLabel":"撮影サイズ",
+      "t.start":"開始", "t.stop":"停止", "t.save":"写真に保存",
+      "t.footNote":"カメラは https:// のページでのみ起動します（iPhoneの file:// では不可）。GitHub Pages などに置いて開いてください。iOSでは保存に承認が必要です。「写真に保存」を押すと共有シートが開くので、「画像を保存」を選ぶとまとめて入ります。",
+      "t.viewerHint":"左右にスワイプ／矢印で前後の写真を表示。1枚だけ保存はこの画像を長押し →「写真に追加」",
+      "t.confirmTitle":"すべて削除しますか？", "t.confirmBodyPre":"撮影した写真", "t.confirmBodyPost":"枚をすべて消去します。この操作は元に戻せません。",
+      "t.confirmCancel":"キャンセル", "t.confirmOk":"削除する",
+      "t.noticeNoCamera":"このブラウザ/接続ではカメラを使えません（https が必要です）。",
+      "t.noticeCameraFailed":"カメラを起動できませんでした",
+      "t.noticeSwitchFailed":"このカメラに切り替えできませんでした。元のカメラに戻します。",
+      "t.noticeShareUnsupported":"この環境では一括保存に対応していません。各写真をタップ→長押しで保存してください。",
+      "t.justNow":"たった今"
+    }
+  },
+  onSettingsChange: redrawDynamic
+});
+
+layoutKnob();
+applyCropStyle();
+renderLastShot();
+refreshGallery();
+</script>
+</body>
+</html>
