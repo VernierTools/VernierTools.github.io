@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chord analyzer — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .noterow{ display:flex; flex-wrap:wrap; gap:6px; }
+  .notebtn{ min-width:42px; height:36px; padding:0 8px; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--text-2); font-size:13px; font-weight:500; cursor:pointer;
+    font-family:var(--font-mono); transition:all var(--tap); }
+  .notebtn:hover{ border-color:var(--text-3); }
+  .notebtn[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .miniseg{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .miniseg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px;
+    font-weight:500; color:var(--text-2); padding:5px 12px; border-radius:4px; transition:all var(--tap); }
+  .miniseg button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+
+  .playbtn{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border:1px solid var(--border-strong);
+    border-radius:var(--r-sm); background:var(--surface); color:var(--text-2); font-size:12px; font-weight:500;
+    cursor:pointer; transition:all var(--tap); }
+  .playbtn:hover{ background:var(--surface-2); border-color:var(--text-3); }
+  .playbtn svg{ width:12px; height:12px; }
+
+  .sugwrap{ padding:0 var(--s4) var(--s4); display:flex; flex-wrap:wrap; gap:6px; }
+  .sugchip{ font-size:12px; color:var(--text-2); border:1px solid var(--border); border-radius:100px; padding:4px 10px;
+    font-family:var(--font-mono); background:var(--surface); }
+  .subhead{ padding:var(--s3) var(--s4) 0; }
+  .notefoot{ font-size:11px; color:var(--text-3); padding:0 var(--s4) var(--s4); line-height:1.5; }
+  .rrow__value.v-md{ font-size:19px; }
+  .rrow__value.v-sm{ font-size:14px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Chord analyzer</h1>
+    <p data-i18n="t.desc">Pick a key, select the notes you're playing, and see the chord name, its function in the key, and suggested next chords.</p>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.key">Key</label>
+          <select class="select" id="sel-tonic"></select>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.mode">Mode</label>
+          <div class="miniseg" id="seg-mode" role="group">
+            <button type="button" data-mode="major" data-i18n="t.major" aria-pressed="true">Major</button>
+            <button type="button" data-mode="minor" data-i18n="t.minor">Minor</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.notes">Notes</label>
+          <div class="noterow" id="notes" role="group"></div>
+        </div>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--secondary" id="clear-notes" data-i18n="t.clearnotes">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.bass">Bass note (optional)</label>
+          <select class="select" id="sel-bass"></select>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.accidental">Accidental</label>
+          <div class="miniseg" id="seg-acc" role="group">
+            <button type="button" data-acc="auto" data-i18n="t.accauto" aria-pressed="true">Auto</button>
+            <button type="button" data-acc="sharp">♯</button>
+            <button type="button" data-acc="flat">♭</button>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" data-i18n="t.minorstyle">Minor symbol</label>
+            <div class="miniseg" id="seg-minor" role="group">
+              <button type="button" data-ms="m" aria-pressed="true">m</button>
+              <button type="button" data-ms="dash">−</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.halfdimstyle">Half-dim symbol</label>
+            <div class="miniseg" id="seg-halfdim" role="group">
+              <button type="button" data-hd="m7b5" aria-pressed="true">m7♭5</button>
+              <button type="button" data-hd="oslash">ø7</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.output">Output</span>
+          <button class="playbtn" id="play" type="button">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+            <span data-i18n="t.play">Play</span>
+          </button>
+        </div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.chordname">Chord</span>
+          <span class="rrow__value" id="ro-name">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.alt">Also could be</span>
+          <span class="rrow__value v-sm" id="ro-alt">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.roman">Degree</span>
+          <span class="rrow__value v-md" id="ro-roman">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.function">Function</span>
+          <span class="rrow__value v-sm" id="ro-func">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.bassrow">Bass</span>
+          <span class="rrow__value v-sm" id="ro-bass">—</span>
+        </div>
+        <div class="subhead"><span class="eyebrow" data-i18n="t.nextchord">Next chord suggestions</span></div>
+        <div class="sugwrap" id="ro-suggest"></div>
+        <div class="notefoot" id="minor-footnote" data-i18n="t.minorfootnote" hidden></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click the chord name to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function mod(n, m) { return ((n % m) + m) % m; }
+  function t2(key) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(key) : key; }
+
+  var NOTE_SHARP = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  var NOTE_FLAT  = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  var MAJOR_KEY_NAMES = ["C","D♭","D","E♭","E","F","F♯","G","A♭","A","B♭","B"];
+  var MINOR_KEY_NAMES = ["C","C♯","D","E♭","E","F","F♯","G","G♯","A","B♭","B"];
+  var FLATS_MAJOR = [false,true,false,true,false,true,false,false,true,false,true,false];
+  var MAJOR_SCALE = [0,2,4,5,7,9,11];
+  var MINOR_SCALE = [0,2,3,5,7,8,10];
+  var MAJOR_TRIAD_Q = ["major","minor","minor","major","major","minor","dim"];
+  var MINOR_TRIAD_Q = ["minor","dim","major","minor","minor","major","major"];
+  var NEXT_MAP = {1:[4,5,6], 2:[5,7], 3:[6,4], 4:[5,1], 5:[1,6], 6:[2,4], 7:[1]};
+  var FUNC_BY_DEG = [null,"tonic","subdominant","tonic","subdominant","dominant","tonic","dominant"];
+  var ROMAN_UP = ["I","II","III","IV","V","VI","VII"];
+  var ROMAN_LO = ["i","ii","iii","iv","v","vi","vii"];
+  var IV_NAMES = {
+    en: ["Unison","Minor 2nd","Major 2nd","Minor 3rd","Major 3rd","Perfect 4th","Tritone","Perfect 5th","Minor 6th","Major 6th","Minor 7th","Major 7th"],
+    ja: ["完全1度","短2度","長2度","短3度","長3度","完全4度","三全音","完全5度","短6度","長6度","短7度","長7度"]
+  };
+  var CHORD_DICT = [
+    { ivs:[0,4,7],          suf:"",       pri:0, q:"major" },
+    { ivs:[0,3,7],          suf:"m",      pri:0, q:"minor",   minorPrefixed:true },
+    { ivs:[0,3,6],          suf:"dim",    pri:2, q:"dim" },
+    { ivs:[0,4,8],          suf:"aug",    pri:2, q:"aug" },
+    { ivs:[0,2,7],          suf:"sus2",   pri:3, q:"major" },
+    { ivs:[0,5,7],          suf:"sus4",   pri:3, q:"major" },
+    { ivs:[0,7],            suf:"5",      pri:1, q:"power" },
+    { ivs:[0,4,7,10],       suf:"7",      pri:0, q:"major" },
+    { ivs:[0,4,7,11],       suf:"maj7",   pri:1, q:"major" },
+    { ivs:[0,3,7,10],       suf:"m7",     pri:0, q:"minor",   minorPrefixed:true },
+    { ivs:[0,3,7,11],       suf:"mMaj7",  pri:3, q:"minor",   minorPrefixed:true },
+    { ivs:[0,3,6,10],       suf:"m7♭5",   pri:2, q:"halfdim", minorPrefixed:true },
+    { ivs:[0,3,6,9],        suf:"dim7",   pri:2, q:"dim" },
+    { ivs:[0,4,8,10],       suf:"aug7",   pri:4, q:"aug" },
+    { ivs:[0,4,8,11],       suf:"augMaj7",pri:4, q:"aug" },
+    { ivs:[0,4,7,9],        suf:"6",      pri:2, q:"major" },
+    { ivs:[0,3,7,9],        suf:"m6",     pri:2, q:"minor",   minorPrefixed:true },
+    { ivs:[0,5,7,10],       suf:"7sus4",  pri:3, q:"major" },
+    { ivs:[0,2,4,7],        suf:"add9",   pri:3, q:"major" },
+    { ivs:[0,2,3,7],        suf:"madd9",  pri:4, q:"minor",   minorPrefixed:true },
+    { ivs:[0,2,4,7,10],     suf:"9",      pri:2, q:"major" },
+    { ivs:[0,2,4,7,11],     suf:"maj9",   pri:3, q:"major" },
+    { ivs:[0,2,3,7,10],     suf:"m9",     pri:2, q:"minor",   minorPrefixed:true }
+  ];
+
+  // ---- state ----
+  var tonicPc = 0, keyMode = "major", selected = new Set(), bassPc = null;
+  var accMode = "auto", minorStyle = "m", halfDimStyle = "m7b5";
+  var actx = null;
+
+  function keyUsesFlats() { return keyMode === "major" ? FLATS_MAJOR[tonicPc] : FLATS_MAJOR[mod(tonicPc + 3, 12)]; }
+  function finalUsesFlats() {
+    if (accMode === "sharp") return false;
+    if (accMode === "flat") return true;
+    return keyUsesFlats();
+  }
+  function noteName(pc) { return finalUsesFlats() ? NOTE_FLAT[mod(pc,12)] : NOTE_SHARP[mod(pc,12)]; }
+
+  function styleSuffix(def) {
+    var out = def.suf;
+    if (halfDimStyle === "oslash" && def.q === "halfdim") out = "ø7";
+    if (minorStyle === "dash" && def.minorPrefixed && out.charAt(0) === "m") out = "-" + out.slice(1);
+    return out;
+  }
+
+  function analyzeChord() {
+    var arr = Array.from(selected).sort(function (a, b) { return a - b; });
+    if (arr.length === 0) return { type:"empty" };
+    if (arr.length === 1) return { type:"single", note:arr[0] };
+    var matches = [];
+    arr.forEach(function (root) {
+      var ivs = arr.map(function (n) { return mod(n - root, 12); }).sort(function (a, b) { return a - b; });
+      var key = ivs.join(",");
+      CHORD_DICT.forEach(function (def) {
+        if (def.ivs.length === ivs.length && def.ivs.join(",") === key) matches.push({ root:root, def:def });
+      });
+    });
+    if (matches.length === 0) {
+      if (arr.length === 2) return { type:"interval", semis: mod(arr[1] - arr[0], 12) };
+      return { type:"cluster", notes:arr };
+    }
+    var diat = keyMode === "major" ? MAJOR_SCALE : MINOR_SCALE;
+    matches.forEach(function (m) {
+      var off = mod(m.root - tonicPc, 12);
+      var idx = diat.indexOf(off);
+      m.diatonic = idx >= 0;
+      m.degree = idx >= 0 ? idx + 1 : null;
+      m.score = m.def.pri + (m.diatonic ? 0 : 3);
+      m.name = noteName(m.root) + styleSuffix(m.def);
+    });
+    matches.sort(function (a, b) { return a.score - b.score; });
+    var seen = {}, uniq = [];
+    matches.forEach(function (m) { if (!seen[m.name]) { seen[m.name] = 1; uniq.push(m); } });
+    return { type:"chord", matches:uniq };
+  }
+
+  function romanFor(m) {
+    var lo = (m.def.q === "minor" || m.def.q === "dim" || m.def.q === "halfdim");
+    var base = lo ? ROMAN_LO[m.degree - 1] : ROMAN_UP[m.degree - 1];
+    var sym = m.def.q === "dim" ? "°" : m.def.q === "halfdim" ? "ø" : m.def.q === "aug" ? "+" : "";
+    return base + sym;
+  }
+
+  function bassDescription(primary) {
+    if (bassPc === null) return primary ? t2("t.rootpos") : "—";
+    if (!primary) return noteName(bassPc);
+    if (bassPc === primary.root) return t2("t.rootpos");
+    var rel = mod(bassPc - primary.root, 12);
+    var idx = primary.def.ivs.indexOf(rel);
+    if (idx > 0) {
+      var lang = (typeof Shell !== "undefined" && Shell) ? Shell.lang : "en";
+      var ord = lang === "ja" ? ("第" + idx + "転回形")
+        : (idx === 1 ? "1st inversion" : idx === 2 ? "2nd inversion" : idx === 3 ? "3rd inversion" : (idx + "th inversion"));
+      return ord + " (" + noteName(bassPc) + ")";
+    }
+    return t2("t.slash") + " — " + noteName(primary.root) + styleSuffix(primary.def) + "/" + noteName(bassPc);
+  }
+
+  function buildNoteButtons() {
+    var html = "";
+    for (var pc = 0; pc < 12; pc++) {
+      html += '<button type="button" class="notebtn" data-pc="' + pc + '" aria-pressed="' + selected.has(pc) + '">' + noteName(pc) + '</button>';
+    }
+    $("notes").innerHTML = html;
+  }
+  function buildBassSelect() {
+    var sel = $("sel-bass");
+    var html = '<option value="">' + t2("t.bassnone") + '</option>';
+    for (var pc = 0; pc < 12; pc++) html += '<option value="' + pc + '">' + noteName(pc) + '</option>';
+    sel.innerHTML = html;
+    sel.value = (bassPc === null) ? "" : String(bassPc);
+  }
+  function buildTonicSelect() {
+    var sel = $("sel-tonic");
+    var names = keyMode === "major" ? MAJOR_KEY_NAMES : MINOR_KEY_NAMES;
+    var html = "";
+    for (var pc = 0; pc < 12; pc++) html += '<option value="' + pc + '">' + names[pc] + (keyMode === "minor" ? "m" : "") + '</option>';
+    sel.innerHTML = html;
+    sel.value = String(tonicPc);
+  }
+
+  function suggestionChip(deg) {
+    var diat = keyMode === "major" ? MAJOR_SCALE : MINOR_SCALE;
+    var q = keyMode === "major" ? MAJOR_TRIAD_Q[deg - 1] : MINOR_TRIAD_Q[deg - 1];
+    var pc = mod(tonicPc + diat[deg - 1], 12);
+    var suf = q === "major" ? "" : q === "minor" ? (minorStyle === "dash" ? "-" : "m") : q === "dim" ? "dim" : "";
+    var roman = (q === "minor" || q === "dim") ? (ROMAN_LO[deg - 1] + (q === "dim" ? "°" : "")) : ROMAN_UP[deg - 1];
+    return noteName(pc) + suf + " (" + roman + ")";
+  }
+
+  function syncGroup(container, attr, val) {
+    Array.prototype.forEach.call(container.querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute(attr) === val));
+    });
+  }
+
+  function render() {
+    buildTonicSelect(); buildNoteButtons(); buildBassSelect();
+
+    var result = analyzeChord();
+    var nameEl = $("ro-name"), altEl = $("ro-alt"), romanEl = $("ro-roman"),
+        funcEl = $("ro-func"), bassEl = $("ro-bass"), sugEl = $("ro-suggest"),
+        footEl = $("minor-footnote");
+
+    footEl.hidden = !(keyMode === "minor");
+
+    function reset(nameText, altText) {
+      nameEl.textContent = nameText; nameEl.removeAttribute("data-copy");
+      altEl.textContent = altText;
+      romanEl.textContent = "—"; funcEl.textContent = "—"; bassEl.textContent = "—";
+      sugEl.innerHTML = "";
+    }
+
+    if (result.type === "empty") { reset("—", "—"); return; }
+    if (result.type === "single") {
+      var nm = noteName(result.note);
+      nameEl.textContent = nm; nameEl.setAttribute("data-copy", nm);
+      altEl.textContent = t2("t.singlenote");
+      romanEl.textContent = "—"; funcEl.textContent = "—"; bassEl.textContent = "—"; sugEl.innerHTML = "";
+      return;
+    }
+    if (result.type === "interval") {
+      var lang = (typeof Shell !== "undefined" && Shell) ? Shell.lang : "en";
+      var iv = IV_NAMES[lang] || IV_NAMES.en;
+      reset(iv[result.semis] || "—", "—");
+      return;
+    }
+    if (result.type === "cluster") { reset("—", t2("t.clustermsg")); return; }
+
+    // chord
+    var primary = result.matches[0];
+    var alts = result.matches.slice(1, 3);
+    nameEl.textContent = primary.name; nameEl.setAttribute("data-copy", primary.name);
+    altEl.textContent = alts.length ? alts.map(function (m) { return m.name; }).join(" / ") : "—";
+
+    if (primary.diatonic) {
+      romanEl.textContent = romanFor(primary);
+      funcEl.textContent = t2("func." + FUNC_BY_DEG[primary.degree]);
+    } else {
+      romanEl.textContent = t2("t.chromatic");
+      funcEl.textContent = "—";
+    }
+    bassEl.textContent = bassDescription(primary);
+
+    if (primary.diatonic && NEXT_MAP[primary.degree]) {
+      sugEl.innerHTML = NEXT_MAP[primary.degree].map(function (d) {
+        return '<span class="sugchip">' + suggestionChip(d) + '</span>';
+      }).join("");
+    } else {
+      sugEl.innerHTML = '<span class="sugchip">' + t2("t.nosuggestion") + '</span>';
+    }
+  }
+
+  // ---- events ----
+  $("notes").addEventListener("click", function (e) {
+    var b = e.target.closest(".notebtn"); if (!b) return;
+    var pc = parseInt(b.getAttribute("data-pc"), 10);
+    if (selected.has(pc)) selected.delete(pc); else selected.add(pc);
+    render();
+  });
+  $("clear-notes").addEventListener("click", function () { selected.clear(); render(); });
+  $("sel-tonic").addEventListener("change", function () { tonicPc = parseInt(this.value, 10); render(); });
+  $("seg-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    keyMode = b.getAttribute("data-mode");
+    syncGroup(e.currentTarget, "data-mode", keyMode);
+    render();
+  });
+  $("sel-bass").addEventListener("change", function () { bassPc = this.value === "" ? null : parseInt(this.value, 10); render(); });
+  $("seg-acc").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    accMode = b.getAttribute("data-acc");
+    syncGroup(e.currentTarget, "data-acc", accMode);
+    render();
+  });
+  $("seg-minor").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    minorStyle = b.getAttribute("data-ms");
+    syncGroup(e.currentTarget, "data-ms", minorStyle);
+    render();
+  });
+  $("seg-halfdim").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    halfDimStyle = b.getAttribute("data-hd");
+    syncGroup(e.currentTarget, "data-hd", halfDimStyle);
+    render();
+  });
+  $("play").addEventListener("click", playChord);
+
+  function playChord() {
+    if (selected.size === 0) return;
+    var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+    if (!actx) actx = new Ctx();
+    var now = actx.currentTime;
+    var midi = Array.from(selected).map(function (pc) { return 60 + pc; });
+    if (bassPc !== null) {
+      midi = midi.filter(function (m) { return mod(m, 12) !== bassPc; });
+      midi.unshift(48 + bassPc);
+    }
+    midi.forEach(function (m) {
+      var freq = 440 * Math.pow(2, (m - 69) / 12);
+      var osc = actx.createOscillator(); osc.type = "triangle"; osc.frequency.value = freq;
+      var gain = actx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.16, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.3);
+      osc.connect(gain); gain.connect(actx.destination);
+      osc.start(now); osc.stop(now + 1.35);
+    });
+  }
+
+  // ---- init ----
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "chord-analyzer",
+      strings: {
+        en: {
+          "t.title": "Chord analyzer",
+          "t.desc": "Pick a key, select the notes you're playing, and see the chord name, its function in the key, and suggested next chords.",
+          "t.key": "Key", "t.mode": "Mode", "t.major": "Major", "t.minor": "Minor",
+          "t.notes": "Notes", "t.clearnotes": "Clear",
+          "t.bass": "Bass note (optional)", "t.bassnone": "(none)",
+          "t.accidental": "Accidental", "t.accauto": "Auto",
+          "t.minorstyle": "Minor symbol", "t.halfdimstyle": "Half-diminished symbol",
+          "t.output": "Output", "t.play": "Play",
+          "t.chordname": "Chord", "t.alt": "Also could be", "t.roman": "Degree",
+          "t.function": "Function", "t.bassrow": "Bass", "t.nextchord": "Next chord suggestions",
+          "t.copyhint": "Click the chord name to copy.",
+          "t.rootpos": "Root position",
+          "t.slash": "Slash chord (bass is not a chord tone)",
+          "t.chromatic": "Non-diatonic (borrowed)",
+          "t.nosuggestion": "No suggestion (non-diatonic chord)",
+          "t.singlenote": "Single note",
+          "t.clustermsg": "No common chord name fits this note combination.",
+          "t.minorfootnote": "In natural minor, V is a minor triad (v), but it's often played as a major chord borrowed from harmonic minor. This tool shows the natural-minor v.",
+          "func.tonic": "Tonic", "func.subdominant": "Subdominant", "func.dominant": "Dominant"
+        },
+        ja: {
+          "t.title": "コード解析",
+          "t.desc": "キーを選び、鳴らしている音を選択すると、コード名・キーに対する役割・次のコード候補を表示します。",
+          "t.key": "キー", "t.mode": "モード", "t.major": "メジャー", "t.minor": "マイナー",
+          "t.notes": "構成音", "t.clearnotes": "クリア",
+          "t.bass": "ベース音（任意）", "t.bassnone": "（指定なし）",
+          "t.accidental": "臨時記号", "t.accauto": "自動",
+          "t.minorstyle": "マイナー表記", "t.halfdimstyle": "ハーフディミニッシュ表記",
+          "t.output": "出力", "t.play": "再生",
+          "t.chordname": "コード名", "t.alt": "別解釈", "t.roman": "度数",
+          "t.function": "役割", "t.bassrow": "ベース", "t.nextchord": "次のコード候補",
+          "t.copyhint": "コード名をクリックでコピー。",
+          "t.rootpos": "基本形",
+          "t.slash": "スラッシュコード（ベースが構成音外）",
+          "t.chromatic": "キー外（借用和音）",
+          "t.nosuggestion": "候補なし（キー外のコード）",
+          "t.singlenote": "単音",
+          "t.clustermsg": "このまま呼べる一般的なコード名はありません。",
+          "t.minorfootnote": "マイナーキーのVは、自然短音階ではvとなりますが、実際にはハーモニックマイナー由来のメジャーコード（V）として使われることも多いです。ここでは自然短音階に基づくvとして表示しています。",
+          "func.tonic": "トニック", "func.subdominant": "サブドミナント", "func.dominant": "ドミナント"
+        }
+      },
+      onSettingsChange: function () { render(); }
+    });
+  }
+  render();
+})();
+</script>
+</body>
+</html>
