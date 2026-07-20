@@ -11,8 +11,13 @@
 <style>
   /* ---------- ダイヤル（BPMノブ） ---------- */
   .dialwrap{ display:flex; flex-direction:column; align-items:center; gap:var(--s3); }
-  .dial{ width:220px; height:220px; touch-action:none; cursor:grab; }
+  .dial{ width:220px; height:220px; touch-action:none; cursor:grab;
+    -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
   .dial:active{ cursor:grabbing; }
+  /* shell.css の汎用 :focus-visible（角丸の四角い box-shadow）は円形のダイヤルに合わないため、
+     このIDで上書きして円形のアウトラインにする。Chromium系はrole="slider"をクリックしただけでも
+     :focus-visible が発火する仕様のため、ここを綺麗に見せておくことが重要。 */
+  #dial:focus-visible{ outline:2px solid var(--accent); outline-offset:4px; border-radius:50%; box-shadow:none; }
   .dial-center{ cursor:pointer; }
   .dial-bpm{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:44px; font-weight:600;
     fill:var(--text); }
@@ -370,7 +375,7 @@
         </div>
         <div class="toggles" style="margin-top:var(--s4)">
           <label class="toggle"><input type="checkbox" id="vibEnabled"><span class="track"></span><span data-i18n="t.vibration">Vibration on beat (mobile)</span></label>
-          <div class="hint" id="vibUnsupported" hidden style="margin-top:6px" data-i18n="t.vibunsupported">Not supported by this browser (iOS Safari does not implement the Vibration API).</div>
+          <div class="hint" id="vibUnsupported" hidden style="margin-top:6px" data-i18n="t.vibunsupported">Not supported on this device or browser.</div>
         </div>
         <div class="kbdhint" data-i18n="t.kbdhint">
           Space play/stop · ←/→ BPM ±1 (Shift ±5) · T tap tempo · F flash mode
@@ -744,10 +749,10 @@
   function flashPulse(accent){
     if ($("fsflash").hidden) return;
     var p = $("fspulse");
-    // アクセントは満照度、通常拍は少し弱める
+    // アクセントは明るく、通常拍はやや弱く。表示時間は拍によらず固定。
     document.documentElement.style.setProperty("--fs-bright", (accent ? fsBright : fsBright*0.7).toFixed(2));
     p.classList.add("hit");
-    setTimeout(function(){ p.classList.remove("hit"); }, accent?150:90);
+    setTimeout(function(){ p.classList.remove("hit"); }, 110);
   }
   function fsForegroundFor(hex){
     // 白背景のときは差分ブレンドで文字が消えるため、明示的に暗い文字にする
@@ -843,8 +848,8 @@
       $("fsBarBpm").textContent = (ST.bpm%1===0?ST.bpm:ST.bpm.toFixed(1));
     }
   }
-  dial.addEventListener("pointerdown", function(e){ draggingDial=true; setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); });
-  window.addEventListener("pointermove", function(e){ if (draggingDial) setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); });
+  dial.addEventListener("pointerdown", function(e){ e.preventDefault(); dial.focus(); draggingDial=true; setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); });
+  window.addEventListener("pointermove", function(e){ if (draggingDial){ e.preventDefault(); setBpm(MINB+(dialAngleFromEvent(e)+135)/270*(MAXB-MINB)); } });
   window.addEventListener("pointerup", function(){ draggingDial=false; });
   dial.addEventListener("keydown", function(e){
     if (e.key==="ArrowRight"||e.key==="ArrowUp"){ setBpm(ST.bpm+1); e.preventDefault(); }
@@ -1027,7 +1032,9 @@
   $("rmProb").addEventListener("input", function(){ ST.randomMute.prob = parseInt($("rmProb").value,10); $("rmProbVal").textContent = ST.randomMute.prob+"%"; });
   $("swing").addEventListener("input", function(){ ST.swing = parseInt($("swing").value,10); $("swingVal").textContent = ST.swing+"%"; });
   $("masterVol").addEventListener("input", function(){ ST.masterVolume = $("masterVol").value/100; $("masterVolVal").textContent = $("masterVol").value+"%"; });
-  var VIB_SUPPORTED = ("vibrate" in navigator);
+  // 'vibrate' が存在してもデスクトップ（振動ハードウェアなし）では常に空振りするだけなので、
+  // タッチ対応(coarse pointer)かどうかも合わせて見る。Firefox 129+は 'vibrate' 自体が存在しない。
+  var VIB_SUPPORTED = ("vibrate" in navigator) && window.matchMedia && matchMedia("(pointer: coarse)").matches;
   if (!VIB_SUPPORTED){ $("vibEnabled").disabled = true; $("vibUnsupported").hidden = false; }
 
   /* ============================================================
@@ -1251,7 +1258,7 @@
         "t.droph":"Trim it so the sound's attack starts exactly at playback.",
         "t.preview":"▶ Preview","t.addsound":"Add to sound list",
         "t.output":"Output & session","t.mastervol":"Master volume","t.vibration":"Vibration on beat (mobile)",
-        "t.vibunsupported":"Not supported by this browser (iOS Safari does not implement the Vibration API).",
+        "t.vibunsupported":"Not supported on this device or browser (needs a touch device; iOS Safari and Firefox don't implement the Vibration API at all).",
         "t.kbdhint":"Space play/stop · ←/→ BPM ±1 (Shift ±5) · T tap tempo · F flash mode",
         "t.presets":"Presets","t.presetname":"Preset name","t.save":"Save","t.load":"Load",
         "t.sharelink":"Share link (settings only, no custom sounds)","t.copylink":"Copy link",
@@ -1275,7 +1282,7 @@
         "t.droph":"再生時にアタックが即座に鳴るよう、波形の前後を切り取れます。",
         "t.preview":"▶ プレビュー","t.addsound":"サウンド一覧に追加",
         "t.output":"出力・セッション","t.mastervol":"マスター音量","t.vibration":"拍でバイブレーション（モバイル）",
-        "t.vibunsupported":"このブラウザは非対応です（iOS SafariはVibration APIを実装していません）。",
+        "t.vibunsupported":"この端末・ブラウザは非対応です（タッチ対応デバイスが必要です。iOS SafariとFirefoxはVibration API自体を実装していません）。",
         "t.kbdhint":"スペース 再生/停止 ・ ←/→ BPM±1（Shiftで±5）・ T タップテンポ ・ F フラッシュモード",
         "t.presets":"プリセット","t.presetname":"プリセット名","t.save":"保存","t.load":"読込",
         "t.sharelink":"共有リンク（設定のみ。カスタムサウンドは含まれません）","t.copylink":"リンクをコピー",
