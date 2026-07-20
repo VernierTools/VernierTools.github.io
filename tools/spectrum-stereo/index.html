@@ -10,18 +10,18 @@
   /* ---- segmented controls ---- */
   .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .seg--2{ grid-template-columns:repeat(2,1fr); }
-  .seg--4{ grid-template-columns:repeat(4,1fr); }
   .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
     height:36px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
-    color:var(--text-2); transition:all var(--tap); }
+    color:var(--text-2); transition:all var(--tap); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 4px; }
   .seg button:hover{ border-color:var(--text-3); }
   .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .seg button:disabled{ opacity:.4; cursor:not-allowed; }
+  .seg--tight button{ font-size:11.5px; }
 
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
   .minilabel{ font-size:11px; color:var(--text-3); margin-bottom:4px; }
 
-  /* ---- top card: file + settings, full width ---- */
+  /* ---- top card: file + channel ---- */
   .toolrow{ display:flex; gap:var(--s5); flex-wrap:wrap; align-items:flex-start; }
   .toolrow__file{ flex:0 0 auto; width:260px; max-width:100%; }
   .drop{ padding:var(--s3) var(--s4); }
@@ -31,10 +31,7 @@
   .fi-meta{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
   .fi-meta .dot{ margin:0 6px; color:var(--text-3); }
   .fileerr{ margin-top:var(--s3); }
-
-  .ctrlgrid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--s4); margin-top:var(--s5); }
-  .field--wide{ grid-column:span 2; }
-  @media (max-width:520px){ .field--wide{ grid-column:span 1; } }
+  .channelfield{ margin-top:var(--s5); max-width:340px; }
 
   /* ---- spectrogram card ---- */
   .specCard{ padding:var(--s4); }
@@ -44,10 +41,15 @@
   #zoom-reset{ height:30px; padding:0 12px; font-size:12.5px; }
   #processing-badge{ font-family:var(--font-mono); }
 
+  .settings-anchor{ position:relative; }
+  .settings-popover{ position:absolute; top:calc(100% + 8px); right:0; width:300px; max-width:82vw;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md);
+    padding:var(--s4); z-index:30; }
+
   .spec-body{ display:grid; grid-template-columns:44px 1fr 64px; gap:var(--s2); }
   #canvas-wrap{ position:relative; height:420px; border-radius:var(--r); overflow:hidden;
     background:var(--surface-2); border:1px solid var(--border); cursor:default; overscroll-behavior:contain; }
-  #spec-canvas{ display:block; width:100%; height:100%; touch-action:none; }
+  #spec-canvas{ display:block; width:100%; height:100%; touch-action:none; transform-origin:0 0; will-change:transform; }
   .spec-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); pointer-events:none; }
 
@@ -73,6 +75,7 @@
   @media (max-width:760px){
     .spec-body{ grid-template-columns:30px 1fr 50px; }
     #canvas-wrap{ height:280px; }
+    .settings-popover{ right:auto; left:0; }
   }
 </style>
 </head>
@@ -81,7 +84,7 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
     <h1 data-i18n="t.title">Spectrum & stereo</h1>
-    <p data-i18n="t.desc">See the whole-file spectrogram, switch between L/R, L+R and Side, and check phase correlation.</p>
+    <p data-i18n="t.desc">See the whole-file spectrogram, switch channels, and check phase correlation.</p>
   </div>
 
   <div class="card">
@@ -104,57 +107,13 @@
     </div>
     <div class="badge badge--neg fileerr" id="file-error" hidden><span class="d"></span><span id="file-error-text"></span></div>
 
-    <div class="ctrlgrid">
-      <div class="field field--wide">
-        <label class="label" data-i18n="t.channel">Channel</label>
-        <div class="seg seg--4" id="seg-channel" role="group">
-          <button data-ch="left"  data-i18n="t.left">L</button>
-          <button data-ch="right" data-i18n="t.right">R</button>
-          <button data-ch="mid"   data-i18n="t.mid">L+R</button>
-          <button data-ch="side"  data-i18n="t.side">Side</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label class="label" data-i18n="t.freqscale">Frequency scale</label>
-        <div class="seg seg--2" id="seg-freqscale" role="group">
-          <button data-scale="log"    data-i18n="t.log">Log</button>
-          <button data-scale="linear" data-i18n="t.linear">Linear</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label class="label" data-i18n="t.fftsize">FFT size</label>
-        <select class="select" id="fft-select">
-          <option value="512">512</option>
-          <option value="1024">1024</option>
-          <option value="2048" selected>2048</option>
-          <option value="4096">4096</option>
-          <option value="8192">8192</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label class="label" data-i18n="t.dbrange">Level range (dB)</label>
-        <div class="row2">
-          <div>
-            <div class="minilabel" data-i18n="t.ceil">Ceiling</div>
-            <input class="input" type="number" id="db-ceil" value="0" step="1" min="-40" max="12">
-          </div>
-          <div>
-            <div class="minilabel" data-i18n="t.floor">Floor</div>
-            <input class="input" type="number" id="db-floor" value="-90" step="1" min="-140" max="-10">
-          </div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label class="label" data-i18n="t.colormap">Color map</label>
-        <div class="seg" id="seg-colormap" role="group">
-          <button data-cm="vernier" aria-pressed="true" data-i18n="t.cm_vernier">Vernier</button>
-          <button data-cm="thermal" data-i18n="t.cm_thermal">Thermal</button>
-          <button data-cm="gray"    data-i18n="t.cm_gray">Grayscale</button>
-        </div>
+    <div class="field channelfield">
+      <label class="label" data-i18n="t.channel">Channel</label>
+      <div class="seg seg--2" id="seg-channel" role="group">
+        <button data-ch="left"  data-i18n="t.left">L</button>
+        <button data-ch="right" data-i18n="t.right">R</button>
+        <button data-ch="mid"   data-i18n="t.mid">Stereo (mid)</button>
+        <button data-ch="side"  data-i18n="t.side">Side</button>
       </div>
     </div>
   </div>
@@ -166,6 +125,54 @@
       <span class="badge badge--muted" id="processing-badge" hidden><span class="d"></span><span id="processing-text">0%</span></span>
       <span class="spec-zoomInfo" id="zoom-info" data-i18n="t.zoomFull">Full file</span>
       <button class="btn btn--secondary" id="zoom-reset" disabled data-i18n="t.resetZoom">Reset zoom</button>
+      <div class="settings-anchor">
+        <button class="tb-iconbtn" id="settings-toggle" type="button" aria-label="Spectrogram settings" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <div class="settings-popover" id="settings-popover" hidden>
+          <div class="field">
+            <label class="label" data-i18n="t.freqscale">Frequency scale</label>
+            <div class="seg seg--2" id="seg-freqscale" role="group">
+              <button data-scale="log"    data-i18n="t.log">Log</button>
+              <button data-scale="linear" data-i18n="t.linear">Linear</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.fftsize">FFT size</label>
+            <select class="select" id="fft-select">
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+              <option value="2048" selected>2048</option>
+              <option value="4096">4096</option>
+              <option value="8192">8192</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.dbrange">Level range (dB)</label>
+            <div class="row2">
+              <div>
+                <div class="minilabel" data-i18n="t.ceil">Ceiling</div>
+                <input class="input" type="number" id="db-ceil" value="0" step="1" min="-40" max="12">
+              </div>
+              <div>
+                <div class="minilabel" data-i18n="t.floor">Floor</div>
+                <input class="input" type="number" id="db-floor" value="-90" step="1" min="-140" max="-10">
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.colormap">Color map</label>
+            <div class="seg seg--tight" id="seg-colormap" role="group">
+              <button data-cm="vernier" aria-pressed="true" data-i18n="t.cm_vernier">Vernier</button>
+              <button data-cm="thermal" data-i18n="t.cm_thermal">Thermal</button>
+              <button data-cm="gray"    data-i18n="t.cm_gray">Grayscale</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="spec-body">
@@ -222,13 +229,14 @@
   var state = {
     audioBuffer: null, sampleRate: 0, bufferL: null, bufferR: null,
     _mid: null, _side: null,
-    channelMode: "left", freqScale: "log", fftSize: 2048,
+    channelMode: "mid", freqScale: "log", fftSize: 2048,
     dbFloor: -90, dbCeil: 0, colormap: "vernier",
     zoom: null,          // {start,end} in samples, null = whole file
     spectroData: null,   // {cols, fftSize, startSample, endSample, sampleRate}
     stereoMetrics: null
   };
   var computeGen = 0;
+  var recomputeTimer = null;
 
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -241,6 +249,7 @@
     fiName: $("fi-name"), fiDuration: $("fi-duration"), fiSamplerate: $("fi-samplerate"), fiChannels: $("fi-channels"),
     segChannel: $("seg-channel"), segFreqScale: $("seg-freqscale"), segColormap: $("seg-colormap"),
     fftSelect: $("fft-select"), dbCeil: $("db-ceil"), dbFloor: $("db-floor"),
+    settingsToggle: $("settings-toggle"), settingsPopover: $("settings-popover"),
     zoomInfo: $("zoom-info"), zoomReset: $("zoom-reset"),
     processingBadge: $("processing-badge"), processingText: $("processing-text"),
     freqAxis: $("freq-axis"), timeAxis: $("time-axis"),
@@ -328,7 +337,7 @@
   }
 
   /* =====================================================================
-     channel data  (L / R / L+R(“mid”) / Side)
+     channel data  (L / R / Stereo-mid / Side)
      ===================================================================== */
   function getChannelSamples(mode) {
     if (mode === "right" && state.bufferR) return state.bufferR;
@@ -397,7 +406,8 @@
   }
 
   /* =====================================================================
-     canvas sizing
+     canvas sizing (only called right before painting fresh data,
+     so the clear+repaint happen in the same tick — no visible flash)
      ===================================================================== */
   function sizeSpecCanvas() {
     var rect = els.canvasWrap.getBoundingClientRect();
@@ -422,6 +432,15 @@
   function fracToFreq(frac, scale, nyquist) {
     if (scale === "log") return MIN_FREQ * Math.pow(nyquist / MIN_FREQ, 1 - frac);
     return nyquist * (1 - frac);
+  }
+
+  /* =====================================================================
+     current desired view (may be ahead of what's actually been computed)
+     ===================================================================== */
+  function currentView() {
+    var total = state.bufferL ? state.bufferL.length : 0;
+    if (state.zoom) return { start: state.zoom.start, end: state.zoom.end };
+    return { start: 0, end: total };
   }
 
   /* =====================================================================
@@ -477,11 +496,10 @@
     return Math.round(hz) + " Hz";
   }
 
-  /* ---- axis labels: edge-anchored so they never overflow their box
-          (fixes labels overlapping neighbouring corners at 0Hz/Nyquist and start/end of time) ---- */
+  /* ---- axis labels: edge-anchored so they never overflow their box ---- */
   function renderFreqAxis() {
-    var sd = state.spectroData; if (!sd) return;
-    var nyquist = sd.sampleRate / 2;
+    if (!state.audioBuffer) return;
+    var nyquist = state.sampleRate / 2;
     var H = els.canvasWrap.getBoundingClientRect().height;
     var edge = 7;
     els.freqAxis.innerHTML = "";
@@ -518,9 +536,10 @@
   }
 
   function renderTimeAxis() {
-    var sd = state.spectroData; if (!sd) return;
+    if (!state.audioBuffer) return;
+    var view = currentView();
     var W = els.canvasWrap.getBoundingClientRect().width;
-    var startSec = sd.startSample / sd.sampleRate, endSec = sd.endSample / sd.sampleRate;
+    var startSec = view.start / state.sampleRate, endSec = view.end / state.sampleRate;
     var span = Math.max(1e-6, endSec - startSec);
     var edge = 16;
     els.timeAxis.innerHTML = "";
@@ -543,37 +562,73 @@
   }
 
   function updateZoomInfo() {
-    if (!state.zoom || !state.spectroData) { els.zoomInfo.textContent = tt("t.zoomFull"); return; }
-    var sd = state.spectroData;
-    var s = sd.startSample / sd.sampleRate, e = sd.endSample / sd.sampleRate;
+    if (!state.zoom || !state.audioBuffer) { els.zoomInfo.textContent = tt("t.zoomFull"); return; }
+    var view = currentView();
+    var s = view.start / state.sampleRate, e = view.end / state.sampleRate;
     els.zoomInfo.textContent = formatTimeTick(s, e - s) + "\u2013" + formatTimeTick(e, e - s);
   }
 
   /* =====================================================================
+     smooth pan/zoom: apply an instant CSS transform to the *existing*
+     raster so movement feels continuous, then settle with a real
+     recompute after the interaction pauses.
+     ===================================================================== */
+  function applyCanvasTransform() {
+    var sd = state.spectroData;
+    if (!sd) { els.specCanvas.style.transform = "none"; return; }
+    var view = currentView();
+    var sdSpan = sd.endSample - sd.startSample;
+    var viewSpan = view.end - view.start;
+    if (sdSpan <= 0 || viewSpan <= 0) { els.specCanvas.style.transform = "none"; return; }
+    var scale = sdSpan / viewSpan;
+    var W = els.canvasWrap.getBoundingClientRect().width;
+    var anchorX = ((view.start - sd.startSample) / sdSpan) * W;
+    var tx = -scale * anchorX;
+    els.specCanvas.style.transform = "translateX(" + tx.toFixed(2) + "px) scaleX(" + scale.toFixed(6) + ")";
+  }
+
+  function requestZoom(s, e) {
+    var total = state.bufferL ? state.bufferL.length : 0;
+    s = Math.round(clamp(s, 0, total)); e = Math.round(clamp(e, 0, total));
+    if (e - s < 1) e = s + 1;
+    if (s <= 0 && e >= total) state.zoom = null; else state.zoom = { start: s, end: e };
+    els.zoomReset.disabled = !state.zoom;
+    applyCanvasTransform();
+    renderTimeAxis();
+    updateZoomInfo();
+    clearTimeout(recomputeTimer);
+    recomputeTimer = setTimeout(recomputeAndRender, 160);
+  }
+
+  /* =====================================================================
      compute + render orchestration
+     the canvas is only resized/cleared right before the fresh pixels are
+     painted (same synchronous block), so there is no visible blank frame.
      ===================================================================== */
   function setBusy(b) {
     els.processingBadge.hidden = !b;
     if (b) els.processingText.textContent = "0%";
   }
   function recomputeAndRender() {
+    clearTimeout(recomputeTimer);
     if (!state.audioBuffer) return Promise.resolve();
     var myGen = ++computeGen;
     setBusy(true);
     els.placeholder.hidden = true;
-    sizeSpecCanvas();
-    var canvas = els.specCanvas;
-    var columns = canvas.width;
-    var startSample = state.zoom ? state.zoom.start : 0;
-    var endSample = state.zoom ? state.zoom.end : state.bufferL.length;
+    var rect = els.canvasWrap.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var columns = Math.max(1, Math.min(Math.round(rect.width * dpr), 1600));
+    var view = currentView();
     return computeSpectrogram({
       channelMode: state.channelMode, fftSize: state.fftSize,
-      startSample: startSample, endSample: endSample, columns: columns, sampleRate: state.sampleRate,
+      startSample: view.start, endSample: view.end, columns: columns, sampleRate: state.sampleRate,
       isStale: function () { return myGen !== computeGen; },
       onProgress: function (f) { if (myGen === computeGen) els.processingText.textContent = Math.round(f * 100) + "%"; }
     }).then(function (data) {
       if (myGen !== computeGen || !data) return;
       state.spectroData = data;
+      sizeSpecCanvas();
+      els.specCanvas.style.transform = "none";
       renderSpectrogram();
       renderFreqAxis();
       renderTimeAxis();
@@ -661,19 +716,24 @@
      ===================================================================== */
   function updateHoverReadout(xCss, yCss, rect) {
     var sd = state.spectroData; if (!sd) return;
-    var fracX = clamp(xCss / rect.width, 0, 1), fracY = clamp(yCss / rect.height, 0, 1);
-    var sampleIdx = sd.startSample + fracX * (sd.endSample - sd.startSample);
-    var timeSec = sampleIdx / sd.sampleRate;
-    var nyquist = sd.sampleRate / 2;
+    var view = currentView();
+    var fracXView = clamp(xCss / rect.width, 0, 1);
+    var sampleIdx = view.start + fracXView * (view.end - view.start);
+    var timeSec = sampleIdx / state.sampleRate;
+    var nyquist = state.sampleRate / 2;
+    var fracY = clamp(yCss / rect.height, 0, 1);
     var freq = fracToFreq(fracY, state.freqScale, nyquist);
-    var colIdx = clamp(Math.floor(fracX * sd.cols.length), 0, sd.cols.length - 1);
+
+    var sdSpan = sd.endSample - sd.startSample;
+    var fracXSd = sdSpan > 0 ? clamp((sampleIdx - sd.startSample) / sdSpan, 0, 1) : fracXView;
+    var colIdx = clamp(Math.floor(fracXSd * sd.cols.length), 0, sd.cols.length - 1);
     var binCount = (sd.fftSize >> 1) + 1;
     var binPos = clamp(freq / nyquist * (binCount - 1), 0, binCount - 1);
     var b0 = Math.floor(binPos), b1 = Math.min(binCount - 1, b0 + 1), bf = binPos - b0;
     var col = sd.cols[colIdx];
     var dbv = col[b0] * (1 - bf) + col[b1] * bf;
-    var span = (sd.endSample - sd.startSample) / sd.sampleRate;
-    els.hoverReadout.textContent = formatTimeTick(timeSec, span) + "  \u00b7  " + formatFreqFull(freq) + "  \u00b7  " + dbv.toFixed(1) + " dB";
+    var spanView = (view.end - view.start) / state.sampleRate;
+    els.hoverReadout.textContent = formatTimeTick(timeSec, spanView) + "  \u00b7  " + formatFreqFull(freq) + "  \u00b7  " + dbv.toFixed(1) + " dB";
   }
   els.specCanvas.addEventListener("pointermove", function (e) {
     if (!state.spectroData) return;
@@ -688,34 +748,26 @@
      DAW-style navigation: scroll to pan, Ctrl/Cmd+scroll (or trackpad
      pinch, which browsers report the same way) to zoom toward the cursor.
      ===================================================================== */
-  function setZoomRange(s, e, total) {
-    s = Math.round(clamp(s, 0, total)); e = Math.round(clamp(e, 0, total));
-    if (e - s < 1) e = s + 1;
-    if (s <= 0 && e >= total) state.zoom = null; else state.zoom = { start: s, end: e };
-    els.zoomReset.disabled = !state.zoom;
-    recomputeAndRender();
-  }
   function applyWheel(wp) {
     if (!state.audioBuffer) return;
     var total = state.bufferL.length;
     var rect = els.specCanvas.getBoundingClientRect();
-    var curStart = state.zoom ? state.zoom.start : 0;
-    var curEnd = state.zoom ? state.zoom.end : total;
-    var span = curEnd - curStart;
+    var view = currentView();
+    var span = view.end - view.start;
 
     if (wp.ctrl) {
       var fracX = clamp((wp.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
-      var anchorSample = curStart + fracX * span;
+      var anchorSample = view.start + fracX * span;
       var zoomFactor = Math.exp(clamp(wp.dy, -400, 400) * 0.0018);
       var minSpan = Math.min(total, Math.max(state.fftSize * 2, state.sampleRate * 0.005));
       var newSpan = clamp(span * zoomFactor, minSpan, total);
       var newStart = clamp(anchorSample - fracX * newSpan, 0, Math.max(0, total - newSpan));
-      setZoomRange(newStart, newStart + newSpan, total);
+      requestZoom(newStart, newStart + newSpan);
     } else {
       var d = (wp.dx !== 0 ? wp.dx : wp.dy);
       var deltaSamples = d * (span / Math.max(1, rect.width)) * 1.6;
-      var newStart2 = clamp(curStart + deltaSamples, 0, Math.max(0, total - span));
-      setZoomRange(newStart2, newStart2 + span, total);
+      var newStart2 = clamp(view.start + deltaSamples, 0, Math.max(0, total - span));
+      requestZoom(newStart2, newStart2 + span);
     }
   }
   var wheelPending = null;
@@ -736,8 +788,11 @@
   els.specCanvas.addEventListener("dblclick", resetZoom);
   els.zoomReset.addEventListener("click", resetZoom);
   function resetZoom() {
-    if (!state.zoom) return;
-    state.zoom = null; els.zoomReset.disabled = true; recomputeAndRender();
+    if (!state.zoom || !state.bufferL) return;
+    var total = state.bufferL.length;
+    els.specCanvas.style.transition = "transform .22s ease";
+    requestZoom(0, total);
+    setTimeout(function () { els.specCanvas.style.transition = ""; }, 260);
   }
 
   var resizeTimer = null;
@@ -747,6 +802,19 @@
       resizeTimer = setTimeout(function () { if (state.audioBuffer) recomputeAndRender(); }, 220);
     }).observe(els.canvasWrap);
   }
+
+  /* =====================================================================
+     settings popover (gear icon)
+     ===================================================================== */
+  function openSettings() { els.settingsPopover.hidden = false; els.settingsToggle.setAttribute("aria-expanded", "true"); }
+  function closeSettings() { els.settingsPopover.hidden = true; els.settingsToggle.setAttribute("aria-expanded", "false"); }
+  els.settingsToggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (els.settingsPopover.hidden) openSettings(); else closeSettings();
+  });
+  els.settingsPopover.addEventListener("click", function (e) { e.stopPropagation(); });
+  document.addEventListener("click", function () { if (!els.settingsPopover.hidden) closeSettings(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !els.settingsPopover.hidden) closeSettings(); });
 
   /* =====================================================================
      file loading
@@ -794,11 +862,12 @@
       state.bufferL = audioBuffer.getChannelData(0);
       state.bufferR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
       state._mid = null; state._side = null; state.zoom = null;
-      if (!state.bufferR) state.channelMode = "left";
+      state.channelMode = state.bufferR ? "mid" : "left";
       updateChannelAvailability();
       syncSeg(els.segChannel, "data-ch", state.channelMode);
       updateFileInfo(file.name, audioBuffer);
       els.zoomReset.disabled = true;
+      els.specCanvas.style.transform = "none";
       recomputeAndRender();
       computeAndRenderStereo();
     }).catch(function () {
@@ -888,10 +957,10 @@
       strings: {
         en: {
           "t.title": "Spectrum & stereo",
-          "t.desc": "See the whole-file spectrogram, switch between L/R, L+R and Side, and check phase correlation.",
+          "t.desc": "See the whole-file spectrogram, switch channels, and check phase correlation.",
           "t.dropTitle": "Drop an audio file here", "t.dropHint": "or click to choose \u2014 processed locally",
           "t.changefile": "Change file", "t.hz": "Hz", "t.ch": "ch",
-          "t.channel": "Channel", "t.left": "L", "t.right": "R", "t.mid": "L+R", "t.side": "Side",
+          "t.channel": "Channel", "t.left": "L", "t.right": "R", "t.mid": "Stereo (mid)", "t.side": "Side",
           "t.freqscale": "Frequency scale", "t.log": "Log", "t.linear": "Linear",
           "t.fftsize": "FFT size", "t.dbrange": "Level range (dB)", "t.ceil": "Ceiling", "t.floor": "Floor",
           "t.colormap": "Color map", "t.cm_vernier": "Vernier", "t.cm_thermal": "Thermal", "t.cm_gray": "Grayscale",
@@ -906,10 +975,10 @@
         },
         ja: {
           "t.title": "周波数・ステレオ解析",
-          "t.desc": "ファイル全体のスペクトログラムを表示し、L/R・L+R・Sideの切り替えや位相相関を確認できます。",
+          "t.desc": "ファイル全体のスペクトログラムを表示し、チャンネルの切り替えや位相相関を確認できます。",
           "t.dropTitle": "音声ファイルをドロップ", "t.dropHint": "またはクリックして選択 — すべてローカルで処理",
           "t.changefile": "ファイルを変更", "t.hz": "Hz", "t.ch": "ch",
-          "t.channel": "チャンネル", "t.left": "L", "t.right": "R", "t.mid": "L+R", "t.side": "Side",
+          "t.channel": "チャンネル", "t.left": "L", "t.right": "R", "t.mid": "Stereo (mid)", "t.side": "Side",
           "t.freqscale": "周波数スケール", "t.log": "対数", "t.linear": "リニア",
           "t.fftsize": "FFTサイズ", "t.dbrange": "レベル範囲 (dB)", "t.ceil": "上限", "t.floor": "下限",
           "t.colormap": "カラーマップ", "t.cm_vernier": "Vernier", "t.cm_thermal": "サーマル", "t.cm_gray": "グレースケール",
