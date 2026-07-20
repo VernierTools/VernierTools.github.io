@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scale finder — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- piano ---- */
+  .piano{ background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg);
+    padding:var(--s4); overflow-x:auto; }
+  .piano svg{ display:block; width:100%; max-width:520px; height:auto; margin:0 auto; user-select:none; }
+  .key{ cursor:pointer; transition:fill var(--tap); }
+  .key--white{ fill:var(--surface); stroke:var(--border-strong); stroke-width:1.5; }
+  .key--white:hover{ fill:var(--accent-tint); }
+  .key--white.on{ fill:var(--accent); }
+  .key--black{ fill:var(--text); stroke:var(--surface-2); stroke-width:2; }
+  .key--black:hover{ fill:var(--text-2); }
+  .key--black.on{ fill:var(--accent); }
+  .keylabel{ font-family:var(--font-mono); font-size:11px; fill:var(--text-3); pointer-events:none; }
+  .key--white.on ~ .keylabel, .keylabel.on{ fill:#fff; }
+  .previewring{ fill:none; stroke:var(--accent); stroke-width:2; stroke-dasharray:3 2; opacity:0; pointer-events:none; transition:opacity var(--tap); }
+  .previewring.show{ opacity:1; }
+
+  .selectedrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); margin-top:var(--s4); flex-wrap:wrap; }
+  .selchips{ display:flex; gap:6px; flex-wrap:wrap; min-height:26px; }
+  .selchip{ font-family:var(--font-mono); font-size:12.5px; font-weight:600; color:#fff; background:var(--accent);
+    padding:3px 9px; border-radius:100px; }
+  .selchip--empty{ font-family:var(--font-sans); font-weight:400; color:var(--text-3); background:transparent; padding:3px 0; }
+
+  .seg{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:36px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+
+  /* ---- matches readout ---- */
+  .matchcount{ font-family:var(--font-mono); font-size:12px; color:var(--text-3); }
+  .mlist{ max-height:560px; overflow-y:auto; }
+  .mrow{ padding:var(--s3) var(--s4); display:flex; align-items:center; gap:var(--s3); }
+  .mrow + .mrow{ border-top:1px solid var(--border); }
+  .mrow__main{ flex:1; min-width:0; }
+  .mrow__name{ font-size:13.5px; font-weight:600; color:var(--text); }
+  .mrow__name .root{ color:var(--accent); }
+  .mrow__notes{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12.5px;
+    color:var(--text-2); margin-top:3px; cursor:pointer; }
+  .mrow__notes .extra{ color:var(--text-3); }
+  .mrow__badge{ font-size:11px; font-weight:600; color:var(--text-3); background:var(--surface); border:1px solid var(--border);
+    border-radius:100px; padding:2px 8px; flex:0 0 auto; }
+  .mrow__badge--tight{ color:var(--pos); background:var(--pos-tint); border-color:transparent; }
+  .playbtn{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--text-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+    transition:all var(--tap); }
+  .playbtn:hover{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .playbtn svg{ width:13px; height:13px; margin-left:1px; }
+  .moretxt{ text-align:center; font-size:12px; color:var(--text-3); padding:var(--s3) var(--s4); }
+  .emptymsg{ text-align:center; color:var(--text-3); padding:var(--s7) var(--s4); font-size:13px; line-height:1.6; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Scale finder</h1>
+    <p data-i18n="t.desc">Tap notes on the keyboard and find every scale that contains them.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s4)">
+    <label class="label" data-i18n="t.keyboard">Notes</label>
+    <div class="piano"><svg id="piano-svg" viewBox="0 0 490 170" role="group" aria-label="Piano keyboard"></svg></div>
+    <div class="selectedrow">
+      <div class="selchips" id="sel-chips"></div>
+      <button class="btn btn--secondary" id="clear-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>
+        <span data-i18n="t.clear">Clear</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.matchmode">Match mode</label>
+          <div class="seg" id="seg-mode" role="group">
+            <button data-mode="contains" aria-pressed="true" data-i18n="t.contains">Contains selection</button>
+            <button data-mode="exact" data-i18n="t.exact">Exact match</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="church-toggle">
+            <span class="track"></span>
+            <span data-i18n="t.churchmode">Church modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)</span>
+          </label>
+        </div>
+        <div class="hint" data-i18n="t.hint">Contains mode shows any scale that includes all the notes you picked (extra notes allowed) — good for figuring out what you're already playing. Exact match only shows scales made of precisely those notes. Turn on church modes to also include the five modes beyond major/minor.</div>
+      </div>
+    </div>
+    <div>
+      <div class="readout" id="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.matches">Matching scales</span><span class="matchcount" id="match-count"></span></div>
+        <div class="mlist" id="mlist"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var NOTE_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+
+  // white keys: pc + x offset. black keys: pc + x offset (centered on the boundary).
+  var WHITE = [ {pc:0,x:0}, {pc:2,x:70}, {pc:4,x:140}, {pc:5,x:210}, {pc:7,x:280}, {pc:9,x:350}, {pc:11,x:420} ];
+  var BLACK = [ {pc:1,x:49}, {pc:3,x:119}, {pc:6,x:259}, {pc:8,x:329}, {pc:10,x:399} ];
+  var WHITE_W = 70, WHITE_H = 160, BLACK_W = 42, BLACK_H = 100;
+
+  var CORE_SCALES = [
+    { id:"major",            key:"t.scale.major",            intervals:[0,2,4,5,7,9,11] },
+    { id:"natural_minor",    key:"t.scale.natural_minor",     intervals:[0,2,3,5,7,8,10] },
+    { id:"harmonic_minor",   key:"t.scale.harmonic_minor",    intervals:[0,2,3,5,7,8,11] },
+    { id:"melodic_minor",    key:"t.scale.melodic_minor",     intervals:[0,2,3,5,7,9,11] },
+    { id:"major_pentatonic", key:"t.scale.major_pentatonic",  intervals:[0,2,4,7,9] },
+    { id:"minor_pentatonic", key:"t.scale.minor_pentatonic",  intervals:[0,3,5,7,10] },
+    { id:"blues",            key:"t.scale.blues",             intervals:[0,3,5,6,7,10] },
+    { id:"whole_tone",       key:"t.scale.whole_tone",        intervals:[0,2,4,6,8,10] },
+    { id:"dim_wh",           key:"t.scale.dim_wh",            intervals:[0,2,3,5,6,8,9,11] },
+    { id:"dim_hw",           key:"t.scale.dim_hw",            intervals:[0,1,3,4,6,7,9,10] }
+  ];
+  var CHURCH_SCALES = [
+    { id:"dorian",     key:"t.scale.dorian",     intervals:[0,2,3,5,7,9,10] },
+    { id:"phrygian",   key:"t.scale.phrygian",   intervals:[0,1,3,5,7,8,10] },
+    { id:"lydian",     key:"t.scale.lydian",     intervals:[0,2,4,6,7,9,11] },
+    { id:"mixolydian", key:"t.scale.mixolydian", intervals:[0,2,4,5,7,9,10] },
+    { id:"locrian",    key:"t.scale.locrian",    intervals:[0,1,3,5,6,8,10] }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var svg = $("piano-svg"), selChips = $("sel-chips"), mlist = $("mlist"), matchCount = $("match-count");
+  var churchToggle = $("church-toggle");
+
+  var selected = {};        // pc -> true
+  var matchMode = "contains";
+  var churchOn = false;
+  var MAX_ROWS = 60;
+
+  function selCount() { var n = 0; for (var k in selected) if (selected[k]) n++; return n; }
+  function selArray() { var a = []; for (var k in selected) if (selected[k]) a.push(parseInt(k, 10)); return a.sort(function (x, y) { return x - y; }); }
+
+  // ---- piano rendering ----
+  function buildPiano() {
+    var s = "";
+    WHITE.forEach(function (w) {
+      s += '<rect class="key key--white" data-pc="' + w.pc + '" x="' + w.x + '" y="0" width="' + WHITE_W + '" height="' + WHITE_H + '" rx="4"></rect>';
+    });
+    WHITE.forEach(function (w) {
+      s += '<text class="keylabel" data-label-pc="' + w.pc + '" x="' + (w.x + WHITE_W / 2) + '" y="' + (WHITE_H - 12) + '" text-anchor="middle">' + NOTE_NAMES[w.pc] + '</text>';
+    });
+    BLACK.forEach(function (b) {
+      s += '<rect class="key key--black" data-pc="' + b.pc + '" x="' + b.x + '" y="0" width="' + BLACK_W + '" height="' + BLACK_H + '" rx="3"></rect>';
+    });
+    svg.innerHTML = s;
+    svg.addEventListener("click", function (e) {
+      var el = e.target.closest(".key"); if (!el) return;
+      var pc = parseInt(el.getAttribute("data-pc"), 10);
+      selected[pc] = !selected[pc];
+      renderAll();
+    });
+  }
+
+  function syncPiano() {
+    svg.querySelectorAll(".key").forEach(function (el) {
+      var pc = parseInt(el.getAttribute("data-pc"), 10);
+      el.classList.toggle("on", !!selected[pc]);
+    });
+    svg.querySelectorAll(".keylabel").forEach(function (el) {
+      var pc = parseInt(el.getAttribute("data-label-pc"), 10);
+      el.classList.toggle("on", !!selected[pc]);
+    });
+  }
+
+  function renderChips() {
+    var a = selArray();
+    if (a.length === 0) { selChips.innerHTML = '<span class="selchip selchip--empty" data-i18n="t.nonoteselected">No notes selected yet</span>'; return; }
+    selChips.innerHTML = a.map(function (pc) { return '<span class="selchip">' + NOTE_NAMES[pc] + '</span>'; }).join("");
+  }
+
+  // ---- matching ----
+  function computeMatches() {
+    var sel = selArray();
+    if (sel.length === 0) return [];
+    var scales = CORE_SCALES.concat(churchOn ? CHURCH_SCALES : []);
+    var out = [];
+    scales.forEach(function (sc) {
+      for (var root = 0; root < 12; root++) {
+        var set = sc.intervals.map(function (iv) { return (root + iv) % 12; });
+        var ok;
+        if (matchMode === "exact") {
+          ok = sel.length === set.length && sel.every(function (n) { return set.indexOf(n) >= 0; });
+        } else {
+          ok = sel.every(function (n) { return set.indexOf(n) >= 0; });
+        }
+        if (ok) out.push({ root: root, scale: sc, notes: set.slice().sort(function (a, b) { return a - b; }), extra: set.length - sel.length });
+      }
+    });
+    out.sort(function (a, b) {
+      if (a.extra !== b.extra) return a.extra - b.extra;
+      if (a.notes.length !== b.notes.length) return a.notes.length - b.notes.length;
+      if (a.root !== b.root) return a.root - b.root;
+      return Shell.t(a.scale.key).localeCompare(Shell.t(b.scale.key));
+    });
+    return out;
+  }
+
+  function renderMatches() {
+    var sel = selArray();
+    var results = computeMatches();
+    if (sel.length === 0) {
+      mlist.innerHTML = '<div class="emptymsg" data-i18n="t.selecthint">Select notes on the keyboard to see matching scales.</div>';
+      matchCount.textContent = "";
+      return;
+    }
+    if (results.length === 0) {
+      mlist.innerHTML = '<div class="emptymsg" data-i18n="t.nomatch">No scale matches this exact combination. Try Contains mode, or turn on church modes.</div>';
+      matchCount.textContent = "0";
+      return;
+    }
+    matchCount.textContent = results.length;
+    var shown = results.slice(0, MAX_ROWS);
+    var html = shown.map(function (m, i) {
+      var noteTxt = m.notes.map(function (n) {
+        var isSel = sel.indexOf(n) >= 0;
+        return isSel ? NOTE_NAMES[n] : '<span class="extra">' + NOTE_NAMES[n] + "</span>";
+      }).join(" ");
+      var copyTxt = m.notes.map(function (n) { return NOTE_NAMES[n]; }).join(" ");
+      var badge = m.extra === 0
+        ? '<span class="mrow__badge mrow__badge--tight" data-i18n="t.exactbadge">exact</span>'
+        : '<span class="mrow__badge">+' + m.extra + '</span>';
+      return '<div class="mrow" data-idx="' + i + '">' +
+        '<button class="playbtn" data-play="' + i + '" aria-label="Play">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
+        '</button>' +
+        '<div class="mrow__main">' +
+          '<div class="mrow__name"><span class="root">' + NOTE_NAMES[m.root] + '</span> ' + Shell.t(m.scale.key) + '</div>' +
+          '<div class="mrow__notes" data-copy="' + copyTxt + '">' + noteTxt + '</div>' +
+        '</div>' + badge + '</div>';
+    }).join("");
+    if (results.length > MAX_ROWS) {
+      html += '<div class="moretxt">' + Shell.t("t.more").replace("{n}", results.length - MAX_ROWS) + '</div>';
+    }
+    mlist.innerHTML = html;
+    mlist._results = shown;
+  }
+
+  mlist.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-play]");
+    if (!b) return;
+    var idx = parseInt(b.getAttribute("data-play"), 10);
+    var m = mlist._results && mlist._results[idx];
+    if (m) playScale(m.root, m.scale.intervals);
+  });
+
+  // ---- audio preview (Web Audio clock scheduling, no setTimeout loop) ----
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function playScale(root, intervals) {
+    var ctx = ensureAudio();
+    var t0 = ctx.currentTime + 0.05;
+    var dur = 0.26;
+    var seq = intervals.concat([intervals[0] + 12]);
+    seq.forEach(function (iv, i) {
+      var midi = 60 + root + iv;
+      var freq = 440 * Math.pow(2, (midi - 69) / 12);
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, t0 + i * dur);
+      var st = t0 + i * dur;
+      gain.gain.setValueAtTime(0, st);
+      gain.gain.linearRampToValueAtTime(0.22, st + 0.02);
+      gain.gain.linearRampToValueAtTime(0, st + dur * 0.9);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(st);
+      osc.stop(st + dur);
+    });
+  }
+
+  // ---- controls ----
+  $("clear-btn").addEventListener("click", function () { selected = {}; renderAll(); });
+
+  $("seg-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    matchMode = b.getAttribute("data-mode");
+    $("seg-mode").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    renderMatches();
+  });
+
+  churchToggle.addEventListener("change", function () { churchOn = churchToggle.checked; renderMatches(); });
+
+  function renderAll() {
+    syncPiano();
+    renderChips();
+    renderMatches();
+  }
+
+  buildPiano();
+  renderAll();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "scale-finder",
+      strings: {
+        en: {
+          "t.title": "Scale finder",
+          "t.desc": "Tap notes on the keyboard and find every scale that contains them.",
+          "t.keyboard": "Notes",
+          "t.clear": "Clear",
+          "t.nonoteselected": "No notes selected yet",
+          "t.matchmode": "Match mode",
+          "t.contains": "Contains selection",
+          "t.exact": "Exact match",
+          "t.churchmode": "Church modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)",
+          "t.hint": "Contains mode shows any scale that includes all the notes you picked (extra notes allowed) — good for figuring out what you're already playing. Exact match only shows scales made of precisely those notes. Turn on church modes to also include the five modes beyond major/minor.",
+          "t.matches": "Matching scales",
+          "t.selecthint": "Select notes on the keyboard to see matching scales.",
+          "t.nomatch": "No scale matches this exact combination. Try Contains mode, or turn on church modes.",
+          "t.exactbadge": "exact",
+          "t.more": "+{n} more — pick more notes to narrow it down.",
+          "t.scale.major": "Major (Ionian)",
+          "t.scale.natural_minor": "Natural minor (Aeolian)",
+          "t.scale.harmonic_minor": "Harmonic minor",
+          "t.scale.melodic_minor": "Melodic minor (ascending)",
+          "t.scale.major_pentatonic": "Major pentatonic",
+          "t.scale.minor_pentatonic": "Minor pentatonic",
+          "t.scale.blues": "Blues",
+          "t.scale.whole_tone": "Whole tone",
+          "t.scale.dim_wh": "Diminished (whole–half)",
+          "t.scale.dim_hw": "Diminished (half–whole)",
+          "t.scale.dorian": "Dorian",
+          "t.scale.phrygian": "Phrygian",
+          "t.scale.lydian": "Lydian",
+          "t.scale.mixolydian": "Mixolydian",
+          "t.scale.locrian": "Locrian"
+        },
+        ja: {
+          "t.title": "スケール検索",
+          "t.desc": "鍵盤で構成音をタップすると、それらを含むすべてのスケールを表示します。",
+          "t.keyboard": "構成音",
+          "t.clear": "クリア",
+          "t.nonoteselected": "まだ音が選択されていません",
+          "t.matchmode": "検索モード",
+          "t.contains": "選択音を含む",
+          "t.exact": "完全一致",
+          "t.churchmode": "チャーチモード（ドリアン・フリジアン・リディアン・ミクソリディアン・ロクリアン）",
+          "t.hint": "「選択音を含む」は、選んだ音をすべて含むスケールを表示します（余分な音があってもOK）。今弾いている音の正体を調べるのに便利です。「完全一致」は、選んだ音だけで構成されるスケールのみ表示します。チャーチモードをオンにすると、長調・短調以外の5つの旋法も候補に加わります。",
+          "t.matches": "候補のスケール",
+          "t.selecthint": "鍵盤で音を選ぶと、候補のスケールがここに表示されます。",
+          "t.nomatch": "この組み合わせに完全一致するスケールはありません。「選択音を含む」モードを試すか、チャーチモードをオンにしてください。",
+          "t.exactbadge": "完全一致",
+          "t.more": "他 {n} 件 — 音を増やすと絞り込めます。",
+          "t.scale.major": "長調（アイオニアン）",
+          "t.scale.natural_minor": "自然短音階（エオリアン）",
+          "t.scale.harmonic_minor": "和声的短音階",
+          "t.scale.melodic_minor": "旋律的短音階（上行形）",
+          "t.scale.major_pentatonic": "メジャーペンタトニック",
+          "t.scale.minor_pentatonic": "マイナーペンタトニック",
+          "t.scale.blues": "ブルーススケール",
+          "t.scale.whole_tone": "全音音階",
+          "t.scale.dim_wh": "ディミニッシュ（全半）",
+          "t.scale.dim_hw": "ディミニッシュ（半全）",
+          "t.scale.dorian": "ドリアン",
+          "t.scale.phrygian": "フリジアン",
+          "t.scale.lydian": "リディアン",
+          "t.scale.mixolydian": "ミクソリディアン",
+          "t.scale.locrian": "ロクリアン"
+        }
+      },
+      onSettingsChange: function () { renderMatches(); }
+    });
+  } else {
+    renderMatches();
+  }
+})();
+</script>
+</body>
+</html>
