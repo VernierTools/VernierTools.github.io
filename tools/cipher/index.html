@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple cipher — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .modeseg{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+  .modeseg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:36px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .modeseg button:hover{ border-color:var(--text-3); }
+  .modeseg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  textarea.input{ height:auto; min-height:88px; padding:10px 12px; resize:vertical; line-height:1.5; }
+
+  .keyrow{ display:flex; gap:6px; }
+  .keyrow .input{ flex:1; }
+  .keyrow .btn{ flex:0 0 auto; white-space:nowrap; }
+
+  .subst-preview{ font-family:var(--font-mono); font-size:11.5px; color:var(--text-3);
+    margin-top:6px; word-break:break-all; line-height:1.6; }
+
+  /* readout: ラベル上・値下のスタック型（長い暗号文でも折り返せるように） */
+  .crow{ padding:var(--s3) var(--s4); }
+  .crow + .crow{ border-top:1px solid var(--border); }
+  .crow .lbl{ display:block; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    color:var(--text-3); text-transform:uppercase; margin-bottom:5px; }
+  .crow .val{ display:block; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:14px; color:var(--text); word-break:break-all; line-height:1.55; cursor:pointer;
+    transition:color var(--tap); }
+  .crow .val:hover{ color:var(--accent); }
+  .crow .val:empty::before{ content:"—"; color:var(--text-3); }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip" data-i18n="cat.general">General</span>
+      <span class="chip" data-i18n="cat.text">Text</span>
+    </div>
+    <h1 data-i18n="t.title">Simple cipher</h1>
+    <p data-i18n="t.desc">Type text and see it run through several classic ciphers at once, for fun and learning.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・鍵 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" id="text-label" data-i18n="t.plaintext">Plain text</label>
+          <textarea class="input" id="in-text" rows="4" spellcheck="false"></textarea>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="label" data-i18n="t.mode">Direction</label>
+          <div class="modeseg" id="seg-mode" role="group">
+            <button data-mode="encode" data-i18n="t.encode" aria-pressed="true">Encode</button>
+            <button data-mode="decode" data-i18n="t.decode">Decode</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.keys">Keys</div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.caesarshift">Caesar shift</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="caesar-shift" min="1" max="25" value="3">
+            <span class="val" id="caesar-shift-val">3</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.vigenerekey">Vigenère keyword</label>
+          <input class="input" id="vigenere-key" type="text" value="LEMON" spellcheck="false">
+        </div>
+
+        <div class="field" style="margin-bottom:0">
+          <label class="label" data-i18n="t.substkey">Substitution keyword</label>
+          <div class="keyrow">
+            <input class="input" id="subst-key" type="text" value="SECRET" spellcheck="false">
+            <button class="btn btn--secondary" id="subst-randomize" data-i18n="t.randomize">Randomize</button>
+          </div>
+          <div class="subst-preview" id="subst-preview"></div>
+        </div>
+      </div>
+
+      <div class="hint" data-i18n="t.hint">Only A–Z letters are ciphered; spaces, numbers, and punctuation are kept as-is (Polybius / Morse / A1Z26 use them as word breaks).</div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="readout" id="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+
+        <div class="crow"><span class="lbl" data-i18n="t.caesar">Caesar cipher</span><span class="val" id="out-caesar" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.rot13">ROT13</span><span class="val" id="out-rot13" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.atbash">Atbash</span><span class="val" id="out-atbash" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.vigenere">Vigenère cipher</span><span class="val" id="out-vigenere" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.subst">Substitution cipher</span><span class="val" id="out-subst" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.polybius">Polybius square</span><span class="val" id="out-polybius" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.morse">Morse code</span><span class="val" id="out-morse" data-copy=""></span></div>
+        <div class="crow"><span class="lbl" data-i18n="t.a1z26">A1Z26</span><span class="val" id="out-a1z26" data-copy=""></span></div>
+
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var mode = "encode"; // encode | decode
+
+  var inText = $("in-text");
+  var caesarShiftEl = $("caesar-shift"), caesarShiftVal = $("caesar-shift-val");
+  var vigenereKeyEl = $("vigenere-key");
+  var substKeyEl = $("subst-key"), substPreview = $("subst-preview");
+
+  function mod(n, m) { return ((n % m) + m) % m; }
+
+  /* ---------- Caesar / ROT13 / Atbash ---------- */
+  function caesarShiftText(text, shift) {
+    return text.replace(/[a-zA-Z]/g, function (ch) {
+      var base = ch <= "Z" ? 65 : 97;
+      return String.fromCharCode(mod(ch.charCodeAt(0) - base + shift, 26) + base);
+    });
+  }
+  function atbashText(text) {
+    return text.replace(/[a-zA-Z]/g, function (ch) {
+      var base = ch <= "Z" ? 65 : 97;
+      return String.fromCharCode(base + (25 - (ch.charCodeAt(0) - base)));
+    });
+  }
+
+  /* ---------- Vigenère ---------- */
+  function vigenere(text, key, decode) {
+    key = (key || "").replace(/[^a-zA-Z]/g, "").toUpperCase();
+    if (!key) key = "A";
+    var ki = 0, out = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (/[a-zA-Z]/.test(ch)) {
+        var base = ch <= "Z" ? 65 : 97;
+        var k = key.charCodeAt(ki % key.length) - 65;
+        var shift = decode ? -k : k;
+        out += String.fromCharCode(mod(ch.charCodeAt(0) - base + shift, 26) + base);
+        ki++;
+      } else out += ch;
+    }
+    return out;
+  }
+
+  /* ---------- Substitution (keyword cipher) ---------- */
+  var PLAIN = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  function buildSubstAlphabet(keyword) {
+    var seen = {}, out = "";
+    keyword = (keyword || "").toUpperCase();
+    for (var i = 0; i < keyword.length; i++) {
+      var c = keyword[i];
+      if (c >= "A" && c <= "Z" && !seen[c]) { seen[c] = true; out += c; }
+    }
+    for (var j = 0; j < 26; j++) {
+      var c2 = String.fromCharCode(65 + j);
+      if (!seen[c2]) { seen[c2] = true; out += c2; }
+    }
+    return out;
+  }
+  function substitute(text, keyword, decode) {
+    var cipherAlpha = buildSubstAlphabet(keyword);
+    var map = {};
+    for (var i = 0; i < 26; i++) {
+      if (decode) map[cipherAlpha[i]] = PLAIN[i];
+      else map[PLAIN[i]] = cipherAlpha[i];
+    }
+    return text.replace(/[a-zA-Z]/g, function (ch) {
+      var isUpper = ch === ch.toUpperCase();
+      var mapped = map[ch.toUpperCase()] || ch.toUpperCase();
+      return isUpper ? mapped : mapped.toLowerCase();
+    });
+  }
+
+  /* ---------- Polybius square (I/J merged) ---------- */
+  var POLY = "ABCDEFGHIKLMNOPQRSTUVWXYZ";
+  function polybiusEncode(text) {
+    return text.split(" ").map(function (word) {
+      return word.split("").map(function (ch) {
+        if (/[a-zA-Z]/.test(ch)) {
+          var up = ch.toUpperCase(); if (up === "J") up = "I";
+          var idx = POLY.indexOf(up);
+          return "" + (Math.floor(idx / 5) + 1) + (mod(idx, 5) + 1);
+        }
+        return ch;
+      }).join(" ");
+    }).join(" / ");
+  }
+  function polybiusDecode(text) {
+    return text.split("/").map(function (part) {
+      return part.trim().split(/\s+/).map(function (tok) {
+        if (/^[1-5]{2}$/.test(tok)) {
+          var row = parseInt(tok[0], 10) - 1, col = parseInt(tok[1], 10) - 1;
+          return POLY[row * 5 + col];
+        }
+        return tok;
+      }).join("");
+    }).join(" ");
+  }
+
+  /* ---------- Morse code ---------- */
+  var MORSE = { A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",
+    K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",
+    V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..",
+    0:"-----",1:".----",2:"..---",3:"...--",4:"....-",5:".....",6:"-....",7:"--...",8:"---..",9:"----." };
+  var MORSE_R = {};
+  Object.keys(MORSE).forEach(function (k) { MORSE_R[MORSE[k]] = k; });
+  function morseEncode(text) {
+    return text.split(" ").map(function (word) {
+      return word.split("").map(function (ch) { return MORSE[ch.toUpperCase()] || ""; })
+        .filter(function (v) { return v; }).join(" ");
+    }).join(" / ");
+  }
+  function morseDecode(text) {
+    return text.split("/").map(function (part) {
+      return part.trim().split(/\s+/).map(function (code) { return MORSE_R[code] || ""; }).join("");
+    }).join(" ");
+  }
+
+  /* ---------- A1Z26 ---------- */
+  function a1z26Encode(text) {
+    return text.split(" ").map(function (word) {
+      return word.split("").map(function (ch) {
+        return /[a-zA-Z]/.test(ch) ? (ch.toUpperCase().charCodeAt(0) - 64) : null;
+      }).filter(function (v) { return v !== null; }).join("-");
+    }).join(" / ");
+  }
+  function a1z26Decode(text) {
+    return text.split("/").map(function (part) {
+      return part.trim().split("-").map(function (n) {
+        n = parseInt(n, 10);
+        return (n >= 1 && n <= 26) ? String.fromCharCode(64 + n) : "";
+      }).join("");
+    }).join(" ");
+  }
+
+  /* ---------- 乱数（Web Crypto） ---------- */
+  function secureRandom() {
+    var buf = new Uint32Array(1);
+    (window.crypto || window.msCrypto).getRandomValues(buf);
+    return buf[0] / 4294967296;
+  }
+  function randomAlphabet() {
+    var arr = PLAIN.split("");
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(secureRandom() * (i + 1));
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr.join("");
+  }
+
+  /* ---------- render ---------- */
+  function setVal(id, text) { var el = $(id); el.textContent = text; el.setAttribute("data-copy", text); }
+
+  function render() {
+    var text = inText.value;
+    var decode = mode === "decode";
+    var shift = parseInt(caesarShiftEl.value, 10) || 0;
+    var vKey = vigenereKeyEl.value;
+    var sKey = substKeyEl.value;
+
+    caesarShiftVal.textContent = shift;
+
+    setVal("out-caesar", caesarShiftText(text, decode ? -shift : shift));
+    setVal("out-rot13", caesarShiftText(text, 13));
+    setVal("out-atbash", atbashText(text));
+    setVal("out-vigenere", vigenere(text, vKey, decode));
+    setVal("out-subst", substitute(text, sKey, decode));
+    setVal("out-polybius", decode ? polybiusDecode(text) : polybiusEncode(text));
+    setVal("out-morse", decode ? morseDecode(text) : morseEncode(text));
+    setVal("out-a1z26", decode ? a1z26Decode(text) : a1z26Encode(text));
+
+    var alpha = buildSubstAlphabet(sKey);
+    substPreview.textContent = PLAIN + " \u2192 " + alpha;
+  }
+
+  /* ---------- events ---------- */
+  inText.addEventListener("input", render);
+  caesarShiftEl.addEventListener("input", render);
+  vigenereKeyEl.addEventListener("input", render);
+  substKeyEl.addEventListener("input", render);
+
+  $("seg-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode");
+    $("seg-mode").querySelectorAll("button").forEach(function (x) {
+      x.setAttribute("aria-pressed", String(x === b));
+    });
+    localizeTextLabel();
+    render();
+  });
+
+  $("subst-randomize").addEventListener("click", function () {
+    substKeyEl.value = randomAlphabet();
+    render();
+  });
+
+  function localizeTextLabel() {
+    if (typeof Shell === "undefined" || !Shell) return;
+    $("text-label").textContent = Shell.t(mode === "decode" ? "t.ciphertext" : "t.plaintext");
+  }
+
+  /* ---------- 起動 ---------- */
+  Shell.init({
+    id: "cipher",
+    strings: {
+      en: {
+        "t.title": "Simple cipher",
+        "t.desc": "Type text and see it run through several classic ciphers at once, for fun and learning.",
+        "t.plaintext": "Plain text",
+        "t.ciphertext": "Cipher text",
+        "t.mode": "Direction",
+        "t.encode": "Encode",
+        "t.decode": "Decode",
+        "t.keys": "Keys",
+        "t.caesarshift": "Caesar shift",
+        "t.vigenerekey": "Vigenère keyword",
+        "t.substkey": "Substitution keyword",
+        "t.randomize": "Randomize",
+        "t.output": "Output",
+        "t.caesar": "Caesar cipher",
+        "t.rot13": "ROT13",
+        "t.atbash": "Atbash",
+        "t.vigenere": "Vigenère cipher",
+        "t.subst": "Substitution cipher",
+        "t.polybius": "Polybius square",
+        "t.morse": "Morse code",
+        "t.a1z26": "A1Z26",
+        "t.copyhint": "Click any value to copy.",
+        "t.hint": "Only A–Z letters are ciphered; spaces, numbers, and punctuation are kept as-is (Polybius / Morse / A1Z26 use spaces as word breaks)."
+      },
+      ja: {
+        "t.title": "簡易暗号",
+        "t.desc": "テキストを入力すると、複数の古典暗号に同時に変換します。遊びと学習用。",
+        "t.plaintext": "平文",
+        "t.ciphertext": "暗号文",
+        "t.mode": "方向",
+        "t.encode": "暗号化",
+        "t.decode": "復号",
+        "t.keys": "鍵",
+        "t.caesarshift": "シーザーのずらし数",
+        "t.vigenerekey": "ヴィジュネルの鍵",
+        "t.substkey": "換字の鍵",
+        "t.randomize": "ランダム生成",
+        "t.output": "出力",
+        "t.caesar": "シーザー暗号",
+        "t.rot13": "ROT13",
+        "t.atbash": "アトバッシュ",
+        "t.vigenere": "ヴィジュネル暗号",
+        "t.subst": "単純換字式暗号",
+        "t.polybius": "ポリュビオス暗号",
+        "t.morse": "モールス信号",
+        "t.a1z26": "A1Z26",
+        "t.copyhint": "数値をクリックでコピー。",
+        "t.hint": "暗号化されるのは A〜Z の英字のみ。スペース・数字・記号はそのまま保持されます（ポリュビオス／モールス／A1Z26では単語の区切りとして使用）。"
+      }
+    },
+    onSettingsChange: function () { localizeTextLabel(); render(); }
+  });
+
+  inText.value = "Hello, World!";
+  localizeTextLabel();
+  render();
+})();
+</script>
+</body>
+</html>
