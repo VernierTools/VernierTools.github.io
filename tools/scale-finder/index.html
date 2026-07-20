@@ -91,14 +91,19 @@
             <button data-mode="exact" data-i18n="t.exact">Exact match</button>
           </div>
         </div>
-        <div class="field">
+        <div class="field toggles">
+          <label class="toggle">
+            <input type="checkbox" id="extra-toggle">
+            <span class="track"></span>
+            <span data-i18n="t.extramode">Other scales (pentatonic, blues, whole tone, diminished)</span>
+          </label>
           <label class="toggle">
             <input type="checkbox" id="church-toggle">
             <span class="track"></span>
             <span data-i18n="t.churchmode">Church modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)</span>
           </label>
         </div>
-        <div class="hint" data-i18n="t.hint">Contains mode shows any scale that includes all the notes you picked (extra notes allowed) — good for figuring out what you're already playing. Exact match only shows scales made of precisely those notes. Turn on church modes to also include the five modes beyond major/minor.</div>
+        <div class="hint" data-i18n="t.hint">By default only major and the three basic minor scales (natural, harmonic, melodic) are shown. Turn on the toggles above to also search pentatonic/blues/whole-tone/diminished scales and the five church modes beyond major/minor.</div>
       </div>
     </div>
     <div>
@@ -121,11 +126,15 @@
   var BLACK = [ {pc:1,x:49}, {pc:3,x:119}, {pc:6,x:259}, {pc:8,x:329}, {pc:10,x:399} ];
   var WHITE_W = 70, WHITE_H = 160, BLACK_W = 42, BLACK_H = 100;
 
-  var CORE_SCALES = [
+  // 常時表示: 長調 + 基本の短調3種（自然的・和声的・旋律的）
+  var BASE_SCALES = [
     { id:"major",            key:"t.scale.major",            intervals:[0,2,4,5,7,9,11] },
     { id:"natural_minor",    key:"t.scale.natural_minor",     intervals:[0,2,3,5,7,8,10] },
     { id:"harmonic_minor",   key:"t.scale.harmonic_minor",    intervals:[0,2,3,5,7,8,11] },
-    { id:"melodic_minor",    key:"t.scale.melodic_minor",     intervals:[0,2,3,5,7,9,11] },
+    { id:"melodic_minor",    key:"t.scale.melodic_minor",     intervals:[0,2,3,5,7,9,11] }
+  ];
+  // トグルで追加表示: ペンタトニック・ブルース・全音・ディミニッシュ
+  var EXTRA_SCALES = [
     { id:"major_pentatonic", key:"t.scale.major_pentatonic",  intervals:[0,2,4,7,9] },
     { id:"minor_pentatonic", key:"t.scale.minor_pentatonic",  intervals:[0,3,5,7,10] },
     { id:"blues",            key:"t.scale.blues",             intervals:[0,3,5,6,7,10] },
@@ -143,11 +152,12 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var svg = $("piano-svg"), selChips = $("sel-chips"), mlist = $("mlist"), matchCount = $("match-count");
-  var churchToggle = $("church-toggle");
+  var churchToggle = $("church-toggle"), extraToggle = $("extra-toggle");
 
   var selected = {};        // pc -> true
   var matchMode = "contains";
   var churchOn = false;
+  var extraOn = false;
   var MAX_ROWS = 60;
 
   function selCount() { var n = 0; for (var k in selected) if (selected[k]) n++; return n; }
@@ -195,7 +205,7 @@
   function computeMatches() {
     var sel = selArray();
     if (sel.length === 0) return [];
-    var scales = CORE_SCALES.concat(churchOn ? CHURCH_SCALES : []);
+    var scales = BASE_SCALES.concat(extraOn ? EXTRA_SCALES : []).concat(churchOn ? CHURCH_SCALES : []);
     var out = [];
     scales.forEach(function (sc) {
       for (var root = 0; root < 12; root++) {
@@ -268,6 +278,7 @@
 
   // ---- audio preview (Web Audio clock scheduling, no setTimeout loop) ----
   var audioCtx = null;
+  var activeNodes = [];   // currently scheduled/playing oscillators, so a new play stops the old one
   function ensureAudio() {
     if (!audioCtx) {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -276,8 +287,21 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
   }
+  function stopActive() {
+    var now = audioCtx ? audioCtx.currentTime : 0;
+    activeNodes.forEach(function (n) {
+      try {
+        n.gain.cancelScheduledValues(now);
+        n.gain.setValueAtTime(n.gain.value, now);
+        n.gain.linearRampToValueAtTime(0, now + 0.03);
+        n.osc.stop(now + 0.04);
+      } catch (e) {}
+    });
+    activeNodes = [];
+  }
   function playScale(root, intervals) {
     var ctx = ensureAudio();
+    stopActive();
     var t0 = ctx.currentTime + 0.05;
     var dur = 0.26;
     var seq = intervals.concat([intervals[0] + 12]);
@@ -295,6 +319,11 @@
       osc.connect(gain).connect(ctx.destination);
       osc.start(st);
       osc.stop(st + dur);
+      activeNodes.push({ osc: osc, gain: gain.gain });
+      osc.addEventListener("ended", function () {
+        var idx = activeNodes.findIndex(function (n) { return n.osc === osc; });
+        if (idx >= 0) activeNodes.splice(idx, 1);
+      });
     });
   }
 
@@ -309,6 +338,7 @@
   });
 
   churchToggle.addEventListener("change", function () { churchOn = churchToggle.checked; renderMatches(); });
+  extraToggle.addEventListener("change", function () { extraOn = extraToggle.checked; renderMatches(); });
 
   function renderAll() {
     syncPiano();
@@ -332,15 +362,16 @@
           "t.matchmode": "Match mode",
           "t.contains": "Contains selection",
           "t.exact": "Exact match",
+          "t.extramode": "Other scales (pentatonic, blues, whole tone, diminished)",
           "t.churchmode": "Church modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)",
-          "t.hint": "Contains mode shows any scale that includes all the notes you picked (extra notes allowed) — good for figuring out what you're already playing. Exact match only shows scales made of precisely those notes. Turn on church modes to also include the five modes beyond major/minor.",
+          "t.hint": "By default only major and the three basic minor scales (natural, harmonic, melodic) are shown. Turn on the toggles above to also search pentatonic/blues/whole-tone/diminished scales and the five church modes beyond major/minor.",
           "t.matches": "Matching scales",
           "t.selecthint": "Select notes on the keyboard to see matching scales.",
-          "t.nomatch": "No scale matches this exact combination. Try Contains mode, or turn on church modes.",
+          "t.nomatch": "No scale matches this exact combination. Try Contains mode, or turn on more scale types above.",
           "t.exactbadge": "exact",
           "t.more": "+{n} more — pick more notes to narrow it down.",
-          "t.scale.major": "Major (Ionian)",
-          "t.scale.natural_minor": "Natural minor (Aeolian)",
+          "t.scale.major": "Major",
+          "t.scale.natural_minor": "Natural minor",
           "t.scale.harmonic_minor": "Harmonic minor",
           "t.scale.melodic_minor": "Melodic minor (ascending)",
           "t.scale.major_pentatonic": "Major pentatonic",
@@ -364,15 +395,16 @@
           "t.matchmode": "検索モード",
           "t.contains": "選択音を含む",
           "t.exact": "完全一致",
+          "t.extramode": "その他のスケール（ペンタトニック・ブルース・全音・ディミニッシュ）",
           "t.churchmode": "チャーチモード（ドリアン・フリジアン・リディアン・ミクソリディアン・ロクリアン）",
-          "t.hint": "「選択音を含む」は、選んだ音をすべて含むスケールを表示します（余分な音があってもOK）。今弾いている音の正体を調べるのに便利です。「完全一致」は、選んだ音だけで構成されるスケールのみ表示します。チャーチモードをオンにすると、長調・短調以外の5つの旋法も候補に加わります。",
+          "t.hint": "初期状態では、長調と基本の短調3種（自然的・和声的・旋律的）だけを表示しています。上のトグルをオンにすると、ペンタトニック・ブルース・全音・ディミニッシュや、長調・短調以外の5つのチャーチモードも候補に加わります。",
           "t.matches": "候補のスケール",
           "t.selecthint": "鍵盤で音を選ぶと、候補のスケールがここに表示されます。",
-          "t.nomatch": "この組み合わせに完全一致するスケールはありません。「選択音を含む」モードを試すか、チャーチモードをオンにしてください。",
+          "t.nomatch": "この組み合わせに完全一致するスケールはありません。「選択音を含む」モードを試すか、上のトグルで他のスケール種類もオンにしてください。",
           "t.exactbadge": "完全一致",
           "t.more": "他 {n} 件 — 音を増やすと絞り込めます。",
-          "t.scale.major": "長調（アイオニアン）",
-          "t.scale.natural_minor": "自然短音階（エオリアン）",
+          "t.scale.major": "長調",
+          "t.scale.natural_minor": "自然的短音階",
           "t.scale.harmonic_minor": "和声的短音階",
           "t.scale.melodic_minor": "旋律的短音階（上行形）",
           "t.scale.major_pentatonic": "メジャーペンタトニック",
