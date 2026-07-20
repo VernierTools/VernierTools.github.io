@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Character counter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  :root{
+    /* 文字種チャート専用のカラー（テーマトークンから合成。ダークモードでも自動追従） */
+    --cc-space:    var(--text-3);
+    --cc-hiragana: var(--accent);
+    --cc-katakana: var(--pos);
+    --cc-kanji:    var(--neg);
+    --cc-alnum:    color-mix(in srgb, var(--accent) 50%, var(--pos) 50%);
+    --cc-symbol:   color-mix(in srgb, var(--accent) 50%, var(--neg) 50%);
+    --cc-emoji:    color-mix(in srgb, var(--pos) 50%, var(--neg) 50%);
+  }
+
+  .ta{ width:100%; min-height:260px; resize:vertical; padding:12px; font:inherit; font-size:14px;
+    line-height:1.6; color:var(--text); background:var(--surface); border:1px solid var(--border-strong);
+    border-radius:var(--r); transition:border-color var(--tap), box-shadow var(--tap); }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+
+  .togglerow{ display:flex; align-items:center; }
+  .togglerow .toggle{ font-size:13px; color:var(--text-2); }
+
+  .rrow__note{ font-size:11px; color:var(--text-3); padding:0 var(--s4) var(--s3); margin-top:-6px; line-height:1.45; }
+  .rblock + .rblock{ border-top:1px solid var(--border); }
+
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:0 var(--s4) var(--s3); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:32px; border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .piewrap{ display:flex; align-items:center; gap:var(--s5); flex-wrap:wrap; }
+  .piesvg{ width:150px; height:150px; flex:0 0 auto; }
+  .pie-center-n{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-weight:600; }
+  .typelist{ flex:1 1 200px; display:flex; flex-direction:column; gap:9px; min-width:180px; }
+  .typerow{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-2); }
+  .typerow .dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .typerow .nm{ flex:1; }
+  .typerow .ct{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; color:var(--text); font-size:12.5px; }
+  .typerow .pc{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; color:var(--text-3); font-size:11.5px; min-width:38px; text-align:right; }
+  .type-empty{ font-size:12.5px; color:var(--text-3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Character counter</h1>
+    <p data-i18n="t.desc">Paste text to see counts, byte size, character-type breakdown, reading time, and manuscript-paper pages.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.input" for="ta">Text</label>
+          <textarea id="ta" class="ta" data-i18n-ph="t.placeholder" placeholder="Paste or type text here…"></textarea>
+        </div>
+        <div class="field togglerow">
+          <label class="toggle">
+            <input type="checkbox" id="ex-space">
+            <span class="track"></span>
+            <span data-i18n="t.excludespace">Exclude spaces &amp; line breaks from the count</span>
+          </label>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-clear" data-i18n="t.clear">Clear</button>
+          <button class="btn btn--secondary" id="btn-sample" data-i18n="t.sample">Sample text</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="readout" style="margin-bottom:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+
+        <div class="rblock">
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" data-i18n="t.count">Characters</span>
+            <span class="rrow__value" id="ro-count" data-copy="">0</span>
+          </div>
+          <div class="rrow__note" data-i18n="t.countnote">Counts surrogate pairs (emoji, etc.) as one character each.</div>
+        </div>
+
+        <div class="rblock">
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.bytes">Byte size</span>
+            <span class="rrow__value" id="ro-bytes" data-copy="">0<span class="u">B</span></span>
+          </div>
+          <div class="seg" id="seg-enc" role="group">
+            <button data-enc="utf8" aria-pressed="true">UTF-8</button>
+            <button data-enc="utf16">UTF-16</button>
+            <button data-enc="sjis">Shift_JIS*</button>
+          </div>
+          <div class="rrow__note" data-i18n="t.bytenote" id="bytenote">Byte size always reflects the full text, regardless of the toggle above.</div>
+          <div class="rrow__note" id="sjisnote" data-i18n="t.sjisnote" hidden>Shift_JIS is approximate — rare characters can't be measured exactly.</div>
+        </div>
+
+        <div class="rblock">
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.time">Reading time</span>
+            <span class="rrow__value" id="ro-time" data-copy=""></span>
+          </div>
+          <div class="rrow__note" data-i18n="t.timenote">Estimated at 400 characters per minute.</div>
+        </div>
+
+        <div class="rblock">
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.genko">Manuscript paper</span>
+            <span class="rrow__value" id="ro-genko" data-copy=""></span>
+          </div>
+          <div class="rrow__note" data-i18n="t.genkonote">400 characters per sheet (20×20).</div>
+        </div>
+
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.typetitle">Character types</div>
+        <div class="piewrap">
+          <svg class="piesvg" viewBox="0 0 160 160" id="pie" role="img" aria-label="Character type breakdown">
+            <g id="pie-arcs" transform="rotate(-90 80 80)"></g>
+            <circle cx="80" cy="80" r="40" fill="var(--surface)"></circle>
+            <text x="80" y="76" text-anchor="middle" class="pie-center-n" id="pie-center" font-size="20" fill="var(--text)">0</text>
+            <text x="80" y="94" text-anchor="middle" font-size="10" fill="var(--text-3)" data-i18n="t.count">Characters</text>
+          </svg>
+          <div class="typelist" id="typelist"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ta = $("ta"), exSpace = $("ex-space");
+  var roCount = $("ro-count"), roBytes = $("ro-bytes"), roTime = $("ro-time"), roGenko = $("ro-genko");
+  var segEnc = $("seg-enc"), sjisNote = $("sjisnote");
+  var pieArcs = $("pie-arcs"), pieCenter = $("pie-center"), typelist = $("typelist");
+
+  var enc = "utf8";      // utf8 | utf16 | sjis
+  var READ_SPEED = 400;  // 文字/分の目安
+  var SHEET_SIZE = 400;  // 原稿用紙1枚あたりの文字数（20×20）
+
+  var CATS = ["space", "hiragana", "katakana", "kanji", "alnum", "symbol", "emoji"];
+  var CAT_COLOR = {
+    space: "var(--cc-space)", hiragana: "var(--cc-hiragana)", katakana: "var(--cc-katakana)",
+    kanji: "var(--cc-kanji)", alnum: "var(--cc-alnum)", symbol: "var(--cc-symbol)", emoji: "var(--cc-emoji)"
+  };
+
+  var RE_SPACE   = /[\u0020\u3000\t\n\r]/;
+  var RE_HIRA    = /[\u3040-\u309F]/;
+  var RE_KATA    = /[\u30A0-\u30FF\uFF66-\uFF9F]/;
+  var RE_KANJI   = /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/;
+  var RE_ALNUM   = /[A-Za-z0-9\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/;
+
+  function classify(ch, cp) {
+    if (cp > 0xFFFF) return "emoji";
+    if (RE_SPACE.test(ch)) return "space";
+    if (RE_HIRA.test(ch)) return "hiragana";
+    if (RE_KATA.test(ch)) return "katakana";
+    if (RE_KANJI.test(ch)) return "kanji";
+    if (RE_ALNUM.test(ch)) return "alnum";
+    return "symbol";
+  }
+
+  function analyze(text) {
+    var cps = Array.from(text);
+    var counts = { space: 0, hiragana: 0, katakana: 0, kanji: 0, alnum: 0, symbol: 0, emoji: 0 };
+    for (var i = 0; i < cps.length; i++) {
+      var ch = cps[i];
+      counts[classify(ch, ch.codePointAt(0))]++;
+    }
+    return { total: cps.length, counts: counts };
+  }
+
+  function utf8Bytes(text) { return new TextEncoder().encode(text).length; }
+  function utf16Bytes(text) { return text.length * 2; }
+  function sjisApproxBytes(text) {
+    var cps = Array.from(text), bytes = 0;
+    for (var i = 0; i < cps.length; i++) {
+      var cp = cps[i].codePointAt(0);
+      if (cp <= 0x7F) bytes += 1;
+      else if (cp >= 0xFF61 && cp <= 0xFF9F) bytes += 1; // 半角カナ
+      else bytes += 2; // 概算（絵文字等は本来非対応のため厳密ではない）
+    }
+    return bytes;
+  }
+
+  function fmtInt(n) { return n.toLocaleString(Shell.lang === "ja" ? "ja-JP" : "en-US"); }
+
+  function fmtTime(effCount) {
+    var ja = Shell.lang === "ja";
+    if (effCount <= 0) return ja ? "0秒" : "0s";
+    var totalSec = Math.max(1, Math.round(effCount / READ_SPEED * 60));
+    var m = Math.floor(totalSec / 60), s = totalSec % 60;
+    if (m <= 0) return s + (ja ? "秒" : "s");
+    if (s === 0) return m + (ja ? "分" : "m");
+    return m + (ja ? "分" : "m") + s + (ja ? "秒" : "s");
+  }
+
+  function fmtGenko(effCount) {
+    var ja = Shell.lang === "ja";
+    var sheets = effCount / SHEET_SIZE;
+    var unit = ja ? "枚" : " pages";
+    var main = (Math.round(sheets * 10) / 10) + unit;
+    if (effCount > 0 && Math.ceil(sheets) !== sheets && sheets % 1 !== 0) {
+      var need = Math.ceil(sheets);
+      main += ja ? "（" + need + "枚必要）" : " (" + need + " needed)";
+    }
+    return effCount > 0 ? main : (0 + unit);
+  }
+
+  function setVal(el, text) { el.textContent = text; el.setAttribute("data-copy", text.replace(/\s/g, "")); }
+
+  function render() {
+    var text = ta.value;
+    var a = analyze(text);
+    var excl = exSpace.checked;
+    var effCount = excl ? a.total - a.counts.space : a.total;
+
+    setVal(roCount, fmtInt(effCount));
+
+    var bytesFn = enc === "utf8" ? utf8Bytes : enc === "utf16" ? utf16Bytes : sjisApproxBytes;
+    var bytes = bytesFn(text);
+    roBytes.innerHTML = fmtInt(bytes) + '<span class="u">B</span>';
+    roBytes.setAttribute("data-copy", String(bytes));
+    if (sjisNote) sjisNote.hidden = enc !== "sjis";
+
+    setVal(roTime, fmtTime(effCount));
+    setVal(roGenko, fmtGenko(effCount));
+
+    // 文字種チャート
+    renderPie(a);
+  }
+
+  // ---- 円グラフ（ドーナツ）: circle の stroke-dasharray で描画 ----
+  var R = 52, CIRC = 2 * Math.PI * R;
+  function renderPie(a) {
+    var total = a.total;
+    pieArcs.innerHTML = "";
+    typelist.innerHTML = "";
+
+    if (total === 0) {
+      var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", 80); c.setAttribute("cy", 80); c.setAttribute("r", R);
+      c.setAttribute("fill", "none"); c.setAttribute("stroke", "var(--border)"); c.setAttribute("stroke-width", 24);
+      pieArcs.appendChild(c);
+      pieCenter.textContent = "0";
+      var empty = document.createElement("div");
+      empty.className = "type-empty";
+      empty.setAttribute("data-i18n", "t.empty");
+      empty.textContent = Shell.t("t.empty");
+      typelist.appendChild(empty);
+      return;
+    }
+
+    pieCenter.textContent = fmtInt(total);
+    var offset = 0;
+    CATS.forEach(function (key) {
+      var n = a.counts[key];
+      if (n <= 0) return;
+      var frac = n / total;
+      var len = frac * CIRC;
+      var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", 80); circle.setAttribute("cy", 80); circle.setAttribute("r", R);
+      circle.setAttribute("fill", "none");
+      circle.setAttribute("stroke", CAT_COLOR[key]);
+      circle.setAttribute("stroke-width", 24);
+      circle.setAttribute("stroke-dasharray", len.toFixed(2) + " " + (CIRC - len).toFixed(2));
+      circle.setAttribute("stroke-dashoffset", (-offset).toFixed(2));
+      pieArcs.appendChild(circle);
+      offset += len;
+
+      var row = document.createElement("div");
+      row.className = "typerow";
+      var pct = Math.round(frac * 1000) / 10;
+      row.innerHTML =
+        '<span class="dot" style="background:' + CAT_COLOR[key] + '"></span>' +
+        '<span class="nm">' + Shell.t("t.cat." + key) + '</span>' +
+        '<span class="ct">' + fmtInt(n) + '</span>' +
+        '<span class="pc">' + (pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)) + '%</span>';
+      typelist.appendChild(row);
+    });
+  }
+
+  ta.addEventListener("input", render);
+  exSpace.addEventListener("change", render);
+  segEnc.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    enc = b.getAttribute("data-enc");
+    segEnc.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    render();
+  });
+  $("btn-clear").addEventListener("click", function () { ta.value = ""; render(); ta.focus(); });
+  $("btn-sample").addEventListener("click", function () {
+    ta.value = "吾輩は猫である。名前はまだ無い。🐱 Where he was born, なんでも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。123 ABC!";
+    render();
+  });
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "char-counter",
+      strings: {
+        en: {
+          "t.title": "Character counter",
+          "t.desc": "Paste text to see counts, byte size, character-type breakdown, reading time, and manuscript-paper pages.",
+          "t.input": "Text", "t.placeholder": "Paste or type text here…",
+          "t.excludespace": "Exclude spaces & line breaks from the count",
+          "t.clear": "Clear", "t.sample": "Sample text",
+          "t.output": "Output",
+          "t.count": "Characters", "t.countnote": "Counts surrogate pairs (emoji, etc.) as one character each.",
+          "t.bytes": "Byte size", "t.bytenote": "Byte size always reflects the full text, regardless of the toggle above.",
+          "t.sjisnote": "Shift_JIS is approximate — rare characters (many emoji, uncommon kanji) can't be measured exactly.",
+          "t.time": "Reading time", "t.timenote": "Estimated at 400 characters per minute.",
+          "t.genko": "Manuscript paper", "t.genkonote": "400 characters per sheet (20×20).",
+          "t.copyhint": "Click any value to copy.",
+          "t.typetitle": "Character types", "t.empty": "Nothing typed yet",
+          "t.cat.space": "Spaces & line breaks", "t.cat.hiragana": "Hiragana", "t.cat.katakana": "Katakana",
+          "t.cat.kanji": "Kanji", "t.cat.alnum": "Alphanumeric", "t.cat.symbol": "Symbols & punctuation",
+          "t.cat.emoji": "Emoji & other"
+        },
+        ja: {
+          "t.title": "文字数・文字種カウンター",
+          "t.desc": "文章を貼ると、文字数・バイト数・文字種の割合・読了時間・原稿用紙換算をまとめて表示します。",
+          "t.input": "テキスト", "t.placeholder": "ここに文章を貼り付け、または入力してください…",
+          "t.excludespace": "空白・改行をカウントから除外",
+          "t.clear": "クリア", "t.sample": "サンプル文章",
+          "t.output": "出力",
+          "t.count": "文字数", "t.countnote": "サロゲートペア（絵文字など）も1文字として正確にカウントします。",
+          "t.bytes": "バイト数", "t.bytenote": "バイト数は上の除外設定に関わらず、常に全文を対象にした値です。",
+          "t.sjisnote": "Shift_JISは近似値です。一部の絵文字や環境依存文字などは正確に測定できません。",
+          "t.time": "読了時間の目安", "t.timenote": "1分あたり400文字として概算しています。",
+          "t.genko": "原稿用紙換算", "t.genkonote": "1枚 400字（20字×20行）換算。",
+          "t.copyhint": "数値をクリックでコピー。",
+          "t.typetitle": "文字種の内訳", "t.empty": "まだ入力がありません",
+          "t.cat.space": "空白・改行", "t.cat.hiragana": "ひらがな", "t.cat.katakana": "カタカナ",
+          "t.cat.kanji": "漢字", "t.cat.alnum": "英数字", "t.cat.symbol": "記号・句読点",
+          "t.cat.emoji": "絵文字・その他"
+        }
+      },
+      onSettingsChange: render
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
