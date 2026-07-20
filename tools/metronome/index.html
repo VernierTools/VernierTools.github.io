@@ -110,7 +110,7 @@
 
   /* ---------- トランスポート／プレビュー ---------- */
   .noticebar{ display:flex; align-items:center; gap:10px; background:var(--accent-tint); border:1px solid var(--accent);
-    border-radius:var(--r); padding:10px 12px; margin-bottom:var(--s4); font-size:12.5px; color:var(--text); line-height:1.4; }
+    border-radius:var(--r); padding:10px 12px; font-size:12.5px; color:var(--text); line-height:1.4; }
   .noticebar svg{ width:18px; height:18px; flex:0 0 auto; color:var(--accent); }
   .noticebar span{ flex:1; }
   .noticebar button{ appearance:none; border:none; background:transparent; color:var(--text-3); cursor:pointer;
@@ -122,20 +122,18 @@
     grid-template-columns:1fr .9fr;
     grid-template-areas:
       "tempo transport"
-      "rest  readout";
+      "rest  transport";
   }
   .mtr-col-tempo{ grid-area:tempo; }
-  .mtr-col-transport{ grid-area:transport; }
+  .mtr-col-transport{ grid-area:transport; display:flex; flex-direction:column; gap:var(--s4); }
   .mtr-col-rest{ grid-area:rest; }
-  .mtr-col-readout{ grid-area:readout; }
   @media (max-width:760px){
-    /* モバイル: テンポ → 再生/出力 → 出力読み取り → 残りの設定、の順に並べ替える */
+    /* モバイル: テンポ → 再生/出力 → 残りの設定、の順に並べ替える */
     #mtrWork{
       grid-template-columns:1fr;
       grid-template-areas:
         "tempo"
         "transport"
-        "readout"
         "rest";
     }
   }
@@ -154,8 +152,8 @@
   /* ---------- 全画面フラッシュ ---------- */
   .fsflash{ position:fixed; inset:0; z-index:100; background:#000;
     display:flex; flex-direction:column; overflow:hidden;
-    /* iOS: URLバー等を避けて確実に全面を覆う */
-    height:100vh; height:100dvh; width:100vw;
+    /* inset:0 だけで全面を覆う。height:100vh/100dvh を併記すると
+       iOSでのフルスクリーン状態遷移時の再計算タイミングとズレて隙間が出ることがあるため使わない */
     padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
   /* 画面全体が発光面。既定はほぼ暗く、拍で --fs-color に光る */
   .fsflash__stage{ position:absolute; inset:0; background:var(--fs-color, #5457E5);
@@ -276,6 +274,17 @@
           <span data-i18n="t.flashmode">Flash mode</span>
         </button>
       </div>
+      <div class="readout" data-acc="0">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live" id="liveind"><span class="dot"></span><span data-i18n="t.stopped">Stopped</span></span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.tempo">Tempo</span>
+          <span class="rrow__value" id="ro-bpm" data-copy="">120<span class="u">BPM</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.timesig">Time signature</span>
+          <span class="rrow__value" id="ro-ts" style="font-size:17px" data-copy="">4/4</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.elapsed">Elapsed</span>
+          <span class="rrow__value" id="ro-elapsed" style="font-size:17px" data-copy="">00:00</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
     </div>
 
     <!-- ============ 残りの設定カード ============ -->
@@ -395,21 +404,6 @@
             <button class="btn btn--secondary" id="copyLink" data-i18n="t.copylink">Copy link</button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- ============ 出力の読み取り表示 ============ -->
-    <div class="mtr-col-readout">
-      <div class="readout" data-acc="0">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
-          <span class="live" id="liveind"><span class="dot"></span><span data-i18n="t.stopped">Stopped</span></span></div>
-        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.tempo">Tempo</span>
-          <span class="rrow__value" id="ro-bpm" data-copy="">120<span class="u">BPM</span></span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.timesig">Time signature</span>
-          <span class="rrow__value" id="ro-ts" style="font-size:17px" data-copy="">4/4</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.elapsed">Elapsed</span>
-          <span class="rrow__value" id="ro-elapsed" style="font-size:17px" data-copy="">00:00</span></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
     </div>
   </div>
@@ -791,11 +785,15 @@
   function enterFlash(){
     $("fsflash").hidden = false;
     document.body.style.overflow = "hidden";
-    // iOS Safari は要素のfullscreen APIが不安定なので、fixedオーバーレイ主体。
-    // 対応環境ではネイティブ全画面も併用（URLバー除去のため）。
-    var el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen().catch(function(){});
-    else if (el.webkitRequestFullscreen) try { el.webkitRequestFullscreen(); } catch(e){}
+    // iOSはネイティブ全画面を使わない: (1)フルスクリーン中にinput要素を操作すると
+    // 「フルスクリーンでタイプ入力しているようです」という無効化不可能な警告が出る、
+    // (2)input要素へのフォーカスでネイティブ全画面から強制的に抜ける既知の癖がある。
+    // どちらもこのバーの明るさスライダー等の操作で発生するため、fixedオーバーレイのみで代替する。
+    if (!looksLikeIOS()){
+      var el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(function(){});
+      else if (el.webkitRequestFullscreen) try { el.webkitRequestFullscreen(); } catch(e){}
+    }
     requestWakeLock();
     syncFsUI();
   }
