@@ -7,7 +7,7 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
-  /* ---- segmented controls (見本 Clock ツールと同一パターン) ---- */
+  /* ---- segmented controls ---- */
   .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .seg--2{ grid-template-columns:repeat(2,1fr); }
   .seg--4{ grid-template-columns:repeat(4,1fr); }
@@ -21,41 +21,47 @@
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
   .minilabel{ font-size:11px; color:var(--text-3); margin-bottom:4px; }
 
-  /* ---- file drop ---- */
-  .drop{ padding:var(--s5) var(--s4); }
-  .drop svg{ width:22px; height:22px; }
+  /* ---- top card: file + settings, full width ---- */
+  .toolrow{ display:flex; gap:var(--s5); flex-wrap:wrap; align-items:flex-start; }
+  .toolrow__file{ flex:0 0 auto; width:260px; max-width:100%; }
+  .drop{ padding:var(--s3) var(--s4); }
+  .drop svg{ width:20px; height:20px; }
+  .toolrow__info{ display:flex; flex-direction:column; gap:5px; justify-content:center; min-height:74px; }
+  .fi-name{ font-size:14px; font-weight:600; color:var(--text); max-width:44ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fi-meta{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .fi-meta .dot{ margin:0 6px; color:var(--text-3); }
   .fileerr{ margin-top:var(--s3); }
+
+  .ctrlgrid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--s4); margin-top:var(--s5); }
+  .field--wide{ grid-column:span 2; }
+  @media (max-width:520px){ .field--wide{ grid-column:span 1; } }
 
   /* ---- spectrogram card ---- */
   .specCard{ padding:var(--s4); }
-  .spec-toolbar{ display:flex; align-items:center; gap:var(--s2); margin-bottom:var(--s3); }
-  .spec-toolbar-sp{ flex:1; }
-  .spec-zoomInfo{ font-family:var(--font-mono); font-size:12px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .spec-toolbar{ display:flex; align-items:center; gap:var(--s2) var(--s3); margin-bottom:var(--s3); flex-wrap:wrap; }
+  .spec-toolbar-sp{ flex:1 1 auto; min-width:8px; }
+  .spec-zoomInfo{ font-family:var(--font-mono); font-size:12px; color:var(--text-2); font-variant-numeric:tabular-nums; white-space:nowrap; }
   #zoom-reset{ height:30px; padding:0 12px; font-size:12.5px; }
   #processing-badge{ font-family:var(--font-mono); }
 
   .spec-body{ display:grid; grid-template-columns:44px 1fr 64px; gap:var(--s2); }
-  #canvas-wrap{ position:relative; height:380px; border-radius:var(--r); overflow:hidden;
-    background:var(--surface-2); border:1px solid var(--border); cursor:crosshair; }
+  #canvas-wrap{ position:relative; height:420px; border-radius:var(--r); overflow:hidden;
+    background:var(--surface-2); border:1px solid var(--border); cursor:default; overscroll-behavior:contain; }
   #spec-canvas{ display:block; width:100%; height:100%; touch-action:none; }
   .spec-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); pointer-events:none; }
-  .spec-selection{ position:absolute; top:0; bottom:0; pointer-events:none;
-    background:color-mix(in srgb, var(--accent) 16%, transparent);
-    border-left:1px solid var(--accent); border-right:1px solid var(--accent); }
 
-  .spec-freqaxis{ position:relative; }
-  .axis-label--freq{ position:absolute; right:2px; transform:translateY(-50%);
+  .spec-freqaxis{ position:relative; overflow:hidden; }
+  .axis-label--freq{ position:absolute; right:2px; left:0; text-align:right;
     font-family:var(--font-mono); font-size:10px; color:var(--text-3); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
   .spec-colorbar{ display:flex; gap:6px; }
   .spec-colorbar__grad{ width:14px; border-radius:4px; border:1px solid var(--border); }
-  .spec-colorbar__labels{ display:flex; flex-direction:column; justify-content:space-between;
+  .spec-colorbar__labels{ display:flex; flex-direction:column; justify-content:space-between; padding:1px 0;
     font-family:var(--font-mono); font-size:10px; color:var(--text-3); white-space:nowrap; }
 
-  .spec-timeaxis{ position:relative; height:18px; margin-top:6px; }
-  .axis-label--time{ position:absolute; top:0; transform:translateX(-50%);
-    font-family:var(--font-mono); font-size:10px; color:var(--text-3); }
+  .spec-timeaxis{ position:relative; height:18px; margin-top:6px; overflow:hidden; }
+  .axis-label--time{ position:absolute; top:0; font-family:var(--font-mono); font-size:10px; color:var(--text-3); white-space:nowrap; }
 
   .spec-readoutline{ margin-top:var(--s3); font-family:var(--font-mono); font-size:12.5px;
     color:var(--text-2); font-variant-numeric:tabular-nums; min-height:1.4em; }
@@ -63,11 +69,10 @@
   /* ---- stereo readout ---- */
   .corrstrip-wrap{ padding:0 var(--s4); }
   #corr-canvas{ display:block; width:100%; height:64px; }
-  .rrow__value .val{ }
 
   @media (max-width:760px){
     .spec-body{ grid-template-columns:30px 1fr 50px; }
-    #canvas-wrap{ height:260px; }
+    #canvas-wrap{ height:280px; }
   }
 </style>
 </head>
@@ -76,143 +81,133 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
     <h1 data-i18n="t.title">Spectrum & stereo</h1>
-    <p data-i18n="t.desc">See the whole-file spectrogram, switch between L/R and Mid/Side, and check phase correlation.</p>
+    <p data-i18n="t.desc">See the whole-file spectrogram, switch between L/R, L+R and Side, and check phase correlation.</p>
   </div>
 
-  <div class="work">
-    <!-- 左: 入力・設定 -->
-    <div>
-      <div class="card">
-        <div class="card__title" data-i18n="t.file">File</div>
+  <div class="card">
+    <div class="toolrow">
+      <div class="toolrow__file">
         <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop an audio file">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 9l5-6 5 6"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
           <div><b data-i18n="t.dropTitle">Drop an audio file here</b></div>
-          <small data-i18n="t.dropHint">or click to choose — processed locally, never uploaded</small>
+          <small data-i18n="t.dropHint">or click to choose — processed locally</small>
         </div>
         <input type="file" id="file-input" accept="audio/*" hidden aria-hidden="true">
-        <div class="badge badge--neg fileerr" id="file-error" hidden><span class="d"></span><span id="file-error-text"></span></div>
+      </div>
+      <div class="toolrow__info" id="file-info" hidden>
+        <div class="fi-name" id="fi-name">—</div>
+        <div class="fi-meta">
+          <span id="fi-duration">—</span><span class="dot">·</span><span id="fi-samplerate">—</span><span data-i18n="t.hz">Hz</span><span class="dot">·</span><span id="fi-channels">—</span><span data-i18n="t.ch">ch</span>
+        </div>
+        <button class="btn btn--ghost" id="change-file" style="align-self:flex-start;height:28px;padding:0 10px;font-size:12px;" data-i18n="t.changefile">Change file</button>
+      </div>
+    </div>
+    <div class="badge badge--neg fileerr" id="file-error" hidden><span class="d"></span><span id="file-error-text"></span></div>
+
+    <div class="ctrlgrid">
+      <div class="field field--wide">
+        <label class="label" data-i18n="t.channel">Channel</label>
+        <div class="seg seg--4" id="seg-channel" role="group">
+          <button data-ch="left"  data-i18n="t.left">L</button>
+          <button data-ch="right" data-i18n="t.right">R</button>
+          <button data-ch="mid"   data-i18n="t.mid">L+R</button>
+          <button data-ch="side"  data-i18n="t.side">Side</button>
+        </div>
       </div>
 
-      <div class="readout" id="file-readout" hidden>
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.fileinfo">Loaded file</span>
-          <button class="btn btn--ghost" id="change-file" data-i18n="t.changefile" style="height:26px;padding:0 10px;font-size:12px;">Change file</button></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.name">Name</span><span class="rrow__value" id="fi-name" style="font-size:13px;font-weight:500;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.duration">Duration</span><span class="rrow__value" id="fi-duration">—</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.samplerate">Sample rate</span><span class="rrow__value" id="fi-samplerate">—<span class="u">Hz</span></span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.channels">Channels</span><span class="rrow__value" id="fi-channels">—</span></div>
+      <div class="field">
+        <label class="label" data-i18n="t.freqscale">Frequency scale</label>
+        <div class="seg seg--2" id="seg-freqscale" role="group">
+          <button data-scale="log"    data-i18n="t.log">Log</button>
+          <button data-scale="linear" data-i18n="t.linear">Linear</button>
+        </div>
       </div>
 
-      <div class="card">
-        <div class="card__title" data-i18n="t.display">Display</div>
+      <div class="field">
+        <label class="label" data-i18n="t.fftsize">FFT size</label>
+        <select class="select" id="fft-select">
+          <option value="512">512</option>
+          <option value="1024">1024</option>
+          <option value="2048" selected>2048</option>
+          <option value="4096">4096</option>
+          <option value="8192">8192</option>
+        </select>
+      </div>
 
-        <div class="field">
-          <label class="label" data-i18n="t.channel">Channel</label>
-          <div class="seg seg--4" id="seg-channel" role="group">
-            <button data-ch="left"  data-i18n="t.left">L</button>
-            <button data-ch="right" data-i18n="t.right">R</button>
-            <button data-ch="mid"   data-i18n="t.mid">Mid</button>
-            <button data-ch="side"  data-i18n="t.side">Side</button>
+      <div class="field">
+        <label class="label" data-i18n="t.dbrange">Level range (dB)</label>
+        <div class="row2">
+          <div>
+            <div class="minilabel" data-i18n="t.ceil">Ceiling</div>
+            <input class="input" type="number" id="db-ceil" value="0" step="1" min="-40" max="12">
+          </div>
+          <div>
+            <div class="minilabel" data-i18n="t.floor">Floor</div>
+            <input class="input" type="number" id="db-floor" value="-90" step="1" min="-140" max="-10">
           </div>
         </div>
+      </div>
 
-        <div class="field">
-          <label class="label" data-i18n="t.freqscale">Frequency scale</label>
-          <div class="seg seg--2" id="seg-freqscale" role="group">
-            <button data-scale="log"    data-i18n="t.log">Log</button>
-            <button data-scale="linear" data-i18n="t.linear">Linear</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="label" data-i18n="t.fftsize">FFT size</label>
-          <select class="select" id="fft-select">
-            <option value="512">512</option>
-            <option value="1024">1024</option>
-            <option value="2048" selected>2048</option>
-            <option value="4096">4096</option>
-            <option value="8192">8192</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="label" data-i18n="t.dbrange">Level range (dB)</label>
-          <div class="row2">
-            <div>
-              <div class="minilabel" data-i18n="t.ceil">Ceiling</div>
-              <input class="input" type="number" id="db-ceil" value="0" step="1" min="-40" max="12">
-            </div>
-            <div>
-              <div class="minilabel" data-i18n="t.floor">Floor</div>
-              <input class="input" type="number" id="db-floor" value="-90" step="1" min="-140" max="-10">
-            </div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="label" data-i18n="t.colormap">Color map</label>
-          <div class="seg" id="seg-colormap" role="group">
-            <button data-cm="vernier" aria-pressed="true" data-i18n="t.cm_vernier">Vernier</button>
-            <button data-cm="thermal" data-i18n="t.cm_thermal">Thermal</button>
-            <button data-cm="gray"    data-i18n="t.cm_gray">Grayscale</button>
-          </div>
+      <div class="field">
+        <label class="label" data-i18n="t.colormap">Color map</label>
+        <div class="seg" id="seg-colormap" role="group">
+          <button data-cm="vernier" aria-pressed="true" data-i18n="t.cm_vernier">Vernier</button>
+          <button data-cm="thermal" data-i18n="t.cm_thermal">Thermal</button>
+          <button data-cm="gray"    data-i18n="t.cm_gray">Grayscale</button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- 右: スペクトログラム・ステレオ出力 -->
-    <div>
-      <div class="card specCard">
-        <div class="spec-toolbar">
-          <span class="eyebrow" data-i18n="t.spectrogram">Spectrogram</span>
-          <div class="spec-toolbar-sp"></div>
-          <span class="badge badge--muted" id="processing-badge" hidden><span class="d"></span><span id="processing-text">0%</span></span>
-          <span class="spec-zoomInfo" id="zoom-info" data-i18n="t.zoomFull">Full file</span>
-          <button class="btn btn--secondary" id="zoom-reset" disabled data-i18n="t.resetZoom">Reset zoom</button>
-        </div>
+  <div class="card specCard">
+    <div class="spec-toolbar">
+      <span class="eyebrow" data-i18n="t.spectrogram">Spectrogram</span>
+      <div class="spec-toolbar-sp"></div>
+      <span class="badge badge--muted" id="processing-badge" hidden><span class="d"></span><span id="processing-text">0%</span></span>
+      <span class="spec-zoomInfo" id="zoom-info" data-i18n="t.zoomFull">Full file</span>
+      <button class="btn btn--secondary" id="zoom-reset" disabled data-i18n="t.resetZoom">Reset zoom</button>
+    </div>
 
-        <div class="spec-body">
-          <div class="spec-freqaxis" id="freq-axis"></div>
-          <div id="canvas-wrap">
-            <canvas id="spec-canvas" aria-label="Spectrogram of the loaded audio file"></canvas>
-            <div class="spec-selection" id="spec-selection" hidden></div>
-            <div class="spec-placeholder" id="spec-placeholder" data-i18n="t.placeholder">Load an audio file to see its spectrogram here.</div>
-          </div>
-          <div class="spec-colorbar">
-            <div class="spec-colorbar__grad" id="colorbar-grad"></div>
-            <div class="spec-colorbar__labels">
-              <span id="cb-ceil">0 dB</span>
-              <span id="cb-floor">-90 dB</span>
-            </div>
-          </div>
-        </div>
-        <div class="spec-timeaxis" id="time-axis"></div>
-        <div class="spec-readoutline" id="hover-readout" data-i18n="t.hoverHint">Hover over the spectrogram to inspect values. Drag to zoom in on a time range.</div>
+    <div class="spec-body">
+      <div class="spec-freqaxis" id="freq-axis"></div>
+      <div id="canvas-wrap">
+        <canvas id="spec-canvas" aria-label="Spectrogram of the loaded audio file"></canvas>
+        <div class="spec-placeholder" id="spec-placeholder" data-i18n="t.placeholder">Load an audio file to see its spectrogram here.</div>
       </div>
-
-      <div class="readout" style="margin-top:var(--s4);" id="stereo-readout">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.stereo">Stereo</span></div>
-        <div id="stereo-body">
-          <div class="rrow rrow--hero">
-            <span class="rrow__label" data-i18n="t.correlation">Phase correlation</span>
-            <span class="rrow__value" id="ro-corr" data-copy=""><span class="val">—</span></span>
-          </div>
-          <div class="rrow">
-            <span class="rrow__label" data-i18n="t.width">Stereo width</span>
-            <span class="rrow__value" id="ro-width" data-copy=""><span class="val">—</span><span class="u">%</span></span>
-          </div>
-          <div class="rrow">
-            <span class="rrow__label" data-i18n="t.mincorr">Minimum correlation</span>
-            <span class="rrow__value" id="ro-mincorr" data-copy=""><span class="val">—</span></span>
-          </div>
-          <div class="corrstrip-wrap">
-            <canvas id="corr-canvas" aria-label="Phase correlation over time"></canvas>
-          </div>
-          <div class="hint" style="padding:0 var(--s4) var(--s3);" data-i18n="t.corrhint">-1 = out of phase · 0 = wide stereo · +1 = mono-like</div>
+      <div class="spec-colorbar">
+        <div class="spec-colorbar__grad" id="colorbar-grad"></div>
+        <div class="spec-colorbar__labels">
+          <span id="cb-ceil">0 dB</span>
+          <span id="cb-floor">-90 dB</span>
         </div>
-        <div class="acc-note" id="mono-note" style="padding:var(--s3) var(--s4) 0;" data-i18n="t.mononote" hidden>This file is mono — stereo analysis is unavailable.</div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
     </div>
+    <div class="spec-timeaxis" id="time-axis"></div>
+    <div class="spec-readoutline" id="hover-readout" data-i18n="t.hoverHint">Scroll to pan, Ctrl/Cmd + scroll to zoom. Hover to read values.</div>
+  </div>
+
+  <div class="readout" style="margin-top:var(--s4);" id="stereo-readout">
+    <div class="readout__head"><span class="eyebrow" data-i18n="t.stereo">Stereo</span></div>
+    <div id="stereo-body">
+      <div class="rrow rrow--hero">
+        <span class="rrow__label" data-i18n="t.correlation">Phase correlation</span>
+        <span class="rrow__value" id="ro-corr" data-copy=""><span class="val">—</span></span>
+      </div>
+      <div class="rrow">
+        <span class="rrow__label" data-i18n="t.width">Stereo width</span>
+        <span class="rrow__value" id="ro-width" data-copy=""><span class="val">—</span><span class="u">%</span></span>
+      </div>
+      <div class="rrow">
+        <span class="rrow__label" data-i18n="t.mincorr">Minimum correlation</span>
+        <span class="rrow__value" id="ro-mincorr" data-copy=""><span class="val">—</span></span>
+      </div>
+      <div class="corrstrip-wrap">
+        <canvas id="corr-canvas" aria-label="Phase correlation over time"></canvas>
+      </div>
+      <div class="hint" style="padding:0 var(--s4) var(--s3);" data-i18n="t.corrhint">-1 = out of phase · 0 = wide stereo · +1 = mono-like</div>
+    </div>
+    <div class="acc-note" id="mono-note" style="padding:var(--s3) var(--s4) 0;" data-i18n="t.mononote" hidden>This file is mono — stereo analysis is unavailable.</div>
+    <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
   </div>
 </main>
 
@@ -234,7 +229,6 @@
     stereoMetrics: null
   };
   var computeGen = 0;
-  var dragState = null;
 
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -243,14 +237,14 @@
 
   var els = {
     dropzone: $("dropzone"), fileInput: $("file-input"), fileError: $("file-error"), fileErrorText: $("file-error-text"),
-    fileReadout: $("file-readout"), changeFile: $("change-file"),
+    fileInfo: $("file-info"), changeFile: $("change-file"),
     fiName: $("fi-name"), fiDuration: $("fi-duration"), fiSamplerate: $("fi-samplerate"), fiChannels: $("fi-channels"),
     segChannel: $("seg-channel"), segFreqScale: $("seg-freqscale"), segColormap: $("seg-colormap"),
     fftSelect: $("fft-select"), dbCeil: $("db-ceil"), dbFloor: $("db-floor"),
     zoomInfo: $("zoom-info"), zoomReset: $("zoom-reset"),
     processingBadge: $("processing-badge"), processingText: $("processing-text"),
     freqAxis: $("freq-axis"), timeAxis: $("time-axis"),
-    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), selection: $("spec-selection"), placeholder: $("spec-placeholder"),
+    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), placeholder: $("spec-placeholder"),
     colorbarGrad: $("colorbar-grad"), cbCeil: $("cb-ceil"), cbFloor: $("cb-floor"),
     hoverReadout: $("hover-readout"),
     stereoBody: $("stereo-body"), monoNote: $("mono-note"),
@@ -334,7 +328,7 @@
   }
 
   /* =====================================================================
-     channel data
+     channel data  (L / R / L+R(“mid”) / Side)
      ===================================================================== */
   function getChannelSamples(mode) {
     if (mode === "right" && state.bufferR) return state.bufferR;
@@ -408,7 +402,7 @@
   function sizeSpecCanvas() {
     var rect = els.canvasWrap.getBoundingClientRect();
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var maxW = 1400, maxH = 640;
+    var maxW = 1600, maxH = 720;
     var w = Math.max(1, Math.min(Math.round(rect.width * dpr), maxW));
     var h = Math.max(1, Math.min(Math.round(rect.height * dpr), maxH));
     els.specCanvas.width = w; els.specCanvas.height = h;
@@ -483,10 +477,13 @@
     return Math.round(hz) + " Hz";
   }
 
+  /* ---- axis labels: edge-anchored so they never overflow their box
+          (fixes labels overlapping neighbouring corners at 0Hz/Nyquist and start/end of time) ---- */
   function renderFreqAxis() {
     var sd = state.spectroData; if (!sd) return;
     var nyquist = sd.sampleRate / 2;
     var H = els.canvasWrap.getBoundingClientRect().height;
+    var edge = 7;
     els.freqAxis.innerHTML = "";
     var ticks = state.freqScale === "log"
       ? FREQ_LOG_TICKS.filter(function (f) { return f >= MIN_FREQ && f <= nyquist; })
@@ -495,7 +492,9 @@
       var top = freqToFrac(f, state.freqScale, nyquist) * H;
       var span = document.createElement("span");
       span.className = "axis-label--freq";
-      span.style.top = top + "px";
+      if (top <= edge) { span.style.top = "0px"; span.style.transform = "translateY(0)"; }
+      else if (top >= H - edge) { span.style.top = H + "px"; span.style.transform = "translateY(-100%)"; }
+      else { span.style.top = top + "px"; span.style.transform = "translateY(-50%)"; }
       span.textContent = formatFreq(f);
       els.freqAxis.appendChild(span);
     });
@@ -523,14 +522,17 @@
     var W = els.canvasWrap.getBoundingClientRect().width;
     var startSec = sd.startSample / sd.sampleRate, endSec = sd.endSample / sd.sampleRate;
     var span = Math.max(1e-6, endSec - startSec);
+    var edge = 16;
     els.timeAxis.innerHTML = "";
     niceTimeTicks(startSec, endSec).forEach(function (t) {
       var left = (t - startSec) / span * W;
-      var span2 = document.createElement("span");
-      span2.className = "axis-label--time";
-      span2.style.left = left + "px";
-      span2.textContent = formatTimeTick(t, span);
-      els.timeAxis.appendChild(span2);
+      var el = document.createElement("span");
+      el.className = "axis-label--time";
+      if (left <= edge) { el.style.left = "0px"; el.style.transform = "translateX(0)"; }
+      else if (left >= W - edge) { el.style.left = W + "px"; el.style.transform = "translateX(-100%)"; }
+      else { el.style.left = left + "px"; el.style.transform = "translateX(-50%)"; }
+      el.textContent = formatTimeTick(t, span);
+      els.timeAxis.appendChild(el);
     });
   }
 
@@ -673,54 +675,69 @@
     var span = (sd.endSample - sd.startSample) / sd.sampleRate;
     els.hoverReadout.textContent = formatTimeTick(timeSec, span) + "  \u00b7  " + formatFreqFull(freq) + "  \u00b7  " + dbv.toFixed(1) + " dB";
   }
-
-  /* =====================================================================
-     interaction: hover + drag-zoom
-     ===================================================================== */
-  els.specCanvas.addEventListener("pointerdown", function (e) {
+  els.specCanvas.addEventListener("pointermove", function (e) {
     if (!state.spectroData) return;
     var rect = els.specCanvas.getBoundingClientRect();
-    dragState = { startX: e.clientX - rect.left, curX: e.clientX - rect.left };
-    try { els.specCanvas.setPointerCapture(e.pointerId); } catch (err) {}
-    els.selection.hidden = false;
-    updateSelectionBox();
-  });
-  els.specCanvas.addEventListener("pointermove", function (e) {
-    var rect = els.specCanvas.getBoundingClientRect();
-    var x = e.clientX - rect.left, y = e.clientY - rect.top;
-    if (state.spectroData) updateHoverReadout(x, y, rect);
-    if (dragState) { dragState.curX = clamp(x, 0, rect.width); updateSelectionBox(); }
-  });
-  els.specCanvas.addEventListener("pointerup", function (e) {
-    if (!dragState) return;
-    var rect = els.specCanvas.getBoundingClientRect();
-    var x0 = Math.min(dragState.startX, dragState.curX), x1 = Math.max(dragState.startX, dragState.curX);
-    els.selection.hidden = true;
-    dragState = null;
-    if (x1 - x0 > 6 && state.spectroData) {
-      var sd = state.spectroData, span = sd.endSample - sd.startSample;
-      var s0 = Math.round(sd.startSample + (x0 / rect.width) * span);
-      var s1 = Math.round(sd.startSample + (x1 / rect.width) * span);
-      if (s1 - s0 > sd.sampleRate * 0.005) {
-        state.zoom = { start: s0, end: s1 };
-        els.zoomReset.disabled = false;
-        recomputeAndRender();
-      }
-    }
+    updateHoverReadout(e.clientX - rect.left, e.clientY - rect.top, rect);
   });
   els.specCanvas.addEventListener("pointerleave", function () {
-    els.hoverReadout.textContent = state.audioBuffer ? tt("t.hoverHint") : tt("t.hoverHint");
+    els.hoverReadout.textContent = tt("t.hoverHint");
   });
+
+  /* =====================================================================
+     DAW-style navigation: scroll to pan, Ctrl/Cmd+scroll (or trackpad
+     pinch, which browsers report the same way) to zoom toward the cursor.
+     ===================================================================== */
+  function setZoomRange(s, e, total) {
+    s = Math.round(clamp(s, 0, total)); e = Math.round(clamp(e, 0, total));
+    if (e - s < 1) e = s + 1;
+    if (s <= 0 && e >= total) state.zoom = null; else state.zoom = { start: s, end: e };
+    els.zoomReset.disabled = !state.zoom;
+    recomputeAndRender();
+  }
+  function applyWheel(wp) {
+    if (!state.audioBuffer) return;
+    var total = state.bufferL.length;
+    var rect = els.specCanvas.getBoundingClientRect();
+    var curStart = state.zoom ? state.zoom.start : 0;
+    var curEnd = state.zoom ? state.zoom.end : total;
+    var span = curEnd - curStart;
+
+    if (wp.ctrl) {
+      var fracX = clamp((wp.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+      var anchorSample = curStart + fracX * span;
+      var zoomFactor = Math.exp(clamp(wp.dy, -400, 400) * 0.0018);
+      var minSpan = Math.min(total, Math.max(state.fftSize * 2, state.sampleRate * 0.005));
+      var newSpan = clamp(span * zoomFactor, minSpan, total);
+      var newStart = clamp(anchorSample - fracX * newSpan, 0, Math.max(0, total - newSpan));
+      setZoomRange(newStart, newStart + newSpan, total);
+    } else {
+      var d = (wp.dx !== 0 ? wp.dx : wp.dy);
+      var deltaSamples = d * (span / Math.max(1, rect.width)) * 1.6;
+      var newStart2 = clamp(curStart + deltaSamples, 0, Math.max(0, total - span));
+      setZoomRange(newStart2, newStart2 + span, total);
+    }
+  }
+  var wheelPending = null;
+  els.canvasWrap.addEventListener("wheel", function (e) {
+    if (!state.audioBuffer) return;
+    e.preventDefault();
+    if (!wheelPending) wheelPending = { dx: 0, dy: 0, ctrl: false, clientX: e.clientX, clientY: e.clientY };
+    wheelPending.dx += e.deltaX; wheelPending.dy += e.deltaY;
+    wheelPending.ctrl = wheelPending.ctrl || e.ctrlKey || e.metaKey;
+    wheelPending.clientX = e.clientX; wheelPending.clientY = e.clientY;
+    requestAnimationFrame(function () {
+      if (!wheelPending) return;
+      var wp = wheelPending; wheelPending = null;
+      applyWheel(wp);
+    });
+  }, { passive: false });
+
   els.specCanvas.addEventListener("dblclick", resetZoom);
   els.zoomReset.addEventListener("click", resetZoom);
   function resetZoom() {
     if (!state.zoom) return;
     state.zoom = null; els.zoomReset.disabled = true; recomputeAndRender();
-  }
-  function updateSelectionBox() {
-    if (!dragState) return;
-    var x0 = Math.min(dragState.startX, dragState.curX), x1 = Math.max(dragState.startX, dragState.curX);
-    els.selection.style.left = x0 + "px"; els.selection.style.width = (x1 - x0) + "px";
   }
 
   var resizeTimer = null;
@@ -751,7 +768,7 @@
     els.fiDuration.textContent = formatDurationFull(buf.duration);
     els.fiSamplerate.textContent = buf.sampleRate.toLocaleString();
     els.fiChannels.textContent = buf.numberOfChannels;
-    els.fileReadout.hidden = false;
+    els.fileInfo.hidden = false;
   }
   function updateChannelAvailability() {
     var stereo = !!state.bufferR;
@@ -871,17 +888,16 @@
       strings: {
         en: {
           "t.title": "Spectrum & stereo",
-          "t.desc": "See the whole-file spectrogram, switch between L/R and Mid/Side, and check phase correlation.",
-          "t.file": "File", "t.dropTitle": "Drop an audio file here", "t.dropHint": "or click to choose \u2014 processed locally, never uploaded",
-          "t.fileinfo": "Loaded file", "t.changefile": "Change file",
-          "t.name": "Name", "t.duration": "Duration", "t.samplerate": "Sample rate", "t.channels": "Channels",
-          "t.display": "Display", "t.channel": "Channel", "t.left": "L", "t.right": "R", "t.mid": "Mid", "t.side": "Side",
+          "t.desc": "See the whole-file spectrogram, switch between L/R, L+R and Side, and check phase correlation.",
+          "t.dropTitle": "Drop an audio file here", "t.dropHint": "or click to choose \u2014 processed locally",
+          "t.changefile": "Change file", "t.hz": "Hz", "t.ch": "ch",
+          "t.channel": "Channel", "t.left": "L", "t.right": "R", "t.mid": "L+R", "t.side": "Side",
           "t.freqscale": "Frequency scale", "t.log": "Log", "t.linear": "Linear",
           "t.fftsize": "FFT size", "t.dbrange": "Level range (dB)", "t.ceil": "Ceiling", "t.floor": "Floor",
           "t.colormap": "Color map", "t.cm_vernier": "Vernier", "t.cm_thermal": "Thermal", "t.cm_gray": "Grayscale",
           "t.spectrogram": "Spectrogram", "t.zoomFull": "Full file", "t.resetZoom": "Reset zoom",
           "t.placeholder": "Load an audio file to see its spectrogram here.",
-          "t.hoverHint": "Hover over the spectrogram to inspect values. Drag to zoom in on a time range.",
+          "t.hoverHint": "Scroll to pan, Ctrl/Cmd + scroll to zoom. Hover to read values.",
           "t.stereo": "Stereo", "t.correlation": "Phase correlation", "t.width": "Stereo width", "t.mincorr": "Minimum correlation",
           "t.mononote": "This file is mono \u2014 stereo analysis is unavailable.",
           "t.corrhint": "-1 = out of phase \u00b7 0 = wide stereo \u00b7 +1 = mono-like",
@@ -890,17 +906,16 @@
         },
         ja: {
           "t.title": "周波数・ステレオ解析",
-          "t.desc": "ファイル全体のスペクトログラムを表示し、L/R・Mid/Sideの切り替えや位相相関を確認できます。",
-          "t.file": "ファイル", "t.dropTitle": "音声ファイルをドロップ", "t.dropHint": "またはクリックして選択 — すべてローカルで処理されます",
-          "t.fileinfo": "読み込んだファイル", "t.changefile": "ファイルを変更",
-          "t.name": "ファイル名", "t.duration": "長さ", "t.samplerate": "サンプルレート", "t.channels": "チャンネル数",
-          "t.display": "表示設定", "t.channel": "チャンネル", "t.left": "L", "t.right": "R", "t.mid": "Mid", "t.side": "Side",
+          "t.desc": "ファイル全体のスペクトログラムを表示し、L/R・L+R・Sideの切り替えや位相相関を確認できます。",
+          "t.dropTitle": "音声ファイルをドロップ", "t.dropHint": "またはクリックして選択 — すべてローカルで処理",
+          "t.changefile": "ファイルを変更", "t.hz": "Hz", "t.ch": "ch",
+          "t.channel": "チャンネル", "t.left": "L", "t.right": "R", "t.mid": "L+R", "t.side": "Side",
           "t.freqscale": "周波数スケール", "t.log": "対数", "t.linear": "リニア",
           "t.fftsize": "FFTサイズ", "t.dbrange": "レベル範囲 (dB)", "t.ceil": "上限", "t.floor": "下限",
           "t.colormap": "カラーマップ", "t.cm_vernier": "Vernier", "t.cm_thermal": "サーマル", "t.cm_gray": "グレースケール",
           "t.spectrogram": "スペクトログラム", "t.zoomFull": "ファイル全体", "t.resetZoom": "ズーム解除",
           "t.placeholder": "音声ファイルを読み込むと、ここにスペクトログラムが表示されます。",
-          "t.hoverHint": "スペクトログラム上にカーソルを合わせると数値を表示します。ドラッグで時間範囲を拡大できます。",
+          "t.hoverHint": "スクロールで移動、Ctrl/Cmd+スクロールでズーム。カーソルを合わせると数値を表示します。",
           "t.stereo": "ステレオ", "t.correlation": "位相相関", "t.width": "ステレオ幅", "t.mincorr": "最小相関",
           "t.mononote": "モノラルファイルのため、ステレオ解析は利用できません。",
           "t.corrhint": "-1=逆位相 · 0=ワイドステレオ · +1=モノラルに近い",
