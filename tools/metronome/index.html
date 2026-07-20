@@ -159,7 +159,7 @@
     padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
   /* 画面全体が発光面。既定はほぼ暗く、拍で --fs-color に光る */
   .fsflash__stage{ position:absolute; inset:0; background:var(--fs-color, #5457E5);
-    opacity:0; transition:opacity .05s linear; }
+    opacity:0; transition:opacity .025s linear; }
   .fsflash__stage.hit{ opacity:var(--fs-bright, .9); }
   .fsflash__top{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:var(--s4); }
@@ -746,13 +746,19 @@
   var FS_COLORS = ["#5457E5","#1F9D57","#E0484D","#E5A72A","#FFFFFF","#000000"];
   var fsColorIdx = 0;
   var fsBright = 0.9;
+  var FLASH_MIN_MS = 50;   // これより短いと視認しづらい
+  var FLASH_MAX_MS = 150;  // これより長いと次の拍と紛れる/間延びする
+  function flashDurationMs(){
+    var beatMs = 60000 / ST.bpm;
+    return Math.max(FLASH_MIN_MS, Math.min(FLASH_MAX_MS, beatMs * 0.25));
+  }
   function flashPulse(accent){
     if ($("fsflash").hidden) return;
     var p = $("fspulse");
-    // アクセントは明るく、通常拍はやや弱く。表示時間は拍によらず固定。
+    // アクセントは明るく、通常拍はやや弱く。表示時間はテンポが速いほど短くなる（上下限あり、拍の頭/裏で共通）。
     document.documentElement.style.setProperty("--fs-bright", (accent ? fsBright : fsBright*0.7).toFixed(2));
     p.classList.add("hit");
-    setTimeout(function(){ p.classList.remove("hit"); }, 110);
+    setTimeout(function(){ p.classList.remove("hit"); }, flashDurationMs());
   }
   function fsForegroundFor(hex){
     // 白背景のときは差分ブレンドで文字が消えるため、明示的に暗い文字にする
