@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrum & stereo — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- segmented controls (見本 Clock ツールと同一パターン) ---- */
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg--2{ grid-template-columns:repeat(2,1fr); }
+  .seg--4{ grid-template-columns:repeat(4,1fr); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:36px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+  .minilabel{ font-size:11px; color:var(--text-3); margin-bottom:4px; }
+
+  /* ---- file drop ---- */
+  .drop{ padding:var(--s5) var(--s4); }
+  .drop svg{ width:22px; height:22px; }
+  .fileerr{ margin-top:var(--s3); }
+
+  /* ---- spectrogram card ---- */
+  .specCard{ padding:var(--s4); }
+  .spec-toolbar{ display:flex; align-items:center; gap:var(--s2); margin-bottom:var(--s3); }
+  .spec-toolbar-sp{ flex:1; }
+  .spec-zoomInfo{ font-family:var(--font-mono); font-size:12px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  #zoom-reset{ height:30px; padding:0 12px; font-size:12.5px; }
+  #processing-badge{ font-family:var(--font-mono); }
+
+  .spec-body{ display:grid; grid-template-columns:44px 1fr 64px; gap:var(--s2); }
+  #canvas-wrap{ position:relative; height:380px; border-radius:var(--r); overflow:hidden;
+    background:var(--surface-2); border:1px solid var(--border); cursor:crosshair; }
+  #spec-canvas{ display:block; width:100%; height:100%; touch-action:none; }
+  .spec-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); pointer-events:none; }
+  .spec-selection{ position:absolute; top:0; bottom:0; pointer-events:none;
+    background:color-mix(in srgb, var(--accent) 16%, transparent);
+    border-left:1px solid var(--accent); border-right:1px solid var(--accent); }
+
+  .spec-freqaxis{ position:relative; }
+  .axis-label--freq{ position:absolute; right:2px; transform:translateY(-50%);
+    font-family:var(--font-mono); font-size:10px; color:var(--text-3); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .spec-colorbar{ display:flex; gap:6px; }
+  .spec-colorbar__grad{ width:14px; border-radius:4px; border:1px solid var(--border); }
+  .spec-colorbar__labels{ display:flex; flex-direction:column; justify-content:space-between;
+    font-family:var(--font-mono); font-size:10px; color:var(--text-3); white-space:nowrap; }
+
+  .spec-timeaxis{ position:relative; height:18px; margin-top:6px; }
+  .axis-label--time{ position:absolute; top:0; transform:translateX(-50%);
+    font-family:var(--font-mono); font-size:10px; color:var(--text-3); }
+
+  .spec-readoutline{ margin-top:var(--s3); font-family:var(--font-mono); font-size:12.5px;
+    color:var(--text-2); font-variant-numeric:tabular-nums; min-height:1.4em; }
+
+  /* ---- stereo readout ---- */
+  .corrstrip-wrap{ padding:0 var(--s4); }
+  #corr-canvas{ display:block; width:100%; height:64px; }
+  .rrow__value .val{ }
+
+  @media (max-width:760px){
+    .spec-body{ grid-template-columns:30px 1fr 50px; }
+    #canvas-wrap{ height:260px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Spectrum & stereo</h1>
+    <p data-i18n="t.desc">See the whole-file spectrogram, switch between L/R and Mid/Side, and check phase correlation.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・設定 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.file">File</div>
+        <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop an audio file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 9l5-6 5 6"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <div><b data-i18n="t.dropTitle">Drop an audio file here</b></div>
+          <small data-i18n="t.dropHint">or click to choose — processed locally, never uploaded</small>
+        </div>
+        <input type="file" id="file-input" accept="audio/*" hidden aria-hidden="true">
+        <div class="badge badge--neg fileerr" id="file-error" hidden><span class="d"></span><span id="file-error-text"></span></div>
+      </div>
+
+      <div class="readout" id="file-readout" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.fileinfo">Loaded file</span>
+          <button class="btn btn--ghost" id="change-file" data-i18n="t.changefile" style="height:26px;padding:0 10px;font-size:12px;">Change file</button></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.name">Name</span><span class="rrow__value" id="fi-name" style="font-size:13px;font-weight:500;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.duration">Duration</span><span class="rrow__value" id="fi-duration">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.samplerate">Sample rate</span><span class="rrow__value" id="fi-samplerate">—<span class="u">Hz</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.channels">Channels</span><span class="rrow__value" id="fi-channels">—</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.display">Display</div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.channel">Channel</label>
+          <div class="seg seg--4" id="seg-channel" role="group">
+            <button data-ch="left"  data-i18n="t.left">L</button>
+            <button data-ch="right" data-i18n="t.right">R</button>
+            <button data-ch="mid"   data-i18n="t.mid">Mid</button>
+            <button data-ch="side"  data-i18n="t.side">Side</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.freqscale">Frequency scale</label>
+          <div class="seg seg--2" id="seg-freqscale" role="group">
+            <button data-scale="log"    data-i18n="t.log">Log</button>
+            <button data-scale="linear" data-i18n="t.linear">Linear</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.fftsize">FFT size</label>
+          <select class="select" id="fft-select">
+            <option value="512">512</option>
+            <option value="1024">1024</option>
+            <option value="2048" selected>2048</option>
+            <option value="4096">4096</option>
+            <option value="8192">8192</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.dbrange">Level range (dB)</label>
+          <div class="row2">
+            <div>
+              <div class="minilabel" data-i18n="t.ceil">Ceiling</div>
+              <input class="input" type="number" id="db-ceil" value="0" step="1" min="-40" max="12">
+            </div>
+            <div>
+              <div class="minilabel" data-i18n="t.floor">Floor</div>
+              <input class="input" type="number" id="db-floor" value="-90" step="1" min="-140" max="-10">
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.colormap">Color map</label>
+          <div class="seg" id="seg-colormap" role="group">
+            <button data-cm="vernier" aria-pressed="true" data-i18n="t.cm_vernier">Vernier</button>
+            <button data-cm="thermal" data-i18n="t.cm_thermal">Thermal</button>
+            <button data-cm="gray"    data-i18n="t.cm_gray">Grayscale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: スペクトログラム・ステレオ出力 -->
+    <div>
+      <div class="card specCard">
+        <div class="spec-toolbar">
+          <span class="eyebrow" data-i18n="t.spectrogram">Spectrogram</span>
+          <div class="spec-toolbar-sp"></div>
+          <span class="badge badge--muted" id="processing-badge" hidden><span class="d"></span><span id="processing-text">0%</span></span>
+          <span class="spec-zoomInfo" id="zoom-info" data-i18n="t.zoomFull">Full file</span>
+          <button class="btn btn--secondary" id="zoom-reset" disabled data-i18n="t.resetZoom">Reset zoom</button>
+        </div>
+
+        <div class="spec-body">
+          <div class="spec-freqaxis" id="freq-axis"></div>
+          <div id="canvas-wrap">
+            <canvas id="spec-canvas" aria-label="Spectrogram of the loaded audio file"></canvas>
+            <div class="spec-selection" id="spec-selection" hidden></div>
+            <div class="spec-placeholder" id="spec-placeholder" data-i18n="t.placeholder">Load an audio file to see its spectrogram here.</div>
+          </div>
+          <div class="spec-colorbar">
+            <div class="spec-colorbar__grad" id="colorbar-grad"></div>
+            <div class="spec-colorbar__labels">
+              <span id="cb-ceil">0 dB</span>
+              <span id="cb-floor">-90 dB</span>
+            </div>
+          </div>
+        </div>
+        <div class="spec-timeaxis" id="time-axis"></div>
+        <div class="spec-readoutline" id="hover-readout" data-i18n="t.hoverHint">Hover over the spectrogram to inspect values. Drag to zoom in on a time range.</div>
+      </div>
+
+      <div class="readout" style="margin-top:var(--s4);" id="stereo-readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.stereo">Stereo</span></div>
+        <div id="stereo-body">
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" data-i18n="t.correlation">Phase correlation</span>
+            <span class="rrow__value" id="ro-corr" data-copy=""><span class="val">—</span></span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.width">Stereo width</span>
+            <span class="rrow__value" id="ro-width" data-copy=""><span class="val">—</span><span class="u">%</span></span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.mincorr">Minimum correlation</span>
+            <span class="rrow__value" id="ro-mincorr" data-copy=""><span class="val">—</span></span>
+          </div>
+          <div class="corrstrip-wrap">
+            <canvas id="corr-canvas" aria-label="Phase correlation over time"></canvas>
+          </div>
+          <div class="hint" style="padding:0 var(--s4) var(--s3);" data-i18n="t.corrhint">-1 = out of phase · 0 = wide stereo · +1 = mono-like</div>
+        </div>
+        <div class="acc-note" id="mono-note" style="padding:var(--s3) var(--s4) 0;" data-i18n="t.mononote" hidden>This file is mono — stereo analysis is unavailable.</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+
+  /* =====================================================================
+     state
+     ===================================================================== */
+  var state = {
+    audioBuffer: null, sampleRate: 0, bufferL: null, bufferR: null,
+    _mid: null, _side: null,
+    channelMode: "left", freqScale: "log", fftSize: 2048,
+    dbFloor: -90, dbCeil: 0, colormap: "vernier",
+    zoom: null,          // {start,end} in samples, null = whole file
+    spectroData: null,   // {cols, fftSize, startSample, endSample, sampleRate}
+    stereoMetrics: null
+  };
+  var computeGen = 0;
+  var dragState = null;
+
+  function $(id) { return document.getElementById(id); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function tt(key) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(key) : key; }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  var els = {
+    dropzone: $("dropzone"), fileInput: $("file-input"), fileError: $("file-error"), fileErrorText: $("file-error-text"),
+    fileReadout: $("file-readout"), changeFile: $("change-file"),
+    fiName: $("fi-name"), fiDuration: $("fi-duration"), fiSamplerate: $("fi-samplerate"), fiChannels: $("fi-channels"),
+    segChannel: $("seg-channel"), segFreqScale: $("seg-freqscale"), segColormap: $("seg-colormap"),
+    fftSelect: $("fft-select"), dbCeil: $("db-ceil"), dbFloor: $("db-floor"),
+    zoomInfo: $("zoom-info"), zoomReset: $("zoom-reset"),
+    processingBadge: $("processing-badge"), processingText: $("processing-text"),
+    freqAxis: $("freq-axis"), timeAxis: $("time-axis"),
+    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), selection: $("spec-selection"), placeholder: $("spec-placeholder"),
+    colorbarGrad: $("colorbar-grad"), cbCeil: $("cb-ceil"), cbFloor: $("cb-floor"),
+    hoverReadout: $("hover-readout"),
+    stereoBody: $("stereo-body"), monoNote: $("mono-note"),
+    roCorr: $("ro-corr"), roWidth: $("ro-width"), roMinCorr: $("ro-mincorr"), corrCanvas: $("corr-canvas")
+  };
+
+  /* =====================================================================
+     colormaps
+     ===================================================================== */
+  var COLORMAPS = {
+    vernier: [[0,16,17,20],[0.15,26,20,64],[0.35,66,45,150],[0.55,140,80,225],[0.72,222,90,180],[0.86,255,145,95],[1,255,236,170]],
+    thermal: [[0,8,8,36],[0.25,20,95,205],[0.5,35,200,120],[0.75,250,220,45],[1,255,70,45]],
+    gray:    [[0,8,8,10],[1,245,246,248]]
+  };
+  function sampleColormap(stops, t) {
+    t = clamp(t, 0, 1);
+    for (var i = 0; i < stops.length - 1; i++) {
+      var a = stops[i], b = stops[i + 1];
+      if (t >= a[0] && t <= b[0]) {
+        var span = (b[0] - a[0]) || 1, f = (t - a[0]) / span;
+        return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f];
+      }
+    }
+    var last = stops[stops.length - 1];
+    return [last[1], last[2], last[3]];
+  }
+  function buildColormapLUT(stops) {
+    var lut = new Uint8ClampedArray(256 * 3);
+    for (var i = 0; i < 256; i++) {
+      var c = sampleColormap(stops, i / 255);
+      lut[i * 3] = c[0]; lut[i * 3 + 1] = c[1]; lut[i * 3 + 2] = c[2];
+    }
+    return lut;
+  }
+  function colormapCssGradient(stops) {
+    return "linear-gradient(to top, " + stops.map(function (s) {
+      return "rgb(" + s[1] + "," + s[2] + "," + s[3] + ") " + (s[0] * 100).toFixed(1) + "%";
+    }).join(", ") + ")";
+  }
+
+  /* =====================================================================
+     FFT (iterative radix-2 Cooley-Tukey)
+     ===================================================================== */
+  function fftInPlace(re, im) {
+    var n = re.length;
+    for (var i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        var tr = re[i]; re[i] = re[j]; re[j] = tr;
+        var ti = im[i]; im[i] = im[j]; im[j] = ti;
+      }
+    }
+    for (var len = 2; len <= n; len <<= 1) {
+      var ang = -2 * Math.PI / len;
+      var wr = Math.cos(ang), wi = Math.sin(ang);
+      var half = len >> 1;
+      for (var s = 0; s < n; s += len) {
+        var curWr = 1, curWi = 0;
+        for (var k = 0; k < half; k++) {
+          var ur = re[s + k], ui = im[s + k];
+          var vr = re[s + k + half] * curWr - im[s + k + half] * curWi;
+          var vi = re[s + k + half] * curWi + im[s + k + half] * curWr;
+          re[s + k] = ur + vr; im[s + k] = ui + vi;
+          re[s + k + half] = ur - vr; im[s + k + half] = ui - vi;
+          var nwr = curWr * wr - curWi * wi;
+          var nwi = curWr * wi + curWi * wr;
+          curWr = nwr; curWi = nwi;
+        }
+      }
+    }
+  }
+  var hannCache = {};
+  function getHannWindow(n) {
+    if (hannCache[n]) return hannCache[n];
+    var w = new Float64Array(n);
+    for (var i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1));
+    hannCache[n] = w;
+    return w;
+  }
+
+  /* =====================================================================
+     channel data
+     ===================================================================== */
+  function getChannelSamples(mode) {
+    if (mode === "right" && state.bufferR) return state.bufferR;
+    if (mode === "mid" && state.bufferR) {
+      if (!state._mid) {
+        var n = state.bufferL.length, m = new Float32Array(n);
+        for (var i = 0; i < n; i++) m[i] = (state.bufferL[i] + state.bufferR[i]) * 0.5;
+        state._mid = m;
+      }
+      return state._mid;
+    }
+    if (mode === "side" && state.bufferR) {
+      if (!state._side) {
+        var n2 = state.bufferL.length, sd = new Float32Array(n2);
+        for (var j = 0; j < n2; j++) sd[j] = (state.bufferL[j] - state.bufferR[j]) * 0.5;
+        state._side = sd;
+      }
+      return state._side;
+    }
+    return state.bufferL;
+  }
+
+  /* =====================================================================
+     spectrogram computation (chunked, cancellable)
+     ===================================================================== */
+  function computeSpectrogram(opts) {
+    return new Promise(function (resolve) {
+      var fftSize = opts.fftSize, columns = opts.columns;
+      var startSample = opts.startSample, endSample = opts.endSample;
+      var total = Math.max(1, endSample - startSample);
+      var hop = total / columns;
+      var data = getChannelSamples(opts.channelMode);
+      var win = getHannWindow(fftSize);
+      var binCount = (fftSize >> 1) + 1;
+      var ref = fftSize / 4;
+      var cols = new Array(columns);
+      var c = 0;
+
+      function step() {
+        if (opts.isStale && opts.isStale()) { resolve(null); return; }
+        var t0 = performance.now();
+        while (c < columns && (performance.now() - t0) < 12) {
+          var center = Math.round(startSample + (c + 0.5) * hop);
+          var frameStart = center - (fftSize >> 1);
+          var re = new Float64Array(fftSize), im = new Float64Array(fftSize);
+          for (var k = 0; k < fftSize; k++) {
+            var idx = frameStart + k;
+            var s = (idx >= 0 && idx < data.length) ? data[idx] : 0;
+            re[k] = s * win[k];
+          }
+          fftInPlace(re, im);
+          var col = new Float32Array(binCount);
+          for (var b = 0; b < binCount; b++) {
+            var mag = Math.sqrt(re[b] * re[b] + im[b] * im[b]);
+            col[b] = 20 * Math.log10(mag / ref + 1e-9);
+          }
+          cols[c] = col;
+          c++;
+        }
+        if (opts.onProgress) opts.onProgress(c / columns);
+        if (c < columns) requestAnimationFrame(step);
+        else resolve({ cols: cols, fftSize: fftSize, startSample: startSample, endSample: endSample, sampleRate: opts.sampleRate, columns: columns });
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  /* =====================================================================
+     canvas sizing
+     ===================================================================== */
+  function sizeSpecCanvas() {
+    var rect = els.canvasWrap.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var maxW = 1400, maxH = 640;
+    var w = Math.max(1, Math.min(Math.round(rect.width * dpr), maxW));
+    var h = Math.max(1, Math.min(Math.round(rect.height * dpr), maxH));
+    els.specCanvas.width = w; els.specCanvas.height = h;
+  }
+
+  /* =====================================================================
+     frequency <-> pixel-fraction mapping
+     ===================================================================== */
+  var MIN_FREQ = 20;
+  function freqToFrac(freq, scale, nyquist) {
+    if (scale === "log") {
+      var ratio = Math.log(Math.max(freq, MIN_FREQ) / MIN_FREQ) / Math.log(nyquist / MIN_FREQ);
+      return clamp(1 - ratio, 0, 1);
+    }
+    return clamp(1 - freq / nyquist, 0, 1);
+  }
+  function fracToFreq(frac, scale, nyquist) {
+    if (scale === "log") return MIN_FREQ * Math.pow(nyquist / MIN_FREQ, 1 - frac);
+    return nyquist * (1 - frac);
+  }
+
+  /* =====================================================================
+     rendering
+     ===================================================================== */
+  function renderSpectrogram() {
+    var sd = state.spectroData;
+    if (!sd) return;
+    var canvas = els.specCanvas, ctx = canvas.getContext("2d");
+    var w = canvas.width, h = canvas.height;
+    if (w < 1 || h < 1) return;
+    var img = ctx.createImageData(w, h);
+    var lut = buildColormapLUT(COLORMAPS[state.colormap]);
+    var nyquist = sd.sampleRate / 2;
+    var binCount = (sd.fftSize >> 1) + 1;
+    var dbFloor = state.dbFloor, dbCeil = state.dbCeil, dbSpan = (dbCeil - dbFloor) || 1;
+
+    for (var y = 0; y < h; y++) {
+      var frac = y / (h - 1 || 1);
+      var freq = fracToFreq(frac, state.freqScale, nyquist);
+      var binPos = clamp(freq / nyquist * (binCount - 1), 0, binCount - 1);
+      var b0 = Math.floor(binPos), b1 = Math.min(binCount - 1, b0 + 1), bf = binPos - b0;
+      var rowOff = y * w * 4;
+      for (var x = 0; x < w; x++) {
+        var col = sd.cols[Math.min(sd.cols.length - 1, x)];
+        var dbv = col[b0] * (1 - bf) + col[b1] * bf;
+        var t = clamp((dbv - dbFloor) / dbSpan, 0, 1);
+        var li = Math.round(t * 255) * 3;
+        var off = rowOff + x * 4;
+        img.data[off] = lut[li]; img.data[off + 1] = lut[li + 1]; img.data[off + 2] = lut[li + 2]; img.data[off + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function niceStep(rough) {
+    var exp = Math.floor(Math.log10(rough)), base = Math.pow(10, exp), f = rough / base, nf;
+    if (f < 1.5) nf = 1; else if (f < 3) nf = 2; else if (f < 7) nf = 5; else nf = 10;
+    return nf * base;
+  }
+  var FREQ_LOG_TICKS = [20, 30, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000, 15000, 20000];
+  function freqTicksLinear(nyquist) {
+    var step = niceStep(nyquist / 6), ticks = [];
+    for (var v = 0; v <= nyquist; v += step) ticks.push(v);
+    return ticks;
+  }
+  function formatFreq(hz) {
+    if (hz >= 1000) return (Math.round(hz) % 1000 === 0 ? (hz / 1000).toFixed(0) : (hz / 1000).toFixed(1)) + "k";
+    return String(Math.round(hz));
+  }
+  function formatFreqFull(hz) {
+    if (hz >= 1000) return (hz / 1000).toFixed(2) + " kHz";
+    return Math.round(hz) + " Hz";
+  }
+
+  function renderFreqAxis() {
+    var sd = state.spectroData; if (!sd) return;
+    var nyquist = sd.sampleRate / 2;
+    var H = els.canvasWrap.getBoundingClientRect().height;
+    els.freqAxis.innerHTML = "";
+    var ticks = state.freqScale === "log"
+      ? FREQ_LOG_TICKS.filter(function (f) { return f >= MIN_FREQ && f <= nyquist; })
+      : freqTicksLinear(nyquist);
+    ticks.forEach(function (f) {
+      var top = freqToFrac(f, state.freqScale, nyquist) * H;
+      var span = document.createElement("span");
+      span.className = "axis-label--freq";
+      span.style.top = top + "px";
+      span.textContent = formatFreq(f);
+      els.freqAxis.appendChild(span);
+    });
+  }
+
+  function niceTimeTicks(startSec, endSec) {
+    var span = Math.max(1e-6, endSec - startSec);
+    var steps = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+    var step = steps[steps.length - 1];
+    for (var i = 0; i < steps.length; i++) { if (span / steps[i] <= 6) { step = steps[i]; break; } }
+    var first = Math.ceil(startSec / step) * step;
+    var ticks = [];
+    for (var t = first; t <= endSec + 1e-9; t += step) ticks.push(t);
+    return ticks;
+  }
+  function formatTimeTick(sec, spanSec) {
+    if (spanSec <= 10) return Math.max(0, sec).toFixed(2) + "s";
+    var m = Math.floor(sec / 60), s = Math.round(sec - m * 60);
+    if (s === 60) { s = 0; m++; }
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function renderTimeAxis() {
+    var sd = state.spectroData; if (!sd) return;
+    var W = els.canvasWrap.getBoundingClientRect().width;
+    var startSec = sd.startSample / sd.sampleRate, endSec = sd.endSample / sd.sampleRate;
+    var span = Math.max(1e-6, endSec - startSec);
+    els.timeAxis.innerHTML = "";
+    niceTimeTicks(startSec, endSec).forEach(function (t) {
+      var left = (t - startSec) / span * W;
+      var span2 = document.createElement("span");
+      span2.className = "axis-label--time";
+      span2.style.left = left + "px";
+      span2.textContent = formatTimeTick(t, span);
+      els.timeAxis.appendChild(span2);
+    });
+  }
+
+  function updateColorbarGradient() { els.colorbarGrad.style.background = colormapCssGradient(COLORMAPS[state.colormap]); }
+  function updateColorbarLabels() {
+    els.cbCeil.textContent = state.dbCeil.toFixed(0) + " dB";
+    els.cbFloor.textContent = state.dbFloor.toFixed(0) + " dB";
+  }
+
+  function updateZoomInfo() {
+    if (!state.zoom || !state.spectroData) { els.zoomInfo.textContent = tt("t.zoomFull"); return; }
+    var sd = state.spectroData;
+    var s = sd.startSample / sd.sampleRate, e = sd.endSample / sd.sampleRate;
+    els.zoomInfo.textContent = formatTimeTick(s, e - s) + "\u2013" + formatTimeTick(e, e - s);
+  }
+
+  /* =====================================================================
+     compute + render orchestration
+     ===================================================================== */
+  function setBusy(b) {
+    els.processingBadge.hidden = !b;
+    if (b) els.processingText.textContent = "0%";
+  }
+  function recomputeAndRender() {
+    if (!state.audioBuffer) return Promise.resolve();
+    var myGen = ++computeGen;
+    setBusy(true);
+    els.placeholder.hidden = true;
+    sizeSpecCanvas();
+    var canvas = els.specCanvas;
+    var columns = canvas.width;
+    var startSample = state.zoom ? state.zoom.start : 0;
+    var endSample = state.zoom ? state.zoom.end : state.bufferL.length;
+    return computeSpectrogram({
+      channelMode: state.channelMode, fftSize: state.fftSize,
+      startSample: startSample, endSample: endSample, columns: columns, sampleRate: state.sampleRate,
+      isStale: function () { return myGen !== computeGen; },
+      onProgress: function (f) { if (myGen === computeGen) els.processingText.textContent = Math.round(f * 100) + "%"; }
+    }).then(function (data) {
+      if (myGen !== computeGen || !data) return;
+      state.spectroData = data;
+      renderSpectrogram();
+      renderFreqAxis();
+      renderTimeAxis();
+      updateZoomInfo();
+      setBusy(false);
+    });
+  }
+
+  /* =====================================================================
+     stereo metrics
+     ===================================================================== */
+  function computeStereoMetrics(L, R) {
+    var n = L.length;
+    var sumL = 0, sumR = 0, sumLR = 0, sumL2 = 0, sumR2 = 0, sumMid2 = 0, sumSide2 = 0;
+    for (var i = 0; i < n; i++) {
+      var l = L[i], r = R[i];
+      sumL += l; sumR += r; sumLR += l * r; sumL2 += l * l; sumR2 += r * r;
+      var mid = (l + r) * 0.5, side = (l - r) * 0.5;
+      sumMid2 += mid * mid; sumSide2 += side * side;
+    }
+    var meanL = sumL / n, meanR = sumR / n;
+    var cov = sumLR / n - meanL * meanR;
+    var varL = sumL2 / n - meanL * meanL, varR = sumR2 / n - meanR * meanR;
+    var overallCorr = clamp(cov / (Math.sqrt(varL * varR) + 1e-12), -1, 1);
+    var rmsMid = Math.sqrt(sumMid2 / n), rmsSide = Math.sqrt(sumSide2 / n);
+    var widthPct = 100 * (2 * rmsSide / (rmsMid + rmsSide + 1e-12));
+
+    var windows = 240, winLen = Math.max(1, Math.floor(n / windows));
+    var corrSeries = new Float32Array(windows);
+    var minCorr = 1;
+    for (var wIdx = 0; wIdx < windows; wIdx++) {
+      var start = wIdx * winLen, end = Math.min(n, start + winLen);
+      var sL = 0, sR = 0, sLR = 0, sL2 = 0, sR2 = 0;
+      for (var j = start; j < end; j++) { var lv = L[j], rv = R[j]; sL += lv; sR += rv; sLR += lv * rv; sL2 += lv * lv; sR2 += rv * rv; }
+      var cnt = (end - start) || 1;
+      var mL = sL / cnt, mR = sR / cnt;
+      var cv = sLR / cnt - mL * mR, vL = sL2 / cnt - mL * mL, vR = sR2 / cnt - mR * mR;
+      var c = clamp(cv / (Math.sqrt(vL * vR) + 1e-12), -1, 1);
+      corrSeries[wIdx] = c;
+      if (c < minCorr) minCorr = c;
+    }
+    return { overallCorr: overallCorr, widthPct: widthPct, corrSeries: corrSeries, minCorr: minCorr };
+  }
+
+  function setReadout(el, text, copyText) {
+    var val = el.querySelector(".val");
+    if (val) val.textContent = text; else el.textContent = text;
+    el.setAttribute("data-copy", copyText != null ? copyText : text);
+  }
+
+  function drawCorrStrip(series) {
+    var canvas = els.corrCanvas;
+    var rect = canvas.parentElement.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(64 * dpr));
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = cssVar("--border"); ctx.lineWidth = Math.max(1, dpr);
+    [1, 0, -1].forEach(function (v) {
+      var y = h * (1 - (v + 1) / 2);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    });
+    ctx.beginPath();
+    for (var i = 0; i < series.length; i++) {
+      var x = i / (series.length - 1) * w, y2 = h * (1 - (series[i] + 1) / 2);
+      if (i === 0) ctx.moveTo(x, y2); else ctx.lineTo(x, y2);
+    }
+    ctx.strokeStyle = cssVar("--accent"); ctx.lineWidth = Math.max(1.5, 1.5 * dpr); ctx.stroke();
+  }
+
+  function computeAndRenderStereo() {
+    if (!state.bufferR) { els.stereoBody.hidden = true; els.monoNote.hidden = false; return; }
+    els.stereoBody.hidden = false; els.monoNote.hidden = true;
+    var m = computeStereoMetrics(state.bufferL, state.bufferR);
+    state.stereoMetrics = m;
+    setReadout(els.roCorr, m.overallCorr.toFixed(2));
+    setReadout(els.roWidth, m.widthPct.toFixed(1), m.widthPct.toFixed(1) + "%");
+    setReadout(els.roMinCorr, m.minCorr.toFixed(2));
+    drawCorrStrip(m.corrSeries);
+  }
+
+  /* =====================================================================
+     hover readout
+     ===================================================================== */
+  function updateHoverReadout(xCss, yCss, rect) {
+    var sd = state.spectroData; if (!sd) return;
+    var fracX = clamp(xCss / rect.width, 0, 1), fracY = clamp(yCss / rect.height, 0, 1);
+    var sampleIdx = sd.startSample + fracX * (sd.endSample - sd.startSample);
+    var timeSec = sampleIdx / sd.sampleRate;
+    var nyquist = sd.sampleRate / 2;
+    var freq = fracToFreq(fracY, state.freqScale, nyquist);
+    var colIdx = clamp(Math.floor(fracX * sd.cols.length), 0, sd.cols.length - 1);
+    var binCount = (sd.fftSize >> 1) + 1;
+    var binPos = clamp(freq / nyquist * (binCount - 1), 0, binCount - 1);
+    var b0 = Math.floor(binPos), b1 = Math.min(binCount - 1, b0 + 1), bf = binPos - b0;
+    var col = sd.cols[colIdx];
+    var dbv = col[b0] * (1 - bf) + col[b1] * bf;
+    var span = (sd.endSample - sd.startSample) / sd.sampleRate;
+    els.hoverReadout.textContent = formatTimeTick(timeSec, span) + "  \u00b7  " + formatFreqFull(freq) + "  \u00b7  " + dbv.toFixed(1) + " dB";
+  }
+
+  /* =====================================================================
+     interaction: hover + drag-zoom
+     ===================================================================== */
+  els.specCanvas.addEventListener("pointerdown", function (e) {
+    if (!state.spectroData) return;
+    var rect = els.specCanvas.getBoundingClientRect();
+    dragState = { startX: e.clientX - rect.left, curX: e.clientX - rect.left };
+    try { els.specCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    els.selection.hidden = false;
+    updateSelectionBox();
+  });
+  els.specCanvas.addEventListener("pointermove", function (e) {
+    var rect = els.specCanvas.getBoundingClientRect();
+    var x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (state.spectroData) updateHoverReadout(x, y, rect);
+    if (dragState) { dragState.curX = clamp(x, 0, rect.width); updateSelectionBox(); }
+  });
+  els.specCanvas.addEventListener("pointerup", function (e) {
+    if (!dragState) return;
+    var rect = els.specCanvas.getBoundingClientRect();
+    var x0 = Math.min(dragState.startX, dragState.curX), x1 = Math.max(dragState.startX, dragState.curX);
+    els.selection.hidden = true;
+    dragState = null;
+    if (x1 - x0 > 6 && state.spectroData) {
+      var sd = state.spectroData, span = sd.endSample - sd.startSample;
+      var s0 = Math.round(sd.startSample + (x0 / rect.width) * span);
+      var s1 = Math.round(sd.startSample + (x1 / rect.width) * span);
+      if (s1 - s0 > sd.sampleRate * 0.005) {
+        state.zoom = { start: s0, end: s1 };
+        els.zoomReset.disabled = false;
+        recomputeAndRender();
+      }
+    }
+  });
+  els.specCanvas.addEventListener("pointerleave", function () {
+    els.hoverReadout.textContent = state.audioBuffer ? tt("t.hoverHint") : tt("t.hoverHint");
+  });
+  els.specCanvas.addEventListener("dblclick", resetZoom);
+  els.zoomReset.addEventListener("click", resetZoom);
+  function resetZoom() {
+    if (!state.zoom) return;
+    state.zoom = null; els.zoomReset.disabled = true; recomputeAndRender();
+  }
+  function updateSelectionBox() {
+    if (!dragState) return;
+    var x0 = Math.min(dragState.startX, dragState.curX), x1 = Math.max(dragState.startX, dragState.curX);
+    els.selection.style.left = x0 + "px"; els.selection.style.width = (x1 - x0) + "px";
+  }
+
+  var resizeTimer = null;
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { if (state.audioBuffer) recomputeAndRender(); }, 220);
+    }).observe(els.canvasWrap);
+  }
+
+  /* =====================================================================
+     file loading
+     ===================================================================== */
+  var audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); }
+    return audioCtx;
+  }
+  function showError(msg) { els.fileErrorText.textContent = msg; els.fileError.hidden = false; }
+  function hideError() { els.fileError.hidden = true; }
+
+  function formatDurationFull(sec) {
+    var m = Math.floor(sec / 60), s = Math.floor(sec - m * 60), ms = Math.round((sec - Math.floor(sec)) * 1000);
+    return m + ":" + (s < 10 ? "0" : "") + s + "." + (ms < 100 ? (ms < 10 ? "00" : "0") : "") + ms;
+  }
+  function updateFileInfo(name, buf) {
+    els.fiName.textContent = name; els.fiName.title = name;
+    els.fiDuration.textContent = formatDurationFull(buf.duration);
+    els.fiSamplerate.textContent = buf.sampleRate.toLocaleString();
+    els.fiChannels.textContent = buf.numberOfChannels;
+    els.fileReadout.hidden = false;
+  }
+  function updateChannelAvailability() {
+    var stereo = !!state.bufferR;
+    els.segChannel.querySelectorAll("button").forEach(function (b) {
+      var ch = b.getAttribute("data-ch");
+      b.disabled = (ch === "right" || ch === "mid" || ch === "side") && !stereo;
+    });
+  }
+  function syncSeg(container, attr, current) {
+    container.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute(attr) === current));
+    });
+  }
+
+  function loadFile(file) {
+    hideError();
+    getAudioCtx().resume && getAudioCtx().resume();
+    file.arrayBuffer().then(function (ab) {
+      return getAudioCtx().decodeAudioData(ab);
+    }).then(function (audioBuffer) {
+      state.audioBuffer = audioBuffer;
+      state.sampleRate = audioBuffer.sampleRate;
+      state.bufferL = audioBuffer.getChannelData(0);
+      state.bufferR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+      state._mid = null; state._side = null; state.zoom = null;
+      if (!state.bufferR) state.channelMode = "left";
+      updateChannelAvailability();
+      syncSeg(els.segChannel, "data-ch", state.channelMode);
+      updateFileInfo(file.name, audioBuffer);
+      els.zoomReset.disabled = true;
+      recomputeAndRender();
+      computeAndRenderStereo();
+    }).catch(function () {
+      showError(tt("t.decodeError"));
+    });
+  }
+
+  els.dropzone.addEventListener("click", function () { els.fileInput.click(); });
+  els.dropzone.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); els.fileInput.click(); }
+  });
+  ["dragenter", "dragover"].forEach(function (evt) {
+    els.dropzone.addEventListener(evt, function (e) { e.preventDefault(); els.dropzone.classList.add("dragover"); });
+  });
+  ["dragleave", "drop"].forEach(function (evt) {
+    els.dropzone.addEventListener(evt, function (e) { e.preventDefault(); els.dropzone.classList.remove("dragover"); });
+  });
+  els.dropzone.addEventListener("drop", function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+  els.fileInput.addEventListener("change", function () {
+    var f = els.fileInput.files && els.fileInput.files[0];
+    if (f) loadFile(f);
+  });
+  els.changeFile.addEventListener("click", function () { els.fileInput.click(); });
+
+  /* =====================================================================
+     control wiring
+     ===================================================================== */
+  els.segChannel.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b || b.disabled) return;
+    state.channelMode = b.getAttribute("data-ch");
+    syncSeg(els.segChannel, "data-ch", state.channelMode);
+    if (state.audioBuffer) recomputeAndRender();
+  });
+  els.segFreqScale.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.freqScale = b.getAttribute("data-scale");
+    syncSeg(els.segFreqScale, "data-scale", state.freqScale);
+    if (state.spectroData) { renderSpectrogram(); renderFreqAxis(); }
+  });
+  els.segColormap.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.colormap = b.getAttribute("data-cm");
+    syncSeg(els.segColormap, "data-cm", state.colormap);
+    updateColorbarGradient();
+    if (state.spectroData) renderSpectrogram();
+  });
+  els.fftSelect.addEventListener("change", function () {
+    state.fftSize = parseInt(els.fftSelect.value, 10);
+    if (state.audioBuffer) recomputeAndRender();
+  });
+  els.dbFloor.addEventListener("input", function () {
+    var v = parseFloat(els.dbFloor.value);
+    if (isNaN(v)) return;
+    if (v >= state.dbCeil) v = state.dbCeil - 1;
+    state.dbFloor = v; updateColorbarLabels();
+    if (state.spectroData) renderSpectrogram();
+  });
+  els.dbCeil.addEventListener("input", function () {
+    var v = parseFloat(els.dbCeil.value);
+    if (isNaN(v)) return;
+    if (v <= state.dbFloor) v = state.dbFloor + 1;
+    state.dbCeil = v; updateColorbarLabels();
+    if (state.spectroData) renderSpectrogram();
+  });
+
+  /* =====================================================================
+     boot
+     ===================================================================== */
+  syncSeg(els.segChannel, "data-ch", state.channelMode);
+  syncSeg(els.segFreqScale, "data-scale", state.freqScale);
+  syncSeg(els.segColormap, "data-cm", state.colormap);
+  updateColorbarGradient();
+  updateColorbarLabels();
+  els.stereoBody.hidden = true; els.monoNote.hidden = true;
+
+  function onSettingsChange() {
+    if (!state.spectroData) els.hoverReadout.textContent = tt("t.hoverHint");
+    if (!state.zoom) els.zoomInfo.textContent = tt("t.zoomFull"); else updateZoomInfo();
+  }
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "spectrum-stereo",
+      strings: {
+        en: {
+          "t.title": "Spectrum & stereo",
+          "t.desc": "See the whole-file spectrogram, switch between L/R and Mid/Side, and check phase correlation.",
+          "t.file": "File", "t.dropTitle": "Drop an audio file here", "t.dropHint": "or click to choose \u2014 processed locally, never uploaded",
+          "t.fileinfo": "Loaded file", "t.changefile": "Change file",
+          "t.name": "Name", "t.duration": "Duration", "t.samplerate": "Sample rate", "t.channels": "Channels",
+          "t.display": "Display", "t.channel": "Channel", "t.left": "L", "t.right": "R", "t.mid": "Mid", "t.side": "Side",
+          "t.freqscale": "Frequency scale", "t.log": "Log", "t.linear": "Linear",
+          "t.fftsize": "FFT size", "t.dbrange": "Level range (dB)", "t.ceil": "Ceiling", "t.floor": "Floor",
+          "t.colormap": "Color map", "t.cm_vernier": "Vernier", "t.cm_thermal": "Thermal", "t.cm_gray": "Grayscale",
+          "t.spectrogram": "Spectrogram", "t.zoomFull": "Full file", "t.resetZoom": "Reset zoom",
+          "t.placeholder": "Load an audio file to see its spectrogram here.",
+          "t.hoverHint": "Hover over the spectrogram to inspect values. Drag to zoom in on a time range.",
+          "t.stereo": "Stereo", "t.correlation": "Phase correlation", "t.width": "Stereo width", "t.mincorr": "Minimum correlation",
+          "t.mononote": "This file is mono \u2014 stereo analysis is unavailable.",
+          "t.corrhint": "-1 = out of phase \u00b7 0 = wide stereo \u00b7 +1 = mono-like",
+          "t.copyhint": "Click any value to copy.",
+          "t.decodeError": "Couldn't decode this file. Try a different audio file."
+        },
+        ja: {
+          "t.title": "周波数・ステレオ解析",
+          "t.desc": "ファイル全体のスペクトログラムを表示し、L/R・Mid/Sideの切り替えや位相相関を確認できます。",
+          "t.file": "ファイル", "t.dropTitle": "音声ファイルをドロップ", "t.dropHint": "またはクリックして選択 — すべてローカルで処理されます",
+          "t.fileinfo": "読み込んだファイル", "t.changefile": "ファイルを変更",
+          "t.name": "ファイル名", "t.duration": "長さ", "t.samplerate": "サンプルレート", "t.channels": "チャンネル数",
+          "t.display": "表示設定", "t.channel": "チャンネル", "t.left": "L", "t.right": "R", "t.mid": "Mid", "t.side": "Side",
+          "t.freqscale": "周波数スケール", "t.log": "対数", "t.linear": "リニア",
+          "t.fftsize": "FFTサイズ", "t.dbrange": "レベル範囲 (dB)", "t.ceil": "上限", "t.floor": "下限",
+          "t.colormap": "カラーマップ", "t.cm_vernier": "Vernier", "t.cm_thermal": "サーマル", "t.cm_gray": "グレースケール",
+          "t.spectrogram": "スペクトログラム", "t.zoomFull": "ファイル全体", "t.resetZoom": "ズーム解除",
+          "t.placeholder": "音声ファイルを読み込むと、ここにスペクトログラムが表示されます。",
+          "t.hoverHint": "スペクトログラム上にカーソルを合わせると数値を表示します。ドラッグで時間範囲を拡大できます。",
+          "t.stereo": "ステレオ", "t.correlation": "位相相関", "t.width": "ステレオ幅", "t.mincorr": "最小相関",
+          "t.mononote": "モノラルファイルのため、ステレオ解析は利用できません。",
+          "t.corrhint": "-1=逆位相 · 0=ワイドステレオ · +1=モノラルに近い",
+          "t.copyhint": "数値をクリックでコピー。",
+          "t.decodeError": "このファイルを読み込めませんでした。別の音声ファイルをお試しください。"
+        }
+      },
+      onSettingsChange: onSettingsChange
+    });
+  } else {
+    onSettingsChange();
+  }
+})();
+</script>
+</body>
+</html>
