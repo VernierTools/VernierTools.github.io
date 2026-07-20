@@ -12,11 +12,11 @@
     padding:var(--s4); overflow-x:auto; }
   .piano svg{ display:block; width:100%; max-width:520px; height:auto; margin:0 auto; user-select:none; }
   .key{ cursor:pointer; transition:fill var(--tap); }
-  /* 鍵盤の白黒はサイトのテーマに依存させない（ダークモードで反転して見えるのを防ぐ） */
-  .key--white{ fill:#fbfbfc; stroke:var(--border-strong); stroke-width:1.5; }
+  .key--white{ fill:var(--surface); stroke:var(--border-strong); stroke-width:1.5; }
   .key--white:hover{ fill:var(--accent-tint); }
   .key--white.on{ fill:var(--accent); }
-  .key--black{ fill:#17181c; stroke:var(--border-strong); stroke-width:1.5; }
+  /* 黒鍵だけはテーマに依存させず常に黒っぽく固定（ダークモードで白く反転して見えるのを防ぐ） */
+  .key--black{ fill:#15171b; stroke:var(--surface-2); stroke-width:2; }
   .key--black:hover{ fill:#2b2e35; }
   .key--black.on{ fill:var(--accent); }
   .keylabel{ font-family:var(--font-mono); font-size:11px; fill:var(--text-3); pointer-events:none; }
