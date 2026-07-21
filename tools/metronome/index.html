@@ -357,8 +357,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
           <div><b data-i18n="t.dropb">Choose an audio file</b> <span data-i18n="t.dropt">or drop it here</span></div>
           <small data-i18n="t.droph">Trim it so the sound's attack starts exactly at playback.</small>
-          <input type="file" id="fileInput" accept="audio/*" style="display:none">
+          <input type="file" id="fileInput" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus" style="display:none">
         </div>
+        <div class="hint" id="wfDecodeError" hidden style="color:var(--neg)" data-i18n="t.decodeerror">Couldn't read this file as audio — try a different file or format.</div>
         <div id="wfEditor" hidden>
           <div class="wfcanvas-wrap">
             <canvas class="wfcanvas" id="wfCanvas"></canvas>
@@ -1076,14 +1077,16 @@
   $("fileInput").addEventListener("change", function(e){ if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
 
   function loadAudioFile(file){
+    $("wfDecodeError").hidden = true;
     var reader = new FileReader();
     reader.onload = function(){
       ctx().decodeAudioData(reader.result.slice(0), function(buf){
         pendingBuffer = buf; trimStart = 0; trimEnd = buf.duration;
         $("wfEditor").hidden = false;
         drawWaveform(); layoutHandles();
-      }, function(){});
+      }, function(){ $("wfDecodeError").hidden = false; $("wfEditor").hidden = true; });
     };
+    reader.onerror = function(){ $("wfDecodeError").hidden = false; };
     reader.readAsArrayBuffer(file);
   }
   function drawWaveform(){
@@ -1261,6 +1264,7 @@
         "t.customsound":"Custom sounds","t.dropb":"Choose an audio file","t.dropt":"or drop it here",
         "t.droph":"Trim it so the sound's attack starts exactly at playback.",
         "t.preview":"▶ Preview","t.addsound":"Add to sound list",
+        "t.decodeerror":"Couldn't read this file as audio — try a different file or format.",
         "t.output":"Output & session","t.mastervol":"Master volume","t.vibration":"Vibration on beat (mobile)",
         "t.vibunsupported":"Not supported on this device or browser (needs a touch device; iOS Safari and Firefox don't implement the Vibration API at all).",
         "t.kbdhint":"Space play/stop · ←/→ BPM ±1 (Shift ±5) · T tap tempo · F flash mode",
@@ -1285,6 +1289,7 @@
         "t.customsound":"カスタムサウンド","t.dropb":"音声ファイルを選択","t.dropt":"またはここにドロップ",
         "t.droph":"再生時にアタックが即座に鳴るよう、波形の前後を切り取れます。",
         "t.preview":"▶ プレビュー","t.addsound":"サウンド一覧に追加",
+        "t.decodeerror":"このファイルは音声として読み込めませんでした。別のファイルや形式を試してください。",
         "t.output":"出力・セッション","t.mastervol":"マスター音量","t.vibration":"拍でバイブレーション（モバイル）",
         "t.vibunsupported":"この端末・ブラウザは非対応です（タッチ対応デバイスが必要です。iOS SafariとFirefoxはVibration API自体を実装していません）。",
         "t.kbdhint":"スペース 再生/停止 ・ ←/→ BPM±1（Shiftで±5）・ T タップテンポ ・ F フラッシュモード",
