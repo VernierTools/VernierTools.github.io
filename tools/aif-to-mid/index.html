@@ -27,8 +27,17 @@
   .frow__save{ appearance:none; cursor:pointer; border:1px solid var(--border-strong); background:var(--surface);
     color:var(--accent); width:26px; height:26px; border-radius:var(--r-sm); flex:0 0 auto;
     display:inline-flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .frow__save{ appearance:none; cursor:pointer; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--accent); height:26px; padding:0 8px 0 7px; border-radius:var(--r-sm); flex:0 0 auto;
+    display:inline-flex; align-items:center; gap:5px; font:inherit; font-weight:600; font-size:11px;
+    font-family:var(--font-mono); transition:all var(--tap); }
   .frow__save:hover{ background:var(--accent-tint); border-color:var(--accent); }
-  .frow__save svg{ width:14px; height:14px; }
+  .frow__save svg{ width:14px; height:14px; flex:0 0 auto; }
+  .frow__remove{ appearance:none; cursor:pointer; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--text-3); width:26px; height:26px; border-radius:var(--r-sm); flex:0 0 auto;
+    display:inline-flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .frow__remove:hover{ background:var(--neg-tint); border-color:var(--neg); color:var(--neg); }
+  .frow__remove svg{ width:13px; height:13px; }
 
   /* ---- ファイル構造（折りたたみ・控えめ） ---- */
   .structcard{ margin-top:var(--s4); padding:var(--s4) var(--s5); }
@@ -91,7 +100,7 @@
             <b data-i18n="t.droptitle">Drop .aif files here</b>
             <small data-i18n="t.drophint">or click to choose — .aif / .aiff / .aifc, multiple files OK</small>
           </div>
-          <input id="file" type="file" accept=".aif,.aiff,.aifc" multiple hidden>
+          <input id="file" type="file" accept="audio/aiff,audio/x-aiff,.aif,.aiff,.aifc" multiple hidden>
         </div>
 
         <div class="field" id="listfield" hidden>
@@ -172,6 +181,7 @@
   var chunkRows = $("chunkrows"), statusEl = $("status"), live = $("live");
   var btnSaveAll = $("saveall"), btnClear = $("clear");
   var SVG_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v9"/><path d="M8 9.5 12 13.5 16 9.5"/><path d="M4 15.5v2.5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2.5"/></svg>';
+  var SVG_X  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
   function T(k) { return (typeof Shell !== "undefined" && Shell && Shell.t) ? Shell.t(k) : k; }
   function msg(k, a) { return T(k).replace("{0}", a == null ? "" : String(a)); }
@@ -340,13 +350,15 @@
       var st = statusOf(it);
       var dl = it.isSmf
         ? '<button type="button" class="frow__save" data-save="' + i + '" title="' +
-          esc(msg("t.savethis", midName(it.name))) + '">' + SVG_DL + "</button>"
+          esc(msg("t.savethis", midName(it.name))) + '">' + SVG_DL + '<span>.mid</span></button>'
         : "";
+      var rm = '<button type="button" class="frow__remove" data-remove="' + i + '" title="' +
+        esc(T("t.remove")) + '" aria-label="' + esc(T("t.remove")) + '">' + SVG_X + "</button>";
       return '<div class="frow" data-active="' + (i === sel) + '">' +
         '<button type="button" class="frow__namebtn" data-i="' + i + '" aria-pressed="' + (i === sel) + '">' +
         '<span class="frow__name">' + esc(it.name) + '</span></button>' +
         '<span class="frow__right"><span class="badge badge--' + st.mod + '"><span class="d"></span>' +
-        esc(T(st.key)) + "</span>" + dl + "</span></div>";
+        esc(T(st.key)) + "</span>" + dl + rm + "</span></div>";
     }).join("");
     var n = items.filter(function (it) { return it.isSmf; }).length;
     btnSaveAll.disabled = n < 1;
@@ -449,9 +461,19 @@
   flist.addEventListener("click", function (e) {
     var sb = e.target.closest(".frow__save");
     if (sb) { saveOne(items[parseInt(sb.getAttribute("data-save"), 10)]); return; }
+    var xb = e.target.closest(".frow__remove");
+    if (xb) { removeItem(parseInt(xb.getAttribute("data-remove"), 10)); return; }
     var b = e.target.closest(".frow__namebtn"); if (!b) return;
     sel = parseInt(b.getAttribute("data-i"), 10); render();
   });
+  function removeItem(i) {
+    if (i < 0 || i >= items.length) return;
+    items.splice(i, 1);
+    if (items.length === 0) sel = -1;
+    else if (i < sel) sel -= 1;
+    else if (i === sel) sel = Math.min(sel, items.length - 1);
+    render();
+  }
   btnSaveAll.addEventListener("click", function () {
     items.filter(function (it) { return it.isSmf; }).forEach(function (it, i) {
       setTimeout(function () { saveOne(it); }, i * 150);
@@ -485,6 +507,7 @@
           "t.save": "Save .mid",
           "t.savehint": "Click the download icon on a row to save just that file.",
           "t.savethis": "Save {0}",
+          "t.remove": "Remove from list",
           "t.copyhint": "Click any value to copy.",
           "t.empty": "Drop a file to read its chunks.",
           "t.eok": "MIDI chunk found in FORM {0}",
@@ -519,6 +542,7 @@
           "t.save": ".mid を保存",
           "t.savehint": "行のダウンロードアイコンで、そのファイルだけ保存できます。",
           "t.savethis": "{0} を保存",
+          "t.remove": "一覧から削除",
           "t.copyhint": "数値をクリックでコピー。",
           "t.empty": "ファイルをドロップするとチャンクを表示します。",
           "t.eok": "FORM {0} からMIDIチャンクを検出しました。",
