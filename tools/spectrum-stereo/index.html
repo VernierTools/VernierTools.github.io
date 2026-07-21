@@ -46,12 +46,29 @@
     background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md);
     padding:var(--s4); z-index:30; }
 
+  /* ---- transport (play / pause / seek) ---- */
+  .transport{ display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3); }
+  .transport__btn{ flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+    width:40px; height:40px; border-radius:50%; border:1px solid var(--accent); background:var(--accent);
+    color:#fff; cursor:pointer; transition:background var(--tap), border-color var(--tap), opacity var(--tap); }
+  .transport__btn:hover{ background:var(--accent-hover); border-color:var(--accent-hover); }
+  .transport__btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .transport__btn svg{ width:18px; height:18px; display:block; }
+  .transport__time{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .transport__bar{ flex:1 1 auto; height:6px; border-radius:100px; background:var(--border-strong); position:relative; cursor:pointer; }
+  .transport__bar-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:100px; background:var(--accent); width:0%; }
+  .transport__bar-knob{ position:absolute; top:50%; width:13px; height:13px; border-radius:50%; background:var(--surface);
+    border:1px solid var(--accent); box-shadow:var(--shadow-sm); transform:translate(-50%,-50%); left:0%; }
+
   .spec-body{ display:grid; grid-template-columns:44px 1fr 64px; gap:var(--s2); }
   #canvas-wrap{ position:relative; height:420px; border-radius:var(--r); overflow:hidden;
     background:var(--surface-2); border:1px solid var(--border); cursor:default; overscroll-behavior:contain; }
-  #spec-canvas{ display:block; width:100%; height:100%; touch-action:none; transform-origin:0 0; will-change:transform; }
+  #spec-canvas{ position:absolute; top:0; left:0; height:100%; touch-action:none; transform-origin:0 0; will-change:transform; }
+  /* playhead: 縦の細い線。表示範囲内にあるときだけ見える */
+  #playhead{ position:absolute; top:0; bottom:0; width:2px; background:#fff; mix-blend-mode:difference;
+    left:0; transform:translateX(-1px); pointer-events:none; display:none; z-index:4; }
   .spec-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); pointer-events:none; }
+    color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); pointer-events:none; z-index:5; }
 
   .spec-freqaxis{ position:relative; overflow:hidden; }
   .axis-label--freq{ position:absolute; right:2px; left:0; text-align:right;
@@ -95,7 +112,7 @@
           <div><b data-i18n="t.dropTitle">Drop an audio file here</b></div>
           <small data-i18n="t.dropHint">or click to choose — processed locally</small>
         </div>
-        <input type="file" id="file-input" accept="audio/*" hidden aria-hidden="true">
+        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf" hidden aria-hidden="true">
       </div>
       <div class="toolrow__info" id="file-info" hidden>
         <div class="fi-name" id="fi-name">—</div>
@@ -175,10 +192,23 @@
       </div>
     </div>
 
+    <div class="transport">
+      <button class="transport__btn" id="play-toggle" type="button" aria-label="Play" disabled>
+        <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <span class="transport__time"><span id="tp-cur">0:00.00</span> / <span id="tp-dur">0:00.00</span></span>
+      <div class="transport__bar" id="seek-bar" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+        <div class="transport__bar-fill" id="seek-fill"></div>
+        <div class="transport__bar-knob" id="seek-knob"></div>
+      </div>
+    </div>
+
     <div class="spec-body">
       <div class="spec-freqaxis" id="freq-axis"></div>
       <div id="canvas-wrap">
         <canvas id="spec-canvas" aria-label="Spectrogram of the loaded audio file"></canvas>
+        <div id="playhead"></div>
         <div class="spec-placeholder" id="spec-placeholder" data-i18n="t.placeholder">Load an audio file to see its spectrogram here.</div>
       </div>
       <div class="spec-colorbar">
@@ -231,12 +261,18 @@
     _mid: null, _side: null,
     channelMode: "mid", freqScale: "log", fftSize: 2048,
     dbFloor: -90, dbCeil: 0, colormap: "vernier",
-    zoom: null,          // {start,end} in samples, null = whole file
-    spectroData: null,   // {cols, fftSize, startSample, endSample, sampleRate}
+    zoom: null,          // {start,end} in samples, null = whole file (the *view*)
+    // spectroData covers a *wider* range than the view (overscan) so panning
+    // and zooming out reveal already-computed pixels instead of black:
+    //   {cols, fftSize, coveredStart, coveredEnd, sampleRate, columns}
+    spectroData: null,
     stereoMetrics: null
   };
   var computeGen = 0;
   var recomputeTimer = null;
+
+  // how much extra to compute on each side, as a fraction of the view span.
+  var OVERSCAN = 0.75;
 
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -253,11 +289,13 @@
     zoomInfo: $("zoom-info"), zoomReset: $("zoom-reset"),
     processingBadge: $("processing-badge"), processingText: $("processing-text"),
     freqAxis: $("freq-axis"), timeAxis: $("time-axis"),
-    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), placeholder: $("spec-placeholder"),
+    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), placeholder: $("spec-placeholder"), playhead: $("playhead"),
     colorbarGrad: $("colorbar-grad"), cbCeil: $("cb-ceil"), cbFloor: $("cb-floor"),
     hoverReadout: $("hover-readout"),
     stereoBody: $("stereo-body"), monoNote: $("mono-note"),
-    roCorr: $("ro-corr"), roWidth: $("ro-width"), roMinCorr: $("ro-mincorr"), corrCanvas: $("corr-canvas")
+    roCorr: $("ro-corr"), roWidth: $("ro-width"), roMinCorr: $("ro-mincorr"), corrCanvas: $("corr-canvas"),
+    playToggle: $("play-toggle"), iconPlay: $("icon-play"), iconPause: $("icon-pause"),
+    tpCur: $("tp-cur"), tpDur: $("tp-dur"), seekBar: $("seek-bar"), seekFill: $("seek-fill"), seekKnob: $("seek-knob")
   };
 
   /* =====================================================================
@@ -362,11 +400,12 @@
 
   /* =====================================================================
      spectrogram computation (chunked, cancellable)
+     computes across [coveredStart, coveredEnd] (already includes overscan)
      ===================================================================== */
   function computeSpectrogram(opts) {
     return new Promise(function (resolve) {
       var fftSize = opts.fftSize, columns = opts.columns;
-      var startSample = opts.startSample, endSample = opts.endSample;
+      var startSample = opts.coveredStart, endSample = opts.coveredEnd;
       var total = Math.max(1, endSample - startSample);
       var hop = total / columns;
       var data = getChannelSamples(opts.channelMode);
@@ -399,23 +438,10 @@
         }
         if (opts.onProgress) opts.onProgress(c / columns);
         if (c < columns) requestAnimationFrame(step);
-        else resolve({ cols: cols, fftSize: fftSize, startSample: startSample, endSample: endSample, sampleRate: opts.sampleRate, columns: columns });
+        else resolve({ cols: cols, fftSize: fftSize, coveredStart: startSample, coveredEnd: endSample, sampleRate: opts.sampleRate, columns: columns });
       }
       requestAnimationFrame(step);
     });
-  }
-
-  /* =====================================================================
-     canvas sizing (only called right before painting fresh data,
-     so the clear+repaint happen in the same tick — no visible flash)
-     ===================================================================== */
-  function sizeSpecCanvas() {
-    var rect = els.canvasWrap.getBoundingClientRect();
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var maxW = 1600, maxH = 720;
-    var w = Math.max(1, Math.min(Math.round(rect.width * dpr), maxW));
-    var h = Math.max(1, Math.min(Math.round(rect.height * dpr), maxH));
-    els.specCanvas.width = w; els.specCanvas.height = h;
   }
 
   /* =====================================================================
@@ -435,12 +461,50 @@
   }
 
   /* =====================================================================
-     current desired view (may be ahead of what's actually been computed)
+     view helpers
      ===================================================================== */
+  function totalSamples() { return state.bufferL ? state.bufferL.length : 0; }
   function currentView() {
-    var total = state.bufferL ? state.bufferL.length : 0;
+    var total = totalSamples();
     if (state.zoom) return { start: state.zoom.start, end: state.zoom.end };
     return { start: 0, end: total };
+  }
+  // desired covered range for a given view (clamped to file bounds)
+  function coveredFor(view) {
+    var total = totalSamples();
+    var span = view.end - view.start;
+    var pad = span * OVERSCAN;
+    return { start: Math.max(0, view.start - pad), end: Math.min(total, view.end + pad) };
+  }
+  // is the current spectroData enough to cover the current view without gaps?
+  function coverageSufficient() {
+    var sd = state.spectroData; if (!sd) return false;
+    var view = currentView();
+    // must contain the whole view...
+    if (sd.coveredStart > view.start + 1 || sd.coveredEnd < view.end - 1) return false;
+    // ...and not be so much coarser than needed that it looks blurry (zoomed in a lot)
+    var viewSpan = view.end - view.start;
+    var coveredSpan = sd.coveredEnd - sd.coveredStart;
+    if (coveredSpan > viewSpan * (1 + 2 * OVERSCAN) * 1.8) return false; // too coarse now → recompute sharper
+    return true;
+  }
+
+  /* =====================================================================
+     canvas sizing — canvas is wider than the wrap so the covered range
+     maps 1:1 onto canvas pixels; the wrap clips it with overflow:hidden.
+     ===================================================================== */
+  function layoutCanvasToCoverage() {
+    var sd = state.spectroData; if (!sd) return;
+    var wrapRect = els.canvasWrap.getBoundingClientRect();
+    var view = currentView();
+    var viewSpan = Math.max(1, view.end - view.start);
+    var coveredSpan = Math.max(1, sd.coveredEnd - sd.coveredStart);
+    var pxPerSample = wrapRect.width / viewSpan;
+    var canvasCssW = coveredSpan * pxPerSample;
+    var leftCss = (sd.coveredStart - view.start) * pxPerSample;
+    els.specCanvas.style.width = canvasCssW + "px";
+    els.specCanvas.style.left = leftCss + "px";
+    els.specCanvas.style.transform = "none";
   }
 
   /* =====================================================================
@@ -450,8 +514,11 @@
     var sd = state.spectroData;
     if (!sd) return;
     var canvas = els.specCanvas, ctx = canvas.getContext("2d");
-    var w = canvas.width, h = canvas.height;
-    if (w < 1 || h < 1) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var wrapRect = els.canvasWrap.getBoundingClientRect();
+    var h = Math.max(1, Math.min(Math.round(wrapRect.height * dpr), 720));
+    var w = sd.columns;
+    canvas.width = w; canvas.height = h;
     var img = ctx.createImageData(w, h);
     var lut = buildColormapLUT(COLORMAPS[state.colormap]);
     var nyquist = sd.sampleRate / 2;
@@ -474,6 +541,7 @@
       }
     }
     ctx.putImageData(img, 0, 0);
+    layoutCanvasToCoverage();
   }
 
   function niceStep(rough) {
@@ -569,41 +637,60 @@
   }
 
   /* =====================================================================
-     smooth pan/zoom: apply an instant CSS transform to the *existing*
-     raster so movement feels continuous, then settle with a real
-     recompute after the interaction pauses.
+     smooth pan/zoom:
+     - if current coverage still contains the view, just re-layout the
+       existing canvas (pure CSS width/left → GPU, no black, no recompute)
+     - only when the view escapes the covered range (or gets much finer)
+       do we schedule a real recompute.
      ===================================================================== */
-  function applyCanvasTransform() {
-    var sd = state.spectroData;
-    if (!sd) { els.specCanvas.style.transform = "none"; return; }
+  function requestView() {
+    var total = totalSamples();
+    if (!total) return;
+    els.zoomReset.disabled = !state.zoom;
+    updatePlayhead();
+    renderTimeAxis();
+    updateZoomInfo();
+    if (state.spectroData && coverageSufficient()) {
+      layoutCanvasToCoverage();
+      // schedule a light re-center recompute so overscan stays balanced,
+      // but only after the user pauses — and skip if still sufficient then.
+      clearTimeout(recomputeTimer);
+      recomputeTimer = setTimeout(function () {
+        if (!coverageComfortable()) recomputeAndRender();
+      }, 260);
+    } else {
+      // out of covered range → we still avoid black by keeping the old
+      // canvas laid out (it just won't cover everything); recompute soon.
+      if (state.spectroData) layoutCanvasToCoverage();
+      clearTimeout(recomputeTimer);
+      recomputeTimer = setTimeout(recomputeAndRender, 90);
+    }
+  }
+  // comfortable = view sits well inside covered range with decent margin
+  function coverageComfortable() {
+    var sd = state.spectroData; if (!sd) return false;
     var view = currentView();
-    var sdSpan = sd.endSample - sd.startSample;
-    var viewSpan = view.end - view.start;
-    if (sdSpan <= 0 || viewSpan <= 0) { els.specCanvas.style.transform = "none"; return; }
-    var scale = sdSpan / viewSpan;
-    var W = els.canvasWrap.getBoundingClientRect().width;
-    var anchorX = ((view.start - sd.startSample) / sdSpan) * W;
-    var tx = -scale * anchorX;
-    els.specCanvas.style.transform = "translateX(" + tx.toFixed(2) + "px) scaleX(" + scale.toFixed(6) + ")";
+    var span = view.end - view.start;
+    var margin = span * OVERSCAN * 0.4;
+    if (sd.coveredStart > Math.max(0, view.start - margin) + 1) {
+      if (sd.coveredStart > 1) return false; // could extend left but hasn't
+    }
+    if (sd.coveredEnd < Math.min(totalSamples(), view.end + margin) - 1) {
+      if (sd.coveredEnd < totalSamples() - 1) return false;
+    }
+    return coverageSufficient();
   }
 
-  function requestZoom(s, e) {
-    var total = state.bufferL ? state.bufferL.length : 0;
+  function setZoom(s, e) {
+    var total = totalSamples();
     s = Math.round(clamp(s, 0, total)); e = Math.round(clamp(e, 0, total));
     if (e - s < 1) e = s + 1;
     if (s <= 0 && e >= total) state.zoom = null; else state.zoom = { start: s, end: e };
-    els.zoomReset.disabled = !state.zoom;
-    applyCanvasTransform();
-    renderTimeAxis();
-    updateZoomInfo();
-    clearTimeout(recomputeTimer);
-    recomputeTimer = setTimeout(recomputeAndRender, 160);
+    requestView();
   }
 
   /* =====================================================================
      compute + render orchestration
-     the canvas is only resized/cleared right before the fresh pixels are
-     painted (same synchronous block), so there is no visible blank frame.
      ===================================================================== */
   function setBusy(b) {
     els.processingBadge.hidden = !b;
@@ -617,22 +704,26 @@
     els.placeholder.hidden = true;
     var rect = els.canvasWrap.getBoundingClientRect();
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var columns = Math.max(1, Math.min(Math.round(rect.width * dpr), 1600));
     var view = currentView();
+    var covered = coveredFor(view);
+    var coveredSpan = Math.max(1, covered.end - covered.start);
+    var viewSpan = Math.max(1, view.end - view.start);
+    // columns: keep view resolution ≈ wrap width * dpr, scaled up for the wider covered span
+    var viewColumns = Math.max(1, Math.min(Math.round(rect.width * dpr), 1600));
+    var columns = Math.max(1, Math.min(Math.round(viewColumns * (coveredSpan / viewSpan)), 2600));
     return computeSpectrogram({
       channelMode: state.channelMode, fftSize: state.fftSize,
-      startSample: view.start, endSample: view.end, columns: columns, sampleRate: state.sampleRate,
+      coveredStart: covered.start, coveredEnd: covered.end, columns: columns, sampleRate: state.sampleRate,
       isStale: function () { return myGen !== computeGen; },
       onProgress: function (f) { if (myGen === computeGen) els.processingText.textContent = Math.round(f * 100) + "%"; }
     }).then(function (data) {
       if (myGen !== computeGen || !data) return;
       state.spectroData = data;
-      sizeSpecCanvas();
-      els.specCanvas.style.transform = "none";
-      renderSpectrogram();
+      renderSpectrogram();   // paints + lays out canvas over coverage
       renderFreqAxis();
       renderTimeAxis();
       updateZoomInfo();
+      updatePlayhead();
       setBusy(false);
     });
   }
@@ -724,8 +815,8 @@
     var fracY = clamp(yCss / rect.height, 0, 1);
     var freq = fracToFreq(fracY, state.freqScale, nyquist);
 
-    var sdSpan = sd.endSample - sd.startSample;
-    var fracXSd = sdSpan > 0 ? clamp((sampleIdx - sd.startSample) / sdSpan, 0, 1) : fracXView;
+    var covSpan = sd.coveredEnd - sd.coveredStart;
+    var fracXSd = covSpan > 0 ? clamp((sampleIdx - sd.coveredStart) / covSpan, 0, 1) : fracXView;
     var colIdx = clamp(Math.floor(fracXSd * sd.cols.length), 0, sd.cols.length - 1);
     var binCount = (sd.fftSize >> 1) + 1;
     var binPos = clamp(freq / nyquist * (binCount - 1), 0, binCount - 1);
@@ -737,21 +828,21 @@
   }
   els.specCanvas.addEventListener("pointermove", function (e) {
     if (!state.spectroData) return;
-    var rect = els.specCanvas.getBoundingClientRect();
+    var rect = els.canvasWrap.getBoundingClientRect();
     updateHoverReadout(e.clientX - rect.left, e.clientY - rect.top, rect);
   });
-  els.specCanvas.addEventListener("pointerleave", function () {
+  els.canvasWrap.addEventListener("pointerleave", function () {
     els.hoverReadout.textContent = tt("t.hoverHint");
   });
 
   /* =====================================================================
      DAW-style navigation: scroll to pan, Ctrl/Cmd+scroll (or trackpad
-     pinch, which browsers report the same way) to zoom toward the cursor.
+     pinch) to zoom toward the cursor.
      ===================================================================== */
   function applyWheel(wp) {
     if (!state.audioBuffer) return;
-    var total = state.bufferL.length;
-    var rect = els.specCanvas.getBoundingClientRect();
+    var total = totalSamples();
+    var rect = els.canvasWrap.getBoundingClientRect();
     var view = currentView();
     var span = view.end - view.start;
 
@@ -762,12 +853,12 @@
       var minSpan = Math.min(total, Math.max(state.fftSize * 2, state.sampleRate * 0.005));
       var newSpan = clamp(span * zoomFactor, minSpan, total);
       var newStart = clamp(anchorSample - fracX * newSpan, 0, Math.max(0, total - newSpan));
-      requestZoom(newStart, newStart + newSpan);
+      setZoom(newStart, newStart + newSpan);
     } else {
       var d = (wp.dx !== 0 ? wp.dx : wp.dy);
       var deltaSamples = d * (span / Math.max(1, rect.width)) * 1.6;
       var newStart2 = clamp(view.start + deltaSamples, 0, Math.max(0, total - span));
-      requestZoom(newStart2, newStart2 + span);
+      setZoom(newStart2, newStart2 + span);
     }
   }
   var wheelPending = null;
@@ -785,14 +876,11 @@
     });
   }, { passive: false });
 
-  els.specCanvas.addEventListener("dblclick", resetZoom);
+  els.canvasWrap.addEventListener("dblclick", resetZoom);
   els.zoomReset.addEventListener("click", resetZoom);
   function resetZoom() {
     if (!state.zoom || !state.bufferL) return;
-    var total = state.bufferL.length;
-    els.specCanvas.style.transition = "transform .22s ease";
-    requestZoom(0, total);
-    setTimeout(function () { els.specCanvas.style.transition = ""; }, 260);
+    setZoom(0, totalSamples());
   }
 
   var resizeTimer = null;
@@ -815,6 +903,148 @@
   els.settingsPopover.addEventListener("click", function (e) { e.stopPropagation(); });
   document.addEventListener("click", function () { if (!els.settingsPopover.hidden) closeSettings(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !els.settingsPopover.hidden) closeSettings(); });
+
+  /* =====================================================================
+     playback (Web Audio) + playhead + seek bar
+     ===================================================================== */
+  var playback = {
+    source: null, startCtxTime: 0, startOffset: 0, playing: false,
+    pausedAt: 0, raf: 0
+  };
+  function duration() { return state.audioBuffer ? state.audioBuffer.duration : 0; }
+
+  function formatClock(sec) {
+    sec = Math.max(0, sec);
+    var m = Math.floor(sec / 60), s = Math.floor(sec - m * 60), cs = Math.floor((sec - Math.floor(sec)) * 100);
+    return m + ":" + (s < 10 ? "0" : "") + s + "." + (cs < 10 ? "0" : "") + cs;
+  }
+  function currentPlayTime() {
+    if (!state.audioBuffer) return 0;
+    if (playback.playing) {
+      return clamp(playback.startOffset + (getAudioCtx().currentTime - playback.startCtxTime), 0, duration());
+    }
+    return clamp(playback.pausedAt, 0, duration());
+  }
+
+  function setPlayIcon(playing) {
+    els.iconPlay.style.display = playing ? "none" : "block";
+    els.iconPause.style.display = playing ? "block" : "none";
+    els.playToggle.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+
+  function startPlayback(fromSec) {
+    if (!state.audioBuffer) return;
+    stopSource();
+    var ctx = getAudioCtx();
+    if (ctx.state === "suspended" && ctx.resume) ctx.resume();
+    var src = ctx.createBufferSource();
+    src.buffer = state.audioBuffer;
+    src.connect(ctx.destination);
+    var off = clamp(fromSec, 0, Math.max(0, duration() - 0.01));
+    playback.source = src;
+    playback.startCtxTime = ctx.currentTime;
+    playback.startOffset = off;
+    playback.playing = true;
+    src.onended = function () {
+      // only react if this is still the active source and it reached the end
+      if (playback.source !== src) return;
+      playback.playing = false;
+      playback.pausedAt = 0;
+      playback.source = null;
+      setPlayIcon(false);
+      cancelAnimationFrame(playback.raf);
+      updateTransport(); updatePlayhead();
+    };
+    src.start(0, off);
+    setPlayIcon(true);
+    loopTransport();
+  }
+  function stopSource() {
+    if (playback.source) {
+      try { playback.source.onended = null; playback.source.stop(); } catch (e) {}
+      playback.source = null;
+    }
+  }
+  function pausePlayback() {
+    if (!playback.playing) return;
+    playback.pausedAt = currentPlayTime();
+    playback.playing = false;
+    stopSource();
+    setPlayIcon(false);
+    cancelAnimationFrame(playback.raf);
+    updateTransport(); updatePlayhead();
+  }
+  function togglePlay() {
+    if (!state.audioBuffer) return;
+    if (playback.playing) pausePlayback();
+    else startPlayback(playback.pausedAt >= duration() - 0.01 ? 0 : playback.pausedAt);
+  }
+  function seekTo(sec) {
+    sec = clamp(sec, 0, duration());
+    if (playback.playing) startPlayback(sec);
+    else { playback.pausedAt = sec; updateTransport(); updatePlayhead(); }
+  }
+  function loopTransport() {
+    updateTransport(); updatePlayhead();
+    if (playback.playing) playback.raf = requestAnimationFrame(loopTransport);
+  }
+  function updateTransport() {
+    var cur = currentPlayTime(), dur = duration();
+    els.tpCur.textContent = formatClock(cur);
+    els.tpDur.textContent = formatClock(dur);
+    var pct = dur > 0 ? (cur / dur) * 100 : 0;
+    els.seekFill.style.width = pct + "%";
+    els.seekKnob.style.left = pct + "%";
+    els.seekBar.setAttribute("aria-valuenow", Math.round(pct));
+  }
+  function updatePlayhead() {
+    if (!state.audioBuffer) { els.playhead.style.display = "none"; return; }
+    var view = currentView();
+    var sample = currentPlayTime() * state.sampleRate;
+    var span = view.end - view.start;
+    if (span <= 0 || sample < view.start || sample > view.end) { els.playhead.style.display = "none"; return; }
+    var W = els.canvasWrap.getBoundingClientRect().width;
+    var x = (sample - view.start) / span * W;
+    els.playhead.style.display = "block";
+    els.playhead.style.left = x + "px";
+  }
+
+  els.playToggle.addEventListener("click", togglePlay);
+
+  function seekFromClientX(clientX) {
+    var rect = els.seekBar.getBoundingClientRect();
+    var frac = clamp((clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+    seekTo(frac * duration());
+  }
+  var seekDragging = false;
+  els.seekBar.addEventListener("pointerdown", function (e) {
+    if (!state.audioBuffer) return;
+    seekDragging = true;
+    try { els.seekBar.setPointerCapture(e.pointerId); } catch (err) {}
+    seekFromClientX(e.clientX);
+  });
+  els.seekBar.addEventListener("pointermove", function (e) {
+    if (seekDragging) seekFromClientX(e.clientX);
+  });
+  els.seekBar.addEventListener("pointerup", function () { seekDragging = false; });
+  els.seekBar.addEventListener("pointercancel", function () { seekDragging = false; });
+  els.seekBar.addEventListener("keydown", function (e) {
+    if (!state.audioBuffer) return;
+    var step = (e.shiftKey ? 5 : 1);
+    if (e.key === "ArrowRight") { e.preventDefault(); seekTo(currentPlayTime() + step); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); seekTo(currentPlayTime() - step); }
+    else if (e.key === " " || e.key === "Enter") { e.preventDefault(); togglePlay(); }
+  });
+
+  // click on the spectrogram sets the play position (DAW-like), unless dragging
+  els.canvasWrap.addEventListener("click", function (e) {
+    if (!state.audioBuffer) return;
+    var rect = els.canvasWrap.getBoundingClientRect();
+    var view = currentView();
+    var frac = clamp((e.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+    var sample = view.start + frac * (view.end - view.start);
+    seekTo(sample / state.sampleRate);
+  });
 
   /* =====================================================================
      file loading
@@ -857,17 +1087,21 @@
     file.arrayBuffer().then(function (ab) {
       return getAudioCtx().decodeAudioData(ab);
     }).then(function (audioBuffer) {
+      // reset playback
+      pausePlayback(); playback.pausedAt = 0;
       state.audioBuffer = audioBuffer;
       state.sampleRate = audioBuffer.sampleRate;
       state.bufferL = audioBuffer.getChannelData(0);
       state.bufferR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
-      state._mid = null; state._side = null; state.zoom = null;
+      state._mid = null; state._side = null; state.zoom = null; state.spectroData = null;
       state.channelMode = state.bufferR ? "mid" : "left";
       updateChannelAvailability();
       syncSeg(els.segChannel, "data-ch", state.channelMode);
       updateFileInfo(file.name, audioBuffer);
       els.zoomReset.disabled = true;
-      els.specCanvas.style.transform = "none";
+      els.playToggle.disabled = false;
+      setPlayIcon(false);
+      updateTransport();
       recomputeAndRender();
       computeAndRenderStereo();
     }).catch(function () {
@@ -908,7 +1142,7 @@
     var b = e.target.closest("button"); if (!b) return;
     state.freqScale = b.getAttribute("data-scale");
     syncSeg(els.segFreqScale, "data-scale", state.freqScale);
-    if (state.spectroData) { renderSpectrogram(); renderFreqAxis(); }
+    if (state.spectroData) { renderSpectrogram(); renderFreqAxis(); updatePlayhead(); }
   });
   els.segColormap.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
@@ -945,6 +1179,7 @@
   updateColorbarGradient();
   updateColorbarLabels();
   els.stereoBody.hidden = true; els.monoNote.hidden = true;
+  setPlayIcon(false);
 
   function onSettingsChange() {
     if (!state.spectroData) els.hoverReadout.textContent = tt("t.hoverHint");
@@ -966,7 +1201,7 @@
           "t.colormap": "Color map", "t.cm_vernier": "Vernier", "t.cm_thermal": "Thermal", "t.cm_gray": "Grayscale",
           "t.spectrogram": "Spectrogram", "t.zoomFull": "Full file", "t.resetZoom": "Reset zoom",
           "t.placeholder": "Load an audio file to see its spectrogram here.",
-          "t.hoverHint": "Scroll to pan, Ctrl/Cmd + scroll to zoom. Hover to read values.",
+          "t.hoverHint": "Scroll to pan, Ctrl/Cmd + scroll to zoom. Click to set the play position.",
           "t.stereo": "Stereo", "t.correlation": "Phase correlation", "t.width": "Stereo width", "t.mincorr": "Minimum correlation",
           "t.mononote": "This file is mono \u2014 stereo analysis is unavailable.",
           "t.corrhint": "-1 = out of phase \u00b7 0 = wide stereo \u00b7 +1 = mono-like",
@@ -984,7 +1219,7 @@
           "t.colormap": "カラーマップ", "t.cm_vernier": "Vernier", "t.cm_thermal": "サーマル", "t.cm_gray": "グレースケール",
           "t.spectrogram": "スペクトログラム", "t.zoomFull": "ファイル全体", "t.resetZoom": "ズーム解除",
           "t.placeholder": "音声ファイルを読み込むと、ここにスペクトログラムが表示されます。",
-          "t.hoverHint": "スクロールで移動、Ctrl/Cmd+スクロールでズーム。カーソルを合わせると数値を表示します。",
+          "t.hoverHint": "スクロールで移動、Ctrl/Cmd+スクロールでズーム。クリックで再生位置を指定。",
           "t.stereo": "ステレオ", "t.correlation": "位相相関", "t.width": "ステレオ幅", "t.mincorr": "最小相関",
           "t.mononote": "モノラルファイルのため、ステレオ解析は利用できません。",
           "t.corrhint": "-1=逆位相 · 0=ワイドステレオ · +1=モノラルに近い",
