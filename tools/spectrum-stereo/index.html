@@ -63,7 +63,9 @@
   .spec-body{ display:grid; grid-template-columns:44px 1fr 64px; gap:var(--s2); }
   #canvas-wrap{ position:relative; height:420px; border-radius:var(--r); overflow:hidden;
     background:var(--surface-2); border:1px solid var(--border); cursor:default; overscroll-behavior:contain; }
-  #spec-canvas{ position:absolute; top:0; left:0; height:100%; touch-action:none; transform-origin:0 0; will-change:transform; }
+  #spec-canvas, #spec-canvas-base{ position:absolute; top:0; left:0; height:100%; touch-action:none; transform-origin:0 0; }
+  #spec-canvas-base{ z-index:1; }
+  #spec-canvas{ z-index:2; touch-action:none; }
   /* playhead: 縦の細い線。表示範囲内にあるときだけ見える */
   #playhead{ position:absolute; top:0; bottom:0; width:2px; background:#fff; mix-blend-mode:difference;
     left:0; transform:translateX(-1px); pointer-events:none; display:none; z-index:4; }
@@ -207,6 +209,7 @@
     <div class="spec-body">
       <div class="spec-freqaxis" id="freq-axis"></div>
       <div id="canvas-wrap">
+        <canvas id="spec-canvas-base" aria-hidden="true"></canvas>
         <canvas id="spec-canvas" aria-label="Spectrogram of the loaded audio file"></canvas>
         <div id="playhead"></div>
         <div class="spec-placeholder" id="spec-placeholder" data-i18n="t.placeholder">Load an audio file to see its spectrogram here.</div>
@@ -262,17 +265,26 @@
     channelMode: "mid", freqScale: "log", fftSize: 2048,
     dbFloor: -90, dbCeil: 0, colormap: "vernier",
     zoom: null,          // {start,end} in samples, null = whole file (the *view*)
-    // spectroData covers a *wider* range than the view (overscan) so panning
-    // and zooming out reveal already-computed pixels instead of black:
+    // spectroData ("detail" layer) covers a *wider* range than the view
+    // (overscan) so panning and zooming out reveal already-computed pixels:
     //   {cols, fftSize, coveredStart, coveredEnd, sampleRate, columns}
     spectroData: null,
+    // baseData ("base" layer): the WHOLE file at a fixed, modest resolution.
+    // Cheap (resolution doesn't scale with zoom) and always covers 100% of
+    // the file, so it's the fallback drawn underneath the detail layer —
+    // this is what guarantees there is never a blank/black area.
+    baseData: null,
     stereoMetrics: null
   };
   var computeGen = 0;
+  var baseGen = 0;
   var recomputeTimer = null;
 
   // how much extra to compute on each side, as a fraction of the view span.
   var OVERSCAN = 0.75;
+  // fixed column count for the whole-file base layer — independent of zoom,
+  // so this stays cheap no matter how far the user has zoomed in.
+  var BASE_COLUMNS = 2400;
 
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -289,7 +301,8 @@
     zoomInfo: $("zoom-info"), zoomReset: $("zoom-reset"),
     processingBadge: $("processing-badge"), processingText: $("processing-text"),
     freqAxis: $("freq-axis"), timeAxis: $("time-axis"),
-    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), placeholder: $("spec-placeholder"), playhead: $("playhead"),
+    canvasWrap: $("canvas-wrap"), specCanvas: $("spec-canvas"), specCanvasBase: $("spec-canvas-base"),
+    placeholder: $("spec-placeholder"), playhead: $("playhead"),
     colorbarGrad: $("colorbar-grad"), cbCeil: $("cb-ceil"), cbFloor: $("cb-floor"),
     hoverReadout: $("hover-readout"),
     stereoBody: $("stereo-body"), monoNote: $("mono-note"),
@@ -490,39 +503,41 @@
   }
 
   /* =====================================================================
-     canvas sizing — canvas is wider than the wrap so the covered range
-     maps 1:1 onto canvas pixels; the wrap clips it with overflow:hidden.
+     canvas sizing — each layer's canvas is sized/positioned so its covered
+     sample range maps 1:1 onto canvas pixels; the wrap clips with
+     overflow:hidden. Works identically for the base and detail layers.
      ===================================================================== */
-  function layoutCanvasToCoverage() {
-    var sd = state.spectroData; if (!sd) return;
+  function layoutLayerToCoverage(canvasEl, data) {
+    if (!data) { canvasEl.style.width = "0px"; return; }
     var wrapRect = els.canvasWrap.getBoundingClientRect();
     var view = currentView();
     var viewSpan = Math.max(1, view.end - view.start);
-    var coveredSpan = Math.max(1, sd.coveredEnd - sd.coveredStart);
+    var coveredSpan = Math.max(1, data.coveredEnd - data.coveredStart);
     var pxPerSample = wrapRect.width / viewSpan;
-    var canvasCssW = coveredSpan * pxPerSample;
-    var leftCss = (sd.coveredStart - view.start) * pxPerSample;
-    els.specCanvas.style.width = canvasCssW + "px";
-    els.specCanvas.style.left = leftCss + "px";
-    els.specCanvas.style.transform = "none";
+    canvasEl.style.width = (coveredSpan * pxPerSample) + "px";
+    canvasEl.style.left = ((data.coveredStart - view.start) * pxPerSample) + "px";
+    canvasEl.style.transform = "none";
+  }
+  function repositionLayers() {
+    layoutLayerToCoverage(els.specCanvasBase, state.baseData);
+    layoutLayerToCoverage(els.specCanvas, state.spectroData);
   }
 
   /* =====================================================================
-     rendering
+     rendering — shared pixel-painting routine used by both layers
      ===================================================================== */
-  function renderSpectrogram() {
-    var sd = state.spectroData;
-    if (!sd) return;
-    var canvas = els.specCanvas, ctx = canvas.getContext("2d");
+  function renderLayer(canvasEl, data) {
+    if (!data) return;
+    var ctx = canvasEl.getContext("2d");
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var wrapRect = els.canvasWrap.getBoundingClientRect();
     var h = Math.max(1, Math.min(Math.round(wrapRect.height * dpr), 720));
-    var w = sd.columns;
-    canvas.width = w; canvas.height = h;
+    var w = data.columns;
+    canvasEl.width = w; canvasEl.height = h;
     var img = ctx.createImageData(w, h);
     var lut = buildColormapLUT(COLORMAPS[state.colormap]);
-    var nyquist = sd.sampleRate / 2;
-    var binCount = (sd.fftSize >> 1) + 1;
+    var nyquist = data.sampleRate / 2;
+    var binCount = (data.fftSize >> 1) + 1;
     var dbFloor = state.dbFloor, dbCeil = state.dbCeil, dbSpan = (dbCeil - dbFloor) || 1;
 
     for (var y = 0; y < h; y++) {
@@ -532,7 +547,7 @@
       var b0 = Math.floor(binPos), b1 = Math.min(binCount - 1, b0 + 1), bf = binPos - b0;
       var rowOff = y * w * 4;
       for (var x = 0; x < w; x++) {
-        var col = sd.cols[Math.min(sd.cols.length - 1, x)];
+        var col = data.cols[Math.min(data.cols.length - 1, x)];
         var dbv = col[b0] * (1 - bf) + col[b1] * bf;
         var t = clamp((dbv - dbFloor) / dbSpan, 0, 1);
         var li = Math.round(t * 255) * 3;
@@ -541,8 +556,10 @@
       }
     }
     ctx.putImageData(img, 0, 0);
-    layoutCanvasToCoverage();
+    layoutLayerToCoverage(canvasEl, data);
   }
+  function renderSpectrogram() { renderLayer(els.specCanvas, state.spectroData); }
+  function renderBaseLayer() { renderLayer(els.specCanvasBase, state.baseData); }
 
   function niceStep(rough) {
     var exp = Math.floor(Math.log10(rough)), base = Math.pow(10, exp), f = rough / base, nf;
@@ -650,8 +667,8 @@
     updatePlayhead();
     renderTimeAxis();
     updateZoomInfo();
+    repositionLayers();
     if (state.spectroData && coverageSufficient()) {
-      layoutCanvasToCoverage();
       // schedule a light re-center recompute so overscan stays balanced,
       // but only after the user pauses — and skip if still sufficient then.
       clearTimeout(recomputeTimer);
@@ -659,9 +676,9 @@
         if (!coverageComfortable()) recomputeAndRender();
       }, 260);
     } else {
-      // out of covered range → we still avoid black by keeping the old
-      // canvas laid out (it just won't cover everything); recompute soon.
-      if (state.spectroData) layoutCanvasToCoverage();
+      // out of the detail layer's covered range → the base layer (which
+      // always spans the whole file) is still positioned underneath, so
+      // nothing goes black; just recompute the detail layer soon.
       clearTimeout(recomputeTimer);
       recomputeTimer = setTimeout(recomputeAndRender, 90);
     }
@@ -720,11 +737,37 @@
       if (myGen !== computeGen || !data) return;
       state.spectroData = data;
       renderSpectrogram();   // paints + lays out canvas over coverage
+      repositionLayers();
       renderFreqAxis();
       renderTimeAxis();
       updateZoomInfo();
       updatePlayhead();
       setBusy(false);
+    });
+  }
+
+  /* =====================================================================
+     base layer: the whole file at a fixed, modest resolution. Recomputed
+     only when the underlying data actually changes (new file, channel,
+     FFT size) — never on pan/zoom, which keeps it cheap.
+     ===================================================================== */
+  function computeBaseLayer() {
+    if (!state.audioBuffer) return Promise.resolve();
+    var total = totalSamples();
+    var rect = els.canvasWrap.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var columns = Math.max(1, Math.min(BASE_COLUMNS, Math.round(rect.width * dpr * 1.5)));
+    var myGen = ++baseGen;
+    return computeSpectrogram({
+      channelMode: state.channelMode, fftSize: state.fftSize,
+      coveredStart: 0, coveredEnd: total, columns: columns, sampleRate: state.sampleRate,
+      isStale: function () { return myGen !== baseGen; },
+      onProgress: function () {}
+    }).then(function (data) {
+      if (myGen !== baseGen || !data) return;
+      state.baseData = data;
+      renderBaseLayer();
+      repositionLayers();
     });
   }
 
@@ -805,11 +848,20 @@
   /* =====================================================================
      hover readout
      ===================================================================== */
+  // prefer the sharp detail layer; fall back to the always-present base
+  // layer wherever the detail layer hasn't caught up yet.
+  function pickLayerFor(sampleIdx) {
+    var d = state.spectroData;
+    if (d && sampleIdx >= d.coveredStart && sampleIdx <= d.coveredEnd) return d;
+    var b = state.baseData;
+    if (b && sampleIdx >= b.coveredStart && sampleIdx <= b.coveredEnd) return b;
+    return d || b || null;
+  }
   function updateHoverReadout(xCss, yCss, rect) {
-    var sd = state.spectroData; if (!sd) return;
     var view = currentView();
     var fracXView = clamp(xCss / rect.width, 0, 1);
     var sampleIdx = view.start + fracXView * (view.end - view.start);
+    var sd = pickLayerFor(sampleIdx); if (!sd) return;
     var timeSec = sampleIdx / state.sampleRate;
     var nyquist = state.sampleRate / 2;
     var fracY = clamp(yCss / rect.height, 0, 1);
@@ -826,8 +878,8 @@
     var spanView = (view.end - view.start) / state.sampleRate;
     els.hoverReadout.textContent = formatTimeTick(timeSec, spanView) + "  \u00b7  " + formatFreqFull(freq) + "  \u00b7  " + dbv.toFixed(1) + " dB";
   }
-  els.specCanvas.addEventListener("pointermove", function (e) {
-    if (!state.spectroData) return;
+  els.canvasWrap.addEventListener("pointermove", function (e) {
+    if (!state.spectroData && !state.baseData) return;
     var rect = els.canvasWrap.getBoundingClientRect();
     updateHoverReadout(e.clientX - rect.left, e.clientY - rect.top, rect);
   });
@@ -886,6 +938,7 @@
   var resizeTimer = null;
   if (typeof ResizeObserver !== "undefined") {
     new ResizeObserver(function () {
+      if (state.audioBuffer) repositionLayers(); // instant, cheap — avoids any gap while resizing
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () { if (state.audioBuffer) recomputeAndRender(); }, 220);
     }).observe(els.canvasWrap);
@@ -1093,7 +1146,8 @@
       state.sampleRate = audioBuffer.sampleRate;
       state.bufferL = audioBuffer.getChannelData(0);
       state.bufferR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
-      state._mid = null; state._side = null; state.zoom = null; state.spectroData = null;
+      state._mid = null; state._side = null; state.zoom = null;
+      state.spectroData = null; state.baseData = null;
       state.channelMode = state.bufferR ? "mid" : "left";
       updateChannelAvailability();
       syncSeg(els.segChannel, "data-ch", state.channelMode);
@@ -1103,6 +1157,7 @@
       setPlayIcon(false);
       updateTransport();
       recomputeAndRender();
+      computeBaseLayer();
       computeAndRenderStereo();
     }).catch(function () {
       showError(tt("t.decodeError"));
@@ -1132,42 +1187,46 @@
   /* =====================================================================
      control wiring
      ===================================================================== */
+  function renderBothLayers() {
+    if (state.baseData) renderBaseLayer();
+    if (state.spectroData) renderSpectrogram();
+  }
   els.segChannel.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b || b.disabled) return;
     state.channelMode = b.getAttribute("data-ch");
     syncSeg(els.segChannel, "data-ch", state.channelMode);
-    if (state.audioBuffer) recomputeAndRender();
+    if (state.audioBuffer) { recomputeAndRender(); computeBaseLayer(); }
   });
   els.segFreqScale.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     state.freqScale = b.getAttribute("data-scale");
     syncSeg(els.segFreqScale, "data-scale", state.freqScale);
-    if (state.spectroData) { renderSpectrogram(); renderFreqAxis(); updatePlayhead(); }
+    renderBothLayers(); renderFreqAxis(); updatePlayhead();
   });
   els.segColormap.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     state.colormap = b.getAttribute("data-cm");
     syncSeg(els.segColormap, "data-cm", state.colormap);
     updateColorbarGradient();
-    if (state.spectroData) renderSpectrogram();
+    renderBothLayers();
   });
   els.fftSelect.addEventListener("change", function () {
     state.fftSize = parseInt(els.fftSelect.value, 10);
-    if (state.audioBuffer) recomputeAndRender();
+    if (state.audioBuffer) { recomputeAndRender(); computeBaseLayer(); }
   });
   els.dbFloor.addEventListener("input", function () {
     var v = parseFloat(els.dbFloor.value);
     if (isNaN(v)) return;
     if (v >= state.dbCeil) v = state.dbCeil - 1;
     state.dbFloor = v; updateColorbarLabels();
-    if (state.spectroData) renderSpectrogram();
+    renderBothLayers();
   });
   els.dbCeil.addEventListener("input", function () {
     var v = parseFloat(els.dbCeil.value);
     if (isNaN(v)) return;
     if (v <= state.dbFloor) v = state.dbFloor + 1;
     state.dbCeil = v; updateColorbarLabels();
-    if (state.spectroData) renderSpectrogram();
+    renderBothLayers();
   });
 
   /* =====================================================================
