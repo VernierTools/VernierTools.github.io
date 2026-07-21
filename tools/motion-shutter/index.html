@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
   /* ---- tool-local tokens (derived from shell tokens, no raw hex) ---- */
-  .msTool{ max-width:540px; }
+  .msTool{ max-width:540px; margin:0 auto; }
 
   /* ---- mode switch (large sliding segmented control) ---- */
   .modebar{ margin:0 0 var(--s4); }
@@ -57,17 +57,58 @@
     border:2px solid var(--accent); border-radius:6px; pointer-events:none;
     box-shadow:0 0 0 9999px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.5) inset; }
   .finder.live.cropping .crop{ display:block; }
-  .finder.cropping .bracket{ display:none; }
-  .crop .ch{ position:absolute; width:14px; height:14px; border:2px solid #fff; opacity:.92; }
-  .crop .ch.tl{ top:-2px; left:-2px; border-right:0; border-bottom:0; }
-  .crop .ch.tr{ top:-2px; right:-2px; border-left:0; border-bottom:0; }
-  .crop .ch.bl{ bottom:-2px; left:-2px; border-right:0; border-top:0; }
-  .crop .ch.br{ bottom:-2px; right:-2px; border-left:0; border-top:0; }
+  .finder.cropping .bracket, .finder.editingCrop .bracket{ display:none; }
+  .crop .ch{ position:absolute; width:14px; height:14px; border:2px solid #fff; opacity:.92; pointer-events:none; }
+  .crop .ch.tl,.crop .ch[data-corner="tl"]{ top:-2px; left:-2px; border-right:0; border-bottom:0; }
+  .crop .ch.tr,.crop .ch[data-corner="tr"]{ top:-2px; right:-2px; border-left:0; border-bottom:0; }
+  .crop .ch.bl,.crop .ch[data-corner="bl"]{ bottom:-2px; left:-2px; border-right:0; border-top:0; }
+  .crop .ch.br,.crop .ch[data-corner="br"]{ bottom:-2px; right:-2px; border-left:0; border-top:0; }
+
+  /* editing state: draggable body + oversized invisible touch targets on each corner */
+  .finder.editingCrop .crop{ display:block; pointer-events:auto; cursor:move; touch-action:none; }
+  .finder.editingCrop .crop .ch{ pointer-events:auto; width:22px; height:22px; border-width:3px; touch-action:none; }
+  .finder.editingCrop .crop .ch[data-corner="tl"]{ top:-11px; left:-11px; cursor:nwse-resize; }
+  .finder.editingCrop .crop .ch[data-corner="br"]{ bottom:-11px; right:-11px; cursor:nwse-resize; }
+  .finder.editingCrop .crop .ch[data-corner="tr"]{ top:-11px; right:-11px; cursor:nesw-resize; }
+  .finder.editingCrop .crop .ch[data-corner="bl"]{ bottom:-11px; left:-11px; cursor:nesw-resize; }
+
+  /* on-video "select area" toggle */
+  .cropBtn{ position:absolute; top:12px; right:12px; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.16);
+    background:rgba(0,0,0,.42); backdrop-filter:blur(8px); color:#fff; cursor:pointer; padding:0;
+    opacity:0; pointer-events:none; transition:opacity .3s, border-color .2s, color .2s; z-index:3; }
+  .cropBtn svg{ width:16px; height:16px; }
+  .finder.live .cropBtn{ opacity:1; pointer-events:auto; }
+  .finder.live.editingCrop .cropBtn{ opacity:0; pointer-events:none; }
+  .cropBtn.active{ color:var(--accent); border-color:color-mix(in srgb, var(--accent) 55%, transparent); }
+
+  /* editing toolbar: presets + reset/cancel/apply, floats under the rec badge */
+  .cropEditBar{ position:absolute; left:12px; right:12px; top:56px; display:none; align-items:center;
+    justify-content:space-between; gap:10px; z-index:3; }
+  .finder.editingCrop .cropEditBar{ display:flex; }
+  .cropEditBar .presetchips{ background:rgba(0,0,0,.42); backdrop-filter:blur(8px); border-radius:999px;
+    padding:5px; border:1px solid rgba(255,255,255,.14); }
+  .cropEditBar .presetchip{ background:transparent; border-color:transparent; color:rgba(255,255,255,.75);
+    border-radius:999px; padding:5px 9px; }
+  .cropEditBar .presetchip.on{ background:var(--accent); color:#fff; }
+  .cropEditActions{ display:flex; gap:6px; flex:0 0 auto; }
+  .cropIconBtn{ width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.16); background:rgba(0,0,0,.42); backdrop-filter:blur(8px); color:#fff;
+    cursor:pointer; padding:0; }
+  .cropIconBtn svg{ width:14px; height:14px; }
+  .cropIconBtn.ok{ background:var(--accent); border-color:var(--accent); }
+
+  /* status line under the finder, mirrors the on-video button for discoverability */
+  .cropStatus{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+    margin-top:var(--s3); font-size:12px; color:var(--text-3); }
+  .cropStatusEdit{ appearance:none; border:0; background:none; color:var(--accent); font:inherit; font-weight:600;
+    font-size:12px; cursor:pointer; padding:2px; }
 
   .shutter{ position:absolute; left:50%; bottom:106px; transform:translateX(-50%);
     width:64px; height:64px; border-radius:50%; border:3px solid rgba(255,255,255,.92);
     background:transparent; padding:0; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.45);
     opacity:0; pointer-events:none; transition:opacity .3s, transform .12s; }
+  .finder.editingCrop .shutter{ opacity:0 !important; pointer-events:none !important; }
   .shutter::after{ content:""; position:absolute; inset:5px; border-radius:50%; background:#fff; transition:transform .12s, background .12s; }
   .finder.live .shutter{ opacity:1; pointer-events:auto; }
   .shutter:active{ transform:translateX(-50%) scale(.96); }
@@ -132,7 +173,6 @@
     border-radius:var(--r-sm); cursor:pointer; transition:color var(--tap),border-color var(--tap),background var(--tap); }
   .presetchip.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
   .presetchip:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
-  .cropSize{ margin-top:var(--s4); font-family:var(--font-mono); font-size:11.5px; color:var(--text-3); }
 
   .accordion{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); margin-top:var(--s4); }
   .acc-head{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
@@ -142,6 +182,10 @@
   .chev{ flex:0 0 auto; width:9px; height:9px; margin-right:3px; border-right:2px solid var(--text-3); border-bottom:2px solid var(--text-3);
     transform:rotate(45deg); transition:transform .28s ease; }
   .accordion:not(.collapsed) .chev{ transform:rotate(-135deg); }
+  .accordion + .card{ margin-top:var(--s4); }
+  .topActions{ margin-bottom:var(--s5); }
+  .saveCard{ margin-top:var(--s4); margin-bottom:0; }
+  .saveCard .foot{ margin:var(--s3) 4px 0; }
   .acc-body{ max-height:1600px; overflow:hidden; transition:max-height .32s ease; }
   .accordion.collapsed .acc-body{ max-height:0; }
   .acc-inner{ padding:0 var(--s5) var(--s5); }
@@ -212,25 +256,36 @@
 
   <div class="msTool">
 
+    <div class="card topActions">
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="startBtn" data-i18n="t.start">Start</button>
+        <button class="btn btn--danger btn--block" id="stopBtn" disabled data-i18n="t.stop">Stop</button>
+      </div>
+      <div class="notice" id="notice"></div>
+    </div>
+
     <div class="modebar">
       <div class="seg-lg" id="seg">
         <span class="knob" id="knob"></span>
-        <button data-mode="capture" class="on" data-i18n="t.modeCapture">Capture</button>
-        <button data-mode="calibrate" data-i18n="t.modeCalibrate">Calibrate</button>
+        <button data-mode="calibrate" class="on" data-i18n="t.modeCalibrate">Calibrate</button>
+        <button data-mode="capture" data-i18n="t.modeCapture">Capture</button>
       </div>
-      <div class="mode-hint" id="modeHint" data-i18n="t.hintCapture">Takes a photo whenever motion is detected.</div>
+      <div class="mode-hint" id="modeHint" data-i18n="t.hintCalibrate">Shows the reaction only — nothing is saved.</div>
     </div>
 
     <div class="statuswrap">
       <div class="statuschip" id="chip"><span class="d"></span><span id="chipText" data-i18n="t.statusIdle">Idle</span></div>
     </div>
 
-    <div class="finder idle" id="finder">
+    <div class="finder idle modeCal" id="finder">
       <video id="video" playsinline muted autoplay></video>
-      <div class="crop" id="crop"><span class="ch tl"></span><span class="ch tr"></span><span class="ch bl"></span><span class="ch br"></span></div>
+      <div class="crop" id="crop">
+        <span class="ch" data-corner="tl"></span><span class="ch" data-corner="tr"></span>
+        <span class="ch" data-corner="bl"></span><span class="ch" data-corner="br"></span>
+      </div>
       <span class="bracket tl"></span><span class="bracket tr"></span>
       <span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="rec"><span class="d"></span><span id="recText" data-i18n="t.recWatching">Watching</span><span class="resTag" id="resTag"></span></div>
+      <div class="rec"><span class="d"></span><span id="recText" data-i18n="t.recCalibrating">Calibrating</span><span class="resTag" id="resTag"></span></div>
       <div class="flash" id="flash"></div>
       <div class="detect" id="detect"><span class="d"></span><span data-i18n="t.detect">Detected</span></div>
 
@@ -240,6 +295,31 @@
         </svg>
         <div class="big" data-i18n="t.idleTitle">Camera is off</div>
         <div class="sub" data-i18n="t.idleSub">Press Start to begin watching. It'll shoot automatically when it sees motion.</div>
+      </div>
+
+      <button class="cropBtn" id="cropBtn" aria-label="Select capture area" title="Select capture area">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg>
+      </button>
+
+      <div class="cropEditBar" id="cropEditBar">
+        <div class="presetchips" id="cropPresets">
+          <button class="presetchip" data-w="0.96" data-h="0.405">16:9</button>
+          <button class="presetchip" data-w="0.96" data-h="0.54">4:3</button>
+          <button class="presetchip" data-w="0.96" data-h="0.72">1:1</button>
+          <button class="presetchip" data-w="0.9" data-h="0.9">3:4</button>
+          <button class="presetchip" data-w="0.72" data-h="0.96">9:16</button>
+        </div>
+        <div class="cropEditActions">
+          <button class="cropIconBtn" id="cropResetBtn" aria-label="Use whole frame" title="Use whole frame">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+          </button>
+          <button class="cropIconBtn" id="cropCancelBtn" aria-label="Cancel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <button class="cropIconBtn ok" id="cropOkBtn" aria-label="Apply selection">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+          </button>
+        </div>
       </div>
 
       <button class="shutter" id="shutterBtn" aria-label="Take a photo now"></button>
@@ -261,12 +341,22 @@
       </div>
     </div>
 
+    <div class="cropStatus">
+      <span id="cropStatusText" data-i18n="t.cropStatusFull">Using the whole frame</span>
+      <button class="cropStatusEdit" id="cropStatusEditBtn" data-i18n="t.editArea">Edit</button>
+    </div>
+
     <div class="g-head">
       <h2 data-i18n="t.galleryTitle">Photos</h2>
       <button class="clear" id="clearBtn" disabled data-i18n="t.clearAll">Clear all</button>
     </div>
     <div class="strip" id="strip">
       <div class="gempty" data-i18n="t.emptyGallery">No photos yet. Start watching and auto-captured shots will appear here.</div>
+    </div>
+
+    <div class="card saveCard">
+      <button class="btn btn--secondary btn--block" id="saveBtn" disabled><span data-i18n="t.save">Save photos</span> <span class="n" id="saveN"></span></button>
+      <p class="foot" data-i18n="t.saveHint">Opens the share sheet — choose "Save Image" there to add them all to Photos at once.</p>
     </div>
 
     <div class="accordion collapsed" id="acc-detect">
@@ -308,60 +398,6 @@
       </div></div>
     </div>
 
-    <div class="accordion collapsed" id="acc-crop">
-      <button class="acc-head" aria-expanded="false">
-        <span class="acc-title"><span data-i18n="t.cropSettings">Detection &amp; capture area</span><em id="cropHint" data-i18n="t.cropHintOff">Uses the whole frame</em></span>
-        <span class="chev"></span>
-      </button>
-      <div class="acc-body"><div class="acc-inner">
-        <div class="fader" style="margin-top:0">
-          <div class="fieldrow">
-            <div class="name" style="flex:1"><span data-i18n="t.cropEnableName">Limit the area</span><em data-i18n="t.cropEnableSub">Only use part of the frame</em></div>
-            <label class="toggle"><input type="checkbox" id="cropToggle"><span class="track"></span></label>
-          </div>
-          <div class="subfader" id="cropRow" data-off="true">
-            <div class="presetchips" id="cropPresets">
-              <button class="presetchip" data-w="0.96" data-h="0.405">16:9</button>
-              <button class="presetchip" data-w="0.96" data-h="0.54">4:3</button>
-              <button class="presetchip" data-w="0.96" data-h="0.72">1:1</button>
-              <button class="presetchip" data-w="0.9" data-h="0.9">3:4</button>
-              <button class="presetchip" data-w="0.72" data-h="0.96">9:16</button>
-            </div>
-            <div class="fader">
-              <div class="head"><div class="name" data-i18n="t.cropWName">Width</div><div class="v" id="cropWV">70%</div></div>
-              <input type="range" class="slider" id="cropW" min="20" max="100" step="1" value="70" disabled>
-            </div>
-            <div class="fader">
-              <div class="head"><div class="name" data-i18n="t.cropHName">Height</div><div class="v" id="cropHV">70%</div></div>
-              <input type="range" class="slider" id="cropH" min="20" max="100" step="1" value="70" disabled>
-            </div>
-            <div class="fader">
-              <div class="head"><div class="name" data-i18n="t.posXName">Horizontal position</div><div class="v" id="posXV">Center</div></div>
-              <input type="range" class="slider" id="posX" min="0" max="100" step="1" value="50" disabled>
-            </div>
-            <div class="fader">
-              <div class="head"><div class="name" data-i18n="t.posYName">Vertical position</div><div class="v" id="posYV">Center</div></div>
-              <input type="range" class="slider" id="posY" min="0" max="100" step="1" value="50" disabled>
-            </div>
-            <div class="cropSize" id="cropSize" data-i18n="t.cropSizeFull">Using the whole frame</div>
-          </div>
-        </div>
-      </div></div>
-    </div>
-
-    <div class="card">
-      <div class="btnrow">
-        <button class="btn btn--primary btn--block" id="startBtn" data-i18n="t.start">Start</button>
-        <button class="btn btn--danger btn--block" id="stopBtn" disabled data-i18n="t.stop">Stop</button>
-      </div>
-      <div class="btnrow">
-        <button class="btn btn--secondary btn--block" id="saveBtn" disabled><span data-i18n="t.save">Save photos</span> <span class="n" id="saveN"></span></button>
-      </div>
-      <div class="notice" id="notice"></div>
-    </div>
-
-    <p class="foot" data-i18n="t.footNote">The camera only starts on an <code>https://</code> page (not <code>file://</code> on iPhone) — host it on GitHub Pages or similar. On iOS, saving needs a confirmation: "Save photos" opens the share sheet, then choose "Save Image" to add them all at once.</p>
-
     <div class="viewer" id="viewer">
       <button class="close" id="viewerClose" aria-label="Close">&times;</button>
       <button class="vnav prev" id="vPrev" aria-label="Previous photo">&#8249;</button>
@@ -398,7 +434,7 @@ const shutterBtn=$('shutterBtn'), lastShot=$('lastShot');
 
 let lastCaptureTime=null;           // ms timestamp of the most recent saved photo
 
-let running=false, mode='capture';
+let running=false, mode='calibrate';
 let stream=null, currentDeviceId=null, startGen=0;
 let prev=null, lastTrigger=0, rafId=null, lastProc=0;
 let shots=[];                       // {blob, url} | null  (null = removed; index kept stable)
@@ -415,9 +451,145 @@ let delayOn=false, delayMs=300;    // capture instantly, or wait a moment after 
 let pendingShot=false;             // a delayed capture is already queued
 let delayTimer=null;               // id of the pending delayed-capture timer (so we can cancel it)
 let captureGen=0;                  // session token: invalidates in-flight captures on stop/switch/clear
-let cropOn=false, cropW=0.70, cropH=0.70;  // detection/capture window as a fraction of the finder
-let posX=0.5, posY=0.5;            // window position: 0=flush left/top, 0.5=centered, 1=flush right/bottom
 const SCALE_MAX=0.40;              // meter spans 0..40%, matching the area slider's max
+
+/* ── crop / detection-capture window ───
+   Stored as a committed window (cropOn, cropW, cropH, posX, posY — posX/posY are
+   0..1 position of the window between flush-left/top (0) and flush-right/bottom (1)).
+   While editing, the same window is manipulated directly as left/top/width/height
+   fractions (rx, ry, rw, rh) via drag — then committed back into cropW/H/posX/Y. */
+let cropOn=false, cropW=0.70, cropH=0.70;
+let posX=0.5, posY=0.5;
+let cropEditing=false;
+let rx=0.15, ry=0.15, rw=0.70, rh=0.70;   // live edit rect (left, top, width, height — all fractions)
+const CROP_MIN=0.12;                      // smallest allowed edge length, as a fraction of the finder
+
+const cropEl=$('crop'), cropBtn=$('cropBtn'), cropEditBar=$('cropEditBar');
+const cropStatusText=$('cropStatusText'), cropStatusEditBtn=$('cropStatusEditBtn');
+
+function applyCropStyle(){
+  cropEl.style.width=(cropW*100).toFixed(1)+'%';
+  cropEl.style.height=(cropH*100).toFixed(1)+'%';
+  cropEl.style.left=(posX*(1-cropW)*100).toFixed(1)+'%';
+  cropEl.style.top=(posY*(1-cropH)*100).toFixed(1)+'%';
+  finder.classList.toggle('cropping', cropOn);
+  cropBtn.classList.toggle('active', cropOn);
+}
+function drawEditRect(){
+  cropEl.style.left=(rx*100).toFixed(1)+'%';
+  cropEl.style.top=(ry*100).toFixed(1)+'%';
+  cropEl.style.width=(rw*100).toFixed(1)+'%';
+  cropEl.style.height=(rh*100).toFixed(1)+'%';
+}
+// map a window (given as left/top/width/height fractions of the finder) to source-video
+// pixels, accounting for object-fit:cover
+function windowRect(w,h,x,y){
+  const Vw=video.videoWidth, Vh=video.videoHeight;
+  if(!Vw||!Vh) return {sx:0,sy:0,sw:Vw,sh:Vh};
+  const Fw=finder.clientWidth, Fh=finder.clientHeight;
+  const scale=Math.max(Fw/Vw, Fh/Vh);               // cover scale
+  const offX=(Vw*scale-Fw)/2, offY=(Vh*scale-Fh)/2; // displayed-video overflow per side
+  let sx=(x*Fw+offX)/scale, sy=(y*Fh+offY)/scale;   // → source px
+  let sw=(w*Fw)/scale, sh=(h*Fh)/scale;
+  sx=Math.max(0,Math.min(sx,Vw)); sy=Math.max(0,Math.min(sy,Vh));
+  sw=Math.max(1,Math.min(sw,Vw-sx)); sh=Math.max(1,Math.min(sh,Vh-sy));
+  return {sx,sy,sw,sh};
+}
+function srcRect(){
+  if(!cropOn) return {sx:0,sy:0,sw:video.videoWidth,sh:video.videoHeight};
+  return windowRect(cropW,cropH,posX*(1-cropW),posY*(1-cropH));
+}
+function updateCropSize(){
+  if(cropEditing) return;   // the live readout during editing is handled separately
+  if(!cropOn){ cropStatusText.textContent=Shell.t('t.cropStatusFull'); return; }
+  if(!running || !video.videoWidth){ cropStatusText.textContent=Shell.t('t.cropStatusPending'); return; }
+  const r=srcRect();
+  cropStatusText.textContent=Shell.t('t.cropStatusCustom')+`: ~${Math.round(r.sw)}×${Math.round(r.sh)} px`;
+}
+function updateEditReadout(){
+  const r=windowRect(rw,rh,rx,ry);
+  cropStatusText.textContent = (running && video.videoWidth)
+    ? Shell.t('t.cropStatusCustom')+`: ~${Math.round(r.sw)}×${Math.round(r.sh)} px`
+    : Shell.t('t.cropStatusPending');
+}
+function markPreset(){
+  document.querySelectorAll('#cropPresets .presetchip').forEach(b=>{
+    b.classList.toggle('on', Math.abs((+b.dataset.w)-rw)<0.005 && Math.abs((+b.dataset.h)-rh)<0.005);
+  });
+}
+
+/* ── editor open / close ─────────────── */
+function openCropEditor(){
+  if(!running) return;                     // editing only makes sense against a live feed
+  if(cropOn){ rw=cropW; rh=cropH; rx=posX*(1-rw); ry=posY*(1-rh); }
+  else{ rw=0.70; rh=0.70; rx=(1-rw)/2; ry=(1-rh)/2; }
+  cropEditing=true;
+  finder.classList.add('editingCrop');
+  drawEditRect(); markPreset(); updateEditReadout();
+}
+function closeCropEditor(){
+  cropEditing=false;
+  finder.classList.remove('editingCrop');
+  applyCropStyle(); prev=null; updateCropSize();
+}
+function applyCropSelection(){
+  cropOn=true; cropW=rw; cropH=rh;
+  posX=(1-rw)>0.0001 ? rx/(1-rw) : 0.5;
+  posY=(1-rh)>0.0001 ? ry/(1-rh) : 0.5;
+  closeCropEditor();
+}
+function resetCropSelection(){
+  cropOn=false;
+  closeCropEditor();
+}
+cropBtn.addEventListener('click',openCropEditor);
+cropStatusEditBtn.addEventListener('click',openCropEditor);
+$('cropOkBtn').addEventListener('click',applyCropSelection);
+$('cropCancelBtn').addEventListener('click',closeCropEditor);   // discards rx/ry/rw/rh, keeps prior committed crop
+$('cropResetBtn').addEventListener('click',resetCropSelection);
+
+document.querySelectorAll('#cropPresets .presetchip').forEach(b=>b.addEventListener('click',()=>{
+  const cx=rx+rw/2, cy=ry+rh/2;                       // keep the current center, just resize
+  rw=+b.dataset.w; rh=+b.dataset.h;
+  rx=Math.max(0, Math.min(1-rw, cx-rw/2));
+  ry=Math.max(0, Math.min(1-rh, cy-rh/2));
+  drawEditRect(); markPreset(); updateEditReadout();
+}));
+
+/* ── drag to move / resize the selection rect ── */
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+let dragMode=null, dragStart=null, startBox=null;
+const CORNER_SIDES={ tl:{x:'left',y:'top'}, tr:{x:'right',y:'top'}, bl:{x:'left',y:'bottom'}, br:{x:'right',y:'bottom'} };
+
+cropEl.addEventListener('pointerdown',e=>{
+  if(!cropEditing) return;
+  const handle=e.target.closest('.ch');
+  dragMode = handle ? handle.dataset.corner : 'move';
+  dragStart={x:e.clientX,y:e.clientY};
+  startBox={left:rx, top:ry, right:rx+rw, bottom:ry+rh, w:rw, h:rh};
+  cropEl.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+cropEl.addEventListener('pointermove',e=>{
+  if(!dragMode) return;
+  const r=finder.getBoundingClientRect();
+  const dx=(e.clientX-dragStart.x)/r.width, dy=(e.clientY-dragStart.y)/r.height;
+  if(dragMode==='move'){
+    rx=clamp(startBox.left+dx, 0, 1-startBox.w);
+    ry=clamp(startBox.top+dy, 0, 1-startBox.h);
+  }else{
+    const sides=CORNER_SIDES[dragMode];
+    let left=startBox.left, right=startBox.right, top=startBox.top, bottom=startBox.bottom;
+    if(sides.x==='left') left=clamp(startBox.left+dx, 0, right-CROP_MIN); else right=clamp(startBox.right+dx, left+CROP_MIN, 1);
+    if(sides.y==='top') top=clamp(startBox.top+dy, 0, bottom-CROP_MIN); else bottom=clamp(startBox.bottom+dy, top+CROP_MIN, 1);
+    rx=left; ry=top; rw=right-left; rh=bottom-top;
+  }
+  drawEditRect(); markPreset(); updateEditReadout();
+});
+function endCropDrag(){ dragMode=null; }
+cropEl.addEventListener('pointerup',endCropDrag);
+cropEl.addEventListener('pointercancel',endCropDrag);
+applyCropStyle();
 
 /* ── faders ──────────────────────────── */
 function setAreaThresh(at){
@@ -456,73 +628,6 @@ barWrap.addEventListener('pointerdown',e=>{
 barWrap.addEventListener('pointermove',e=>{ if(draggingTick) thresholdFromX(e.clientX); });
 barWrap.addEventListener('pointerup',()=>{ draggingTick=false; });
 barWrap.addEventListener('pointercancel',()=>{ draggingTick=false; });
-
-/* ── crop / detection-capture window ─── */
-const cropEl=$('crop');
-function applyCropStyle(){
-  cropEl.style.width=(cropW*100).toFixed(1)+'%';
-  cropEl.style.height=(cropH*100).toFixed(1)+'%';
-  cropEl.style.left=(posX*(1-cropW)*100).toFixed(1)+'%';
-  cropEl.style.top=(posY*(1-cropH)*100).toFixed(1)+'%';
-  finder.classList.toggle('cropping', cropOn);
-}
-// map the (positioned) crop window to source-video pixels, accounting for object-fit:cover
-function srcRect(){
-  const Vw=video.videoWidth, Vh=video.videoHeight;
-  if(!cropOn || !Vw || !Vh) return {sx:0,sy:0,sw:Vw,sh:Vh};
-  const Fw=finder.clientWidth, Fh=finder.clientHeight;
-  const scale=Math.max(Fw/Vw, Fh/Vh);               // cover scale
-  const offX=(Vw*scale-Fw)/2, offY=(Vh*scale-Fh)/2; // displayed-video overflow per side
-  const fLeft=posX*(1-cropW)*Fw, fTop=posY*(1-cropH)*Fh;  // window position in finder px
-  let sx=(fLeft+offX)/scale, sy=(fTop+offY)/scale;  // → source px
-  let sw=(cropW*Fw)/scale, sh=(cropH*Fh)/scale;
-  sx=Math.max(0,Math.min(sx,Vw)); sy=Math.max(0,Math.min(sy,Vh));
-  sw=Math.max(1,Math.min(sw,Vw-sx)); sh=Math.max(1,Math.min(sh,Vh-sy));
-  return {sx,sy,sw,sh};
-}
-function updateCropSize(){
-  if(!cropOn){ $('cropSize').textContent=Shell.t('t.cropSizeFull'); return; }
-  if(!running || !video.videoWidth){ $('cropSize').textContent=Shell.t('t.cropSizePending'); return; }
-  const r=srcRect();
-  $('cropSize').textContent=Shell.t('t.cropSizeLabel')+`: ~${Math.round(r.sw)}×${Math.round(r.sh)} px`;
-}
-function markPreset(){
-  document.querySelectorAll('#cropPresets .presetchip').forEach(b=>{
-    b.classList.toggle('on', Math.abs((+b.dataset.w)-cropW)<0.005 && Math.abs((+b.dataset.h)-cropH)<0.005);
-  });
-}
-$('cropToggle').addEventListener('change',e=>{
-  cropOn=e.target.checked;
-  $('cropW').disabled=!cropOn; $('cropH').disabled=!cropOn;
-  $('posX').disabled=!cropOn; $('posY').disabled=!cropOn;
-  $('cropRow').dataset.off = cropOn ? 'false' : 'true';
-  $('cropHint').textContent = cropOn ? Shell.t('t.cropHintOn') : Shell.t('t.cropHintOff');
-  applyCropStyle(); prev=null; updateCropSize();
-});
-$('cropW').addEventListener('input',e=>{
-  cropW=(+e.target.value)/100; $('cropWV').textContent=e.target.value+'%';
-  applyCropStyle(); markPreset(); prev=null; updateCropSize();
-});
-$('cropH').addEventListener('input',e=>{
-  cropH=(+e.target.value)/100; $('cropHV').textContent=e.target.value+'%';
-  applyCropStyle(); markPreset(); prev=null; updateCropSize();
-});
-function posLabel(v,loKey,hiKey){ return v===50 ? Shell.t('t.center') : Shell.t(loKey<0?loKey:(v<50?loKey:hiKey))+' '+Math.round(Math.abs(v-50)*2)+'%'; }
-$('posX').addEventListener('input',e=>{
-  posX=(+e.target.value)/100; $('posXV').textContent=posLabel(+e.target.value,'t.left','t.right');
-  applyCropStyle(); prev=null; updateCropSize();
-});
-$('posY').addEventListener('input',e=>{
-  posY=(+e.target.value)/100; $('posYV').textContent=posLabel(+e.target.value,'t.top','t.bottom');
-  applyCropStyle(); prev=null; updateCropSize();
-});
-document.querySelectorAll('#cropPresets .presetchip').forEach(b=>b.addEventListener('click',()=>{
-  cropW=+b.dataset.w; cropH=+b.dataset.h;
-  $('cropW').value=Math.round(cropW*100); $('cropWV').textContent=Math.round(cropW*100)+'%';
-  $('cropH').value=Math.round(cropH*100); $('cropHV').textContent=Math.round(cropH*100)+'%';
-  applyCropStyle(); markPreset(); prev=null; updateCropSize();
-}));
-applyCropStyle();
 
 /* ── mode segmented control ──────────── */
 const knob=$('knob'), segBtns=document.querySelectorAll('#seg button');
@@ -869,8 +974,7 @@ function redrawDynamic(){
   recText.textContent = mode==='capture' ? Shell.t('t.recWatching') : Shell.t('t.recCalibrating');
   $('modeHint').textContent = mode==='capture' ? Shell.t('t.hintCapture') : Shell.t('t.hintCalibrate');
   $('delayHint').textContent = delayOn ? Shell.t('t.delayHintOn') : Shell.t('t.delayHintOff');
-  $('cropHint').textContent = cropOn ? Shell.t('t.cropHintOn') : Shell.t('t.cropHintOff');
-  updateCropSize();
+  if(cropEditing) updateEditReadout(); else updateCropSize();
   if(liveShots().length===0 && strip.querySelector('.gempty')) showEmpty();
   renderLastShot();
 }
@@ -903,14 +1007,10 @@ Shell.init({
       "t.delayAmountName":"Delay", "t.delayAmountSub":"Wait time between detection and the shot",
       "t.coolName":"Cooldown", "t.coolSub":"Minimum wait before the next shot",
       "t.cameraName":"Camera / lens", "t.cameraPlaceholder":"Shown after Start", "t.cameraFallback":"Camera",
-      "t.cropSettings":"Detection & capture area",
-      "t.cropHintOff":"Uses the whole frame", "t.cropHintOn":"Detects and captures only inside the frame",
-      "t.cropEnableName":"Limit the area", "t.cropEnableSub":"Only use part of the frame",
-      "t.cropWName":"Width", "t.cropHName":"Height", "t.posXName":"Horizontal position", "t.posYName":"Vertical position",
-      "t.center":"Center", "t.left":"Left", "t.right":"Right", "t.top":"Top", "t.bottom":"Bottom",
-      "t.cropSizeFull":"Using the whole frame", "t.cropSizePending":"Capture size: shown after Start", "t.cropSizeLabel":"Capture size",
+      "t.editArea":"Edit",
+      "t.cropStatusFull":"Using the whole frame", "t.cropStatusPending":"Capture size: shown after Start", "t.cropStatusCustom":"Capture size",
       "t.start":"Start", "t.stop":"Stop", "t.save":"Save photos",
-      "t.footNote":"The camera only starts on an https:// page (not file:// on iPhone) — host it on GitHub Pages or similar. On iOS, saving needs a confirmation: \"Save photos\" opens the share sheet, then choose \"Save Image\" to add them all at once.",
+      "t.saveHint":"Tap to open the share sheet, then choose \"Save Image\" to add them all to Photos at once.",
       "t.viewerHint":"Swipe or use the arrow keys to move between photos. To save just this one, press and hold the image → \"Add to Photos\".",
       "t.confirmTitle":"Delete all photos?", "t.confirmBodyPre":"This will delete", "t.confirmBodyPost":"photos. This can't be undone.",
       "t.confirmCancel":"Cancel", "t.confirmOk":"Delete",
@@ -944,14 +1044,10 @@ Shell.init({
       "t.delayAmountName":"遅延量", "t.delayAmountSub":"検知してから撮るまでの待ち時間",
       "t.coolName":"連写間隔", "t.coolSub":"1回撮ってから次までの最短待ち時間",
       "t.cameraName":"カメラ / レンズ", "t.cameraPlaceholder":"開始すると一覧表示", "t.cameraFallback":"カメラ",
-      "t.cropSettings":"検知・撮影範囲",
-      "t.cropHintOff":"映像全体を使います", "t.cropHintOn":"フレーム内だけを検知・撮影します",
-      "t.cropEnableName":"範囲を限定", "t.cropEnableSub":"フレーム内だけを使う",
-      "t.cropWName":"横幅", "t.cropHName":"縦幅", "t.posXName":"左右の位置", "t.posYName":"上下の位置",
-      "t.center":"中央", "t.left":"左", "t.right":"右", "t.top":"上", "t.bottom":"下",
-      "t.cropSizeFull":"映像全体を使用中", "t.cropSizePending":"撮影サイズ：開始すると表示", "t.cropSizeLabel":"撮影サイズ",
+      "t.editArea":"編集",
+      "t.cropStatusFull":"映像全体を使用中", "t.cropStatusPending":"撮影サイズ：開始すると表示", "t.cropStatusCustom":"撮影サイズ",
       "t.start":"開始", "t.stop":"停止", "t.save":"写真に保存",
-      "t.footNote":"カメラは https:// のページでのみ起動します（iPhoneの file:// では不可）。GitHub Pages などに置いて開いてください。iOSでは保存に承認が必要です。「写真に保存」を押すと共有シートが開くので、「画像を保存」を選ぶとまとめて入ります。",
+      "t.saveHint":"「写真に保存」を押すと共有シートが開くので、「画像を保存」を選ぶとまとめて入ります。",
       "t.viewerHint":"左右にスワイプ／矢印で前後の写真を表示。1枚だけ保存はこの画像を長押し →「写真に追加」",
       "t.confirmTitle":"すべて削除しますか？", "t.confirmBodyPre":"撮影した写真", "t.confirmBodyPost":"枚をすべて消去します。この操作は元に戻せません。",
       "t.confirmCancel":"キャンセル", "t.confirmOk":"削除する",
