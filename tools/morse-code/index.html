@@ -336,15 +336,17 @@
   }
 
   function renderAll() {
-    renderMorseOutput();
+    var morse = renderMorseOutput();
     estimateDuration();
+    return morse;
   }
 
   /* ---- text field ---- */
   elText.addEventListener("input", function () {
     if (syncing) return;
     state.text = elText.value.toUpperCase().replace(/[^\S\n]+/g, " ").replace(/\n/g, " ");
-    renderAll();
+    var morse = renderAll();
+    syncing = true; elMorse.value = morse; syncing = false;
   });
 
   /* ---- morse field (bidirectional) ---- */
