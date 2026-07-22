@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Shaker simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- instrument select ---- */
+  .seg{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* ---- permission rows ---- */
+  .permrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); }
+  .permrow + .permrow{ margin-top:var(--s4); padding-top:var(--s4); border-top:1px solid var(--border); }
+  .permrow__text{ min-width:0; }
+  .permrow__title{ font-size:13.5px; font-weight:600; color:var(--text); }
+  .permrow__desc{ font-size:12px; color:var(--text-2); margin-top:2px; line-height:1.5; }
+  .permrow .badge{ flex:none; }
+
+  /* ---- sensitivity meter ---- */
+  .meter{ position:relative; height:6px; border-radius:100px; background:var(--border-strong); margin-top:10px; overflow:hidden; }
+  .meter-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:var(--accent); border-radius:100px; }
+  .meter-mark{ position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--text-3); left:30%; }
+
+  /* ---- instrument visual ---- */
+  .instrumentcard{ display:flex; align-items:center; justify-content:center; padding:var(--s7) var(--s5); }
+  .instrumentcard svg{ width:min(46vw, 190px); height:auto; display:block; transition:filter .08s linear; }
+  .bead{ opacity:.28; transition:opacity 260ms ease-out; }
+  .bead.flash{ opacity:1; transition:opacity 30ms linear; }
+  @media (prefers-reduced-motion: reduce){ .instrumentcard svg{ transition:none; } .bead{ transition:none; } }
+
+  .notice{ font-size:12.5px; line-height:1.6; color:var(--neg); background:var(--neg-tint);
+    border:1px solid var(--neg); border-radius:var(--r); padding:10px 12px; margin-top:var(--s4); }
+
+  /* ---- field header row (label + live mono value) ---- */
+  .fieldhead{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .fieldhead .label{ margin-bottom:0; }
+  .fieldval{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--accent); }
+  .fieldhint{ font-size:12px; color:var(--text-3); margin-top:8px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Shaker simulator</h1>
+    <p data-i18n="t.desc">Shake your phone to play realistic shaker or maraca percussion sounds.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 楽器選択・許可・調整 -->
+    <div>
+      <div class="card">
+        <label class="label" data-i18n="t.instrument">Instrument</label>
+        <div class="seg" id="seg" role="group">
+          <button type="button" data-inst="shaker" data-i18n="t.shaker">Shaker</button>
+          <button type="button" data-inst="maraca" data-i18n="t.maraca">Maraca</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="permrow">
+          <div class="permrow__text">
+            <p class="permrow__title" data-i18n="t.sensor">Motion sensor</p>
+            <p class="permrow__desc" data-i18n="t.sensorDesc">Reads your phone's movement to trigger sound.</p>
+          </div>
+          <button class="btn btn--secondary" id="btnSensor" type="button" data-i18n="t.enable">Enable</button>
+        </div>
+        <span class="badge badge--muted" id="statusSensor" style="margin-top:8px"><span class="d"></span><span id="statusSensorTxt" data-i18n="t.pending">Not enabled</span></span>
+
+        <div class="permrow">
+          <div class="permrow__text">
+            <p class="permrow__title" data-i18n="t.audio">Audio</p>
+            <p class="permrow__desc" data-i18n="t.audioDesc">Tap to turn sound on (required by the browser).</p>
+          </div>
+          <button class="btn btn--secondary" id="btnAudio" type="button" data-i18n="t.enable">Enable</button>
+        </div>
+        <span class="badge badge--muted" id="statusAudio" style="margin-top:8px"><span class="d"></span><span id="statusAudioTxt" data-i18n="t.pending">Not enabled</span></span>
+
+        <p class="permrow__desc" id="readyNote" style="margin-top:var(--s4)" data-i18n="t.needBoth">Enable both to start playing.</p>
+        <p class="notice" id="banner" hidden></p>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <div class="fieldhead">
+            <label class="label" for="sens" data-i18n="t.sensitivity">Sensitivity</label>
+            <span class="fieldval" id="sensReadout">5 / 10</span>
+          </div>
+          <input class="slider" type="range" id="sens" min="1" max="10" step="1" value="5">
+          <div class="meter"><div class="meter-fill" id="meterFill"></div><div class="meter-mark" id="meterMark"></div></div>
+          <p class="fieldhint" data-i18n="t.sensHint">Adjust while shaking — aim for the bar to reach just past the mark.</p>
+        </div>
+        <div class="field">
+          <div class="fieldhead">
+            <label class="label" for="vol" data-i18n="t.volume">Volume</label>
+            <span class="fieldval" id="volReadout">70%</span>
+          </div>
+          <input class="slider" type="range" id="vol" min="0" max="100" step="1" value="70">
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 楽器ビジュアル・出力 -->
+    <div>
+      <div class="card instrumentcard" style="margin-bottom:var(--s4)">
+        <svg id="instSvg" viewBox="0 0 200 200" aria-hidden="true">
+          <ellipse id="instBody" cx="100" cy="102" rx="66" ry="86" fill="var(--surface-2)" stroke="var(--border-strong)" stroke-width="2"/>
+          <rect x="92" y="6" width="16" height="26" rx="7" fill="var(--border-strong)"/>
+          <g id="beads">
+            <circle class="bead" cx="72"  cy="70"  r="4"   fill="var(--accent)"/>
+            <circle class="bead" cx="128" cy="68"  r="3.5" fill="var(--accent)"/>
+            <circle class="bead" cx="100" cy="54"  r="3"   fill="var(--accent)"/>
+            <circle class="bead" cx="56"  cy="98"  r="4.5" fill="var(--accent)"/>
+            <circle class="bead" cx="144" cy="100" r="4"   fill="var(--accent)"/>
+            <circle class="bead" cx="88"  cy="120" r="5"   fill="var(--accent)"/>
+            <circle class="bead" cx="118" cy="126" r="4"   fill="var(--accent)"/>
+            <circle class="bead" cx="66"  cy="150" r="3.5" fill="var(--accent)"/>
+            <circle class="bead" cx="136" cy="152" r="4"   fill="var(--accent)"/>
+            <circle class="bead" cx="98"  cy="170" r="5"   fill="var(--accent)"/>
+            <circle class="bead" cx="80"  cy="184" r="3"   fill="var(--accent)"/>
+            <circle class="bead" cx="116" cy="184" r="4"   fill="var(--accent)"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live"><span class="dot"></span><span id="liveTxt" data-i18n="t.waiting">Waiting</span></span>
+        </div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.energy">Energy</span>
+          <span class="rrow__value" id="roEnergy">0<span class="u">%</span></span>
+        </div>
+      </div>
+      <p class="fieldhint" style="margin-top:var(--s3)" data-i18n="t.tips">Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.</p>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var btnSensor = $("btnSensor"), btnAudio = $("btnAudio");
+  var statusSensor = $("statusSensor"), statusAudio = $("statusAudio");
+  var statusSensorTxt = $("statusSensorTxt"), statusAudioTxt = $("statusAudioTxt");
+  var readyNote = $("readyNote"), banner = $("banner");
+  var sensSlider = $("sens"), sensReadout = $("sensReadout");
+  var volSlider = $("vol"), volReadout = $("volReadout");
+  var meterFill = $("meterFill"), meterMark = $("meterMark");
+  var instSvg = $("instSvg");
+  var liveTxt = $("liveTxt"), roEnergy = $("roEnergy");
+  var segEl = $("seg");
+  var beads = Array.prototype.slice.call(document.querySelectorAll(".bead"));
+
+  var lerp = function (a, b, f) { return a + (b - a) * f; };
+
+  // ---------- instrument definitions ----------
+  var INSTRUMENTS = {
+    shaker: { grainBase: 7200, grainSpread: 3800, tau: 0.10, rateK: 7.2, cap: 32, thump: false },
+    maraca: { grainBase: 5200, grainSpread: 3200, tau: 0.15, rateK: 5.5, cap: 40, thump: true }
+  };
+  var instrument = "shaker";
+
+  function showBanner(msg) { banner.textContent = msg; banner.hidden = false; }
+
+  // ---------- state ----------
+  var sensorReady = false, audioReady = false;
+  var sensitivity = 0.5, masterVolume = 0.7;
+  var runningMax = 5;
+  var threshMult = lerp(0.55, 0.10, sensitivity);
+  var gainFactor = lerp(0.7, 2.2, sensitivity);
+  var energy = 0;
+  var prevMag = 0, lastMotionT = performance.now();
+  var liveJerkSmoothed = 0, visualEnergy = 0, lastThumpTime = 0;
+
+  // ---------- audio ----------
+  var ctx = null, noiseBuffer = null, masterGain = null, dynamicGain = null;
+  var dynamicLevelSmoothed = 0;
+
+  function createNoiseBuffer(context, seconds) {
+    var length = Math.floor(context.sampleRate * seconds);
+    var buffer = context.createBuffer(1, length, context.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    return buffer;
+  }
+
+  function playGrain(time, level) {
+    if (!ctx) return;
+    var src = ctx.createBufferSource();
+    src.buffer = noiseBuffer;
+    src.playbackRate.value = 0.9 + Math.random() * 0.3;
+
+    var dur = 0.006 + Math.random() * 0.014;
+    var offset = Math.random() * Math.max(0.05, noiseBuffer.duration - dur - 0.05);
+
+    var cfg = INSTRUMENTS[instrument];
+    var bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = (cfg.grainBase + level * cfg.grainSpread) * (0.78 + Math.random() * 0.44);
+    bp.Q.value = 0.6 + Math.random() * 0.9;
+
+    var hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 2400;
+
+    var g = ctx.createGain();
+    var peak = Math.min(0.9, 0.14 + level * 0.55) * masterVolume;
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(peak, time + 0.0012);
+    g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
+
+    src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(dynamicGain);
+    src.start(time, offset, dur + 0.02);
+    src.stop(time + dur + 0.03);
+  }
+
+  function playThump(strength) {
+    if (!ctx) return;
+    var t = ctx.currentTime + 0.004;
+    var osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(65, t + 0.08);
+
+    var g = ctx.createGain();
+    var peak = Math.min(0.5, 0.14 + strength * 0.36) * masterVolume;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+    osc.connect(g); g.connect(masterGain);
+    osc.start(t); osc.stop(t + 0.12);
+  }
+
+  function flashRandomBead() {
+    if (!beads.length) return;
+    var dot = beads[Math.floor(Math.random() * beads.length)];
+    dot.classList.remove("flash");
+    void dot.offsetWidth;
+    dot.classList.add("flash");
+  }
+
+  // ---------- motion handling ----------
+  function handleMotion(e) {
+    var now = performance.now();
+    var dt = Math.min((now - lastMotionT) / 1000, 0.05);
+    lastMotionT = now;
+    if (dt <= 0) return;
+
+    var a = (e.acceleration && e.acceleration.x !== null) ? e.acceleration : e.accelerationIncludingGravity;
+    if (!a) return;
+
+    var mag = Math.sqrt(Math.pow(a.x || 0, 2) + Math.pow(a.y || 0, 2) + Math.pow(a.z || 0, 2));
+    var jerk = (mag - prevMag) / dt;
+    prevMag = mag;
+
+    var absJerk = Math.abs(jerk);
+    liveJerkSmoothed += (absJerk - liveJerkSmoothed) * 0.35;
+
+    runningMax = Math.max(absJerk, runningMax * 0.999);
+    runningMax = Math.max(runningMax, 4);
+
+    var threshold = runningMax * threshMult;
+
+    if (absJerk > threshold) {
+      var cfg = INSTRUMENTS[instrument];
+      var strength = Math.min(absJerk / (runningMax * 1.4), 1);
+      energy = Math.min(cfg.cap, energy + strength * gainFactor * 16);
+
+      if (cfg.thump && strength > 0.4 && now - lastThumpTime > 70) {
+        lastThumpTime = now;
+        if (audioReady) playThump(strength);
+      }
+    }
+  }
+
+  // ---------- scheduler ----------
+  var lastTick = performance.now();
+  function schedulerTick() {
+    var now = performance.now();
+    var dt = Math.min((now - lastTick) / 1000, 0.05);
+    lastTick = now;
+    var cfg = INSTRUMENTS[instrument];
+
+    energy *= Math.exp(-dt / cfg.tau);
+
+    if (audioReady && ctx && energy > 0.02) {
+      var rate = energy * cfg.rateK;
+      var expected = rate * dt;
+      var n = Math.floor(expected);
+      if (Math.random() < (expected - n)) n++;
+      for (var i = 0; i < n; i++) {
+        var jitter = Math.random() * dt;
+        var t = ctx.currentTime + 0.02 + jitter;
+        var lvl = Math.min(1, energy / cfg.cap);
+        playGrain(t, lvl);
+        flashRandomBead();
+      }
+    }
+    visualEnergy = Math.min(1, energy / cfg.cap);
+
+    if (dynamicGain && ctx) {
+      var levelNow = Math.min(1, energy / cfg.cap);
+      dynamicLevelSmoothed += (levelNow - dynamicLevelSmoothed) * 0.25;
+      var MIN_GAIN = 0.28;
+      var target = MIN_GAIN + dynamicLevelSmoothed * (1 - MIN_GAIN);
+      dynamicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
+    }
+  }
+  setInterval(schedulerTick, 25);
+
+  // ---------- visual loop ----------
+  function visualLoop() {
+    var s = 1 + visualEnergy * 0.07;
+    var jitter = visualEnergy * 3.2;
+    var rot = Math.sin(performance.now() / 38) * jitter;
+    instSvg.style.transform = "rotate(" + rot.toFixed(2) + "deg) scale(" + s.toFixed(3) + ")";
+    instSvg.style.filter = "drop-shadow(0 0 " + (visualEnergy * 14).toFixed(1) + "px var(--accent-ring))";
+
+    var pct = Math.round(visualEnergy * 100);
+    roEnergy.childNodes[0].nodeValue = pct;
+
+    requestAnimationFrame(visualLoop);
+  }
+  requestAnimationFrame(visualLoop);
+
+  // ---------- status UI ----------
+  var sensorState = "pending", audioState = "pending";
+  function setBadge(el, txtEl, kind, textKey) {
+    el.classList.remove("badge--pos", "badge--neg", "badge--muted");
+    el.classList.add(kind === "ok" ? "badge--pos" : kind === "bad" ? "badge--neg" : "badge--muted");
+    txtEl.setAttribute("data-i18n", textKey);
+    txtEl.textContent = Shell.t(textKey);
+  }
+  function setSensorStatus(state) {
+    sensorState = state;
+    var map = { pending: ["muted", "t.pending"], granted: ["ok", "t.granted"], denied: ["bad", "t.deniedSensor"], unsupported: ["bad", "t.unsupported"], error: ["bad", "t.error"] };
+    var m = map[state] || map.pending;
+    setBadge(statusSensor, statusSensorTxt, m[0], m[1]);
+  }
+  function setAudioStatus(state) {
+    audioState = state;
+    var map = { pending: ["muted", "t.pending"], granted: ["ok", "t.granted"], error: ["bad", "t.error"] };
+    var m = map[state] || map.pending;
+    setBadge(statusAudio, statusAudioTxt, m[0], m[1]);
+  }
+  function updateReadyState() {
+    var ready = sensorReady && audioReady;
+    readyNote.setAttribute("data-i18n", ready ? "t.ready" : "t.needBoth");
+    readyNote.textContent = Shell.t(ready ? "t.ready" : "t.needBoth");
+    liveTxt.setAttribute("data-i18n", ready ? "t.live" : "t.waiting");
+    liveTxt.textContent = Shell.t(ready ? "t.live" : "t.waiting");
+  }
+
+  // ---------- wake lock ----------
+  var wakeLock = null;
+  function requestWakeLock() {
+    if ("wakeLock" in navigator) {
+      navigator.wakeLock.request("screen").then(function (wl) { wakeLock = wl; }, function () {});
+    }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      if (ctx && ctx.state === "suspended") ctx.resume();
+      if (audioReady) requestWakeLock();
+    }
+  });
+
+  // ---------- permission buttons ----------
+  btnSensor.addEventListener("click", function () {
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      DeviceMotionEvent.requestPermission().then(function (res) {
+        if (res === "granted") {
+          sensorReady = true;
+          window.addEventListener("devicemotion", handleMotion);
+          setSensorStatus("granted");
+          btnSensor.disabled = true;
+        } else { setSensorStatus("denied"); }
+        updateReadyState();
+      }, function () { setSensorStatus("error"); updateReadyState(); });
+    } else if ("DeviceMotionEvent" in window) {
+      sensorReady = true;
+      window.addEventListener("devicemotion", handleMotion);
+      setSensorStatus("granted");
+      btnSensor.disabled = true;
+      updateReadyState();
+    } else {
+      setSensorStatus("unsupported");
+      updateReadyState();
+    }
+  });
+
+  btnAudio.addEventListener("click", function () {
+    try {
+      if (!ctx) {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        noiseBuffer = createNoiseBuffer(ctx, 2);
+        masterGain = ctx.createGain();
+        masterGain.gain.value = masterVolume * 0.9;
+        masterGain.connect(ctx.destination);
+        dynamicGain = ctx.createGain();
+        dynamicGain.gain.value = 0.28;
+        dynamicGain.connect(masterGain);
+      }
+      ctx.resume().then(function () {
+        audioReady = true;
+        setAudioStatus("granted");
+        btnAudio.disabled = true;
+        playGrain(ctx.currentTime + 0.02, 0.35);
+        requestWakeLock();
+        updateReadyState();
+      });
+    } catch (err) {
+      setAudioStatus("error");
+      updateReadyState();
+    }
+  });
+
+  // ---------- controls ----------
+  function applySensitivity(v) {
+    sensitivity = v / 10;
+    threshMult = lerp(0.55, 0.10, sensitivity);
+    gainFactor = lerp(0.7, 2.2, sensitivity);
+    sensReadout.textContent = v + " / 10";
+    meterMark.style.left = (threshMult * 100).toFixed(1) + "%";
+  }
+  sensSlider.addEventListener("input", function () { applySensitivity(+sensSlider.value); });
+
+  volSlider.addEventListener("input", function () {
+    masterVolume = (+volSlider.value) / 100;
+    volReadout.textContent = volSlider.value + "%";
+    if (masterGain) masterGain.gain.value = masterVolume * 0.9;
+  });
+
+  // ---------- instrument switch ----------
+  segEl.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var next = b.getAttribute("data-inst");
+    if (next === instrument) return;
+    instrument = next;
+    syncSeg();
+    energy = 0;
+  });
+  function syncSeg() {
+    segEl.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-inst") === instrument));
+    });
+  }
+
+  // ---------- meter loop (live sensitivity meter, independent of ready state) ----------
+  setInterval(function () {
+    var meterPct = Math.min(100, (liveJerkSmoothed / runningMax) * 100);
+    meterFill.style.width = meterPct.toFixed(1) + "%";
+  }, 40);
+
+  // ---------- boot ----------
+  syncSeg();
+  applySensitivity(+sensSlider.value);
+
+  Shell.init({
+    id: "shaker-sim",
+    strings: {
+      en: {
+        "t.title": "Shaker simulator",
+        "t.desc": "Shake your phone to play realistic shaker or maraca percussion sounds.",
+        "t.instrument": "Instrument", "t.shaker": "Shaker", "t.maraca": "Maraca",
+        "t.sensor": "Motion sensor", "t.sensorDesc": "Reads your phone's movement to trigger sound.",
+        "t.audio": "Audio", "t.audioDesc": "Tap to turn sound on (required by the browser).",
+        "t.enable": "Enable",
+        "t.pending": "Not enabled", "t.granted": "Granted", "t.deniedSensor": "Denied — allow it again from Settings › Safari",
+        "t.unsupported": "Not available on this device", "t.error": "Something went wrong — reload the page",
+        "t.needBoth": "Enable both to start playing.", "t.ready": "Ready — go ahead and shake it.",
+        "t.waiting": "Waiting", "t.live": "Live",
+        "t.sensitivity": "Sensitivity",
+        "t.sensHint": "Adjust while shaking — aim for the bar to reach just past the mark.",
+        "t.volume": "Volume",
+        "t.output": "Output", "t.energy": "Energy",
+        "t.tips": "Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.",
+        "t.insecure": "Open this page over HTTPS (e.g. GitHub Pages) — it won't work over file://.",
+        "t.nomotion": "This device or browser may not support motion sensors."
+      },
+      ja: {
+        "t.title": "シェイカーシミュレーター",
+        "t.desc": "スマホを振ってシェイカーやマラカスのパーカッションをリアルに再現。",
+        "t.instrument": "楽器", "t.shaker": "シェイカー", "t.maraca": "マラカス",
+        "t.sensor": "モーションセンサー", "t.sensorDesc": "スマホの動きを感じ取って音に変えます。",
+        "t.audio": "音", "t.audioDesc": "タップして音を有効にします（ブラウザの仕様上必要です）。",
+        "t.enable": "許可する",
+        "t.pending": "未許可", "t.granted": "許可されました", "t.deniedSensor": "拒否されました — 設定アプリのSafari項目から再度許可してください",
+        "t.unsupported": "この端末では利用できません", "t.error": "エラーが発生しました。ページを再読み込みしてください",
+        "t.needBoth": "両方をオンにすると演奏できます。", "t.ready": "準備完了 — 振ってみてください。",
+        "t.waiting": "待機中", "t.live": "演奏中",
+        "t.sensitivity": "感度",
+        "t.sensHint": "振りながら調整してください。バーが白い印の少し先まで届くくらいが目安です。",
+        "t.volume": "音量",
+        "t.output": "出力", "t.energy": "エネルギー",
+        "t.tips": "画面をロックすると音が止まります。演奏中はスリープにしないでください。音が出ない場合は、消音スイッチと音量をご確認ください。",
+        "t.insecure": "HTTPS経由で開いてください（GitHub Pagesなど）。file:// では動作しません。",
+        "t.nomotion": "この端末・ブラウザはモーションセンサーに対応していない可能性があります。"
+      }
+    },
+    onSettingsChange: function () {
+      setSensorStatus(sensorState);
+      setAudioStatus(audioState);
+      updateReadyState();
+    }
+  });
+
+  if (!window.isSecureContext) {
+    showBanner(Shell.t("t.insecure"));
+  } else if (!("DeviceMotionEvent" in window)) {
+    showBanner(Shell.t("t.nomotion"));
+  }
+})();
+</script>
+</body>
+</html>
