@@ -1159,6 +1159,58 @@
         "アップルループ"
       ],
       "added": "2026-07-17"
+    },
+    {
+      "id": "morse-code",
+      "type": "web",
+      "path": "tools/morse-code/",
+      "categories": [
+        "audio",
+        "text"
+      ],
+      "name": {
+        "en": "Morse code",
+        "ja": "モールス信号"
+      },
+      "description": {
+        "en": "Convert text to Morse and play it back with humanized timing.",
+        "ja": "英文とモールス符号を相互変換し、揺らぎのある音で再生。"
+      },
+      "keywords": [
+        "morse",
+        "code",
+        "cw",
+        "telegraph",
+        "モールス",
+        "電信"
+      ],
+      "added": "2026-07-22"
+    },
+    {
+      "id": "shaker-sim",
+      "type": "web",
+      "path": "tools/shaker-sim/",
+      "categories": [
+        "audio"
+      ],
+      "name": {
+        "en": "Shaker simulator",
+        "ja": "シェイカーシミュレーター"
+      },
+      "description": {
+        "en": "Shake your phone to play realistic shaker percussion sounds.",
+        "ja": "スマホを振ってシェイカー系パーカッションをリアルに再現。"
+      },
+      "keywords": [
+        "shaker",
+        "maracas",
+        "percussion",
+        "motion",
+        "シェイカー",
+        "マラカス",
+        "加速度"
+      ],
+      "added": "2026-07-22"
     }
   ]
 }
