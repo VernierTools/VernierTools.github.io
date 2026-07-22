@@ -35,6 +35,19 @@
   .fieldhead .label{ margin-bottom:0; }
   .fieldval{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--accent); }
   .fieldhint{ font-size:12px; color:var(--text-3); margin-top:8px; }
+
+  /* ---- advanced settings (collapsible) ---- */
+  .adv{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .adv + .adv{ margin-top:var(--s4); }
+  .adv summary{ list-style:none; cursor:pointer; padding:var(--s4) var(--s5); display:flex;
+    align-items:center; justify-content:space-between; font-size:13px; font-weight:600; color:var(--text); }
+  .adv summary::-webkit-details-marker{ display:none; }
+  .adv summary .chev{ width:16px; height:16px; color:var(--text-3); transition:transform var(--tap); flex:none; }
+  .adv[open] summary .chev{ transform:rotate(90deg); }
+  .adv summary:hover{ background:var(--surface-2); }
+  .adv__body{ padding:0 var(--s5) var(--s5); border-top:1px solid var(--border); padding-top:var(--s4); }
+  .adv .field{ margin-bottom:var(--s4); }
+  .adv .field:last-of-type{ margin-bottom:0; }
 </style>
 </head>
 <body>
@@ -100,6 +113,50 @@
           <input class="slider" type="range" id="vol" min="0" max="100" step="1" value="70">
         </div>
       </div>
+
+      <details class="adv">
+        <summary><span data-i18n="t.advanced">Advanced settings</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </summary>
+        <div class="adv__body">
+          <div class="field">
+            <div class="fieldhead">
+              <label class="label" for="advPitch" data-i18n="t.pitch">Pitch</label>
+              <span class="fieldval" id="advPitchVal">6200 Hz</span>
+            </div>
+            <input class="slider" type="range" id="advPitch" min="300" max="12000" step="50" value="6200">
+          </div>
+          <div class="field">
+            <div class="fieldhead">
+              <label class="label" for="advSize" data-i18n="t.grainSize">Grain size</label>
+              <span class="fieldval" id="advSizeVal">15 ms</span>
+            </div>
+            <input class="slider" type="range" id="advSize" min="2" max="30" step="1" value="15">
+          </div>
+          <div class="field">
+            <div class="fieldhead">
+              <label class="label" for="advRate" data-i18n="t.grainRate">Grain density</label>
+              <span class="fieldval" id="advRateVal">55</span>
+            </div>
+            <input class="slider" type="range" id="advRate" min="5" max="90" step="1" value="55">
+          </div>
+          <div class="field">
+            <div class="fieldhead">
+              <label class="label" for="advRelease" data-i18n="t.release">Release</label>
+              <span class="fieldval" id="advReleaseVal">90 ms</span>
+            </div>
+            <input class="slider" type="range" id="advRelease" min="30" max="500" step="10" value="90">
+          </div>
+          <div class="field" id="advBedRow">
+            <div class="fieldhead">
+              <label class="label" for="advBed" data-i18n="t.bedAmount">Continuous noise</label>
+              <span class="fieldval" id="advBedVal">100%</span>
+            </div>
+            <input class="slider" type="range" id="advBed" min="0" max="200" step="5" value="100">
+          </div>
+          <button class="btn btn--secondary btn--block" id="btnResetAdv" type="button" data-i18n="t.resetDefaults" style="margin-top:var(--s2)">Reset to defaults</button>
+        </div>
+      </details>
     </div>
 
     <!-- 右: 出力 -->
@@ -133,6 +190,12 @@
   var meterFill = $("meterFill");
   var liveTxt = $("liveTxt"), roEnergy = $("roEnergy");
   var segEl = $("seg");
+  var advPitch = $("advPitch"), advPitchVal = $("advPitchVal");
+  var advSize = $("advSize"), advSizeVal = $("advSizeVal");
+  var advRate = $("advRate"), advRateVal = $("advRateVal");
+  var advRelease = $("advRelease"), advReleaseVal = $("advReleaseVal");
+  var advBedRow = $("advBedRow"), advBed = $("advBed"), advBedVal = $("advBedVal");
+  var btnResetAdv = $("btnResetAdv");
 
   var lerp = function (a, b, f) { return a + (b - a) * f; };
 
@@ -148,19 +211,22 @@
     shaker: {
       thump: false,
       bed: true,                    // continuous filtered-noise bed (many overlapping micro-collisions)
-      bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.25],
+      bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.25], bedAmount: 1,
       grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.28,
       grainDurMin: 0.005, grainDurMax: 0.015, grainQ: [0.55, 1.05],
-      hp: 3200, rateK: 55 // grains/sec at motionLevel = 1 (a full, fast shake)
+      hp: 3200, rateK: 55, // grains/sec at motionLevel = 1 (a full, fast shake)
+      releaseTau: 0.09
     },
     maraca: {
       thump: true, thumpRateK: 2.2, // thumps/sec at motionLevel = 1
-      bed: false,
+      bed: false, bedAmount: 1,
       grainBase: 2600, grainSpread: 1500, shimmerMul: 1, shimmerMix: 0,
       grainDurMin: 0.008, grainDurMax: 0.022, grainQ: [1.6, 2.6],
-      hp: 1400, rateK: 22
+      hp: 1400, rateK: 22,
+      releaseTau: 0.18
     }
   };
+  var DEFAULT_INSTRUMENTS = JSON.parse(JSON.stringify(INSTRUMENTS)); // for the "Reset to defaults" button
   var instrument = "shaker";
 
   function showBanner(msg) { banner.textContent = msg; banner.hidden = false; }
@@ -329,8 +395,10 @@
   // required to "trigger" anything, so slow deliberate motion produces a small
   // continuous level rather than nothing, and — critically — there's no separate energy
   // pool that can stay saturated after a fast moment ends: the level simply tracks
-  // whatever your hand is doing right now.
-  var LEVEL_ATTACK = 0.55, LEVEL_RELEASE = 0.16;
+  // whatever your hand is doing right now. Attack is fixed; release is per-instrument
+  // and user-adjustable (see cfg.releaseTau, exposed in Advanced settings) — both are
+  // proper time constants (seconds), so the feel doesn't change with sensor event rate.
+  var ATTACK_TAU = 0.045;
   function handleMotion(e) {
     var now = performance.now();
     var dt = Math.min((now - lastMotionT) / 1000, 0.05);
@@ -349,7 +417,9 @@
 
     var raw = (absJerk - restBaseline * NOISE_FLOOR_MULT) / jerkFullScale;
     raw = Math.max(0, Math.min(1, raw));
-    var coeff = raw > motionLevel ? LEVEL_ATTACK : LEVEL_RELEASE;
+    var cfg = INSTRUMENTS[instrument];
+    var tau = raw > motionLevel ? ATTACK_TAU : cfg.releaseTau;
+    var coeff = 1 - Math.exp(-dt / tau);
     motionLevel += (raw - motionLevel) * coeff;
   }
 
@@ -398,7 +468,7 @@
     // Continuous "sizzle" bed — proportional to motionLevel throughout its whole range,
     // not just above some accent threshold, so it fades in/out smoothly with speed.
     if (bedGain && ctx) {
-      var bedTarget = cfg.bed ? Math.min(0.35, motionLevel * 0.5) : 0;
+      var bedTarget = cfg.bed ? Math.min(0.35, motionLevel * 0.5 * cfg.bedAmount) : 0;
       bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.03);
     }
   }
@@ -530,6 +600,7 @@
     if (next === instrument) return;
     instrument = next;
     syncSeg();
+    syncAdvancedUI();
     motionLevel = 0;
   });
   function syncSeg() {
@@ -537,6 +608,57 @@
       b.setAttribute("aria-pressed", String(b.getAttribute("data-inst") === instrument));
     });
   }
+
+  // ---------- advanced settings ----------
+  // Edits the currently-selected instrument's config directly and live — grains, bed
+  // level, and release all read cfg.* fresh each time, so changes are audible right away.
+  function syncAdvancedUI() {
+    var cfg = INSTRUMENTS[instrument];
+    advPitch.value = Math.round(cfg.grainBase);
+    advPitchVal.textContent = Math.round(cfg.grainBase) + " Hz";
+    var sizeMs = Math.round(cfg.grainDurMax * 1000);
+    advSize.value = sizeMs;
+    advSizeVal.textContent = sizeMs + " ms";
+    advRate.value = Math.round(cfg.rateK);
+    advRateVal.textContent = Math.round(cfg.rateK);
+    var relMs = Math.round(cfg.releaseTau * 1000);
+    advRelease.value = relMs;
+    advReleaseVal.textContent = relMs + " ms";
+    advBedRow.hidden = !cfg.bed;
+    if (cfg.bed) {
+      var bedPct = Math.round((cfg.bedAmount != null ? cfg.bedAmount : 1) * 100);
+      advBed.value = bedPct;
+      advBedVal.textContent = bedPct + "%";
+    }
+  }
+  advPitch.addEventListener("input", function () {
+    INSTRUMENTS[instrument].grainBase = +advPitch.value;
+    advPitchVal.textContent = advPitch.value + " Hz";
+  });
+  advSize.addEventListener("input", function () {
+    var ms = +advSize.value;
+    var cfg = INSTRUMENTS[instrument];
+    cfg.grainDurMax = ms / 1000;
+    cfg.grainDurMin = Math.max(0.001, cfg.grainDurMax * 0.35); // keep some natural spread
+    advSizeVal.textContent = ms + " ms";
+  });
+  advRate.addEventListener("input", function () {
+    INSTRUMENTS[instrument].rateK = +advRate.value;
+    advRateVal.textContent = advRate.value;
+  });
+  advRelease.addEventListener("input", function () {
+    var ms = +advRelease.value;
+    INSTRUMENTS[instrument].releaseTau = ms / 1000;
+    advReleaseVal.textContent = ms + " ms";
+  });
+  advBed.addEventListener("input", function () {
+    INSTRUMENTS[instrument].bedAmount = (+advBed.value) / 100;
+    advBedVal.textContent = advBed.value + "%";
+  });
+  btnResetAdv.addEventListener("click", function () {
+    INSTRUMENTS = JSON.parse(JSON.stringify(DEFAULT_INSTRUMENTS));
+    syncAdvancedUI();
+  });
 
   // ---------- meter loop (live sensitivity meter, independent of ready state) ----------
   setInterval(function () {
@@ -546,6 +668,7 @@
 
   // ---------- boot ----------
   syncSeg();
+  syncAdvancedUI();
   applySensitivity(+sensSlider.value);
 
   Shell.init({
@@ -566,6 +689,10 @@
         "t.sensitivity": "Sensitivity",
         "t.sensHint": "Higher = a gentler shake produces more sound.",
         "t.volume": "Volume",
+        "t.advanced": "Advanced settings",
+        "t.pitch": "Pitch", "t.grainSize": "Grain size", "t.grainRate": "Grain density",
+        "t.release": "Release", "t.bedAmount": "Continuous noise",
+        "t.resetDefaults": "Reset to defaults",
         "t.output": "Output", "t.energy": "Energy",
         "t.tips": "Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.",
         "t.insecure": "Open this page over HTTPS (e.g. GitHub Pages) — it won't work over file://.",
@@ -586,6 +713,10 @@
         "t.sensitivity": "感度",
         "t.sensHint": "上げるほど、軽く振っただけでもよく鳴るようになります。",
         "t.volume": "音量",
+        "t.advanced": "詳細設定",
+        "t.pitch": "音の高さ", "t.grainSize": "粒のサイズ", "t.grainRate": "粒の密度",
+        "t.release": "リリース", "t.bedAmount": "連続ノイズ量",
+        "t.resetDefaults": "デフォルトに戻す",
         "t.output": "出力", "t.energy": "エネルギー",
         "t.tips": "画面をロックすると音が止まります。演奏中はスリープにしないでください。音が出ない場合は、消音スイッチと音量をご確認ください。",
         "t.insecure": "HTTPS経由で開いてください（GitHub Pagesなど）。file:// では動作しません。",
