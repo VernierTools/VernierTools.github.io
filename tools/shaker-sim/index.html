@@ -26,7 +26,6 @@
   /* ---- sensitivity meter ---- */
   .meter{ position:relative; height:6px; border-radius:100px; background:var(--border-strong); margin-top:10px; overflow:hidden; }
   .meter-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:var(--accent); border-radius:100px; }
-  .meter-mark{ position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--text-3); left:30%; }
 
   .notice{ font-size:12.5px; line-height:1.6; color:var(--neg); background:var(--neg-tint);
     border:1px solid var(--neg); border-radius:var(--r); padding:10px 12px; margin-top:var(--s4); }
@@ -90,8 +89,8 @@
             <span class="fieldval" id="sensReadout">5 / 10</span>
           </div>
           <input class="slider" type="range" id="sens" min="1" max="10" step="1" value="5">
-          <div class="meter"><div class="meter-fill" id="meterFill"></div><div class="meter-mark" id="meterMark"></div></div>
-          <p class="fieldhint" data-i18n="t.sensHint">Adjust while shaking — aim for the bar to reach just past the mark.</p>
+          <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+          <p class="fieldhint" data-i18n="t.sensHint">Higher = a gentler shake produces more sound.</p>
         </div>
         <div class="field">
           <div class="fieldhead">
@@ -131,18 +130,20 @@
   var readyNote = $("readyNote"), banner = $("banner");
   var sensSlider = $("sens"), sensReadout = $("sensReadout");
   var volSlider = $("vol"), volReadout = $("volReadout");
-  var meterFill = $("meterFill"), meterMark = $("meterMark");
+  var meterFill = $("meterFill");
   var liveTxt = $("liveTxt"), roEnergy = $("roEnergy");
   var segEl = $("seg");
 
   var lerp = function (a, b, f) { return a + (b - a) * f; };
 
   // ---------- instrument definitions ----------
-  // Modeled loosely after Perry Cook's PhISEM (Physically Informed Stochastic Event
-  // Modeling, used in the STK "Shakers" class): a shaker's sound comes from many small
-  // objects colliding inside a shell. A dense object count + a wide, weakly resonant
-  // filter bank reads as continuous "hiss" (real shaker/cabasa); a sparse object count
-  // + a narrow, strongly resonant filter reads as a woody "click" (real maraca gourd).
+  // Timbre is still modeled loosely after Perry Cook's PhISEM (used in STK's "Shakers"
+  // class): a dense, wide, weakly resonant filter bank reads as continuous "hiss" (real
+  // shaker/cabasa); a sparse, narrow, strongly resonant filter reads as a woody "click"
+  // (real maraca gourd). But — unlike PhISEM's own accent/collision model — the RATE at
+  // which grains are produced, and the loudness, now track the current motion level
+  // directly and continuously (see motionLevel below): slow motion → quiet & sparse,
+  // fast motion → loud & dense, with no threshold and no separate decay/energy-pool.
   var INSTRUMENTS = {
     shaker: {
       thump: false,
@@ -150,14 +151,14 @@
       bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.25],
       grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.28,
       grainDurMin: 0.005, grainDurMax: 0.015, grainQ: [0.55, 1.05],
-      hp: 3200, tau: 0.028, rateK: 9, cap: 46, gate: 0.09
+      hp: 3200, rateK: 55 // grains/sec at motionLevel = 1 (a full, fast shake)
     },
     maraca: {
-      thump: true,
+      thump: true, thumpRateK: 2.2, // thumps/sec at motionLevel = 1
       bed: false,
       grainBase: 2600, grainSpread: 1500, shimmerMul: 1, shimmerMix: 0,
       grainDurMin: 0.008, grainDurMax: 0.022, grainQ: [1.6, 2.6],
-      hp: 1400, tau: 0.16, rateK: 5.2, cap: 40, gate: 0.035
+      hp: 1400, rateK: 22
     }
   };
   var instrument = "shaker";
@@ -167,22 +168,29 @@
   // ---------- state ----------
   var sensorReady = false, audioReady = false;
   var sensitivity = 0.5, masterVolume = 0.7;
-  // jerkFullScale / jerkThreshold are fixed once per sensitivity change (see the note in
-  // handleMotion below for why), but they are computed as multiples of restBaseline — a
-  // per-device measurement of "how much jerk this phone reports while just sitting still
-  // in your hand" — rather than a guessed absolute number. Different devices/browsers
-  // report acceleration in wildly different effective scales, so a hardcoded constant
-  // that feels right on one phone can be far too sensitive on another.
+  // jerkFullScale is computed as a multiple of restBaseline — a per-device measurement of
+  // "how much jerk this phone reports while just sitting still in your hand" — rather
+  // than a guessed absolute number. Different devices/browsers report acceleration in
+  // wildly different effective scales, so a hardcoded constant that feels right on one
+  // phone can be far too sensitive on another.
   var restBaseline = 6; // overwritten by calibrate() once the sensor is granted
-  var jerkFullScale = 1, jerkThreshold = 1, gainFactor = 1;
-  var energy = 0;
+  var jerkFullScale = 1;
+  var NOISE_FLOOR_MULT = 1.2; // jerk below (restBaseline * this) counts as zero motion —
+                              // just enough to keep true stillness silent, not a trigger
+                              // threshold. Real, deliberate motion above this ramps up
+                              // smoothly and continuously from there.
+  // motionLevel: continuously smoothed "how fast is the phone moving right now",
+  // normalized so ~1.0 means "a full, fast shake" for the current sensitivity. This is
+  // the single value that drives everything (grain rate, thump rate, gain, bed level) —
+  // there is no separate energy pool, decay time constant, or on/off threshold, so the
+  // sound directly and continuously tracks how hard you're currently shaking.
+  var motionLevel = 0;
   var prevMag = 0, lastMotionT = performance.now();
-  var liveJerkSmoothed = 0, visualEnergy = 0, lastThumpTime = 0;
+  var liveJerkSmoothed = 0, lastThumpTime = 0;
   var calibrating = false;
 
   // ---------- audio ----------
   var ctx = null, noiseBuffer = null, masterGain = null, dynamicGain = null;
-  var dynamicLevelSmoothed = 0;
   var bedGain = null; // shared envelope gain for the continuous shaker "sizzle" bed
 
   function createNoiseBuffer(context, seconds) {
@@ -272,11 +280,10 @@
 
   // ---------- calibration ----------
   // Measures ~0.9s of resting jitter (hold the phone normally, don't shake) and uses the
-  // 90th percentile of that as restBaseline. jerkThreshold/jerkFullScale are then set as
-  // multiples of restBaseline (see applySensitivity), so the trigger point adapts to this
-  // specific device/browser's units instead of relying on a guessed absolute number. This
-  // calibration runs once (on grant, or manually via "Recalibrate") — not continuously —
-  // so it doesn't reintroduce the desensitization bug from before.
+  // 90th percentile of that as restBaseline. jerkFullScale is then set as a multiple of
+  // restBaseline (see applySensitivity), so the response adapts to this specific
+  // device/browser's units instead of relying on a guessed absolute number. This
+  // calibration runs once (on grant, or manually via "Recalibrate") — not continuously.
   function calibrate(onDone) {
     calibrating = true;
     var hadMain = sensorReady;
@@ -316,12 +323,14 @@
   }
 
 
-  // NOTE: threshold/strength are computed from a FIXED scale (derived only from the
-  // sensitivity slider), not from a running max of recent jerk. An adaptive "divide by
-  // your own recent peak" scheme desensitizes under sustained shaking — the harder you
-  // shake, the higher the reference climbs, so the same effort reads as progressively
-  // weaker. Keeping the scale fixed means a given physical shake always produces the
-  // same output, no matter how long or how hard you've already been shaking.
+  // motionLevel is a continuous envelope follower on jerk, not an event/threshold
+  // detector: every sample nudges it toward the current (noise-floor-subtracted,
+  // normalized) reading, with a faster attack than release. There is no minimum jerk
+  // required to "trigger" anything, so slow deliberate motion produces a small
+  // continuous level rather than nothing, and — critically — there's no separate energy
+  // pool that can stay saturated after a fast moment ends: the level simply tracks
+  // whatever your hand is doing right now.
+  var LEVEL_ATTACK = 0.55, LEVEL_RELEASE = 0.16;
   function handleMotion(e) {
     var now = performance.now();
     var dt = Math.min((now - lastMotionT) / 1000, 0.05);
@@ -338,19 +347,18 @@
     var absJerk = Math.abs(jerk);
     liveJerkSmoothed += (absJerk - liveJerkSmoothed) * 0.35;
 
-    if (absJerk > jerkThreshold) {
-      var cfg = INSTRUMENTS[instrument];
-      var strength = Math.min(absJerk / jerkFullScale, 1);
-      energy = Math.min(cfg.cap, energy + strength * gainFactor * 16);
-
-      if (cfg.thump && strength > 0.4 && now - lastThumpTime > 70) {
-        lastThumpTime = now;
-        if (audioReady) playThump(strength);
-      }
-    }
+    var raw = (absJerk - restBaseline * NOISE_FLOOR_MULT) / jerkFullScale;
+    raw = Math.max(0, Math.min(1, raw));
+    var coeff = raw > motionLevel ? LEVEL_ATTACK : LEVEL_RELEASE;
+    motionLevel += (raw - motionLevel) * coeff;
   }
 
   // ---------- scheduler ----------
+  // Everything below reads motionLevel and scales continuously with it — grain rate,
+  // thump rate, overall gain, and the bed level. There's no ramp-then-decay stage here;
+  // if devicemotion stops firing (edge case), the safety decay below relaxes things
+  // toward silence, but under normal use motionLevel itself (updated in handleMotion on
+  // every sensor sample) is what does the continuous following.
   var lastTick = performance.now();
   function schedulerTick() {
     var now = performance.now();
@@ -358,41 +366,42 @@
     lastTick = now;
     var cfg = INSTRUMENTS[instrument];
 
-    energy *= Math.exp(-dt / cfg.tau);
+    motionLevel *= Math.exp(-dt / 0.6); // safety net only; normal decay happens per-sample above
 
-    if (audioReady && ctx && energy > cfg.cap * cfg.gate) {
-      var rate = energy * cfg.rateK;
+    if (audioReady && ctx && motionLevel > 0.008) {
+      var rate = motionLevel * cfg.rateK;
       var expected = rate * dt;
       var n = Math.floor(expected);
       if (Math.random() < (expected - n)) n++;
       for (var i = 0; i < n; i++) {
         var jitter = Math.random() * dt;
         var t = ctx.currentTime + 0.02 + jitter;
-        var lvl = Math.min(1, energy / cfg.cap);
-        playGrain(t, lvl);
+        playGrain(t, motionLevel);
+      }
+      if (cfg.thump) {
+        var thumpExpected = motionLevel * cfg.thumpRateK * dt;
+        if (Math.random() < thumpExpected && now - lastThumpTime > 90) {
+          lastThumpTime = now;
+          playThump(motionLevel);
+        }
       }
     }
-    visualEnergy = Math.min(1, energy / cfg.cap);
-    roEnergy.childNodes[0].nodeValue = Math.round(visualEnergy * 100);
+
+    roEnergy.childNodes[0].nodeValue = Math.round(motionLevel * 100);
 
     if (dynamicGain && ctx) {
-      var levelNow = visualEnergy;
-      dynamicLevelSmoothed += (levelNow - dynamicLevelSmoothed) * 0.25;
       var MIN_GAIN = 0.28;
-      var target = MIN_GAIN + dynamicLevelSmoothed * (1 - MIN_GAIN);
-      dynamicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
+      var target = motionLevel > 0.004 ? MIN_GAIN + motionLevel * (1 - MIN_GAIN) : 0;
+      dynamicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.035);
     }
 
-    // continuous "sizzle" bed: only audible for instruments that define one, and only
-    // once actually shaking (silent at rest). Requires a real accent (not just faint
-    // residual energy) to appear, and tracks energy tightly so it doesn't linger between
-    // hits — otherwise it reads as one continuous hiss instead of distinct accents.
+    // Continuous "sizzle" bed — proportional to motionLevel throughout its whole range,
+    // not just above some accent threshold, so it fades in/out smoothly with speed.
     if (bedGain && ctx) {
-      var bedTarget = cfg.bed ? Math.min(0.3, levelBedFrom(visualEnergy)) : 0;
-      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.012);
+      var bedTarget = cfg.bed ? Math.min(0.35, motionLevel * 0.5) : 0;
+      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.03);
     }
   }
-  function levelBedFrom(v) { return v <= 0.15 ? 0 : (v - 0.15) * 0.65; }
   setInterval(schedulerTick, 25);
 
   // ---------- status UI ----------
@@ -500,13 +509,11 @@
   // ---------- controls ----------
   function applySensitivity(v) {
     sensitivity = v / 10;
-    // Multiples of the calibrated per-device baseline (see calibrate()), not absolute
-    // numbers — this is what makes the threshold meaningful across different devices.
-    jerkFullScale = restBaseline * lerp(30, 6, sensitivity);
-    jerkThreshold = restBaseline * lerp(6, 1.8, sensitivity);
-    gainFactor = lerp(0.7, 2.2, sensitivity);
+    // A multiple of the calibrated per-device baseline (see calibrate()), not an absolute
+    // number — this is what makes "how hard a shake reads as maximum" meaningful across
+    // different devices. Smaller value here = smaller motions reach full output.
+    jerkFullScale = restBaseline * lerp(26, 6, sensitivity);
     sensReadout.textContent = v + " / 10";
-    meterMark.style.left = Math.min(100, (jerkThreshold / jerkFullScale) * 100).toFixed(1) + "%";
   }
   sensSlider.addEventListener("input", function () { applySensitivity(+sensSlider.value); });
 
@@ -523,7 +530,7 @@
     if (next === instrument) return;
     instrument = next;
     syncSeg();
-    energy = 0;
+    motionLevel = 0;
   });
   function syncSeg() {
     segEl.querySelectorAll("button").forEach(function (b) {
@@ -557,7 +564,7 @@
         "t.needBoth": "Enable both to start playing.", "t.ready": "Ready — go ahead and shake it.",
         "t.waiting": "Waiting", "t.live": "Live",
         "t.sensitivity": "Sensitivity",
-        "t.sensHint": "Adjust while shaking — aim for the bar to reach just past the mark.",
+        "t.sensHint": "Higher = a gentler shake produces more sound.",
         "t.volume": "Volume",
         "t.output": "Output", "t.energy": "Energy",
         "t.tips": "Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.",
@@ -577,7 +584,7 @@
         "t.needBoth": "両方をオンにすると演奏できます。", "t.ready": "準備完了 — 振ってみてください。",
         "t.waiting": "待機中", "t.live": "演奏中",
         "t.sensitivity": "感度",
-        "t.sensHint": "振りながら調整してください。バーが白い印の少し先まで届くくらいが目安です。",
+        "t.sensHint": "上げるほど、軽く振っただけでもよく鳴るようになります。",
         "t.volume": "音量",
         "t.output": "出力", "t.energy": "エネルギー",
         "t.tips": "画面をロックすると音が止まります。演奏中はスリープにしないでください。音が出ない場合は、消音スイッチと音量をご確認ください。",
