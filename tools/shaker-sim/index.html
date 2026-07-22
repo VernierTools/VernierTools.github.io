@@ -144,10 +144,10 @@
     shaker: {
       thump: false,
       bed: true,                    // continuous filtered-noise bed (many overlapping micro-collisions)
-      bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.4],
-      grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.4,
-      grainDurMin: 0.0025, grainDurMax: 0.008, grainQ: [0.4, 0.8],
-      hp: 3200, tau: 0.09, rateK: 10, cap: 46
+      bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.25],
+      grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.28,
+      grainDurMin: 0.005, grainDurMax: 0.015, grainQ: [0.55, 1.05],
+      hp: 3200, tau: 0.065, rateK: 7.5, cap: 46
     },
     maraca: {
       thump: true,
@@ -158,6 +158,10 @@
     }
   };
   var instrument = "shaker";
+  var ENERGY_GATE_FRAC = 0.035; // stop generating sound once energy drops below this fraction
+                                // of the instrument's cap — using a fixed absolute value here
+                                // instead made the shaker's release tail take ~0.6-0.7s to cross
+                                // the gate even with a short tau, since its cap is large.
 
   function showBanner(msg) { banner.textContent = msg; banner.hidden = false; }
 
@@ -308,7 +312,7 @@
 
     energy *= Math.exp(-dt / cfg.tau);
 
-    if (audioReady && ctx && energy > 0.02) {
+    if (audioReady && ctx && energy > cfg.cap * ENERGY_GATE_FRAC) {
       var rate = energy * cfg.rateK;
       var expected = rate * dt;
       var n = Math.floor(expected);
@@ -332,13 +336,14 @@
     }
 
     // continuous "sizzle" bed: only audible for instruments that define one,
-    // and only once actually shaking (silent at rest).
+    // and only once actually shaking (silent at rest). Kept as a supporting layer,
+    // not the dominant texture — grains carry most of the "particle" character.
     if (bedGain && ctx) {
-      var bedTarget = cfg.bed ? Math.min(0.55, levelBedFrom(visualEnergy)) : 0;
-      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.035);
+      var bedTarget = cfg.bed ? Math.min(0.4, levelBedFrom(visualEnergy)) : 0;
+      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.025);
     }
   }
-  function levelBedFrom(v) { return v <= 0.02 ? 0 : 0.12 + v * 0.6; }
+  function levelBedFrom(v) { return v <= 0.02 ? 0 : 0.08 + v * 0.45; }
   setInterval(schedulerTick, 25);
 
   // ---------- status UI ----------
