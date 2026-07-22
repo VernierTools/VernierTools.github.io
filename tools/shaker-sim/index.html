@@ -28,13 +28,6 @@
   .meter-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:var(--accent); border-radius:100px; }
   .meter-mark{ position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--text-3); left:30%; }
 
-  /* ---- instrument visual ---- */
-  .instrumentcard{ display:flex; align-items:center; justify-content:center; padding:var(--s7) var(--s5); }
-  .instrumentcard svg{ width:min(46vw, 190px); height:auto; display:block; transition:filter .08s linear; }
-  .bead{ opacity:.28; transition:opacity 260ms ease-out; }
-  .bead.flash{ opacity:1; transition:opacity 30ms linear; }
-  @media (prefers-reduced-motion: reduce){ .instrumentcard svg{ transition:none; } .bead{ transition:none; } }
-
   .notice{ font-size:12.5px; line-height:1.6; color:var(--neg); background:var(--neg-tint);
     border:1px solid var(--neg); border-radius:var(--r); padding:10px 12px; margin-top:var(--s4); }
 
@@ -107,29 +100,8 @@
       </div>
     </div>
 
-    <!-- 右: 楽器ビジュアル・出力 -->
+    <!-- 右: 出力 -->
     <div>
-      <div class="card instrumentcard" style="margin-bottom:var(--s4)">
-        <svg id="instSvg" viewBox="0 0 200 200" aria-hidden="true">
-          <ellipse id="instBody" cx="100" cy="102" rx="66" ry="86" fill="var(--surface-2)" stroke="var(--border-strong)" stroke-width="2"/>
-          <rect x="92" y="6" width="16" height="26" rx="7" fill="var(--border-strong)"/>
-          <g id="beads">
-            <circle class="bead" cx="72"  cy="70"  r="4"   fill="var(--accent)"/>
-            <circle class="bead" cx="128" cy="68"  r="3.5" fill="var(--accent)"/>
-            <circle class="bead" cx="100" cy="54"  r="3"   fill="var(--accent)"/>
-            <circle class="bead" cx="56"  cy="98"  r="4.5" fill="var(--accent)"/>
-            <circle class="bead" cx="144" cy="100" r="4"   fill="var(--accent)"/>
-            <circle class="bead" cx="88"  cy="120" r="5"   fill="var(--accent)"/>
-            <circle class="bead" cx="118" cy="126" r="4"   fill="var(--accent)"/>
-            <circle class="bead" cx="66"  cy="150" r="3.5" fill="var(--accent)"/>
-            <circle class="bead" cx="136" cy="152" r="4"   fill="var(--accent)"/>
-            <circle class="bead" cx="98"  cy="170" r="5"   fill="var(--accent)"/>
-            <circle class="bead" cx="80"  cy="184" r="3"   fill="var(--accent)"/>
-            <circle class="bead" cx="116" cy="184" r="4"   fill="var(--accent)"/>
-          </g>
-        </svg>
-      </div>
-
       <div class="readout">
         <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
           <span class="live"><span class="dot"></span><span id="liveTxt" data-i18n="t.waiting">Waiting</span></span>
@@ -157,17 +129,33 @@
   var sensSlider = $("sens"), sensReadout = $("sensReadout");
   var volSlider = $("vol"), volReadout = $("volReadout");
   var meterFill = $("meterFill"), meterMark = $("meterMark");
-  var instSvg = $("instSvg");
   var liveTxt = $("liveTxt"), roEnergy = $("roEnergy");
   var segEl = $("seg");
-  var beads = Array.prototype.slice.call(document.querySelectorAll(".bead"));
 
   var lerp = function (a, b, f) { return a + (b - a) * f; };
 
   // ---------- instrument definitions ----------
+  // Modeled loosely after Perry Cook's PhISEM (Physically Informed Stochastic Event
+  // Modeling, used in the STK "Shakers" class): a shaker's sound comes from many small
+  // objects colliding inside a shell. A dense object count + a wide, weakly resonant
+  // filter bank reads as continuous "hiss" (real shaker/cabasa); a sparse object count
+  // + a narrow, strongly resonant filter reads as a woody "click" (real maraca gourd).
   var INSTRUMENTS = {
-    shaker: { grainBase: 7200, grainSpread: 3800, tau: 0.10, rateK: 7.2, cap: 32, thump: false },
-    maraca: { grainBase: 5200, grainSpread: 3200, tau: 0.15, rateK: 5.5, cap: 40, thump: true }
+    shaker: {
+      thump: false,
+      bed: true,                    // continuous filtered-noise bed (many overlapping micro-collisions)
+      bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.4],
+      grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.4,
+      grainDurMin: 0.0025, grainDurMax: 0.008, grainQ: [0.4, 0.8],
+      hp: 3200, tau: 0.09, rateK: 10, cap: 46
+    },
+    maraca: {
+      thump: true,
+      bed: false,
+      grainBase: 2600, grainSpread: 1500, shimmerMul: 1, shimmerMix: 0,
+      grainDurMin: 0.008, grainDurMax: 0.022, grainQ: [1.6, 2.6],
+      hp: 1400, tau: 0.16, rateK: 5.2, cap: 40
+    }
   };
   var instrument = "shaker";
 
@@ -176,9 +164,11 @@
   // ---------- state ----------
   var sensorReady = false, audioReady = false;
   var sensitivity = 0.5, masterVolume = 0.7;
-  var runningMax = 5;
-  var threshMult = lerp(0.55, 0.10, sensitivity);
-  var gainFactor = lerp(0.7, 2.2, sensitivity);
+  // jerkFullScale: jerk (m/s^3) that counts as "one full, solid shake" → strength 1.0.
+  // jerkThreshold: minimum jerk to register as a shake at all (filters out hand tremor/noise).
+  // Both are fixed once per sensitivity change — no runtime adaptation — so output stays
+  // consistent regardless of how long or how hard the phone has already been shaken.
+  var jerkFullScale = 1, jerkThreshold = 1, gainFactor = 1;
   var energy = 0;
   var prevMag = 0, lastMotionT = performance.now();
   var liveJerkSmoothed = 0, visualEnergy = 0, lastThumpTime = 0;
@@ -186,6 +176,7 @@
   // ---------- audio ----------
   var ctx = null, noiseBuffer = null, masterGain = null, dynamicGain = null;
   var dynamicLevelSmoothed = 0;
+  var bedGain = null; // shared envelope gain for the continuous shaker "sizzle" bed
 
   function createNoiseBuffer(context, seconds) {
     var length = Math.floor(context.sampleRate * seconds);
@@ -195,34 +186,63 @@
     return buffer;
   }
 
-  function playGrain(time, level) {
-    if (!ctx) return;
+  // Continuous looping noise routed through two parallel bandpass resonances
+  // (a body + a bright "shimmer" layer, as in PhISEM's multi-resonance filter bank).
+  // This is what carries the shaker's signature continuous hiss between grains —
+  // without it, discrete grains alone read as "clicky" rather than "shaken".
+  function startBed(cfg) {
+    if (!ctx || !cfg.bed) return;
     var src = ctx.createBufferSource();
     src.buffer = noiseBuffer;
-    src.playbackRate.value = 0.9 + Math.random() * 0.3;
+    src.loop = true;
+    bedGain = ctx.createGain();
+    bedGain.gain.value = 0;
+    for (var i = 0; i < cfg.bedFreq.length; i++) {
+      var bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = cfg.bedFreq[i];
+      bp.Q.value = cfg.bedQ[i];
+      var g = ctx.createGain();
+      g.gain.value = cfg.bedMix[i];
+      src.connect(bp); bp.connect(g); g.connect(bedGain);
+    }
+    bedGain.connect(dynamicGain);
+    src.start();
+  }
 
-    var dur = 0.006 + Math.random() * 0.014;
-    var offset = Math.random() * Math.max(0.05, noiseBuffer.duration - dur - 0.05);
-
+  function playGrain(time, level) {
+    if (!ctx) return;
     var cfg = INSTRUMENTS[instrument];
-    var bp = ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = (cfg.grainBase + level * cfg.grainSpread) * (0.78 + Math.random() * 0.44);
-    bp.Q.value = 0.6 + Math.random() * 0.9;
+    var layers = cfg.shimmerMix > 0 ? 2 : 1;
+    for (var L = 0; L < layers; L++) {
+      var src = ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      src.playbackRate.value = 0.9 + Math.random() * 0.3;
 
-    var hp = ctx.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.value = 2400;
+      var dur = cfg.grainDurMin + Math.random() * (cfg.grainDurMax - cfg.grainDurMin);
+      var offset = Math.random() * Math.max(0.05, noiseBuffer.duration - dur - 0.05);
 
-    var g = ctx.createGain();
-    var peak = Math.min(0.9, 0.14 + level * 0.55) * masterVolume;
-    g.gain.setValueAtTime(0, time);
-    g.gain.linearRampToValueAtTime(peak, time + 0.0012);
-    g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
+      var freqMul = L === 0 ? 1 : cfg.shimmerMul;
+      var bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = (cfg.grainBase * freqMul + level * cfg.grainSpread) * (0.85 + Math.random() * 0.3);
+      bp.Q.value = cfg.grainQ[0] + Math.random() * (cfg.grainQ[1] - cfg.grainQ[0]);
 
-    src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(dynamicGain);
-    src.start(time, offset, dur + 0.02);
-    src.stop(time + dur + 0.03);
+      var hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = cfg.hp;
+
+      var g = ctx.createGain();
+      var mix = L === 0 ? 1 : cfg.shimmerMix;
+      var peak = Math.min(0.9, 0.12 + level * 0.55) * masterVolume * mix;
+      g.gain.setValueAtTime(0, time);
+      g.gain.linearRampToValueAtTime(peak, time + 0.0008);
+      g.gain.exponentialRampToValueAtTime(0.0006, time + dur);
+
+      src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(dynamicGain);
+      src.start(time, offset, dur + 0.02);
+      src.stop(time + dur + 0.03);
+    }
   }
 
   function playThump(strength) {
@@ -243,15 +263,13 @@
     osc.start(t); osc.stop(t + 0.12);
   }
 
-  function flashRandomBead() {
-    if (!beads.length) return;
-    var dot = beads[Math.floor(Math.random() * beads.length)];
-    dot.classList.remove("flash");
-    void dot.offsetWidth;
-    dot.classList.add("flash");
-  }
-
   // ---------- motion handling ----------
+  // NOTE: threshold/strength are computed from a FIXED scale (derived only from the
+  // sensitivity slider), not from a running max of recent jerk. An adaptive "divide by
+  // your own recent peak" scheme desensitizes under sustained shaking — the harder you
+  // shake, the higher the reference climbs, so the same effort reads as progressively
+  // weaker. Keeping the scale fixed means a given physical shake always produces the
+  // same output, no matter how long or how hard you've already been shaking.
   function handleMotion(e) {
     var now = performance.now();
     var dt = Math.min((now - lastMotionT) / 1000, 0.05);
@@ -268,14 +286,9 @@
     var absJerk = Math.abs(jerk);
     liveJerkSmoothed += (absJerk - liveJerkSmoothed) * 0.35;
 
-    runningMax = Math.max(absJerk, runningMax * 0.999);
-    runningMax = Math.max(runningMax, 4);
-
-    var threshold = runningMax * threshMult;
-
-    if (absJerk > threshold) {
+    if (absJerk > jerkThreshold) {
       var cfg = INSTRUMENTS[instrument];
-      var strength = Math.min(absJerk / (runningMax * 1.4), 1);
+      var strength = Math.min(absJerk / jerkFullScale, 1);
       energy = Math.min(cfg.cap, energy + strength * gainFactor * 16);
 
       if (cfg.thump && strength > 0.4 && now - lastThumpTime > 70) {
@@ -305,35 +318,28 @@
         var t = ctx.currentTime + 0.02 + jitter;
         var lvl = Math.min(1, energy / cfg.cap);
         playGrain(t, lvl);
-        flashRandomBead();
       }
     }
     visualEnergy = Math.min(1, energy / cfg.cap);
+    roEnergy.childNodes[0].nodeValue = Math.round(visualEnergy * 100);
 
     if (dynamicGain && ctx) {
-      var levelNow = Math.min(1, energy / cfg.cap);
+      var levelNow = visualEnergy;
       dynamicLevelSmoothed += (levelNow - dynamicLevelSmoothed) * 0.25;
       var MIN_GAIN = 0.28;
       var target = MIN_GAIN + dynamicLevelSmoothed * (1 - MIN_GAIN);
       dynamicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
     }
+
+    // continuous "sizzle" bed: only audible for instruments that define one,
+    // and only once actually shaking (silent at rest).
+    if (bedGain && ctx) {
+      var bedTarget = cfg.bed ? Math.min(0.55, levelBedFrom(visualEnergy)) : 0;
+      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.035);
+    }
   }
+  function levelBedFrom(v) { return v <= 0.02 ? 0 : 0.12 + v * 0.6; }
   setInterval(schedulerTick, 25);
-
-  // ---------- visual loop ----------
-  function visualLoop() {
-    var s = 1 + visualEnergy * 0.07;
-    var jitter = visualEnergy * 3.2;
-    var rot = Math.sin(performance.now() / 38) * jitter;
-    instSvg.style.transform = "rotate(" + rot.toFixed(2) + "deg) scale(" + s.toFixed(3) + ")";
-    instSvg.style.filter = "drop-shadow(0 0 " + (visualEnergy * 14).toFixed(1) + "px var(--accent-ring))";
-
-    var pct = Math.round(visualEnergy * 100);
-    roEnergy.childNodes[0].nodeValue = pct;
-
-    requestAnimationFrame(visualLoop);
-  }
-  requestAnimationFrame(visualLoop);
 
   // ---------- status UI ----------
   var sensorState = "pending", audioState = "pending";
@@ -412,6 +418,7 @@
         dynamicGain = ctx.createGain();
         dynamicGain.gain.value = 0.28;
         dynamicGain.connect(masterGain);
+        startBed(INSTRUMENTS.shaker); // bed is only defined on the shaker profile; gain is silent until shaken
       }
       ctx.resume().then(function () {
         audioReady = true;
@@ -430,10 +437,14 @@
   // ---------- controls ----------
   function applySensitivity(v) {
     sensitivity = v / 10;
-    threshMult = lerp(0.55, 0.10, sensitivity);
+    // Higher sensitivity → smaller full-scale (a gentler shake maxes out the sound) and
+    // a lower trigger threshold (easier to register a hit at all). Fixed values, not
+    // dependent on shake history.
+    jerkFullScale = lerp(55, 16, sensitivity);
+    jerkThreshold = lerp(18, 3, sensitivity);
     gainFactor = lerp(0.7, 2.2, sensitivity);
     sensReadout.textContent = v + " / 10";
-    meterMark.style.left = (threshMult * 100).toFixed(1) + "%";
+    meterMark.style.left = Math.min(100, (jerkThreshold / jerkFullScale) * 100).toFixed(1) + "%";
   }
   sensSlider.addEventListener("input", function () { applySensitivity(+sensSlider.value); });
 
@@ -460,7 +471,7 @@
 
   // ---------- meter loop (live sensitivity meter, independent of ready state) ----------
   setInterval(function () {
-    var meterPct = Math.min(100, (liveJerkSmoothed / runningMax) * 100);
+    var meterPct = Math.min(100, (liveJerkSmoothed / jerkFullScale) * 100);
     meterFill.style.width = meterPct.toFixed(1) + "%";
   }, 40);
 
