@@ -150,21 +150,17 @@
       bedFreq: [5200, 10200], bedQ: [0.55, 1.1], bedMix: [1, 0.25],
       grainBase: 6200, grainSpread: 2200, shimmerMul: 1.7, shimmerMix: 0.28,
       grainDurMin: 0.005, grainDurMax: 0.015, grainQ: [0.55, 1.05],
-      hp: 3200, tau: 0.065, rateK: 7.5, cap: 46
+      hp: 3200, tau: 0.028, rateK: 9, cap: 46, gate: 0.09
     },
     maraca: {
       thump: true,
       bed: false,
       grainBase: 2600, grainSpread: 1500, shimmerMul: 1, shimmerMix: 0,
       grainDurMin: 0.008, grainDurMax: 0.022, grainQ: [1.6, 2.6],
-      hp: 1400, tau: 0.16, rateK: 5.2, cap: 40
+      hp: 1400, tau: 0.16, rateK: 5.2, cap: 40, gate: 0.035
     }
   };
   var instrument = "shaker";
-  var ENERGY_GATE_FRAC = 0.035; // stop generating sound once energy drops below this fraction
-                                // of the instrument's cap — using a fixed absolute value here
-                                // instead made the shaker's release tail take ~0.6-0.7s to cross
-                                // the gate even with a short tau, since its cap is large.
 
   function showBanner(msg) { banner.textContent = msg; banner.hidden = false; }
 
@@ -364,7 +360,7 @@
 
     energy *= Math.exp(-dt / cfg.tau);
 
-    if (audioReady && ctx && energy > cfg.cap * ENERGY_GATE_FRAC) {
+    if (audioReady && ctx && energy > cfg.cap * cfg.gate) {
       var rate = energy * cfg.rateK;
       var expected = rate * dt;
       var n = Math.floor(expected);
@@ -387,15 +383,16 @@
       dynamicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
     }
 
-    // continuous "sizzle" bed: only audible for instruments that define one,
-    // and only once actually shaking (silent at rest). Kept as a supporting layer,
-    // not the dominant texture — grains carry most of the "particle" character.
+    // continuous "sizzle" bed: only audible for instruments that define one, and only
+    // once actually shaking (silent at rest). Requires a real accent (not just faint
+    // residual energy) to appear, and tracks energy tightly so it doesn't linger between
+    // hits — otherwise it reads as one continuous hiss instead of distinct accents.
     if (bedGain && ctx) {
-      var bedTarget = cfg.bed ? Math.min(0.4, levelBedFrom(visualEnergy)) : 0;
-      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.025);
+      var bedTarget = cfg.bed ? Math.min(0.3, levelBedFrom(visualEnergy)) : 0;
+      bedGain.gain.setTargetAtTime(bedTarget, ctx.currentTime, 0.012);
     }
   }
-  function levelBedFrom(v) { return v <= 0.02 ? 0 : 0.08 + v * 0.45; }
+  function levelBedFrom(v) { return v <= 0.15 ? 0 : (v - 0.15) * 0.65; }
   setInterval(schedulerTick, 25);
 
   // ---------- status UI ----------
