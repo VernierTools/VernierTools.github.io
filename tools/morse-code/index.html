@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morse code — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .txtpair{ display:flex; flex-direction:column; gap:var(--s3); }
+  .txtpair textarea{ width:100%; min-height:78px; resize:vertical; font:inherit; color:var(--text);
+    background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r);
+    padding:9px 12px; transition:border-color var(--tap), box-shadow var(--tap); }
+  .txtpair textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .txtpair textarea#in-morse{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; letter-spacing:.03em; }
+  .warn{ font-size:12px; color:var(--neg); margin-top:6px; min-height:1em; }
+
+  .playrow{ display:flex; align-items:center; gap:var(--s3); margin-top:var(--s4); }
+  .playbtn{ width:52px; height:52px; border-radius:50%; flex:0 0 auto; padding:0; }
+  .playbtn svg{ width:20px; height:20px; }
+  .playmeta{ font-size:12.5px; color:var(--text-3); }
+
+  .toggles2{ display:flex; flex-direction:column; gap:var(--s3); margin-top:var(--s4); }
+  .fistrow{ display:flex; align-items:center; gap:var(--s3); }
+  .fistseg{ display:inline-flex; padding:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .fistseg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px;
+    font-weight:500; color:var(--text-2); padding:5px 11px; border-radius:4px; transition:all var(--tap); }
+  .fistseg button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .newfist{ height:30px; padding:0 12px; font-size:12.5px; }
+
+  .hero{ padding:var(--s6) var(--s4); text-align:center; }
+  .hero__char{ font-family:var(--font-mono); font-size:52px; font-weight:600; color:var(--accent);
+    min-height:64px; letter-spacing:.02em; }
+  .hero__char.idle{ color:var(--text-3); }
+  .hero__prog{ height:3px; border-radius:100px; background:var(--border); margin-top:var(--s4); overflow:hidden; }
+  .hero__prog i{ display:block; height:100%; width:0%; background:var(--accent); transition:width .05s linear; }
+
+  .morseout{ font-family:var(--font-mono); font-size:15px; line-height:1.7; word-break:break-all; color:var(--text); cursor:pointer; }
+  .morseout .cur{ background:var(--accent-tint); color:var(--accent); border-radius:3px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip" data-i18n="cat.audio">Audio</span>
+      <span class="chip" data-i18n="cat.text">Text</span>
+    </div>
+    <h1 data-i18n="t.title">Morse code</h1>
+    <p data-i18n="t.desc">Convert text to Morse and play it back with humanized, adjustable timing.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・操作 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.text">Text</label>
+          <div class="txtpair">
+            <textarea id="in-text" data-i18n-ph="t.textph" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.morse">Morse</label>
+          <div class="txtpair">
+            <textarea id="in-morse" spellcheck="false"></textarea>
+          </div>
+          <div class="warn" id="warn" hidden></div>
+        </div>
+
+        <div class="playrow">
+          <button type="button" class="btn btn--primary playbtn" id="playbtn" aria-label="Play">
+            <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <span class="playmeta" id="playmeta" data-i18n="t.readytoplay">Ready to play.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.speed">Speed</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="wpm" min="5" max="40" step="1" value="20">
+            <span class="val" id="wpm-val">20 WPM</span>
+          </div>
+        </div>
+
+        <div class="toggles" style="margin-bottom:var(--s4)">
+          <label class="toggle">
+            <input type="checkbox" id="farns-on">
+            <span class="track"></span>
+            <span data-i18n="t.farnsworth">Farnsworth timing</span>
+          </label>
+        </div>
+        <div class="field" id="farns-field" hidden>
+          <label class="label" data-i18n="t.effspeed">Effective speed</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="effwpm" min="5" max="40" step="1" value="20">
+            <span class="val" id="effwpm-val">20 WPM</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.pitch">Pitch</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="pitch" min="300" max="1000" step="5" value="600">
+            <span class="val" id="pitch-val">600 Hz</span>
+          </div>
+        </div>
+
+        <div class="toggles2">
+          <label class="toggle">
+            <input type="checkbox" id="hum-on" checked>
+            <span class="track"></span>
+            <span data-i18n="t.humanize">Humanize (fist)</span>
+          </label>
+          <div class="field" id="hum-field">
+            <div class="sliderrow">
+              <input type="range" class="slider" id="hum-amt" min="0" max="100" step="1" value="30">
+              <span class="val" id="hum-amt-val">30%</span>
+            </div>
+          </div>
+          <div class="fistrow">
+            <span class="label" style="margin:0" data-i18n="t.fist">Fist</span>
+            <div class="fistseg" id="fist-seg" role="group">
+              <button type="button" data-mode="random" data-i18n="t.fistrandom" aria-pressed="true">Random each time</button>
+              <button type="button" data-mode="fixed" data-i18n="t.fistfixed">Fixed</button>
+            </div>
+            <button type="button" class="btn btn--secondary newfist" id="newfist" data-i18n="t.newfist" hidden>New fist</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="card hero" style="margin-bottom:var(--s4)">
+        <div class="eyebrow" data-i18n="t.nowplaying">Now playing</div>
+        <div class="hero__char idle" id="hero-char">–</div>
+        <div class="hero__prog"><i id="hero-bar"></i></div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.morsecode">Morse</span>
+        </div>
+        <div style="padding:0 var(--s4) var(--s4)">
+          <div class="morseout" id="morseout" data-copy=""></div>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.duration">Estimated duration</span>
+          <span class="rrow__value" id="ro-duration">0.0<span class="u">s</span></span>
+        </div>
+        <div class="copyhint" data-i18n="t.copyhint">Click the Morse text to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------------------------------------------------------------------
+     Morse table (English letters, digits, common punctuation)
+     --------------------------------------------------------------------- */
+  var MORSE = {
+    "A":".-","B":"-...","C":"-.-.","D":"-..","E":".","F":"..-.","G":"--.","H":"....",
+    "I":"..","J":".---","K":"-.-","L":".-..","M":"--","N":"-.","O":"---","P":".--.",
+    "Q":"--.-","R":".-.","S":"...","T":"-","U":"..-","V":"...-","W":".--","X":"-..-",
+    "Y":"-.--","Z":"--..",
+    "0":"-----","1":".----","2":"..---","3":"...--","4":"....-",
+    "5":".....","6":"-....","7":"--...","8":"---..","9":"----.",
+    ".":".-.-.-",",":"--..--","?":"..--..","'":".----.","!":"-.-.--","/":"-..-.",
+    "(":"-.--.",")":"-.--.-","&":".-...",":":"---...",";":"-.-.-.","=":"-...-",
+    "+":".-.-.","-":"-....-","_":"..--.-","\"":".-..-.","$":"...-..-","@":".--.-."
+  };
+  var REV = {};
+  Object.keys(MORSE).forEach(function (k) { REV[MORSE[k]] = k; });
+
+  function textToMorse(text) {
+    text = text.toUpperCase();
+    var words = text.split(/\s+/).filter(function (w) { return w.length; });
+    var skipped = {};
+    var out = words.map(function (w) {
+      return w.split("").map(function (c) {
+        var code = MORSE[c];
+        if (!code) { skipped[c] = true; return null; }
+        return code;
+      }).filter(Boolean).join(" ");
+    }).filter(function (w) { return w.length; });
+    return { morse: out.join(" / "), skipped: Object.keys(skipped) };
+  }
+  function morseToText(morse) {
+    var words = morse.trim().split("/").map(function (w) { return w.trim(); }).filter(function (w) { return w.length; });
+    return words.map(function (w) {
+      return w.split(/\s+/).filter(Boolean).map(function (code) { return REV[code] || ""; }).join("");
+    }).join(" ");
+  }
+
+  /* ---------------------------------------------------------------------
+     Random helpers (crypto-based; spec §6.3 randomness rule)
+     --------------------------------------------------------------------- */
+  function cryptoUnit() { var a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
+  function randNormal() {
+    var u = 0, v = 0;
+    while (u === 0) u = cryptoUnit();
+    while (v === 0) v = cryptoUnit();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function newSeed() { var a = new Uint32Array(1); crypto.getRandomValues(a); return a[0]; }
+
+  /* ---------------------------------------------------------------------
+     Timeline builder — PARIS-standard timing, optional Farnsworth spacing,
+     optional humanize jitter (correlated random walk) + fixed "fist" bias.
+     --------------------------------------------------------------------- */
+  function buildTimeline(text, opts) {
+    text = text.toUpperCase();
+    var chars = text.split("");
+    var ta = 1.2 / opts.wpm;                 // dot length at character speed
+    var interCharGap, wordGap;
+    if (opts.farnsworth) {
+      var Ftotal = 60 / opts.effWpm;          // seconds per PARIS word at Farnsworth speed
+      var Ti = 31 * ta;                       // character-formation portion of a PARIS word
+      var extra = (Ftotal - Ti) / 19;         // stretched gap unit
+      if (extra < ta) extra = ta;             // never faster than character speed
+      interCharGap = extra * 3;
+      wordGap = extra * 7;
+    } else {
+      interCharGap = ta * 3;
+      wordGap = ta * 7;
+    }
+    var intraGap = ta;
+
+    var rand = mulberry32(opts.seed >>> 0);
+    var dashBias = rand() * 2 - 1;
+    var gapBias = rand() * 2 - 1;
+
+    var jitterPrev = 0;
+    var sigma = opts.humanize ? (opts.humAmt / 100) * 0.22 : 0;
+    var k = 0.3;
+    function jit(base) {
+      if (sigma <= 0) return base;
+      var n = randNormal();
+      var j = jitterPrev * k + n * (1 - k);
+      jitterPrev = j;
+      return base * (1 + j * sigma);
+    }
+
+    var events = [];
+    var t = 0;
+    for (var ci = 0; ci < chars.length; ci++) {
+      var c = chars[ci];
+      if (c === " ") {
+        var g0 = jit(wordGap * (1 + gapBias * 0.15));
+        events.push({ start: t, end: t + g0, type: "silence", charIndex: -1 });
+        t += g0;
+        continue;
+      }
+      var code = MORSE[c];
+      if (!code) continue;
+      for (var si = 0; si < code.length; si++) {
+        var sym = code[si];
+        var dur = sym === "." ? ta : ta * 3;
+        if (sym === "-") dur *= (1 + dashBias * 0.15);
+        dur = jit(dur);
+        events.push({ start: t, end: t + dur, type: "tone", charIndex: ci });
+        t += dur;
+        if (si < code.length - 1) {
+          var gi = jit(intraGap);
+          events.push({ start: t, end: t + gi, type: "silence", charIndex: ci });
+          t += gi;
+        }
+      }
+      var next = chars[ci + 1];
+      if (next !== undefined && next !== " ") {
+        var g1 = jit(interCharGap * (1 + gapBias * 0.15));
+        events.push({ start: t, end: t + g1, type: "silence", charIndex: -1 });
+        t += g1;
+      }
+    }
+    return { events: events, total: t };
+  }
+
+  /* ---------------------------------------------------------------------
+     State
+     --------------------------------------------------------------------- */
+  var state = {
+    text: "SOS",
+    wpm: 20, farnsworth: false, effWpm: 20, pitch: 600,
+    humanize: true, humAmt: 30,
+    fistMode: "random", fistSeed: newSeed()
+  };
+  var syncing = false; // guards text<->morse feedback loop
+
+  var elText = $("in-text"), elMorse = $("in-morse"), elWarn = $("warn");
+  var elMorseOut = $("morseout"), elDuration = $("ro-duration");
+  var elHeroChar = $("hero-char"), elHeroBar = $("hero-bar");
+  var elPlayBtn = $("playbtn"), elPlayIco = $("play-ico"), elPlayMeta = $("playmeta");
+
+  function setSkippedWarning(skipped) {
+    if (skipped && skipped.length) {
+      elWarn.hidden = false;
+      elWarn.textContent = (Shell.t("t.unsupported")) + " " + skipped.join(" ");
+    } else {
+      elWarn.hidden = true; elWarn.textContent = "";
+    }
+  }
+
+  function renderMorseOutput() {
+    var conv = textToMorse(state.text);
+    setSkippedWarning(conv.skipped);
+    elMorseOut.textContent = conv.morse || "—";
+    elMorseOut.setAttribute("data-copy", conv.morse || "");
+    return conv.morse;
+  }
+
+  function estimateDuration() {
+    var tl = buildTimeline(state.text, {
+      wpm: state.wpm, farnsworth: state.farnsworth, effWpm: state.effWpm,
+      humanize: false, humAmt: 0, seed: state.fistSeed
+    });
+    var v = Math.round(tl.total * 10) / 10;
+    elDuration.childNodes[0].nodeValue = v.toFixed(1);
+  }
+
+  function renderAll() {
+    renderMorseOutput();
+    estimateDuration();
+  }
+
+  /* ---- text field ---- */
+  elText.addEventListener("input", function () {
+    if (syncing) return;
+    state.text = elText.value.toUpperCase().replace(/[^\S\n]+/g, " ").replace(/\n/g, " ");
+    renderAll();
+  });
+
+  /* ---- morse field (bidirectional) ---- */
+  elMorse.addEventListener("input", function () {
+    if (syncing) return;
+    var text = morseToText(elMorse.value);
+    state.text = text;
+    syncing = true; elText.value = text; syncing = false;
+    renderAll();
+  });
+  elMorse.addEventListener("blur", function () {
+    // normalize morse field to canonical spacing derived from the text
+    syncing = true; elMorse.value = renderMorseOutput(); syncing = false;
+  });
+
+  function pushTextToFields() {
+    syncing = true;
+    elText.value = state.text;
+    elMorse.value = renderMorseOutput();
+    syncing = false;
+  }
+
+  /* ---- speed sliders ---- */
+  var elWpm = $("wpm"), elWpmVal = $("wpm-val");
+  var elFarnsOn = $("farns-on"), elFarnsField = $("farns-field");
+  var elEffWpm = $("effwpm"), elEffWpmVal = $("effwpm-val");
+  var elPitch = $("pitch"), elPitchVal = $("pitch-val");
+
+  elWpm.addEventListener("input", function () {
+    state.wpm = parseInt(elWpm.value, 10);
+    elWpmVal.textContent = state.wpm + " WPM";
+    elEffWpm.max = state.wpm;
+    if (state.effWpm > state.wpm) { state.effWpm = state.wpm; elEffWpm.value = state.wpm; elEffWpmVal.textContent = state.wpm + " WPM"; }
+    estimateDuration();
+  });
+  elFarnsOn.addEventListener("change", function () {
+    state.farnsworth = elFarnsOn.checked;
+    elFarnsField.hidden = !state.farnsworth;
+    estimateDuration();
+  });
+  elEffWpm.addEventListener("input", function () {
+    state.effWpm = parseInt(elEffWpm.value, 10);
+    elEffWpmVal.textContent = state.effWpm + " WPM";
+    estimateDuration();
+  });
+  elPitch.addEventListener("input", function () {
+    state.pitch = parseInt(elPitch.value, 10);
+    elPitchVal.textContent = state.pitch + " Hz";
+  });
+
+  /* ---- humanize ---- */
+  var elHumOn = $("hum-on"), elHumField = $("hum-field"), elHumAmt = $("hum-amt"), elHumAmtVal = $("hum-amt-val");
+  elHumOn.addEventListener("change", function () {
+    state.humanize = elHumOn.checked;
+    elHumField.hidden = !state.humanize;
+  });
+  elHumAmt.addEventListener("input", function () {
+    state.humAmt = parseInt(elHumAmt.value, 10);
+    elHumAmtVal.textContent = state.humAmt + "%";
+  });
+
+  /* ---- fist mode ---- */
+  var elFistSeg = $("fist-seg"), elNewFist = $("newfist");
+  elFistSeg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.fistMode = b.getAttribute("data-mode");
+    elFistSeg.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    elNewFist.hidden = state.fistMode !== "fixed";
+    if (state.fistMode === "fixed") state.fistSeed = newSeed();
+  });
+  elNewFist.addEventListener("click", function () { state.fistSeed = newSeed(); });
+
+  /* ---------------------------------------------------------------------
+     Playback (Web Audio, precisely scheduled up front)
+     --------------------------------------------------------------------- */
+  var audioCtx = null, activeNodes = [], playing = false, rafId = null, stopTimeoutId = null;
+  var playTimeline = null, playStartCtxTime = 0, playChars = "";
+
+  function iconPlay() { elPlayIco.innerHTML = '<path d="M8 5v14l11-7z"/>'; }
+  function iconStop() { elPlayIco.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="1.5"/>'; }
+
+  function highlightChar(idx) {
+    if (idx < 0 || idx >= playChars.length) {
+      elHeroChar.textContent = "–"; elHeroChar.classList.add("idle");
+    } else {
+      elHeroChar.textContent = playChars[idx] === " " ? "␣" : playChars[idx];
+      elHeroChar.classList.remove("idle");
+    }
+  }
+
+  function tick() {
+    if (!playing) return;
+    var now = audioCtx.currentTime - playStartCtxTime;
+    var idx = -1;
+    for (var i = 0; i < playTimeline.events.length; i++) {
+      var ev = playTimeline.events[i];
+      if (now >= ev.start && now < ev.end && ev.charIndex >= 0) { idx = ev.charIndex; break; }
+    }
+    highlightChar(idx);
+    var pct = playTimeline.total > 0 ? Math.min(100, (now / playTimeline.total) * 100) : 0;
+    elHeroBar.style.width = pct + "%";
+    if (now < playTimeline.total) rafId = requestAnimationFrame(tick);
+    else stopPlayback(true);
+  }
+
+  function play() {
+    if (!state.text || !state.text.replace(/\s/g, "").length) return;
+    stopPlayback(false);
+    playChars = state.text.toUpperCase();
+    playTimeline = buildTimeline(playChars, {
+      wpm: state.wpm, farnsworth: state.farnsworth, effWpm: state.effWpm,
+      humanize: state.humanize, humAmt: state.humAmt, seed: state.fistSeed
+    });
+    if (playTimeline.total <= 0) return;
+
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    var startAt = audioCtx.currentTime + 0.12;
+
+    activeNodes = [];
+    playTimeline.events.forEach(function (ev) {
+      if (ev.type !== "tone") return;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = state.pitch;
+      var s = startAt + ev.start, e = startAt + ev.end;
+      var fade = Math.min(0.006, (e - s) / 3);
+      gain.gain.setValueAtTime(0, s);
+      gain.gain.linearRampToValueAtTime(1, s + fade);
+      gain.gain.setValueAtTime(1, Math.max(s + fade, e - fade));
+      gain.gain.linearRampToValueAtTime(0, e);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(s); osc.stop(e + 0.005);
+      activeNodes.push(osc);
+    });
+
+    playStartCtxTime = startAt;
+    playing = true;
+    iconStop();
+    elPlayMeta.textContent = Shell.t("t.playing");
+    rafId = requestAnimationFrame(tick);
+    stopTimeoutId = setTimeout(function () { if (playing) stopPlayback(true); }, (playTimeline.total + 0.4) * 1000);
+  }
+
+  function stopPlayback(finished) {
+    playing = false;
+    activeNodes.forEach(function (o) { try { o.stop(); } catch (e) {} });
+    activeNodes = [];
+    if (rafId) cancelAnimationFrame(rafId);
+    if (stopTimeoutId) clearTimeout(stopTimeoutId);
+    rafId = null; stopTimeoutId = null;
+    iconPlay();
+    highlightChar(-1);
+    elHeroBar.style.width = "0%";
+    elPlayMeta.textContent = Shell.t(finished === true ? "t.done" : "t.readytoplay");
+  }
+
+  elPlayBtn.addEventListener("click", function () { playing ? stopPlayback(false) : play(); });
+
+  /* ---------------------------------------------------------------------
+     Boot
+     --------------------------------------------------------------------- */
+  Shell.init({
+    id: "morse-code",
+    strings: {
+      en: {
+        "t.title": "Morse code",
+        "t.desc": "Convert text to Morse and play it back with humanized, adjustable timing.",
+        "t.text": "Text", "t.textph": "Type a message…",
+        "t.morse": "Morse",
+        "t.speed": "Speed", "t.farnsworth": "Farnsworth timing", "t.effspeed": "Effective speed",
+        "t.pitch": "Pitch", "t.humanize": "Humanize (fist)", "t.fist": "Fist",
+        "t.fistrandom": "Random each time", "t.fistfixed": "Fixed", "t.newfist": "New fist",
+        "t.nowplaying": "Now playing", "t.output": "Output", "t.morsecode": "Morse",
+        "t.duration": "Estimated duration", "t.copyhint": "Click the Morse text to copy.",
+        "t.readytoplay": "Ready to play.", "t.playing": "Playing…", "t.done": "Done.",
+        "t.unsupported": "Unsupported characters ignored:"
+      },
+      ja: {
+        "t.title": "モールス信号",
+        "t.desc": "英文とモールス符号を相互変換し、揺らぎのある音で再生します。",
+        "t.text": "テキスト", "t.textph": "メッセージを入力…",
+        "t.morse": "モールス符号",
+        "t.speed": "速度", "t.farnsworth": "ファーンズワース方式", "t.effspeed": "実効速度",
+        "t.pitch": "音の高さ", "t.humanize": "ヒューマナイズ（フィスト）", "t.fist": "打ち手",
+        "t.fistrandom": "毎回ランダム", "t.fistfixed": "固定", "t.newfist": "打ち手を変える",
+        "t.nowplaying": "再生中の文字", "t.output": "出力", "t.morsecode": "モールス符号",
+        "t.duration": "再生時間の目安", "t.copyhint": "モールス符号をクリックでコピー。",
+        "t.readytoplay": "再生準備完了。", "t.playing": "再生中…", "t.done": "再生終了。",
+        "t.unsupported": "非対応文字は無視されました:"
+      }
+    },
+    onSettingsChange: function () { renderAll(); elPlayMeta.textContent = Shell.t(playing ? "t.playing" : "t.readytoplay"); }
+  });
+
+  pushTextToFields();
+  renderAll();
+})();
+</script>
+</body>
+</html>
