@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Advanced tuner — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .gauge{ background:var(--surface); }
+  .gauge svg{ display:block; width:100%; height:auto; }
+  #needle{ transition:transform .08s linear; }
+  #needle.idle{ transition:transform .3s ease; }
+
+  .microw{ display:flex; align-items:center; gap:var(--s3); }
+  .microw .btn{ flex:1; }
+  .micstate{ display:flex; align-items:center; gap:var(--s3); margin-top:var(--s4); }
+
+  .seg{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .fieldreset{ height:28px; display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-3); font-size:12px; font-weight:500; cursor:pointer; transition:all var(--tap); padding:0 10px; margin-top:6px; }
+  .fieldreset:hover{ border-color:var(--text-3); color:var(--text); background:var(--surface-2); }
+  .fieldreset svg{ width:13px; height:13px; }
+
+  .sliderrow .val{ min-width:60px; }
+
+  .notehero{ text-align:center; padding:var(--s5) var(--s4) var(--s3); }
+  .notehero__name{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:44px;
+    font-weight:600; letter-spacing:-.01em; color:var(--text); line-height:1; }
+  .notehero__cents{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:18px;
+    font-weight:500; margin-top:var(--s2); color:var(--text-3); cursor:pointer; }
+  .notehero__cents.ok{ color:var(--pos); }
+  .notehero__cents.warn{ color:var(--neg); }
+  .notehero__badge{ margin-top:var(--s3); }
+
+  .ticklbl{ font-family:var(--font-mono); font-size:10px; fill:var(--text-3); }
+  .band{ fill:var(--pos-tint); }
+
+  .micdot{ width:8px; height:8px; border-radius:50%; background:var(--text-3); flex:0 0 auto; }
+  .micdot.on{ background:var(--pos); }
+  .micdot.err{ background:var(--neg); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Advanced tuner</h1>
+    <p data-i18n="t.desc">Mic-based pitch detection with cents, temperament, and a fixed-Hz mode.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: マイク操作・モード・キャリブレーション -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.miccard">Microphone</label>
+          <div class="microw">
+            <button class="btn btn--primary" id="mic-toggle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg>
+              <span data-i18n="t.startmic">Start listening</span>
+            </button>
+          </div>
+          <div class="micstate">
+            <span class="micdot" id="mic-dot"></span>
+            <span class="hint" id="mic-status" data-i18n="t.micoff">Not listening</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.sensitivity">Sensitivity</label>
+          <div class="sliderrow">
+            <input class="slider" id="gate" type="range" min="0" max="100" value="60">
+            <span class="val mono" id="gate-val">60%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.mode">Mode</label>
+        <div class="seg" id="seg-mode" role="group">
+          <button data-mode="note" data-i18n="t.modenote" aria-pressed="true">By note</button>
+          <button data-mode="fixed" data-i18n="t.modefixed">Fixed Hz</button>
+        </div>
+
+        <div class="field" id="field-fixedhz" style="margin-top:var(--s4)" hidden>
+          <label class="label" data-i18n="t.targethz">Target frequency</label>
+          <div class="inputgroup">
+            <input class="input" id="fixedhz" type="number" min="1" max="20000" step="0.1">
+            <span class="unit">Hz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.calib">Calibration</label>
+        <div class="field">
+          <label class="label" data-i18n="t.refpitch">Reference pitch (A4)</label>
+          <div class="inputgroup">
+            <input class="input" id="refpitch" type="number" min="380" max="500" step="0.1">
+            <span class="unit">Hz</span>
+          </div>
+          <button type="button" class="fieldreset" id="reset-refpitch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 9 8 9"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>
+            <span data-i18n="t.reset440">Reset to 440</span>
+          </button>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.temperament">Temperament</label>
+          <select class="select" id="temperament">
+            <option value="equal" data-i18n="t.equal">Equal temperament</option>
+            <option value="just" data-i18n="t.just">Just intonation</option>
+          </select>
+        </div>
+        <div class="field" id="field-root" hidden>
+          <label class="label" data-i18n="t.root">Root note</label>
+          <select class="select" id="root"></select>
+        </div>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--secondary" id="reset-cal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            <span data-i18n="t.resetcal">Reset calibration</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: ゲージ・数値出力 -->
+    <div>
+      <div class="preview gauge" style="margin-bottom:var(--s4)">
+        <svg viewBox="0 0 200 118" role="img" aria-label="Tuning gauge">
+          <path class="band" d="" id="band"></path>
+          <path d="M10 100 A90 90 0 0 1 190 100" fill="none" stroke="var(--border-strong)" stroke-width="2"></path>
+          <g id="ticks"></g>
+          <line id="needle" class="idle" x1="100" y1="100" x2="100" y2="22" stroke="var(--text)" stroke-width="3" stroke-linecap="round"></line>
+          <circle cx="100" cy="100" r="5" fill="var(--accent)"></circle>
+        </svg>
+      </div>
+
+      <div class="card notehero">
+        <div class="notehero__name" id="hero-note">—</div>
+        <div class="notehero__cents mono" id="hero-cents" data-copy="">0.0¢</div>
+        <div class="notehero__badge">
+          <span class="badge badge--muted" id="hero-badge">
+            <span class="d"></span><span id="hero-badge-text" data-i18n="t.nosignal">No signal</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.detected">Detected</span>
+          <span class="rrow__value" id="ro-freq" data-copy="">— <span class="u">Hz</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.targetfreq">Target</span>
+          <span class="rrow__value" id="ro-target" data-copy="">— <span class="u">Hz</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.cents">Deviation</span>
+          <span class="rrow__value" id="ro-cents" data-copy="">— <span class="u">¢</span></span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var NOTE_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  // 5-limit just intonation ratios relative to the chosen root
+  var JUST_RATIOS = [1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8];
+
+  var DEFAULT_CAL = { refPitch: 440, temperament: "equal", root: 0, mode: "note", fixedHz: 440, gate: 60 };
+  var CAL_KEY = "tuner.cal";
+
+  function loadCal() {
+    var c = {}; for (var k in DEFAULT_CAL) c[k] = DEFAULT_CAL[k];
+    try {
+      var raw = localStorage.getItem(CAL_KEY);
+      if (raw) { var parsed = JSON.parse(raw); for (var k2 in parsed) if (k2 in c) c[k2] = parsed[k2]; }
+    } catch (e) {}
+    return c;
+  }
+  function saveCal() { try { localStorage.setItem(CAL_KEY, JSON.stringify(cal)); } catch (e) {} }
+
+  var cal = loadCal();
+
+  var mod = function (x, n) { return ((x % n) + n) % n; };
+  var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+  function f2(n) { return Math.round(n * 10) / 10; }
+  function pt(deg, r) { var rad = deg * Math.PI / 180; return [100 + r * Math.sin(rad), 100 - r * Math.cos(rad)]; }
+
+  /* ---- pitch detection: autocorrelation with parabolic interpolation ---- */
+  function autoCorrelate(buf, sampleRate, rmsThresh) {
+    var n = buf.length, i;
+    var rms = 0;
+    for (i = 0; i < n; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / n);
+    if (rms < rmsThresh) return -1;
+
+    var minLag = Math.max(2, Math.floor(sampleRate / 2000)); // ~2000 Hz upper bound
+    var maxLag = Math.min(n - 2, Math.floor(sampleRate / 40)); // ~40 Hz lower bound
+    if (maxLag <= minLag + 2) return -1;
+
+    var c0 = 0;
+    for (i = 0; i < n; i++) c0 += buf[i] * buf[i];
+    if (c0 <= 0) return -1;
+
+    var bestLag = -1, bestVal = -Infinity;
+    for (var lag = minLag - 1; lag <= maxLag + 1; lag++) {
+      var sum = 0;
+      for (var j = 0; j < n - lag; j++) sum += buf[j] * buf[j + lag];
+      if (lag >= minLag && lag <= maxLag && sum > bestVal) { bestVal = sum; bestLag = lag; }
+    }
+    if (bestLag < 0 || bestVal / c0 < 0.35) return -1;
+
+    // parabolic interpolation using neighbours (recompute cheaply)
+    function corrAt(lag) { var s = 0; for (var j = 0; j < n - lag; j++) s += buf[j] * buf[j + lag]; return s; }
+    var x1 = corrAt(bestLag - 1), x2 = bestVal, x3 = corrAt(bestLag + 1);
+    var a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
+    var T0 = bestLag;
+    if (a !== 0) T0 = bestLag - b / (2 * a);
+    if (T0 <= 0) return -1;
+    var freq = sampleRate / T0;
+    if (freq < 27 || freq > 4200) return -1;
+    return freq;
+  }
+
+  /* ---- note math ---- */
+  function equalNote(freq, refPitch) {
+    var midi = 69 + 12 * Math.log2(freq / refPitch);
+    var nearest = Math.round(midi);
+    var cents = (midi - nearest) * 100;
+    return { noteIdx: mod(nearest, 12), octave: Math.floor(nearest / 12) - 1, cents: cents };
+  }
+  function justNote(freq, refPitch, root) {
+    var approxMidi = 69 + 12 * Math.log2(freq / refPitch);
+    var centralOct = Math.floor((approxMidi - root) / 12);
+    var best = null;
+    for (var oct = centralOct - 1; oct <= centralOct + 1; oct++) {
+      var rootFreq = refPitch * Math.pow(2, (root + 12 * oct - 69) / 12);
+      for (var k = 0; k < 12; k++) {
+        var candFreq = rootFreq * JUST_RATIOS[k];
+        var cents = 1200 * Math.log2(freq / candFreq);
+        var abs = Math.abs(cents);
+        if (!best || abs < best.abs) {
+          var displayMidi = root + 12 * oct + k;
+          best = { abs: abs, cents: cents, noteIdx: mod(root + k, 12), octave: Math.floor(displayMidi / 12) - 1 };
+        }
+      }
+    }
+    return best;
+  }
+
+  /* ---- audio graph ---- */
+  var audioCtx = null, analyser = null, mediaStream = null, rafId = null, running = false, buf = null;
+  var smoothBuf = [];
+  var SMOOTH_N = 6;
+
+  function gateThreshold() {
+    var v = clamp(cal.gate, 0, 100);
+    return 0.06 - (v / 100) * 0.058; // higher sensitivity -> lower RMS threshold
+  }
+
+  function setMicUI(state) {
+    var dot = $("mic-dot"), status = $("mic-status"), btn = $("mic-toggle");
+    dot.className = "micdot" + (state === "on" ? " on" : state === "error" ? " err" : "");
+    var key = state === "on" ? "t.micon" : state === "error" ? "t.micerr" : "t.micoff";
+    status.setAttribute("data-i18n", key);
+    status.textContent = Shell.t(key);
+    btn.querySelector("span[data-i18n]").setAttribute("data-i18n", state === "on" ? "t.stopmic" : "t.startmic");
+    btn.querySelector("span[data-i18n]").textContent = Shell.t(state === "on" ? "t.stopmic" : "t.startmic");
+  }
+
+  function startMic() {
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      .then(function (stream) {
+        mediaStream = stream;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        buf = new Float32Array(analyser.fftSize);
+        running = true; setMicUI("on"); loop();
+      })
+      .catch(function () { setMicUI("error"); });
+  }
+  function stopMic() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (mediaStream) mediaStream.getTracks().forEach(function (t) { t.stop(); });
+    if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+    audioCtx = null; analyser = null; mediaStream = null;
+    smoothBuf = [];
+    setMicUI("off");
+    showNoSignal();
+  }
+  function loop() {
+    if (!running) return;
+    analyser.getFloatTimeDomainData(buf);
+    var freq = autoCorrelate(buf, audioCtx.sampleRate, gateThreshold());
+    handleFreq(freq);
+    rafId = requestAnimationFrame(loop);
+  }
+  function handleFreq(freq) {
+    if (freq <= 0) { smoothBuf = []; showNoSignal(); return; }
+    smoothBuf.push(freq); if (smoothBuf.length > SMOOTH_N) smoothBuf.shift();
+    var avg = smoothBuf.reduce(function (a, b) { return a + b; }, 0) / smoothBuf.length;
+    if (cal.mode === "fixed") renderFixed(avg); else renderNote(avg);
+  }
+
+  /* ---- rendering ---- */
+  var needle = $("needle");
+  function setNeedle(cents, hasSignal) {
+    needle.classList.toggle("idle", !hasSignal);
+    var deg = hasSignal ? clamp(cents, -50, 50) / 50 * 90 : 0;
+    needle.setAttribute("transform", "rotate(" + f2(deg) + " 100 100)");
+  }
+  function setHeroBadge(state) {
+    var b = $("hero-badge"), t = $("hero-badge-text");
+    b.className = "badge " + (state === "ok" ? "badge--pos" : state === "warn" ? "badge--neg" : "badge--muted");
+    var key = state === "ok" ? "t.intune" : state === "sharp" ? "t.sharp" : state === "flat" ? "t.flat" : "t.nosignal";
+    t.setAttribute("data-i18n", key); t.textContent = Shell.t(key);
+  }
+  function setCopy(el, text, copyVal) { el.innerHTML = text; el.setAttribute("data-copy", copyVal); }
+
+  function showNoSignal() {
+    setNeedle(0, false);
+    $("hero-note").textContent = "—";
+    $("hero-cents").textContent = "—"; $("hero-cents").className = "notehero__cents mono";
+    setHeroBadge("none");
+    setCopy($("ro-freq"), '— <span class="u">Hz</span>', "");
+    var targetTxt = cal.mode === "fixed" ? (f2(cal.fixedHz) + " Hz") : "—";
+    setCopy($("ro-target"), targetTxt + ' <span class="u"></span>', targetTxt);
+    setCopy($("ro-cents"), '— <span class="u">¢</span>', "");
+  }
+
+  function applyCommon(freq, cents, targetFreq, noteLabel) {
+    setNeedle(cents, true);
+    var absC = Math.abs(cents);
+    var state = absC <= 5 ? "ok" : (cents > 0 ? "sharp" : "flat");
+    setHeroBadge(state);
+    var centsClass = "notehero__cents mono " + (absC <= 5 ? "ok" : "warn");
+    var centsTxt = (cents >= 0 ? "+" : "") + f2(cents) + "¢";
+    $("hero-cents").className = centsClass;
+    $("hero-cents").textContent = centsTxt;
+    $("hero-cents").setAttribute("data-copy", centsTxt);
+    $("hero-note").textContent = noteLabel || "—";
+
+    setCopy($("ro-freq"), f2(freq) + ' <span class="u">Hz</span>', String(f2(freq)));
+    setCopy($("ro-target"), f2(targetFreq) + ' <span class="u">Hz</span>', String(f2(targetFreq)));
+    setCopy($("ro-cents"), centsTxt + ' <span class="u"></span>', centsTxt);
+  }
+
+  function renderNote(freq) {
+    var r = cal.temperament === "just" ? justNote(freq, cal.refPitch, cal.root) : equalNote(freq, cal.refPitch);
+    var label = NOTE_NAMES[r.noteIdx] + r.octave;
+    var targetFreq = cal.temperament === "just"
+      ? freq / Math.pow(2, r.cents / 1200)
+      : cal.refPitch * Math.pow(2, ((r.octave + 1) * 12 + r.noteIdx - 69) / 12);
+    applyCommon(freq, r.cents, targetFreq, label);
+  }
+  function renderFixed(freq) {
+    var cents = 1200 * Math.log2(freq / cal.fixedHz);
+    applyCommon(freq, cents, cal.fixedHz, null);
+  }
+
+  /* ---- gauge static geometry (ticks + in-tune band) ---- */
+  (function buildGauge() {
+    var g = $("ticks"), s = "";
+    [-50, -25, 0, 25, 50].forEach(function (c) {
+      var deg = c / 50 * 90;
+      var a = pt(deg, 90), b = pt(deg, 80);
+      var w = c === 0 ? 2.2 : 1.2;
+      s += '<line x1="' + a[0].toFixed(2) + '" y1="' + a[1].toFixed(2) + '" x2="' + b[0].toFixed(2) + '" y2="' + b[1].toFixed(2) + '" stroke="var(--text-3)" stroke-width="' + w + '"/>';
+      var lp = pt(deg, 68);
+      s += '<text class="ticklbl" x="' + lp[0].toFixed(2) + '" y="' + (lp[1] + 3).toFixed(2) + '" text-anchor="middle">' + c + '</text>';
+    });
+    g.innerHTML = s;
+
+    // ±5 cent in-tune band drawn as a thin arc sector
+    var a1 = -5 / 50 * 90, a2 = 5 / 50 * 90;
+    var p1 = pt(a1, 90), p2 = pt(a2, 90), p3 = pt(a2, 78), p4 = pt(a1, 78);
+    var d = "M" + p1[0].toFixed(2) + " " + p1[1].toFixed(2) +
+      " A90 90 0 0 1 " + p2[0].toFixed(2) + " " + p2[1].toFixed(2) +
+      " L" + p3[0].toFixed(2) + " " + p3[1].toFixed(2) +
+      " A78 78 0 0 0 " + p4[0].toFixed(2) + " " + p4[1].toFixed(2) + " Z";
+    $("band").setAttribute("d", d);
+  })();
+
+  /* ---- UI wiring ---- */
+  function syncModeUI() {
+    document.querySelectorAll("#seg-mode button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === cal.mode));
+    });
+    $("field-fixedhz").hidden = cal.mode !== "fixed";
+  }
+  function syncTemperamentUI() {
+    $("temperament").value = cal.temperament;
+    $("field-root").hidden = cal.temperament !== "just";
+  }
+  function buildRootSelect() {
+    var sel = $("root"), html = "";
+    for (var i = 0; i < 12; i++) html += '<option value="' + i + '">' + NOTE_NAMES[i] + '</option>';
+    sel.innerHTML = html; sel.value = cal.root;
+  }
+  function syncInputs() {
+    $("refpitch").value = cal.refPitch;
+    $("fixedhz").value = cal.fixedHz;
+    $("gate").value = cal.gate;
+    $("gate-val").textContent = cal.gate + "%";
+    $("root").value = cal.root;
+    syncModeUI(); syncTemperamentUI();
+  }
+
+  $("mic-toggle").addEventListener("click", function () { running ? stopMic() : startMic(); });
+
+  $("seg-mode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    cal.mode = b.getAttribute("data-mode"); saveCal(); syncModeUI(); showNoSignal();
+  });
+
+  $("fixedhz").addEventListener("input", function () {
+    var v = parseFloat($("fixedhz").value); if (isNaN(v) || v <= 0) return;
+    cal.fixedHz = v; saveCal();
+  });
+  $("refpitch").addEventListener("input", function () {
+    var v = parseFloat($("refpitch").value); if (isNaN(v) || v <= 0) return;
+    cal.refPitch = v; saveCal();
+  });
+  $("reset-refpitch").addEventListener("click", function () {
+    cal.refPitch = 440; saveCal(); $("refpitch").value = 440;
+  });
+  $("temperament").addEventListener("change", function () {
+    cal.temperament = $("temperament").value; saveCal(); syncTemperamentUI();
+  });
+  $("root").addEventListener("change", function () {
+    cal.root = parseInt($("root").value, 10); saveCal();
+  });
+  $("gate").addEventListener("input", function () {
+    cal.gate = parseInt($("gate").value, 10); $("gate-val").textContent = cal.gate + "%"; saveCal();
+  });
+  $("reset-cal").addEventListener("click", function () {
+    cal = {}; for (var k in DEFAULT_CAL) cal[k] = DEFAULT_CAL[k];
+    saveCal(); buildRootSelect(); syncInputs(); showNoSignal();
+  });
+
+  window.addEventListener("pagehide", function () { if (running) stopMic(); });
+
+  buildRootSelect(); syncInputs(); showNoSignal();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "tuner",
+      strings: {
+        en: {
+          "t.title": "Advanced tuner",
+          "t.desc": "Mic-based pitch detection with cents, temperament, and a fixed-Hz mode.",
+          "t.miccard": "Microphone", "t.startmic": "Start listening", "t.stopmic": "Stop listening",
+          "t.micoff": "Not listening", "t.micon": "Listening…", "t.micerr": "Microphone access denied",
+          "t.sensitivity": "Sensitivity",
+          "t.mode": "Mode", "t.modenote": "By note", "t.modefixed": "Fixed Hz",
+          "t.targethz": "Target frequency",
+          "t.calib": "Calibration", "t.refpitch": "Reference pitch (A4)", "t.reset440": "Reset to 440",
+          "t.temperament": "Temperament", "t.equal": "Equal temperament", "t.just": "Just intonation",
+          "t.root": "Root note", "t.resetcal": "Reset calibration",
+          "t.output": "Output", "t.detected": "Detected", "t.targetfreq": "Target", "t.cents": "Deviation",
+          "t.intune": "In tune", "t.sharp": "Sharp", "t.flat": "Flat", "t.nosignal": "No signal",
+          "t.copyhint": "Click any value to copy."
+        },
+        ja: {
+          "t.title": "高精度チューナー",
+          "t.desc": "マイク入力の高精度チューナー。セント・音律・任意Hz指定モードに対応。",
+          "t.miccard": "マイク", "t.startmic": "計測を開始", "t.stopmic": "計測を停止",
+          "t.micoff": "未計測", "t.micon": "計測中…", "t.micerr": "マイクへのアクセスが拒否されました",
+          "t.sensitivity": "感度",
+          "t.mode": "モード", "t.modenote": "音名モード", "t.modefixed": "任意Hzモード",
+          "t.targethz": "目標周波数",
+          "t.calib": "キャリブレーション", "t.refpitch": "基準ピッチ（A4）", "t.reset440": "440にリセット",
+          "t.temperament": "音律", "t.equal": "平均律", "t.just": "純正律",
+          "t.root": "ルート音", "t.resetcal": "キャリブレーションをリセット",
+          "t.output": "出力", "t.detected": "検出値", "t.targetfreq": "目標値", "t.cents": "ズレ",
+          "t.intune": "合っています", "t.sharp": "高い", "t.flat": "低い", "t.nosignal": "信号なし",
+          "t.copyhint": "数値をクリックでコピー。"
+        }
+      },
+      onSettingsChange: function () { setMicUI(running ? "on" : "off"); if (!running) showNoSignal(); }
+    });
+  }
+})();
+</script>
+</body>
+</html>
