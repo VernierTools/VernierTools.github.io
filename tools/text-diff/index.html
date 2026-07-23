@@ -199,13 +199,21 @@
   }
 
   // ---- debounce + IME composition safe ----
+  // Typed characters must appear the instant they're typed (the textarea's own text is
+  // transparent, so the overlay is the only thing rendering it). Diffing/highlighting can lag
+  // a little behind, but the raw text itself never should, so every input event mirrors the
+  // plain text immediately; the debounced pass only adds the diff highlighting on top.
   var composing = { a: false, b: false }, timer = null;
+  function quickMirror(ta, hl) { hl.textContent = ta.value; }
   function schedule() { clearTimeout(timer); timer = setTimeout(computeAndRender, 220); }
 
   function wire(ta, hl, key) {
     ta.addEventListener("compositionstart", function () { composing[key] = true; });
-    ta.addEventListener("compositionend", function () { composing[key] = false; schedule(); });
-    ta.addEventListener("input", function () { if (!composing[key]) schedule(); });
+    ta.addEventListener("compositionend", function () { composing[key] = false; quickMirror(ta, hl); schedule(); });
+    ta.addEventListener("input", function () {
+      quickMirror(ta, hl);
+      if (!composing[key]) schedule();
+    });
     ta.addEventListener("scroll", function () { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; });
   }
   wire(taA, hlA, "a"); wire(taB, hlB, "b");
