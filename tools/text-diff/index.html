@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text diff — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .work--diff{ grid-template-columns:1fr 1fr; }
+  @media (max-width:760px){ .work--diff{ grid-template-columns:1fr; } }
+
+  .editor{ position:relative; height:340px; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); transition:border-color var(--tap), box-shadow var(--tap); }
+  .editor:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  @media (max-width:760px){ .editor{ height:240px; } }
+
+  .editor textarea,
+  .editor .hl{
+    position:absolute; inset:0; width:100%; height:100%; margin:0; padding:12px 14px;
+    box-sizing:border-box; border:0; font-family:var(--font-sans); font-size:14px; line-height:1.7;
+    white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+  }
+  .editor textarea{
+    z-index:2; resize:none; background:transparent; color:transparent; caret-color:var(--text);
+    outline:none; overflow:auto;
+  }
+  .editor .hl{
+    z-index:1; overflow:hidden; color:var(--text); pointer-events:none; user-select:none;
+  }
+  .hl mark.del{ background:var(--neg-tint); color:var(--neg); text-decoration:line-through;
+    text-decoration-color:var(--neg); border-radius:2px; }
+  .hl mark.ins{ background:var(--pos-tint); color:var(--pos); border-radius:2px; }
+
+  .diffbar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Text diff</h1>
+    <p data-i18n="t.desc">Paste two versions of a text and see exactly what was removed and added, highlighted right on the text.</p>
+  </div>
+
+  <div class="work work--diff">
+    <div class="card">
+      <label class="label" for="ta-a" data-i18n="t.before">Before</label>
+      <div class="editor" id="editor-a">
+        <div class="hl" id="hl-a" aria-hidden="true"></div>
+        <textarea id="ta-a" spellcheck="false" data-i18n-ph="t.pha" placeholder="Paste the original text…"></textarea>
+      </div>
+    </div>
+    <div class="card">
+      <label class="label" for="ta-b" data-i18n="t.after">After</label>
+      <div class="editor" id="editor-b">
+        <div class="hl" id="hl-b" aria-hidden="true"></div>
+        <textarea id="ta-b" spellcheck="false" data-i18n-ph="t.phb" placeholder="Paste the new text…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card diffbar" style="margin-top:calc(var(--s7) * -1 + var(--s4))">
+    <div class="badges" style="margin-top:0">
+      <span class="badge badge--neg"><span class="d"></span><span id="stat-del">−0</span></span>
+      <span class="badge badge--pos"><span class="d"></span><span id="stat-ins">+0</span></span>
+      <span class="badge badge--muted" id="badge-fallback" hidden></span>
+    </div>
+    <div class="btnrow" style="margin-top:0">
+      <button class="btn btn--secondary" id="btn-swap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>
+        <span data-i18n="t.swap">Swap</span>
+      </button>
+      <button class="btn btn--ghost" id="btn-clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14"/></svg>
+        <span data-i18n="t.clear">Clear</span>
+      </button>
+    </div>
+  </div>
+  <p class="hint" data-i18n="t.hint">Highlights update automatically as you type. Very long or almost entirely different texts are shown as a full replacement instead.</p>
+
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var taA = $("ta-a"), taB = $("ta-b"), hlA = $("hl-a"), hlB = $("hl-b");
+  var statDel = $("stat-del"), statIns = $("stat-ins"), badgeFallback = $("badge-fallback");
+  var lastDel = 0, lastIns = 0, lastFallback = false;
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---- Myers diff (character-level), capped for practical performance on long text ----
+  function diffChars(aStr, bStr) {
+    var a = Array.from(aStr), b = Array.from(bStr);
+    var n = a.length, m = b.length;
+    if (n === 0 && m === 0) return { ops: [], fallback: false, a: a, b: b };
+
+    var max = Math.min(n + m, 1500); // cap: keeps this fast & light even on article-length text
+    var size = 2 * max + 1;
+    var v = new Int32Array(size);
+    var trace = [];
+    var found = false, foundD = -1;
+
+    outer:
+    for (var d = 0; d <= max; d++) {
+      trace.push(v.slice());
+      for (var k = -d; k <= d; k += 2) {
+        var x;
+        if (k === -d || (k !== d && v[k - 1 + max] < v[k + 1 + max])) x = v[k + 1 + max];
+        else x = v[k - 1 + max] + 1;
+        var y = x - k;
+        while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+        v[k + max] = x;
+        if (x >= n && y >= m) { found = true; foundD = d; break outer; }
+      }
+    }
+
+    if (!found) return { ops: null, fallback: true, a: a, b: b };
+
+    var ops = [];
+    var x = n, y = m;
+    for (var d2 = foundD; d2 > 0; d2--) {
+      var vv = trace[d2];
+      var k2 = x - y, prevK;
+      if (k2 === -d2 || (k2 !== d2 && vv[k2 - 1 + max] < vv[k2 + 1 + max])) prevK = k2 + 1;
+      else prevK = k2 - 1;
+      var prevX = vv[prevK + max], prevY = prevX - prevK;
+      while (x > prevX && y > prevY) { ops.push({ type: "eq", ai: x - 1, bi: y - 1 }); x--; y--; }
+      if (x === prevX) ops.push({ type: "ins", bi: y - 1 });
+      else ops.push({ type: "del", ai: x - 1 });
+      x = prevX; y = prevY;
+    }
+    while (x > 0 && y > 0) { ops.push({ type: "eq", ai: x - 1, bi: y - 1 }); x--; y--; }
+    ops.reverse();
+    return { ops: ops, fallback: false, a: a, b: b };
+  }
+
+  function pushSeg(list, type, ch) {
+    var last = list[list.length - 1];
+    if (last && last.type === type) last.text += ch; else list.push({ type: type, text: ch });
+  }
+  function buildSegments(ops, a, b) {
+    var left = [], right = [];
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      if (op.type === "eq") { pushSeg(left, "eq", a[op.ai]); pushSeg(right, "eq", b[op.bi]); }
+      else if (op.type === "del") pushSeg(left, "del", a[op.ai]);
+      else pushSeg(right, "ins", b[op.bi]);
+    }
+    return { left: left, right: right };
+  }
+  function renderSeg(seg) {
+    var t = escapeHtml(seg.text);
+    if (seg.type === "del") return '<mark class="del">' + t + "</mark>";
+    if (seg.type === "ins") return '<mark class="ins">' + t + "</mark>";
+    return t;
+  }
+  function countType(list, type) {
+    var n = 0;
+    for (var i = 0; i < list.length; i++) if (list[i].type === type) n += list[i].text.length;
+    return n;
+  }
+
+  function setStats(del, ins, fallback) {
+    lastDel = del; lastIns = ins; lastFallback = fallback;
+    statDel.textContent = "−" + del + " " + Shell.t("t.chars");
+    statIns.textContent = "+" + ins + " " + Shell.t("t.chars");
+    badgeFallback.hidden = !fallback;
+    if (fallback) badgeFallback.textContent = Shell.t("t.fallback");
+  }
+
+  function computeAndRender() {
+    var aText = taA.value, bText = taB.value;
+    if (aText.length === 0 && bText.length === 0) {
+      hlA.innerHTML = ""; hlB.innerHTML = ""; setStats(0, 0, false); return;
+    }
+    var result = diffChars(aText, bText);
+    var leftHtml, rightHtml, del, ins;
+    if (result.fallback) {
+      leftHtml = aText ? '<mark class="del">' + escapeHtml(aText) + "</mark>" : "";
+      rightHtml = bText ? '<mark class="ins">' + escapeHtml(bText) + "</mark>" : "";
+      del = Array.from(aText).length; ins = Array.from(bText).length;
+    } else {
+      var segs = buildSegments(result.ops, result.a, result.b);
+      leftHtml = segs.left.map(renderSeg).join("");
+      rightHtml = segs.right.map(renderSeg).join("");
+      del = countType(segs.left, "del"); ins = countType(segs.right, "ins");
+    }
+    hlA.innerHTML = leftHtml;
+    hlB.innerHTML = rightHtml;
+    hlA.scrollTop = taA.scrollTop; hlA.scrollLeft = taA.scrollLeft;
+    hlB.scrollTop = taB.scrollTop; hlB.scrollLeft = taB.scrollLeft;
+    setStats(del, ins, result.fallback);
+  }
+
+  // ---- debounce + IME composition safe ----
+  var composing = { a: false, b: false }, timer = null;
+  function schedule() { clearTimeout(timer); timer = setTimeout(computeAndRender, 220); }
+
+  function wire(ta, hl, key) {
+    ta.addEventListener("compositionstart", function () { composing[key] = true; });
+    ta.addEventListener("compositionend", function () { composing[key] = false; schedule(); });
+    ta.addEventListener("input", function () { if (!composing[key]) schedule(); });
+    ta.addEventListener("scroll", function () { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; });
+  }
+  wire(taA, hlA, "a"); wire(taB, hlB, "b");
+
+  $("btn-swap").addEventListener("click", function () {
+    var tmp = taA.value; taA.value = taB.value; taB.value = tmp;
+    clearTimeout(timer); computeAndRender();
+  });
+  $("btn-clear").addEventListener("click", function () {
+    taA.value = ""; taB.value = ""; clearTimeout(timer); computeAndRender();
+  });
+
+  Shell.init({
+    id: "text-diff",
+    strings: {
+      en: {
+        "t.title": "Text diff",
+        "t.desc": "Paste two versions of a text and see exactly what was removed and added, highlighted right on the text.",
+        "t.before": "Before", "t.after": "After",
+        "t.pha": "Paste the original text…", "t.phb": "Paste the new text…",
+        "t.swap": "Swap", "t.clear": "Clear",
+        "t.chars": "chars",
+        "t.fallback": "Texts differ too much to align — showing as a full replacement.",
+        "t.hint": "Highlights update automatically as you type. Very long or almost entirely different texts are shown as a full replacement instead."
+      },
+      ja: {
+        "t.title": "文章の差分",
+        "t.desc": "2つの文章を貼り付けると、削除・追加された箇所がその場で色分け表示されます。",
+        "t.before": "変更前", "t.after": "変更後",
+        "t.pha": "元の文章を貼り付け…", "t.phb": "新しい文章を貼り付け…",
+        "t.swap": "入れ替え", "t.clear": "クリア",
+        "t.chars": "文字",
+        "t.fallback": "差異が大きすぎるため、全体を置換として表示しています。",
+        "t.hint": "入力すると自動的にハイライトが更新されます。極端に長い、またはほぼ別内容の文章は全体置換として表示します。"
+      }
+    },
+    onSettingsChange: function () { setStats(lastDel, lastIns, lastFallback); }
+  });
+
+  computeAndRender();
+})();
+</script>
+</body>
+</html>
