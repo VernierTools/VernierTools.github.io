@@ -196,9 +196,15 @@
   }
   function morseToText(morse) {
     var words = morse.trim().split("/").map(function (w) { return w.trim(); }).filter(function (w) { return w.length; });
-    return words.map(function (w) {
-      return w.split(/\s+/).filter(Boolean).map(function (code) { return REV[code] || ""; }).join("");
+    var bad = {};
+    var text = words.map(function (w) {
+      return w.split(/\s+/).filter(Boolean).map(function (code) {
+        var c = REV[code];
+        if (!c) { bad[code] = true; return ""; }
+        return c;
+      }).join("");
     }).join(" ");
+    return { text: text, skipped: Object.keys(bad) };
   }
 
   /* ---------------------------------------------------------------------
@@ -244,8 +250,8 @@
     var intraGap = ta;
 
     var rand = mulberry32(opts.seed >>> 0);
-    var dashBias = rand() * 2 - 1;
-    var gapBias = rand() * 2 - 1;
+    var dashBias = opts.humanize ? (rand() * 2 - 1) : 0;
+    var gapBias = opts.humanize ? (rand() * 2 - 1) : 0;
 
     var jitterPrev = 0;
     var sigma = opts.humanize ? (opts.humAmt / 100) * 0.22 : 0;
@@ -309,18 +315,19 @@
   var elHeroChar = $("hero-char"), elHeroBar = $("hero-bar");
   var elPlayBtn = $("playbtn"), elPlayIco = $("play-ico"), elPlayMeta = $("playmeta");
 
-  function setSkippedWarning(skipped) {
-    if (skipped && skipped.length) {
-      elWarn.hidden = false;
-      elWarn.textContent = (Shell.t("t.unsupported")) + " " + skipped.join(" ");
-    } else {
-      elWarn.hidden = true; elWarn.textContent = "";
-    }
+  var warnState = { textSkipped: [], morseSkipped: [] };
+  function updateWarning() {
+    var msgs = [];
+    if (warnState.textSkipped.length) msgs.push(Shell.t("t.unsupported") + " " + warnState.textSkipped.join(" "));
+    if (warnState.morseSkipped.length) msgs.push(Shell.t("t.unsupportedmorse") + " " + warnState.morseSkipped.join(" "));
+    if (msgs.length) { elWarn.hidden = false; elWarn.textContent = msgs.join(" / "); }
+    else { elWarn.hidden = true; elWarn.textContent = ""; }
   }
 
   function renderMorseOutput() {
     var conv = textToMorse(state.text);
-    setSkippedWarning(conv.skipped);
+    warnState.textSkipped = conv.skipped;
+    updateWarning();
     elMorseOut.textContent = conv.morse || "—";
     elMorseOut.setAttribute("data-copy", conv.morse || "");
     return conv.morse;
@@ -345,6 +352,7 @@
   elText.addEventListener("input", function () {
     if (syncing) return;
     state.text = elText.value.toUpperCase().replace(/[^\S\n]+/g, " ").replace(/\n/g, " ");
+    warnState.morseSkipped = [];
     var morse = renderAll();
     syncing = true; elMorse.value = morse; syncing = false;
   });
@@ -352,13 +360,15 @@
   /* ---- morse field (bidirectional) ---- */
   elMorse.addEventListener("input", function () {
     if (syncing) return;
-    var text = morseToText(elMorse.value);
-    state.text = text;
-    syncing = true; elText.value = text; syncing = false;
+    var conv = morseToText(elMorse.value);
+    warnState.morseSkipped = conv.skipped;
+    state.text = conv.text;
+    syncing = true; elText.value = conv.text; syncing = false;
     renderAll();
   });
   elMorse.addEventListener("blur", function () {
     // normalize morse field to canonical spacing derived from the text
+    warnState.morseSkipped = [];
     syncing = true; elMorse.value = renderMorseOutput(); syncing = false;
   });
 
@@ -388,7 +398,9 @@
     estimateDuration();
   });
   elEffWpm.addEventListener("input", function () {
-    state.effWpm = parseInt(elEffWpm.value, 10);
+    var v = parseInt(elEffWpm.value, 10);
+    if (v > state.wpm) { v = state.wpm; elEffWpm.value = v; }
+    state.effWpm = v;
     elEffWpmVal.textContent = state.effWpm + " WPM";
     estimateDuration();
   });
@@ -455,6 +467,7 @@
   function play() {
     if (!state.text || !state.text.replace(/\s/g, "").length) return;
     stopPlayback(false);
+    if (state.fistMode === "random") state.fistSeed = newSeed();
     playChars = state.text.toUpperCase();
     playTimeline = buildTimeline(playChars, {
       wpm: state.wpm, farnsworth: state.farnsworth, effWpm: state.effWpm,
@@ -524,7 +537,8 @@
         "t.nowplaying": "Now playing", "t.output": "Output", "t.morsecode": "Morse",
         "t.duration": "Estimated duration", "t.copyhint": "Click the Morse text to copy.",
         "t.readytoplay": "Ready to play.", "t.playing": "Playing…", "t.done": "Done.",
-        "t.unsupported": "Unsupported characters ignored:"
+        "t.unsupported": "Unsupported characters ignored:",
+        "t.unsupportedmorse": "Unrecognized Morse sequences ignored:"
       },
       ja: {
         "t.title": "モールス信号",
@@ -537,12 +551,14 @@
         "t.nowplaying": "再生中の文字", "t.output": "出力", "t.morsecode": "モールス符号",
         "t.duration": "再生時間の目安", "t.copyhint": "モールス符号をクリックでコピー。",
         "t.readytoplay": "再生準備完了。", "t.playing": "再生中…", "t.done": "再生終了。",
-        "t.unsupported": "非対応文字は無視されました:"
+        "t.unsupported": "非対応文字は無視されました:",
+        "t.unsupportedmorse": "認識できない符号列は無視されました:"
       }
     },
     onSettingsChange: function () { renderAll(); elPlayMeta.textContent = Shell.t(playing ? "t.playing" : "t.readytoplay"); }
   });
 
+  elEffWpm.max = state.wpm;
   pushTextToFields();
   renderAll();
 })();
