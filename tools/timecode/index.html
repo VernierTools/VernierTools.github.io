@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timecode to frames — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  /* ---- mode selector (5-way) ---- */
+  .modeseg{ display:flex; flex-wrap:wrap; gap:6px; }
+  .modeseg button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    flex:1 1 30%; min-width:0; height:36px; padding:0 6px; border:1px solid var(--border-strong);
+    border-radius:var(--r); background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .modeseg button:hover{ border-color:var(--text-3); }
+  .modeseg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* ---- generic 2-way seg (conv mode, batch direction, gauge) ---- */
+  .seg2{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .seg3{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg2 button,.seg3 button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:36px; padding:0 6px; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .seg2 button:hover,.seg3 button:hover{ border-color:var(--text-3); }
+  .seg2 button[aria-pressed="true"],.seg3 button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* ---- fps picker row ---- */
+  .fpsrow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .fpsrow .select{ flex:1 1 120px; min-width:100px; }
+  .fpsrow .input{ flex:0 0 90px; }
+  .dftoggle{ flex:0 0 auto; white-space:nowrap; }
+  .fpsnote{ font-size:11px; color:var(--text-3); margin-top:6px; line-height:1.4; }
+
+  .panel{ margin-top:var(--s4); }
+  .panel:first-of-type{ margin-top:0; }
+
+  .tcpair{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+  @media (max-width:520px){ .tcpair{ grid-template-columns:1fr; } }
+
+  textarea.input{ height:auto; padding:10px 12px; font-family:var(--font-mono); font-size:13px;
+    line-height:1.6; resize:vertical; min-height:120px; }
+  pre.batchout{ font-family:var(--font-mono); font-size:12.5px; line-height:1.6; white-space:pre-wrap;
+    word-break:break-all; margin:0; padding:var(--s4); max-height:320px; overflow:auto; cursor:pointer; }
+
+  .warnrow{ padding:0 var(--s4) var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
+    <h1 data-i18n="t.title">Timecode to frames</h1>
+    <p data-i18n="t.desc">Convert timecode and frame numbers, drop-frame aware — plus duration, frame-rate conversion, feet+frames, and batch conversion.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 設定・モード別入力 -->
+    <div>
+      <div class="card">
+        <label class="label" data-i18n="t.fps">Frame rate</label>
+        <div class="fpsrow" id="fps-global-row"></div>
+        <div class="fpsnote" data-i18n="t.fpsnote">Drop-frame is only offered for rates that round to 30 or 60 fps.</div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <label class="label" data-i18n="t.mode">Mode</label>
+        <div class="modeseg" id="modeseg" role="group">
+          <button data-mode="tcframe"    data-i18n="t.m.tcframe">TC ⇄ Frames</button>
+          <button data-mode="duration"   data-i18n="t.m.duration">Duration</button>
+          <button data-mode="framerate"  data-i18n="t.m.framerate">Frame-rate convert</button>
+          <button data-mode="feetframes" data-i18n="t.m.feetframes">Feet+Frames</button>
+          <button data-mode="batch"      data-i18n="t.m.batch">Batch</button>
+        </div>
+      </div>
+
+      <!-- panel: TC <-> frames -->
+      <div class="card panel" id="panel-tcframe">
+        <div class="field">
+          <label class="label" data-i18n="t.timecode">Timecode</label>
+          <input class="input" id="tf-tc" type="text" inputmode="numeric" placeholder="00:00:00:00" data-i18n-ph="t.tcplaceholder">
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.frames">Frame count</label>
+          <input class="input" id="tf-frames" type="number" min="0" step="1" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- panel: duration -->
+      <div class="card panel" id="panel-duration" hidden>
+        <div class="tcpair">
+          <div class="field">
+            <label class="label" data-i18n="t.start">Start</label>
+            <input class="input" id="dur-start" type="text" inputmode="numeric" placeholder="00:00:00:00" data-i18n-ph="t.tcplaceholder">
+          </div>
+          <div class="field">
+            <label class="label" data-i18n="t.end">End</label>
+            <input class="input" id="dur-end" type="text" inputmode="numeric" placeholder="00:00:01:00" data-i18n-ph="t.tcplaceholder">
+          </div>
+        </div>
+      </div>
+
+      <!-- panel: framerate convert -->
+      <div class="card panel" id="panel-framerate" hidden>
+        <div class="field">
+          <label class="label" data-i18n="t.source">Source frame rate</label>
+          <div class="fpsrow" id="fps-frsrc-row"></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.timecode">Timecode</label>
+          <input class="input" id="fr-tc" type="text" inputmode="numeric" placeholder="00:00:00:00" data-i18n-ph="t.tcplaceholder">
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.convmode">Conversion basis</label>
+          <div class="seg2" id="fr-convmode" role="group">
+            <button data-conv="samecount" data-i18n="t.samecount" aria-pressed="true">Same frame #</button>
+            <button data-conv="sameduration" data-i18n="t.sameduration">Same duration</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.target">Target frame rate</label>
+          <div class="fpsrow" id="fps-frtgt-row"></div>
+        </div>
+      </div>
+
+      <!-- panel: feet + frames -->
+      <div class="card panel" id="panel-feetframes" hidden>
+        <div class="field">
+          <label class="label" data-i18n="t.gauge">Film gauge</label>
+          <div class="seg3" id="ff-gauge" role="group">
+            <button data-gauge="16" data-i18n="t.g35-4" aria-pressed="true">35mm 4-perf</button>
+            <button data-gauge="32" data-i18n="t.g35-2">35mm 2-perf</button>
+            <button data-gauge="40" data-i18n="t.g16mm">16mm</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.timecode">Timecode</label>
+          <input class="input" id="ff-tc" type="text" inputmode="numeric" placeholder="00:00:00:00" data-i18n-ph="t.tcplaceholder">
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.feetframes">Feet + Frames</label>
+          <div class="tcpair">
+            <input class="input" id="ff-feetnum" type="number" min="0" step="1" placeholder="ft" aria-label="feet">
+            <input class="input" id="ff-framenum" type="number" min="0" step="1" placeholder="fr" aria-label="frames">
+          </div>
+        </div>
+      </div>
+
+      <!-- panel: batch -->
+      <div class="card panel" id="panel-batch" hidden>
+        <div class="field">
+          <label class="label" data-i18n="t.direction">Direction</label>
+          <div class="seg2" id="batch-dir" role="group">
+            <button data-dir="tc2f" data-i18n="t.tc2f" aria-pressed="true">TC → Frames</button>
+            <button data-dir="f2tc" data-i18n="t.f2tc">Frames → TC</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.batchinput">One value per line</label>
+          <textarea class="input" id="batch-input" rows="6" placeholder="00:00:01:00&#10;00:00:02:12&#10;01:00:00:00"></textarea>
+        </div>
+        <button class="btn btn--primary btn--block" id="batch-run" data-i18n="t.run">Convert</button>
+      </div>
+    </div>
+
+    <!-- 右: 出力 -->
+    <div>
+      <div class="readout" id="ro-tcframe">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.timecode">Timecode</span>
+          <span class="rrow__value" id="out-tf-tc" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.frames">Frame count</span>
+          <span class="rrow__value" id="out-tf-frames" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.realtime">Real time</span>
+          <span class="rrow__value" id="out-tf-real" data-copy=""></span></div>
+        <div class="warnrow" id="tf-warn" hidden><span class="badge badge--neg" data-i18n="t.dfinvalid">Invalid drop-frame timecode</span></div>
+      </div>
+
+      <div class="readout" id="ro-duration" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.durationtc">Duration (TC)</span>
+          <span class="rrow__value" id="out-dur-tc" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.durationframes">Duration (frames)</span>
+          <span class="rrow__value" id="out-dur-frames" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.startframes">Start frame #</span>
+          <span class="rrow__value" id="out-dur-startf" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.endframes">End frame #</span>
+          <span class="rrow__value" id="out-dur-endf" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.realtime">Real time</span>
+          <span class="rrow__value" id="out-dur-real" data-copy=""></span></div>
+      </div>
+
+      <div class="readout" id="ro-framerate" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.targettc">Target timecode</span>
+          <span class="rrow__value" id="out-fr-tc" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.sourceframes">Source frame #</span>
+          <span class="rrow__value" id="out-fr-srcf" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.targetframes">Target frame #</span>
+          <span class="rrow__value" id="out-fr-tgtf" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.realtime">Real time</span>
+          <span class="rrow__value" id="out-fr-real" data-copy=""></span></div>
+      </div>
+
+      <div class="readout" id="ro-feetframes" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.feetframes">Feet + Frames</span>
+          <span class="rrow__value" id="out-ff-ff" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.frames">Frame count</span>
+          <span class="rrow__value" id="out-ff-frames" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.timecode">Timecode</span>
+          <span class="rrow__value" id="out-ff-tc" data-copy=""></span></div>
+      </div>
+
+      <div class="readout" id="ro-batch" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="badge badge--muted" id="batch-count">0</span></div>
+        <pre class="batchout" id="out-batch" data-copy=""></pre>
+        <div class="copyhint" data-i18n="t.copyhint">Click the result to copy all.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ============================ core math ============================ */
+  var FPS_PRESETS = [
+    { id:"23.976", fps:24000/1001 },
+    { id:"24",     fps:24 },
+    { id:"25",     fps:25 },
+    { id:"29.97",  fps:30000/1001 },
+    { id:"30",     fps:30 },
+    { id:"47.952", fps:48000/1001 },
+    { id:"48",     fps:48 },
+    { id:"50",     fps:50 },
+    { id:"59.94",  fps:60000/1001 },
+    { id:"60",     fps:60 },
+    { id:"custom", fps:null }
+  ];
+
+  function fpsInfo(exact) {
+    var round = Math.round(exact);
+    var ntscGuess = round * 1000 / 1001;
+    var isNtsc = Math.abs(exact - ntscGuess) < 0.01;
+    var dfAllowed = isNtsc && (round === 30 || round === 60);
+    return { exact: exact, round: round, ntsc: isNtsc, dfAllowed: dfAllowed };
+  }
+  function dfDropFrames(round) { return round === 60 ? 4 : 2; }
+
+  function pad2(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+  function pad3(n) { n = Math.floor(n); return (n < 10 ? "00" : n < 100 ? "0" : "") + n; }
+
+  function parseTC(str) {
+    str = (str || "").trim();
+    if (!str) return { hh:0, mm:0, ss:0, ff:0 };
+    var parts = str.split(/[:;]/).map(function (p) { return p.trim(); });
+    while (parts.length < 4) parts.unshift("0");
+    parts = parts.slice(-4);
+    var nums = parts.map(function (p) { var n = parseInt(p, 10); return isNaN(n) ? 0 : n; });
+    return { hh: nums[0], mm: nums[1], ss: nums[2], ff: nums[3] };
+  }
+  function formatTC(tc, df) {
+    return pad2(tc.hh) + ":" + pad2(tc.mm) + ":" + pad2(tc.ss) + (df ? ";" : ":") + pad2(tc.ff);
+  }
+
+  function ndfFramesFromTC(tc, round) {
+    return tc.hh * 3600 * round + tc.mm * 60 * round + tc.ss * round + tc.ff;
+  }
+  function ndfTCFromFrames(frames, round) {
+    frames = Math.max(0, Math.floor(frames));
+    var ff = frames % round;
+    var totalSec = Math.floor(frames / round);
+    var ss = totalSec % 60;
+    var totalMin = Math.floor(totalSec / 60);
+    var mm = totalMin % 60;
+    var hh = Math.floor(totalMin / 60) % 24;
+    return { hh: hh, mm: mm, ss: ss, ff: ff };
+  }
+  function dfFramesFromTC(tc, round) {
+    var dropFrames = dfDropFrames(round);
+    var totalMinutes = 60 * tc.hh + tc.mm;
+    return (round * 3600 * tc.hh) + (round * 60 * tc.mm) + (round * tc.ss) + tc.ff
+      - (dropFrames * (totalMinutes - Math.floor(totalMinutes / 10)));
+  }
+  function dfTCFromFrames(frames, round) {
+    frames = Math.max(0, Math.floor(frames));
+    var dropFrames = dfDropFrames(round);
+    var framesPerMinDrop = round * 60 - dropFrames;
+    var framesPer10MinBlock = 10 * round * 60 - 9 * dropFrames;
+    var framesPer24Hours = round * 3600 * 24 - dropFrames * (1440 - 144);
+    frames = frames % framesPer24Hours;
+
+    var D = Math.floor(frames / framesPer10MinBlock);
+    var remainder = frames - D * framesPer10MinBlock;
+    var R, subMinute;
+    if (remainder < round * 60) {
+      R = 0; subMinute = remainder;
+    } else {
+      var r2 = remainder - round * 60;
+      R = 1 + Math.floor(r2 / framesPerMinDrop);
+      subMinute = dropFrames + (r2 % framesPerMinDrop);
+    }
+    var totalMinutes = 10 * D + R;
+    var hh = Math.floor(totalMinutes / 60) % 24;
+    var mm = totalMinutes % 60;
+    var ss = Math.floor(subMinute / round);
+    var ff = subMinute % round;
+    return { hh: hh, mm: mm, ss: ss, ff: ff };
+  }
+  function isValidDFTC(tc, round) {
+    if (tc.hh < 0 || tc.mm < 0 || tc.ss < 0 || tc.ff < 0) return false;
+    if (tc.hh >= 24 || tc.mm >= 60 || tc.ss >= 60 || tc.ff >= round) return false;
+    var dropFrames = dfDropFrames(round);
+    if (tc.ss === 0 && tc.mm % 10 !== 0 && tc.ff < dropFrames) return false;
+    return true;
+  }
+  function tcToFrames(tc, round, df) { return df ? dfFramesFromTC(tc, round) : ndfFramesFromTC(tc, round); }
+  function framesToTC(frames, round, df) { return df ? dfTCFromFrames(frames, round) : ndfTCFromFrames(frames, round); }
+
+  function formatRealTime(seconds) {
+    var neg = seconds < 0; seconds = Math.abs(seconds);
+    var hh = Math.floor(seconds / 3600);
+    var mm = Math.floor((seconds % 3600) / 60);
+    var ss = Math.floor(seconds % 60);
+    var ms = Math.round((seconds - Math.floor(seconds)) * 1000);
+    if (ms >= 1000) { ms -= 1000; ss += 1; }
+    if (ss >= 60) { ss -= 60; mm += 1; }
+    if (mm >= 60) { mm -= 60; hh += 1; }
+    return (neg ? "-" : "") + pad2(hh) + ":" + pad2(mm) + ":" + pad2(ss) + "." + pad3(ms);
+  }
+
+  /* ============================ fps picker (reusable) ============================ */
+  function fpsPickerHTML(prefix) {
+    var opts = FPS_PRESETS.map(function (p) {
+      var label = p.id === "custom" ? "" : p.id;
+      var i18n = p.id === "custom" ? ' data-i18n="t.custom"' : "";
+      return '<option value="' + p.id + '"' + i18n + '>' + label + "</option>";
+    }).join("");
+    return (
+      '<select class="select" id="' + prefix + '-fps">' + opts + "</select>" +
+      '<input class="input" id="' + prefix + '-custom" type="number" min="1" step="0.001" value="24" hidden>' +
+      '<label class="toggle dftoggle" id="' + prefix + '-dfwrap" hidden>' +
+      '<input type="checkbox" id="' + prefix + '-df"><span class="track"></span>' +
+      '<span data-i18n="t.df">Drop-frame</span></label>'
+    );
+  }
+  function fpsPickerExact(prefix) {
+    var sel = $(prefix + "-fps").value;
+    if (sel === "custom") { var v = parseFloat($(prefix + "-custom").value); return isNaN(v) || v <= 0 ? 24 : v; }
+    var p = FPS_PRESETS.filter(function (x) { return x.id === sel; })[0];
+    return p ? p.fps : 24;
+  }
+  function syncFpsPicker(prefix) {
+    var sel = $(prefix + "-fps").value;
+    $(prefix + "-custom").hidden = sel !== "custom";
+    var info = fpsInfo(fpsPickerExact(prefix));
+    var wrap = $(prefix + "-dfwrap");
+    wrap.hidden = !info.dfAllowed;
+    if (!info.dfAllowed) $(prefix + "-df").checked = false;
+  }
+  function getFps(prefix) {
+    var exact = fpsPickerExact(prefix);
+    var info = fpsInfo(exact);
+    var df = info.dfAllowed && $(prefix + "-df").checked;
+    return { exact: exact, round: info.round, dfAllowed: info.dfAllowed, df: df };
+  }
+  function wireFpsPicker(prefix, onChange) {
+    $(prefix + "-row").innerHTML = fpsPickerHTML(prefix);
+    $(prefix + "-fps").addEventListener("change", function () { syncFpsPicker(prefix); onChange(); });
+    $(prefix + "-custom").addEventListener("input", function () { syncFpsPicker(prefix); onChange(); });
+    $(prefix + "-df").addEventListener("change", onChange);
+    syncFpsPicker(prefix);
+  }
+
+  /* ============================ mode switching ============================ */
+  var MODES = ["tcframe", "duration", "framerate", "feetframes", "batch"];
+  var currentMode = "tcframe";
+  function setMode(m) {
+    currentMode = m;
+    MODES.forEach(function (mm) {
+      $("panel-" + mm).hidden = mm !== m;
+      $("ro-" + mm).hidden = mm !== m;
+    });
+    $("modeseg").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === m));
+    });
+    render();
+  }
+  $("modeseg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    setMode(b.getAttribute("data-mode"));
+  });
+
+  /* ============================ panel: tc <-> frames ============================ */
+  var tfFrames = 0;
+  function renderTFFrame() {
+    var fps = getFps("fps-global");
+    var tc = framesToTC(tfFrames, fps.round, fps.df);
+    if (document.activeElement !== $("tf-tc")) $("tf-tc").value = formatTC(tc, fps.df);
+    if (document.activeElement !== $("tf-frames")) $("tf-frames").value = tfFrames;
+
+    $("out-tf-tc").textContent = formatTC(tc, fps.df);
+    $("out-tf-tc").setAttribute("data-copy", formatTC(tc, fps.df));
+    $("out-tf-frames").textContent = tfFrames;
+    $("out-tf-frames").setAttribute("data-copy", String(tfFrames));
+    var real = tfFrames / fps.exact;
+    $("out-tf-real").textContent = formatRealTime(real);
+    $("out-tf-real").setAttribute("data-copy", formatRealTime(real));
+
+    var valid = fps.df ? isValidDFTC(parseTC($("tf-tc").value), fps.round) : true;
+    $("tf-warn").hidden = valid;
+  }
+  $("tf-tc").addEventListener("input", function () {
+    var fps = getFps("fps-global");
+    var tc = parseTC($("tf-tc").value);
+    tfFrames = Math.max(0, tcToFrames(tc, fps.round, fps.df));
+    render();
+  });
+  $("tf-frames").addEventListener("input", function () {
+    var n = parseInt($("tf-frames").value, 10);
+    tfFrames = isNaN(n) ? 0 : Math.max(0, n);
+    render();
+  });
+
+  /* ============================ panel: duration ============================ */
+  function renderDuration() {
+    var fps = getFps("fps-global");
+    var s = parseTC($("dur-start").value), e = parseTC($("dur-end").value);
+    var sf = tcToFrames(s, fps.round, fps.df), ef = tcToFrames(e, fps.round, fps.df);
+    var d = ef - sf;
+    var neg = d < 0;
+    var dtc = framesToTC(Math.abs(d), fps.round, fps.df);
+    $("out-dur-tc").textContent = (neg ? "-" : "") + formatTC(dtc, fps.df);
+    $("out-dur-tc").setAttribute("data-copy", (neg ? "-" : "") + formatTC(dtc, fps.df));
+    $("out-dur-frames").textContent = d;
+    $("out-dur-frames").setAttribute("data-copy", String(d));
+    $("out-dur-startf").textContent = sf; $("out-dur-startf").setAttribute("data-copy", String(sf));
+    $("out-dur-endf").textContent = ef; $("out-dur-endf").setAttribute("data-copy", String(ef));
+    var real = d / fps.exact;
+    $("out-dur-real").textContent = formatRealTime(real);
+    $("out-dur-real").setAttribute("data-copy", formatRealTime(real));
+  }
+  $("dur-start").addEventListener("input", render);
+  $("dur-end").addEventListener("input", render);
+
+  /* ============================ panel: framerate convert ============================ */
+  var frConvMode = "samecount";
+  $("fr-convmode").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    frConvMode = b.getAttribute("data-conv");
+    $("fr-convmode").querySelectorAll("button").forEach(function (x) {
+      x.setAttribute("aria-pressed", String(x === b));
+    });
+    render();
+  });
+  function renderFramerate() {
+    var src = getFps("fps-frsrc"), tgt = getFps("fps-frtgt");
+    var tc = parseTC($("fr-tc").value);
+    var srcFrames = Math.max(0, tcToFrames(tc, src.round, src.df));
+    var tgtFrames;
+    if (frConvMode === "samecount") tgtFrames = srcFrames;
+    else tgtFrames = Math.round((srcFrames / src.exact) * tgt.exact);
+    var tgtTC = framesToTC(tgtFrames, tgt.round, tgt.df);
+
+    $("out-fr-tc").textContent = formatTC(tgtTC, tgt.df);
+    $("out-fr-tc").setAttribute("data-copy", formatTC(tgtTC, tgt.df));
+    $("out-fr-srcf").textContent = srcFrames; $("out-fr-srcf").setAttribute("data-copy", String(srcFrames));
+    $("out-fr-tgtf").textContent = tgtFrames; $("out-fr-tgtf").setAttribute("data-copy", String(tgtFrames));
+    var real = srcFrames / src.exact;
+    $("out-fr-real").textContent = formatRealTime(real);
+    $("out-fr-real").setAttribute("data-copy", formatRealTime(real));
+  }
+  $("fr-tc").addEventListener("input", render);
+
+  /* ============================ panel: feet + frames ============================ */
+  var ffGauge = 16;
+  $("ff-gauge").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var v = b.getAttribute("data-gauge");
+    $("ff-gauge").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    ffGauge = parseInt(v, 10);
+    render();
+  });
+  var ffFrames = 0;
+  function renderFeetFrames() {
+    var fps = getFps("fps-global");
+    var feet = Math.floor(ffFrames / ffGauge);
+    var rem = ffFrames % ffGauge;
+    if (document.activeElement !== $("ff-feetnum")) $("ff-feetnum").value = feet;
+    if (document.activeElement !== $("ff-framenum")) $("ff-framenum").value = rem;
+    var tc = framesToTC(ffFrames, fps.round, fps.df);
+    if (document.activeElement !== $("ff-tc")) $("ff-tc").value = formatTC(tc, fps.df);
+
+    var ffText = feet + "+" + pad2(rem);
+    $("out-ff-ff").textContent = ffText; $("out-ff-ff").setAttribute("data-copy", ffText);
+    $("out-ff-frames").textContent = ffFrames; $("out-ff-frames").setAttribute("data-copy", String(ffFrames));
+    $("out-ff-tc").textContent = formatTC(tc, fps.df); $("out-ff-tc").setAttribute("data-copy", formatTC(tc, fps.df));
+  }
+  $("ff-tc").addEventListener("input", function () {
+    var fps = getFps("fps-global");
+    var tc = parseTC($("ff-tc").value);
+    ffFrames = Math.max(0, tcToFrames(tc, fps.round, fps.df));
+    render();
+  });
+  $("ff-feetnum").addEventListener("input", function () {
+    var feet = parseInt($("ff-feetnum").value, 10) || 0;
+    var rem = parseInt($("ff-framenum").value, 10) || 0;
+    ffFrames = Math.max(0, feet * ffGauge + rem);
+    render();
+  });
+  $("ff-framenum").addEventListener("input", function () {
+    var feet = parseInt($("ff-feetnum").value, 10) || 0;
+    var rem = parseInt($("ff-framenum").value, 10) || 0;
+    ffFrames = Math.max(0, feet * ffGauge + rem);
+    render();
+  });
+
+  /* ============================ panel: batch ============================ */
+  var batchDir = "tc2f";
+  $("batch-dir").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    batchDir = b.getAttribute("data-dir");
+    $("batch-dir").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+  });
+  $("batch-run").addEventListener("click", function () {
+    var fps = getFps("fps-global");
+    var lines = $("batch-input").value.split("\n");
+    var out = [], invalid = 0, count = 0;
+    lines.forEach(function (line) {
+      var s = line.trim();
+      if (!s) { out.push(""); return; }
+      count++;
+      if (batchDir === "tc2f") {
+        var tc = parseTC(s);
+        var ok = fps.df ? isValidDFTC(tc, fps.round) : (tc.hh < 24 && tc.mm < 60 && tc.ss < 60 && tc.ff < fps.round);
+        if (!ok) { invalid++; out.push(s + "  →  " + (Shell.lang === "ja" ? "無効な値" : "invalid")); return; }
+        var f = tcToFrames(tc, fps.round, fps.df);
+        out.push(s + "  →  " + f);
+      } else {
+        var n = parseInt(s, 10);
+        if (isNaN(n) || n < 0) { invalid++; out.push(s + "  →  " + (Shell.lang === "ja" ? "無効な値" : "invalid")); return; }
+        var tcr = framesToTC(n, fps.round, fps.df);
+        out.push(s + "  →  " + formatTC(tcr, fps.df));
+      }
+    });
+    var text = out.join("\n");
+    $("out-batch").textContent = text;
+    $("out-batch").setAttribute("data-copy", text);
+    $("batch-count").textContent = count + (invalid ? " (" + invalid + (Shell.lang === "ja" ? "件エラー" : " invalid") + ")" : "");
+  });
+
+  /* ============================ dispatch ============================ */
+  function render() {
+    if (currentMode === "tcframe") renderTFFrame();
+    else if (currentMode === "duration") renderDuration();
+    else if (currentMode === "framerate") renderFramerate();
+    else if (currentMode === "feetframes") renderFeetFrames();
+    // batch is button-triggered, not live
+  }
+
+  /* ============================ init ============================ */
+  wireFpsPicker("fps-global", render);
+  wireFpsPicker("fps-frsrc", render);
+  wireFpsPicker("fps-frtgt", render);
+  // default target to 24 for a more useful out-of-the-box framerate demo
+  $("fps-frtgt-fps").value = "24"; syncFpsPicker("fps-frtgt");
+  $("fr-tc").value = "00:00:10:00";
+  $("dur-end").value = "00:00:01:00";
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "timecode",
+      strings: {
+        en: {
+          "t.title": "Timecode to frames",
+          "t.desc": "Convert timecode and frame numbers, drop-frame aware — plus duration, frame-rate conversion, feet+frames, and batch conversion.",
+          "t.fps": "Frame rate", "t.fpsnote": "Drop-frame is only offered for rates that round to 30 or 60 fps.",
+          "t.mode": "Mode",
+          "t.m.tcframe": "TC ⇄ Frames", "t.m.duration": "Duration", "t.m.framerate": "Frame-rate convert",
+          "t.m.feetframes": "Feet+Frames", "t.m.batch": "Batch",
+          "t.timecode": "Timecode", "t.frames": "Frame count", "t.realtime": "Real time",
+          "t.dfinvalid": "Invalid drop-frame timecode", "t.tcplaceholder": "00:00:00:00",
+          "t.start": "Start", "t.end": "End",
+          "t.durationtc": "Duration (TC)", "t.durationframes": "Duration (frames)",
+          "t.startframes": "Start frame #", "t.endframes": "End frame #",
+          "t.source": "Source frame rate", "t.target": "Target frame rate",
+          "t.convmode": "Conversion basis", "t.samecount": "Same frame #", "t.sameduration": "Same duration",
+          "t.targettc": "Target timecode", "t.sourceframes": "Source frame #", "t.targetframes": "Target frame #",
+          "t.gauge": "Film gauge", "t.g35-4": "35mm 4-perf", "t.g35-2": "35mm 2-perf", "t.g16mm": "16mm",
+          "t.customfpf": "Frames per foot", "t.feetframes": "Feet + Frames",
+          "t.direction": "Direction", "t.tc2f": "TC → Frames", "t.f2tc": "Frames → TC",
+          "t.batchinput": "One value per line", "t.run": "Convert",
+          "t.output": "Output", "t.copyhint": "Click the result to copy all.",
+          "t.df": "Drop-frame", "t.custom": "Custom"
+        },
+        ja: {
+          "t.title": "タイムコード↔フレーム変換",
+          "t.desc": "タイムコードとフレーム数を相互変換（ドロップフレーム対応）。区間デュレーション・フレームレート変換・フィート+フレーム・複数行一括変換つき。",
+          "t.fps": "フレームレート", "t.fpsnote": "ドロップフレームは30fps/60fpsに丸まるレートでのみ選択できます。",
+          "t.mode": "モード",
+          "t.m.tcframe": "TC⇄フレーム", "t.m.duration": "デュレーション", "t.m.framerate": "フレームレート変換",
+          "t.m.feetframes": "フィート+フレーム", "t.m.batch": "一括変換",
+          "t.timecode": "タイムコード", "t.frames": "フレーム数", "t.realtime": "実時間",
+          "t.dfinvalid": "無効なドロップフレームのタイムコードです", "t.tcplaceholder": "00:00:00:00",
+          "t.start": "開始", "t.end": "終了",
+          "t.durationtc": "デュレーション（TC）", "t.durationframes": "デュレーション（フレーム）",
+          "t.startframes": "開始フレーム番号", "t.endframes": "終了フレーム番号",
+          "t.source": "変換元フレームレート", "t.target": "変換先フレームレート",
+          "t.convmode": "変換基準", "t.samecount": "同一フレーム番号", "t.sameduration": "同一尺（実時間基準）",
+          "t.targettc": "変換先タイムコード", "t.sourceframes": "変換元フレーム番号", "t.targetframes": "変換先フレーム番号",
+          "t.gauge": "フィルムゲージ", "t.g35-4": "35mm 4パーフ", "t.g35-2": "35mm 2パーフ", "t.g16mm": "16mm",
+          "t.customfpf": "1フィートあたりのフレーム数", "t.feetframes": "フィート+フレーム",
+          "t.direction": "変換方向", "t.tc2f": "TC → フレーム", "t.f2tc": "フレーム → TC",
+          "t.batchinput": "1行に1つの値", "t.run": "変換する",
+          "t.output": "出力", "t.copyhint": "結果をクリックで全体をコピー。",
+          "t.df": "ドロップフレーム", "t.custom": "カスタム"
+        }
+      },
+      onSettingsChange: function () { render(); }
+    });
+  }
+  render();
+})();
+</script>
+</body>
+</html>
