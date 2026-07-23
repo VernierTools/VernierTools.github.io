@@ -24,11 +24,18 @@
   .permrow .badge{ flex:none; }
 
   /* ---- sensitivity meter ---- */
-  .meter{ position:relative; height:6px; border-radius:100px; background:var(--border-strong); margin-top:10px; overflow:hidden; }
+  .meter{ position:relative; height:6px; border-radius:100px; background:var(--border-strong); margin-top:14px; overflow:hidden; }
   .meter-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:var(--accent); border-radius:100px; }
 
   .notice{ font-size:12.5px; line-height:1.6; color:var(--neg); background:var(--neg-tint);
     border:1px solid var(--neg); border-radius:var(--r); padding:10px 12px; margin-top:var(--s4); }
+
+  /* ---- silent-mode notice (prominent, shown right under the intro) ---- */
+  .silentnote{ display:flex; gap:10px; align-items:flex-start; font-size:13px; line-height:1.55;
+    color:var(--text); background:var(--accent-tint); border:1px solid var(--accent);
+    border-radius:var(--r-lg); padding:var(--s4); margin-bottom:var(--s5); }
+  .silentnote svg{ width:19px; height:19px; color:var(--accent); flex:none; margin-top:1px; }
+  .silentnote b{ font-weight:600; }
 
   /* ---- field header row (label + live mono value) ---- */
   .fieldhead{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
@@ -36,9 +43,22 @@
   .fieldval{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--accent); }
   .fieldhint{ font-size:12px; color:var(--text-3); margin-top:8px; }
 
+  /* ---- bigger slider hit area (thin visual track, tall touch target) ---- */
+  .slider{ -webkit-appearance:none; appearance:none; width:100%; height:40px;
+    background:transparent; margin:0; padding:0; display:block; cursor:pointer; }
+  .slider:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); border-radius:100px; }
+  .slider::-webkit-slider-runnable-track{ height:4px; border-radius:100px; background:var(--border-strong); }
+  .slider::-webkit-slider-thumb{ -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    margin-top:-8px; background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:var(--shadow-sm); cursor:pointer; transition:border-color var(--tap); }
+  .slider::-webkit-slider-thumb:hover{ border-color:var(--accent); }
+  .slider::-moz-range-track{ height:4px; border-radius:100px; background:var(--border-strong); }
+  .slider::-moz-range-thumb{ width:20px; height:20px; border-radius:50%; background:var(--surface);
+    border:1px solid var(--border-strong); box-shadow:var(--shadow-sm); cursor:pointer; }
+
   /* ---- advanced settings (collapsible) ---- */
-  .adv{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
-  .adv + .adv{ margin-top:var(--s4); }
+  .adv{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+    overflow:hidden; margin-top:var(--s4); }
   .adv summary{ list-style:none; cursor:pointer; padding:var(--s4) var(--s5); display:flex;
     align-items:center; justify-content:space-between; font-size:13px; font-weight:600; color:var(--text); }
   .adv summary::-webkit-details-marker{ display:none; }
@@ -58,11 +78,17 @@
     <p data-i18n="t.desc">Shake your phone to play realistic shaker or maraca percussion sounds.</p>
   </div>
 
+  <div class="silentnote">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    <span data-i18n="t.silentWarning">If your phone's ring/silent switch is set to silent, no sound will play. Switch it to ring mode first.</span>
+  </div>
+
   <div class="work">
     <!-- 左: 楽器選択・許可・調整 -->
     <div>
       <div class="card">
         <label class="label" data-i18n="t.instrument">Instrument</label>
+
         <div class="seg" id="seg" role="group">
           <button type="button" data-inst="shaker" data-i18n="t.shaker">Shaker</button>
           <button type="button" data-inst="maraca" data-i18n="t.maraca">Maraca</button>
@@ -659,6 +685,7 @@
         "t.release": "Release", "t.bedAmount": "Continuous noise",
         "t.resetDefaults": "Reset to defaults",
         "t.output": "Output", "t.energy": "Energy",
+        "t.silentWarning": "If your phone's ring/silent switch is set to silent, no sound will play. Switch it to ring mode first.",
         "t.tips": "Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.",
         "t.insecure": "Open this page over HTTPS (e.g. GitHub Pages) — it won't work over file://.",
         "t.nomotion": "This device or browser may not support motion sensors."
@@ -686,6 +713,7 @@
         "t.release": "リリース", "t.bedAmount": "連続ノイズ量",
         "t.resetDefaults": "デフォルトに戻す",
         "t.output": "出力", "t.energy": "エネルギー",
+        "t.silentWarning": "本体のマナースイッチ（消音スイッチ）が消音側になっていると音が鳴りません。事前に着信音側にしてください。",
         "t.tips": "画面をロックすると音が止まります。演奏中はスリープにしないでください。音が出ない場合は、消音スイッチと音量をご確認ください。",
         "t.insecure": "HTTPS経由で開いてください（GitHub Pagesなど）。file:// では動作しません。",
         "t.nomotion": "この端末・ブラウザはモーションセンサーに対応していない可能性があります。"
