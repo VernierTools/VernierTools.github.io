@@ -7,13 +7,16 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
-  .work--diff{ grid-template-columns:1fr 1fr; }
+  .work--diff{ grid-template-columns:1fr 1fr; align-items:stretch; }
   @media (max-width:760px){ .work--diff{ grid-template-columns:1fr; } }
+  /* stretch both cards to the same row height, then let the editor fill whatever's left —
+     this guarantees Before/After always match, regardless of content or viewport */
+  .work--diff > .card{ display:flex; flex-direction:column; }
 
-  .editor{ position:relative; height:340px; border:1px solid var(--border-strong); border-radius:var(--r);
+  .editor{ position:relative; flex:1 1 340px; min-height:340px; border:1px solid var(--border-strong); border-radius:var(--r);
     background:var(--surface); transition:border-color var(--tap), box-shadow var(--tap); }
   .editor:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
-  @media (max-width:760px){ .editor{ height:240px; } }
+  @media (max-width:760px){ .editor{ flex-basis:240px; min-height:240px; } }
 
   .editor textarea,
   .editor .hl{
@@ -33,6 +36,7 @@
   .hl mark.ins{ background:var(--pos-tint); color:var(--pos); border-radius:2px; }
 
   .diffbar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s3); }
+  .diffbar + .hint{ margin-top:var(--s4); }
 </style>
 </head>
 <body>
