@@ -83,6 +83,11 @@
     <span data-i18n="t.silentWarning">If your phone's ring/silent switch is set to silent, no sound will play. Switch it to ring mode first.</span>
   </div>
 
+  <div class="silentnote" id="resumeNotice" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    <span data-i18n="t.tapResume">Audio paused after switching apps — tap anywhere on this page to resume it.</span>
+  </div>
+
   <div class="work">
     <!-- 左: 楽器選択・許可・調整 -->
     <div>
@@ -222,7 +227,7 @@
   var btnSensor = $("btnSensor"), btnAudio = $("btnAudio");
   var statusSensor = $("statusSensor"), statusAudio = $("statusAudio");
   var statusSensorTxt = $("statusSensorTxt"), statusAudioTxt = $("statusAudioTxt");
-  var readyNote = $("readyNote"), banner = $("banner");
+  var readyNote = $("readyNote"), banner = $("banner"), resumeNotice = $("resumeNotice");
   var noiseFloorSlider = $("noiseFloor"), noiseFloorVal = $("noiseFloorVal");
   var fullScaleSlider = $("fullScale"), fullScaleVal = $("fullScaleVal");
   var liveJerkVal = $("liveJerkVal");
@@ -503,12 +508,6 @@
       navigator.wakeLock.request("screen").then(function (wl) { wakeLock = wl; }, function () {});
     }
   }
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") {
-      if (ctx && ctx.state === "suspended") ctx.resume();
-      if (audioReady) requestWakeLock();
-    }
-  });
 
   // ---------- permission buttons ----------
   btnSensor.addEventListener("click", function () {
@@ -534,19 +533,22 @@
     }
   });
 
+  function createAudioGraph() {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    noiseBuffer = createNoiseBuffer(ctx, 2);
+    masterGain = ctx.createGain();
+    masterGain.gain.value = masterVolume * 0.9;
+    masterGain.connect(ctx.destination);
+    dynamicGain = ctx.createGain();
+    dynamicGain.gain.value = 0.28;
+    dynamicGain.connect(masterGain);
+    bedGain = null;
+    startBed(INSTRUMENTS.shaker); // bed is only defined on the shaker profile; gain is silent until shaken
+  }
+
   btnAudio.addEventListener("click", function () {
     try {
-      if (!ctx) {
-        ctx = new (window.AudioContext || window.webkitAudioContext)();
-        noiseBuffer = createNoiseBuffer(ctx, 2);
-        masterGain = ctx.createGain();
-        masterGain.gain.value = masterVolume * 0.9;
-        masterGain.connect(ctx.destination);
-        dynamicGain = ctx.createGain();
-        dynamicGain.gain.value = 0.28;
-        dynamicGain.connect(masterGain);
-        startBed(INSTRUMENTS.shaker); // bed is only defined on the shaker profile; gain is silent until shaken
-      }
+      if (!ctx) createAudioGraph();
       ctx.resume().then(function () {
         audioReady = true;
         setAudioStatus("granted");
@@ -558,6 +560,36 @@
     } catch (err) {
       setAudioStatus("error");
       updateReadyState();
+    }
+  });
+
+  // ---------- recovering audio after the app was backgrounded ----------
+  // iOS suspends (and after a while may fully close) the AudioContext once the tab/app
+  // goes to the background. Calling resume() from the visibilitychange handler alone
+  // often silently fails, because resume() generally only works when called from within
+  // a direct user gesture (tap/click) — visibilitychange doesn't count as one. So: show a
+  // prompt, and actually resume (or, if the context was closed outright, rebuild it) on
+  // the next tap anywhere on the page.
+  function tryResumeAudio() {
+    if (!ctx || !audioReady) return;
+    if (ctx.state === "closed") {
+      createAudioGraph();
+      ctx.resume().then(function () { resumeNotice.hidden = true; }).catch(function () {});
+    } else if (ctx.state !== "running") {
+      ctx.resume().then(function () { resumeNotice.hidden = true; }).catch(function () {});
+    } else {
+      resumeNotice.hidden = true;
+    }
+  }
+  document.addEventListener("pointerdown", tryResumeAudio);
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      if (audioReady) requestWakeLock();
+      if (ctx && ctx.state !== "running") {
+        resumeNotice.hidden = false;
+        ctx.resume().catch(function () {}); // may silently no-op; the tap handler above is the real fix
+      }
     }
   });
 
@@ -686,6 +718,7 @@
         "t.resetDefaults": "Reset to defaults",
         "t.output": "Output", "t.energy": "Energy",
         "t.silentWarning": "If your phone's ring/silent switch is set to silent, no sound will play. Switch it to ring mode first.",
+        "t.tapResume": "Audio paused after switching apps — tap anywhere on this page to resume it.",
         "t.tips": "Locking the screen stops sound — keep the display awake while playing. If you hear nothing, check the silent switch and system volume.",
         "t.insecure": "Open this page over HTTPS (e.g. GitHub Pages) — it won't work over file://.",
         "t.nomotion": "This device or browser may not support motion sensors."
@@ -714,6 +747,7 @@
         "t.resetDefaults": "デフォルトに戻す",
         "t.output": "出力", "t.energy": "エネルギー",
         "t.silentWarning": "本体のマナースイッチ（消音スイッチ）が消音側になっていると音が鳴りません。事前に着信音側にしてください。",
+        "t.tapResume": "他のアプリに切り替えた影響で音が止まっています。画面のどこかをタップすると再開します。",
         "t.tips": "画面をロックすると音が止まります。演奏中はスリープにしないでください。音が出ない場合は、消音スイッチと音量をご確認ください。",
         "t.insecure": "HTTPS経由で開いてください（GitHub Pagesなど）。file:// では動作しません。",
         "t.nomotion": "この端末・ブラウザはモーションセンサーに対応していない可能性があります。"
