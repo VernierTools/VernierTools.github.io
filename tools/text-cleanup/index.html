@@ -7,26 +7,45 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=3">
 <style>
-  .ta{ width:100%; min-height:240px; resize:vertical; font:inherit; font-size:14px; line-height:1.7;
-    color:var(--text); background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r);
-    padding:10px 12px; transition:border-color var(--tap), box-shadow var(--tap); }
+  /* ---- ハイライト付きテキスト編集欄（textarea + 背後のマーク描画レイヤー） ---- */
+  .editorwrap{ position:relative; }
+  .ed-backdrop,.ta{
+    box-sizing:border-box; width:100%; min-height:280px;
+    font-family:var(--font-sans); font-size:14px; line-height:1.75; letter-spacing:normal;
+    padding:10px 12px; border:1px solid var(--border-strong); border-radius:var(--r);
+    white-space:pre-wrap; word-break:break-word; overflow:auto; margin:0;
+  }
+  .ed-backdrop{
+    position:absolute; inset:0; color:transparent; background:var(--surface);
+    pointer-events:none; z-index:1;
+  }
+  .ed-backdrop mark{ background:var(--neg-tint); color:transparent; border-radius:2px; }
+  .ta{
+    position:relative; z-index:2; resize:vertical;
+    background:transparent; color:var(--text); caret-color:var(--text);
+    transition:border-color var(--tap), box-shadow var(--tap);
+  }
   .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
   .ta::placeholder{ color:var(--text-3); }
 
-  .ro-body{ padding:var(--s4); }
-  .ro-text{ margin:0; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13.5px;
-    line-height:1.7; white-space:pre-wrap; word-break:break-word; color:var(--text); cursor:pointer; min-height:48px; }
-  .ro-text.placeholder{ color:var(--text-3); font-family:var(--font-sans); cursor:default; }
+  /* ---- 統計行（全角スペース／全角数字） ---- */
+  .rrow2b{ display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s4); }
+  .rrow2b + .rrow2b{ border-top:1px solid var(--border); }
+  .rrow2b__label{ flex:1; font-size:13px; color:var(--text-2); }
+  .rrow2b__value{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:20px;
+    color:var(--text); min-width:2ch; text-align:right; }
+  .btn--sm{ height:30px; padding:0 12px; font-size:12.5px; flex:0 0 auto; }
 
   .cardhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
   .cardhead .label{ margin:0; }
-  .hlbox{ font-size:14px; line-height:1.85; white-space:pre-wrap; word-break:break-word; min-height:140px;
-    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); padding:var(--s3) var(--s4);
-    color:var(--text-2); }
-  .hlbox.placeholder{ color:var(--text-3); display:flex; align-items:center; }
-  .hlbox mark{ background:var(--neg-tint); color:var(--neg); border-radius:3px; padding:0 1px; font-weight:600; }
 
-  .badge .d{ transition:background var(--tap); }
+  /* ---- 対象文字チップ ---- */
+  .chipgrid{ display:flex; flex-wrap:wrap; gap:6px; }
+  .charchip{ appearance:none; cursor:pointer; font:inherit; font-family:var(--font-mono); font-size:14px;
+    min-width:36px; height:34px; padding:0 10px; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .charchip:hover{ border-color:var(--text-3); }
+  .charchip[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
 </style>
 </head>
 <body>
@@ -34,47 +53,73 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
     <h1 data-i18n="t.title">Text cleanup</h1>
-    <p data-i18n="t.desc">Convert full-width digits and spaces to half-width, and check for repeated punctuation.</p>
+    <p data-i18n="t.desc">Fix full-width spaces and digits, and merge repeated punctuation — edited directly in your text, with undo/redo.</p>
   </div>
 
   <div class="work">
-    <!-- 左: 入力 -->
+    <!-- 左: 編集欄 -->
     <div>
       <div class="card">
-        <div class="field" style="margin-bottom:var(--s4)">
-          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
-          <textarea id="ta-in" class="ta" rows="10" data-i18n-ph="t.inputPh"></textarea>
-        </div>
         <div class="field" style="margin-bottom:0">
-          <button class="btn btn--primary btn--block" id="btn-convert" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 7l3-3M7 7l3 3"/><path d="M17 17H7M17 17l-3-3M17 17l-3 3"/></svg>
-            <span data-i18n="t.convert">Convert full-width numbers &amp; spaces</span>
+          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
+          <div class="editorwrap">
+            <div class="ed-backdrop" id="ed-backdrop" aria-hidden="true"></div>
+            <textarea id="ta-in" class="ta" rows="12" spellcheck="false" data-i18n-ph="t.inputPh"></textarea>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-undo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>
+            <span data-i18n="t.undo">Undo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-redo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M20.5 13a8 8 0 1 1-1.8-8.2L21 9"/></svg>
+            <span data-i18n="t.redo">Redo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-copyall" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+            <span data-i18n="t.copyall">Copy all</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 右: 変換結果 + 句読点連続チェック -->
+    <!-- 右: 検出・修正 -->
     <div>
       <div class="readout" style="margin-bottom:var(--s4)">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.convertedOut">Converted</span></div>
-        <div class="ro-body">
-          <pre class="ro-text placeholder" id="out-converted"></pre>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.detected">Full-width check</span></div>
+        <div class="rrow2b">
+          <span class="rrow2b__label" data-i18n="t.fwSpace">Full-width spaces</span>
+          <span class="rrow2b__value" id="cnt-space">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-fix-space" type="button" disabled data-i18n="t.fix">Fix</button>
         </div>
-        <div class="copyhint" data-i18n="t.copyhint">Click to copy.</div>
+        <div class="rrow2b">
+          <span class="rrow2b__label" data-i18n="t.fwDigit">Full-width digits</span>
+          <span class="rrow2b__value" id="cnt-digit">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-fix-digit" type="button" disabled data-i18n="t.fix">Fix</button>
+        </div>
       </div>
 
       <div class="card">
         <div class="cardhead">
-          <label class="label" data-i18n="t.punctTitle">Repeated punctuation</label>
-          <span class="badge badge--muted" id="punct-badge">
-            <span class="d"></span><span id="punct-count">0</span>
-          </span>
+          <label class="label" data-i18n="t.dupTitle">Repeated punctuation</label>
+          <span class="badge badge--muted" id="dup-badge"><span class="d"></span><span id="dup-count">0</span></span>
         </div>
-        <div class="hlbox placeholder" id="hl-preview"></div>
-        <div class="hint" data-i18n="t.punctHint" style="margin-top:var(--s3); font-size:12px; color:var(--text-3);">
-          Detects runs like "！！" or "。。". Detection only — nothing is changed automatically.
+        <label class="label" style="font-size:11.5px" data-i18n="t.dupChars">Characters to check</label>
+        <div class="chipgrid" id="char-toggle" role="group">
+          <button type="button" class="charchip" data-ch="、" aria-pressed="true">、</button>
+          <button type="button" class="charchip" data-ch="。" aria-pressed="true">。</button>
+          <button type="button" class="charchip" data-ch="！" aria-pressed="false">！</button>
+          <button type="button" class="charchip" data-ch="？" aria-pressed="false">？</button>
+          <button type="button" class="charchip" data-ch="!" aria-pressed="false">!</button>
+          <button type="button" class="charchip" data-ch="?" aria-pressed="false">?</button>
+          <button type="button" class="charchip" data-ch="." aria-pressed="false">.</button>
+          <button type="button" class="charchip" data-ch="," aria-pressed="false">,</button>
         </div>
+        <div class="hint" data-i18n="t.dupHint" style="margin:var(--s3) 0; font-size:12px; color:var(--text-3);">
+          Detects the same character repeated in a row (e.g. "！！"). Choose which characters to check.
+        </div>
+        <button class="btn btn--primary btn--block" id="btn-fix-dup" type="button" disabled data-i18n="t.dupFix">Merge repeated characters</button>
       </div>
     </div>
   </div>
@@ -85,112 +130,170 @@
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var taIn = $("ta-in"), outEl = $("out-converted");
-  var hlBox = $("hl-preview"), badge = $("punct-badge"), countEl = $("punct-count");
-  var btnConvert = $("btn-convert");
+  var taIn = $("ta-in"), backdrop = $("ed-backdrop");
+  var cntSpace = $("cnt-space"), cntDigit = $("cnt-digit");
+  var btnFixSpace = $("btn-fix-space"), btnFixDigit = $("btn-fix-digit");
+  var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
+  var charToggle = $("char-toggle"), dupBadge = $("dup-badge"), dupCountEl = $("dup-count"), btnFixDup = $("btn-fix-dup");
 
   function esc(s) {
     return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
   }
 
-  // ---- ① 全角数字・全角スペース → 半角（対象はこの2種のみ） ----
-  function toHalfWidth(text) {
-    return text
-      .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
-      .replace(/\u3000/g, " ");
+  /* =========================================================
+     ① 全角スペース / 全角数字：カウント + 個別修正（本文へ直接反映）
+     ========================================================= */
+  function countFWSpace(v) { var m = v.match(/\u3000/g); return m ? m.length : 0; }
+  function countFWDigit(v) { var m = v.match(/[０-９]/g); return m ? m.length : 0; }
+  function fixFWSpace(v) { return v.replace(/\u3000/g, " "); }
+  function fixFWDigit(v) { return v.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+
+  /* =========================================================
+     ② 選択した文字の連続検出・一括修正
+     ========================================================= */
+  function selectedChars() {
+    return Array.prototype.slice.call(charToggle.querySelectorAll('[aria-pressed="true"]'))
+      .map(function (b) { return b.getAttribute("data-ch"); });
+  }
+  function buildDupRegex(chars) {
+    if (!chars.length) return null;
+    return new RegExp("(" + "[" + chars.join("") + "]" + ")\\1+", "g");
+  }
+  function fixDuplicates(v, chars) {
+    var re = buildDupRegex(chars);
+    if (!re) return v;
+    return v.replace(re, function (m, c) { return c; });
   }
 
-  function doConvert() {
+  charToggle.addEventListener("click", function (e) {
+    var b = e.target.closest(".charchip"); if (!b) return;
+    b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+    refreshDerived();
+  });
+
+  /* =========================================================
+     再描画：カウント・ハイライト（本文欄の背後レイヤーに直接）
+     ========================================================= */
+  function refreshDerived() {
     var v = taIn.value;
-    if (!v) {
-      outEl.textContent = Shell.t("t.emptyIn");
-      outEl.classList.add("placeholder");
-      outEl.removeAttribute("data-copy");
-      return;
-    }
-    var out = toHalfWidth(v);
-    outEl.textContent = out;
-    outEl.classList.remove("placeholder");
-    outEl.setAttribute("data-copy", out);
+    var sp = countFWSpace(v), dg = countFWDigit(v);
+    cntSpace.textContent = sp; cntDigit.textContent = dg;
+    btnFixSpace.disabled = sp === 0; btnFixDigit.disabled = dg === 0;
+
+    var chars = selectedChars();
+    var re = buildDupRegex(chars);
+    var count = 0, html;
+    if (v === "") { html = ""; }
+    else if (re) { html = esc(v).replace(re, function (m) { count++; return "<mark>" + m + "</mark>"; }); }
+    else { html = esc(v); }
+    backdrop.innerHTML = html + " "; // 末尾改行の高さ崩れ対策
+
+    dupCountEl.textContent = count;
+    dupBadge.classList.toggle("badge--neg", count > 0);
+    dupBadge.classList.toggle("badge--muted", count === 0);
+    btnFixDup.disabled = count === 0;
   }
-  btnConvert.addEventListener("click", doConvert);
+  taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
 
-  // ---- ② 句読点の連続検出（同一記号が2回以上連続。検出のみ、修正はしない） ----
-  var PUNCT_RUN = /([、。！？!?])\1+/g;
+  /* =========================================================
+     Undo / Redo（自前の履歴管理。打鍵はデバウンスでチェックポイント化、
+     ボタン操作は即座に1ステップとして積む）
+     ========================================================= */
+  var history = [""], histIndex = 0, typingTimer = null;
+  var TYPING_DEBOUNCE = 450, MAX_HISTORY = 200;
 
-  function renderHighlight() {
-    var v = taIn.value;
-    if (!v) {
-      hlBox.classList.add("placeholder");
-      hlBox.textContent = Shell.t("t.emptyIn");
-      setBadge(0);
-      return;
+  function pushHistory(v) {
+    if (v === history[histIndex]) return;
+    history = history.slice(0, histIndex + 1);
+    history.push(v);
+    histIndex = history.length - 1;
+    if (history.length > MAX_HISTORY) {
+      var overflow = history.length - MAX_HISTORY;
+      history.splice(0, overflow);
+      histIndex -= overflow;
     }
-    hlBox.classList.remove("placeholder");
-    var count = 0;
-    var html = esc(v).replace(PUNCT_RUN, function (m) { count++; return "<mark>" + m + "</mark>"; });
-    if (count === 0) {
-      hlBox.classList.add("placeholder");
-      hlBox.textContent = Shell.t("t.noIssues");
-    } else {
-      hlBox.innerHTML = html;
-    }
-    setBadge(count);
+    syncUndoRedoUI();
+  }
+  function flushPending() {
+    clearTimeout(typingTimer);
+    if (taIn.value !== history[histIndex]) pushHistory(taIn.value);
+  }
+  function syncUndoRedoUI() {
+    btnUndo.disabled = histIndex <= 0;
+    btnRedo.disabled = histIndex >= history.length - 1;
+  }
+  function performUndo() {
+    flushPending();
+    if (histIndex > 0) { histIndex--; taIn.value = history[histIndex]; refreshDerived(); syncUndoRedoUI(); }
+  }
+  function performRedo() {
+    if (histIndex < history.length - 1) { histIndex++; taIn.value = history[histIndex]; refreshDerived(); syncUndoRedoUI(); }
+  }
+  function applyTransform(fn) {
+    flushPending();
+    var next = fn(taIn.value);
+    if (next === taIn.value) return;
+    taIn.value = next;
+    pushHistory(next);
+    refreshDerived();
+    taIn.focus();
   }
 
-  function setBadge(n) {
-    countEl.textContent = n;
-    badge.classList.toggle("badge--neg", n > 0);
-    badge.classList.toggle("badge--muted", n === 0);
-  }
+  btnUndo.addEventListener("click", performUndo);
+  btnRedo.addEventListener("click", performRedo);
+  taIn.addEventListener("keydown", function (e) {
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+    var k = e.key.toLowerCase();
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); performUndo(); }
+    else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); performRedo(); }
+  });
+  taIn.addEventListener("blur", flushPending);
+  taIn.addEventListener("input", function () {
+    refreshDerived();
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(function () { pushHistory(taIn.value); }, TYPING_DEBOUNCE);
+  });
 
-  taIn.addEventListener("input", renderHighlight);
-
-  function renderAll() {
-    // プレースホルダー文言の再表示（言語切替時、値が入っていない場合のみ）
-    if (!taIn.value) { renderHighlight(); }
-    else { renderHighlight(); }
-    if (!outEl.getAttribute("data-copy")) {
-      outEl.textContent = taIn.value ? Shell.t("t.notYet") : Shell.t("t.emptyIn");
-    }
-  }
+  btnFixSpace.addEventListener("click", function () { applyTransform(fixFWSpace); });
+  btnFixDigit.addEventListener("click", function () { applyTransform(fixFWDigit); });
+  btnFixDup.addEventListener("click", function () { applyTransform(function (v) { return fixDuplicates(v, selectedChars()); }); });
+  btnCopyAll.addEventListener("click", function () { Shell.copy(taIn.value, btnCopyAll); });
 
   Shell.init({
     id: "text-cleanup",
     strings: {
       en: {
         "t.title": "Text cleanup",
-        "t.desc": "Convert full-width digits and spaces to half-width, and check for repeated punctuation.",
+        "t.desc": "Fix full-width spaces and digits, and merge repeated punctuation — edited directly in your text, with undo/redo.",
         "t.input": "Text",
         "t.inputPh": "Paste or type text here…",
-        "t.convert": "Convert full-width numbers & spaces",
-        "t.convertedOut": "Converted",
-        "t.copyhint": "Click to copy.",
-        "t.punctTitle": "Repeated punctuation",
-        "t.punctHint": "Detects runs like \u201c\uff01\uff01\u201d or \u201c\u3002\u3002\u201d. Detection only \u2014 nothing is changed automatically.",
-        "t.emptyIn": "Type or paste text on the left.",
-        "t.notYet": "Press the button above to see the converted text here.",
-        "t.noIssues": "No repeated punctuation found."
+        "t.undo": "Undo", "t.redo": "Redo", "t.copyall": "Copy all",
+        "t.detected": "Full-width check",
+        "t.fwSpace": "Full-width spaces", "t.fwDigit": "Full-width digits", "t.fix": "Fix",
+        "t.dupTitle": "Repeated punctuation",
+        "t.dupChars": "Characters to check",
+        "t.dupHint": "Detects the same character repeated in a row (e.g. \u201c\uff01\uff01\u201d). Choose which characters to check.",
+        "t.dupFix": "Merge repeated characters"
       },
       ja: {
         "t.title": "表記ゆれ・ミス検出＆修正",
-        "t.desc": "全角数字とスペースを半角に変換し、句読点の連続を検出します。",
+        "t.desc": "全角スペース・全角数字を個別に修正し、選んだ記号の連続もまとめて修正できます。編集は本文に直接反映され、元に戻す・やり直しにも対応。",
         "t.input": "テキスト",
         "t.inputPh": "ここにテキストを貼り付け／入力…",
-        "t.convert": "全角数字・スペースを半角に変換",
-        "t.convertedOut": "変換結果",
-        "t.copyhint": "クリックでコピー。",
-        "t.punctTitle": "句読点の連続",
-        "t.punctHint": "「！！」「。。」のような連続を検出します。検出のみで自動修正はしません。",
-        "t.emptyIn": "左にテキストを入力してください。",
-        "t.notYet": "上のボタンを押すと変換結果がここに表示されます。",
-        "t.noIssues": "連続した句読点は見つかりませんでした。"
+        "t.undo": "元に戻す", "t.redo": "やり直す", "t.copyall": "全文コピー",
+        "t.detected": "全角チェック",
+        "t.fwSpace": "全角スペース", "t.fwDigit": "全角数字", "t.fix": "修正",
+        "t.dupTitle": "句読点などの連続",
+        "t.dupChars": "対象の文字",
+        "t.dupHint": "同じ文字が連続している箇所を検出します（例:「！！」）。対象の文字は選択できます。",
+        "t.dupFix": "選択した文字の重複をまとめて修正"
       }
     },
-    onSettingsChange: renderAll
+    onSettingsChange: refreshDerived
   });
 
-  renderAll();
+  refreshDerived(); syncUndoRedoUI();
 })();
 </script>
 </body>
