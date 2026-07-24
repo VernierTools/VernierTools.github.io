@@ -7,15 +7,19 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=4">
 <style>
-  /* ---- 時・分・秒ホイール ---- */
-  .wheelrow{ display:flex; align-items:flex-end; justify-content:center; gap:4px; background:var(--surface-2);
+  /* ---- 時・分・秒ホイール ----
+     ラベル行とホイール行をグリッドで分離することで、「:」は常にホイール行の
+     中央に正しく揃う（ラベルの有無・高さに影響されない）。 */
+  .wheelbox{ display:flex; justify-content:center; background:var(--surface-2);
     border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s4) var(--s3); }
-  .wheelcol{ display:flex; flex-direction:column; align-items:center; gap:6px; }
-  .wheelcol .label{ margin-bottom:0; }
-  .wheelsep{ font-family:var(--font-mono); font-size:20px; font-weight:600; color:var(--text-3); align-self:center; margin:0 0 34px; }
+  .wheelgrid{ display:grid; grid-template-columns:60px 20px 60px 20px 60px; row-gap:8px;
+    justify-items:center; align-items:center; }
+  .wheelgrid .label{ margin-bottom:0; }
+  .wheelsep{ font-family:var(--font-mono); font-size:20px; font-weight:600; color:var(--text-3); }
+  .wheelhintwrap{ text-align:center; }
   .wheel{ position:relative; width:60px; height:108px; overflow-y:auto; overflow-x:hidden; scroll-snap-type:y mandatory;
     -webkit-overflow-scrolling:touch; cursor:grab; border-radius:var(--r); background:var(--surface);
-    border:1px solid var(--border-strong); scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; }
+    border:1px solid var(--border-strong); scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; user-select:none; }
   .wheel::-webkit-scrollbar{ display:none; }
   .wheel:active{ cursor:grabbing; }
   .wheel:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
@@ -26,6 +30,10 @@
   .wheel__highlight{ position:absolute; left:0; right:0; top:36px; height:36px; pointer-events:none;
     border-top:1px solid var(--border-strong); border-bottom:1px solid var(--border-strong);
     background:var(--accent-tint); opacity:.55; }
+  .wheel__edit{ position:absolute; left:1px; right:1px; top:36px; height:36px; z-index:2; box-sizing:border-box;
+    text-align:center; border:0; outline:2px solid var(--accent); outline-offset:-2px; border-radius:4px;
+    background:var(--surface); font:inherit; font-family:var(--font-mono); font-size:19px; font-weight:700;
+    color:var(--text); padding:0; }
   .wheelhint{ font-size:11px; color:var(--text-3); text-align:center; margin-top:var(--s2); }
   .fielderr{ font-size:12px; color:var(--neg); margin-top:var(--s3); }
 
@@ -101,23 +109,22 @@
       <div class="card" id="queue-card">
         <div class="card__title" data-i18n="t.queue">Queue</div>
 
-        <div class="wheelrow">
-          <div class="wheelcol">
-            <label class="label" data-i18n="t.hour">Hour</label>
-            <div class="wheel" id="wheel-h" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="99"></div>
-          </div>
-          <span class="wheelsep">:</span>
-          <div class="wheelcol">
-            <label class="label" data-i18n="t.min">Min</label>
-            <div class="wheel" id="wheel-m" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59"></div>
-          </div>
-          <span class="wheelsep">:</span>
-          <div class="wheelcol">
-            <label class="label" data-i18n="t.sec">Sec</label>
-            <div class="wheel" id="wheel-s" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59"></div>
+        <div class="wheelbox">
+          <div class="wheelgrid">
+            <label class="label" data-i18n="t.hour" style="grid-column:1;grid-row:1">Hour</label>
+            <span style="grid-column:2;grid-row:1"></span>
+            <label class="label" data-i18n="t.min" style="grid-column:3;grid-row:1">Min</label>
+            <span style="grid-column:4;grid-row:1"></span>
+            <label class="label" data-i18n="t.sec" style="grid-column:5;grid-row:1">Sec</label>
+
+            <div class="wheel" id="wheel-h" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="99" style="grid-column:1;grid-row:2"></div>
+            <span class="wheelsep" style="grid-column:2;grid-row:2">:</span>
+            <div class="wheel" id="wheel-m" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59" style="grid-column:3;grid-row:2"></div>
+            <span class="wheelsep" style="grid-column:4;grid-row:2">:</span>
+            <div class="wheel" id="wheel-s" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59" style="grid-column:5;grid-row:2"></div>
           </div>
         </div>
-        <div class="wheelhint" data-i18n="t.wheelhint">Drag, scroll, or use the arrow keys to set each value.</div>
+        <div class="wheelhintwrap"><span class="wheelhint" data-i18n="t.wheelhint">Drag, scroll, or use the arrow keys — double-click to type a value.</span></div>
         <div class="fielderr" id="dur-err" hidden data-i18n="t.durerr">Enter a duration longer than 0 seconds.</div>
 
         <div class="btnrow" style="margin-top:var(--s4)">
@@ -338,6 +345,32 @@
       var cell = e.target.closest(".wheel__cell"); if (!cell) return;
       setValue(parseInt(cell.getAttribute("data-v"), 10));
     });
+
+    // ダブルクリック / ダブルタップで、その場に数値入力欄を開く
+    function openEditor() {
+      if (el.querySelector(".wheel__edit")) return;
+      var input = document.createElement("input");
+      input.type = "text"; input.setAttribute("inputmode", "numeric"); input.setAttribute("pattern", "[0-9]*");
+      input.className = "wheel__edit";
+      input.value = pad(val);
+      el.appendChild(input);
+      input.focus(); input.select();
+      var done = false;
+      function commit() {
+        if (done) return; done = true;
+        var nv = parseInt(input.value, 10);
+        if (!isNaN(nv)) setValue(nv);
+        if (input.parentNode) input.parentNode.removeChild(input);
+      }
+      input.addEventListener("keydown", function (ev) {
+        ev.stopPropagation();
+        if (ev.key === "Enter") { ev.preventDefault(); commit(); el.focus(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); done = true; if (input.parentNode) input.parentNode.removeChild(input); el.focus(); }
+      });
+      input.addEventListener("click", function (ev) { ev.stopPropagation(); });
+      input.addEventListener("blur", commit);
+    }
+    el.addEventListener("dblclick", function (e) { e.preventDefault(); openEditor(); });
 
     el.addEventListener("keydown", function (e) {
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); setValue(val - 1); }
@@ -799,7 +832,7 @@
           "t.title": "Multi-cue timer",
           "t.desc": "Add timed cues to a queue and run them one after another, with optional repeats.",
           "t.queue": "Queue", "t.hour": "Hour", "t.min": "Min", "t.sec": "Sec",
-          "t.wheelhint": "Drag, scroll, or use the arrow keys to set each value.",
+          "t.wheelhint": "Drag, scroll, or use the arrow keys — double-click to type a value.",
           "t.add": "Add to queue", "t.update": "Update cue",
           "t.cancel": "Cancel edit", "t.durerr": "Enter a duration longer than 0 seconds.",
           "t.queueempty": "No cues yet — add one above.", "t.total": "Total", "t.drag": "Drag to reorder", "t.delete": "Delete",
@@ -816,7 +849,7 @@
           "t.title": "多機能タイマー",
           "t.desc": "複数の区間（キュー）を追加して、順番に実行するタイマーです。繰り返しにも対応。",
           "t.queue": "キュー", "t.hour": "時", "t.min": "分", "t.sec": "秒",
-          "t.wheelhint": "ドラッグ・スクロール・矢印キーで数値を設定できます。",
+          "t.wheelhint": "ドラッグ・スクロール・矢印キーに加え、ダブルクリックで直接入力できます。",
           "t.add": "キューに追加", "t.update": "キューを更新",
           "t.cancel": "編集をキャンセル", "t.durerr": "0秒より長い時間を入力してください。",
           "t.queueempty": "まだキューがありません。上で追加してください。", "t.total": "合計", "t.drag": "ドラッグで並べ替え", "t.delete": "削除",
