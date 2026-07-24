@@ -75,6 +75,14 @@
 
   .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
 
+  /* ---- アラートバナー（0秒到達時、停止するまでループ再生） ---- */
+  .alertbanner{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin:0 0 var(--s4); padding:12px var(--s4); background:var(--neg-tint); border-bottom:1px solid var(--neg); }
+  .alertbanner__text{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--neg); }
+  .alertbanner__dot{ width:8px; height:8px; border-radius:50%; background:var(--neg); animation:alertpulse 1s ease-in-out infinite; flex:0 0 auto; }
+  @keyframes alertpulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .alertbanner .btn{ height:32px; padding:0 12px; font-size:12.5px; }
+
   /* ---- プレーヤー ---- */
   .elapsedline{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text-2);
     padding:0 var(--s4); margin-top:-6px; }
@@ -191,6 +199,10 @@
     <!-- 右: プレーヤー + プリセット -->
     <div>
       <div class="readout" id="player" style="margin-bottom:var(--s4)">
+        <div class="alertbanner" id="alert-banner" hidden>
+          <span class="alertbanner__text"><span class="alertbanner__dot"></span><span data-i18n="t.alertplaying">Alert sounding</span></span>
+          <button type="button" class="btn btn--primary" id="btn-stop-alert"><span data-i18n="t.stopalert">Stop alert</span></button>
+        </div>
         <div class="readout__head">
           <span class="eyebrow" data-i18n="t.now">Now playing</span>
           <span class="live" id="live-indicator" hidden><span class="dot"></span><span data-i18n="t.running">Running</span></span>
@@ -519,7 +531,7 @@
       else {
         var newIdx = clamp(idx, 0, cues.length - 1);
         curId = cues[newIdx].id; segDurationMs = cues[newIdx].seconds * 1000;
-        if (running) { segStartPerf = performance.now(); playAlert(); }
+        if (running) { segStartPerf = performance.now(); }
         else { pausedRemainingMs = segDurationMs; }
       }
     }
@@ -578,7 +590,10 @@
   });
 
   /* sound / screen options */
-  $("alert-select").addEventListener("change", function () { alertSound = $("alert-select").value; });
+  $("alert-select").addEventListener("change", function () {
+    alertSound = $("alert-select").value;
+    previewSound(alertSound);
+  });
   $("opt-awake").addEventListener("change", function () {
     keepAwake = $("opt-awake").checked;
     if (!keepAwake) releaseWakeLock(); else if (running) requestWakeLock();
@@ -599,7 +614,7 @@
     $("custom-audio-name").hidden = false;
     $("custom-audio-name").textContent = tr("t.loaded", "Loaded:") + " " + f.name;
     $("btn-clear-audio").hidden = false;
-    try { var a = new Audio(customAudioURL); a.play().catch(function () {}); } catch (err) {}
+    previewSound("custom");
   });
   $("btn-clear-audio").addEventListener("click", function () {
     if (customAudioURL) URL.revokeObjectURL(customAudioURL);
@@ -620,6 +635,8 @@
 
   /* ---------------------------------------------------------------------
      audio — 組み込みの数種類の音 + 読み込んだ音声ファイルの再生
+     0秒になったら、停止ボタンを押すまで（または次のアラートに置き換わるまで）
+     ループ再生し続ける。キューの進行そのものはループを待たずバックグラウンドで続く。
      --------------------------------------------------------------------- */
   var audioCtx = null;
   function ensureCtx() {
@@ -628,7 +645,7 @@
     return audioCtx;
   }
   function beep(freq, startOffset, dur, peak) {
-    var ctx = ensureCtx(); if (!ctx) return;
+    var ctx = ensureCtx(); if (!ctx) return null;
     var t0 = ctx.currentTime + startOffset;
     var osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = "sine"; osc.frequency.value = freq;
@@ -637,20 +654,64 @@
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     osc.connect(g); g.connect(ctx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.03);
+    return osc;
   }
-  function playAlert() {
-    if (alertSound === "none") return;
-    if (alertSound === "custom") {
+  // 組み込みパターンを1回分再生し、パターン中で最後に終わるオシレーターを返す
+  // （ループ時、そのノードの onended をきっかけに次の周を鳴らすため）
+  function playPatternOnce(kind) {
+    if (kind === "bell") { beep(880, 0, 0.6, 0.16); return beep(1320, 0, 0.6, 0.07); }
+    if (kind === "doublebeep") { beep(880, 0, 0.12, 0.2); return beep(880, 0.18, 0.12, 0.2); }
+    if (kind === "alarm") { beep(1046, 0, 0.09, 0.2); beep(784, 0.11, 0.09, 0.2); beep(1046, 0.22, 0.09, 0.2); return beep(784, 0.33, 0.09, 0.2); }
+    return (beep(784, 0, 0.18, 0.15), beep(988, 0.12, 0.18, 0.15), beep(1175, 0.24, 0.3, 0.15)); // chime (既定)
+  }
+  // 選択メニューやファイル読み込み直後の単発プレビュー再生（ループしない）
+  function previewSound(kind) {
+    if (!kind || kind === "none") return;
+    if (kind === "custom") {
       if (!customAudioURL) return;
       try { var a = new Audio(customAudioURL); a.play().catch(function () {}); } catch (e) {}
       return;
     }
-    ensureCtx();
-    if (alertSound === "bell") { beep(880, 0, 0.6, 0.16); beep(1320, 0, 0.6, 0.07); }
-    else if (alertSound === "doublebeep") { beep(880, 0, 0.12, 0.2); beep(880, 0.18, 0.12, 0.2); }
-    else if (alertSound === "alarm") { beep(1046, 0, 0.09, 0.2); beep(784, 0.11, 0.09, 0.2); beep(1046, 0.22, 0.09, 0.2); beep(784, 0.33, 0.09, 0.2); }
-    else { beep(784, 0, 0.18, 0.15); beep(988, 0.12, 0.18, 0.15); beep(1175, 0.24, 0.3, 0.15); } // chime (default)
+    ensureCtx(); playPatternOnce(kind);
   }
+
+  var alertToken = 0;
+  var alertLoopEl = null; // ループ再生中のカスタム音声<audio>要素
+
+  function stopAlertLoop() {
+    alertToken++;
+    if (alertLoopEl) { try { alertLoopEl.pause(); alertLoopEl.currentTime = 0; } catch (e) {} alertLoopEl = null; }
+    $("alert-banner").hidden = true;
+  }
+  // キューが0秒になったときに呼ぶ。先に鳴っているアラートがあれば一度止めてから鳴らす。
+  function startAlertLoop() {
+    stopAlertLoop();
+    if (alertSound === "none") return;
+    alertToken++;
+    var myToken = alertToken;
+    $("alert-banner").hidden = false;
+
+    if (alertSound === "custom") {
+      if (!customAudioURL) { $("alert-banner").hidden = true; return; }
+      var a = new Audio(customAudioURL);
+      a.loop = true;
+      alertLoopEl = a;
+      a.play().catch(function () {});
+      return;
+    }
+    ensureCtx();
+    function cycle() {
+      if (myToken !== alertToken) return;
+      var lastNode = playPatternOnce(alertSound);
+      if (!lastNode) { setTimeout(function () { if (myToken === alertToken) cycle(); }, 500); return; }
+      lastNode.onended = function () {
+        if (myToken !== alertToken) return;
+        setTimeout(function () { if (myToken === alertToken) cycle(); }, 250);
+      };
+    }
+    cycle();
+  }
+  $("btn-stop-alert").addEventListener("click", stopAlertLoop);
 
   /* ---------------------------------------------------------------------
      wake lock
@@ -673,9 +734,10 @@
     var c = cues.find(function (x) { return x.id === id; });
     segDurationMs = c.seconds * 1000;
     segStartPerf = performance.now() - (overflowMs || 0);
-    playAlert();
   }
-  function advanceCore(overflowMs) {
+  // natural = true のときだけ「0秒に到達した」とみなしてアラートをループ再生する
+  // （tick() からの自然な到達のみ true。スキップ操作などの手動遷移では鳴らさない）
+  function advanceCore(overflowMs, natural) {
     if (!cues.length) { doFinish(); return false; }
     var idx = curIdx(), nextIdx = idx + 1;
     if (nextIdx >= cues.length) {
@@ -684,6 +746,7 @@
       else { doFinish(); return false; }
     }
     beginSegById(cues[nextIdx].id, overflowMs);
+    if (natural) startAlertLoop();
     return true;
   }
   function tick() {
@@ -692,7 +755,7 @@
     var remaining = segDurationMs - (now - segStartPerf);
     var guard = 0;
     while (remaining <= 0 && guard < 500) {
-      if (!advanceCore(-remaining)) return;
+      if (!advanceCore(-remaining, true)) return;
       remaining = segDurationMs - (performance.now() - segStartPerf);
       guard++;
     }
@@ -735,20 +798,21 @@
       curId = cues[nextIdx].id; segDurationMs = cues[nextIdx].seconds * 1000; pausedRemainingMs = segDurationMs;
       renderQueue();
     } else {
-      advanceCore(0);
+      advanceCore(0, false);
     }
   }
   function resetTimer() {
     running = false; paused = false; finished = false; curId = null; passesDone = 0;
     if (rafId) cancelAnimationFrame(rafId); rafId = null;
     releaseWakeLock(); restoreTitle();
+    stopAlertLoop();
     renderQueue();
   }
   function doFinish() {
     running = false; paused = false; finished = true;
     if (rafId) cancelAnimationFrame(rafId); rafId = null;
     releaseWakeLock(); restoreTitle();
-    playAlert();
+    startAlertLoop();
     renderQueue();
   }
   function restoreTitle() { document.title = originalTitle; }
@@ -907,6 +971,7 @@
           "t.clearaudio": "Clear", "t.loaded": "Loaded:",
           "t.keepawake": "Keep screen awake while running",
           "t.now": "Now playing", "t.running": "Running", "t.paused": "Paused", "t.ready": "Ready", "t.finished": "Finished",
+          "t.alertplaying": "Alert sounding", "t.stopalert": "Stop alert",
           "t.next": "Next", "t.overall": "Overall progress", "t.nonenext": "—",
           "t.start": "Start", "t.resume": "Resume", "t.pause": "Pause", "t.skip": "Skip", "t.reset": "Reset", "t.pass": "Pass",
           "t.presets": "Presets", "t.presetnameph": "Preset name", "t.save": "Save", "t.presetsempty": "No presets saved yet.",
@@ -928,6 +993,7 @@
           "t.clearaudio": "クリア", "t.loaded": "読み込み済み:",
           "t.keepawake": "実行中は画面のスリープを防止",
           "t.now": "再生中", "t.running": "実行中", "t.paused": "一時停止中", "t.ready": "準備完了", "t.finished": "終了",
+          "t.alertplaying": "アラート再生中", "t.stopalert": "アラートを停止",
           "t.next": "次", "t.overall": "全体の進捗", "t.nonenext": "—",
           "t.start": "開始", "t.resume": "再開", "t.pause": "一時停止", "t.skip": "スキップ", "t.reset": "リセット", "t.pass": "周回",
           "t.presets": "プリセット", "t.presetnameph": "プリセット名", "t.save": "保存", "t.presetsempty": "保存されたプリセットはまだありません。",
