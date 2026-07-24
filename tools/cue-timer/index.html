@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-cue timer — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=4">
+<style>
+  .dial{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .dial svg{ display:block; width:100%; height:auto; }
+  .durgrid{ display:grid; grid-template-columns:132px 1fr; gap:var(--s4); align-items:start; }
+  @media (max-width:520px){ .durgrid{ grid-template-columns:1fr; } }
+  .grab{ cursor:grab; touch-action:none; } .grab:active{ cursor:grabbing; }
+  #dial-knob:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .timein{ display:flex; align-items:center; gap:5px; }
+  .timein .tcol{ flex:1; display:flex; flex-direction:column; gap:3px; align-items:center; }
+  .timein .input{ width:100%; height:34px; text-align:center; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:15px; padding:0 4px; }
+  .timein .u{ font-size:10.5px; color:var(--text-3); }
+  .timein .colon{ color:var(--text-3); font-weight:600; padding-top:0; }
+
+  .quickdur{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:var(--s3); }
+  .adjustdur{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px; }
+  .quickdur button,.adjustdur button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:32px; border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .quickdur button:hover,.adjustdur button:hover{ border-color:var(--text-3); color:var(--text); }
+
+  .cuelist{ display:flex; flex-direction:column; }
+  .cuerow{ display:flex; align-items:center; gap:8px; padding:var(--s3) 0; }
+  .cuerow + .cuerow{ border-top:1px solid var(--border); }
+  .cuerow.is-editing{ background:var(--accent-tint); margin:0 calc(-1*var(--s5)); padding-left:var(--s5); padding-right:var(--s5); }
+  .cuerow.is-current{ position:relative; }
+  .cuerow.is-current::before{ content:""; position:absolute; left:-10px; top:50%; transform:translateY(-50%);
+    width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .cuerow__idx{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); width:16px; flex:0 0 auto; }
+  .cuerow__main{ flex:1; min-width:0; }
+  .cuerow__name{ font-size:13.5px; color:var(--text); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cuerow__dur{ font-family:var(--font-mono); font-size:12px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .cuerow__btns{ display:flex; gap:1px; flex:0 0 auto; }
+  .icobtn{ appearance:none; cursor:pointer; border:0; background:transparent; width:26px; height:26px;
+    border-radius:var(--r-sm); color:var(--text-3); display:inline-flex; align-items:center; justify-content:center;
+    transition:all var(--tap); }
+  .icobtn:hover{ background:var(--surface-2); color:var(--text); }
+  .icobtn:disabled{ opacity:.3; cursor:not-allowed; background:none; }
+  .icobtn svg{ width:14px; height:14px; }
+
+  .queuemeta{ display:flex; justify-content:space-between; align-items:baseline; padding-top:var(--s3);
+    margin-top:var(--s3); border-top:1px solid var(--border); font-size:12.5px; color:var(--text-2); }
+  .queuemeta b{ font-family:var(--font-mono); color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+  .repeatcount{ display:flex; align-items:center; gap:8px; margin-top:var(--s3); font-size:13px; color:var(--text-2); }
+  .repeatcount .input{ width:64px; }
+  .editlock{ font-size:12px; color:var(--text-3); margin-top:var(--s3); display:flex; align-items:center; gap:6px; }
+  .editlock svg{ width:13px; height:13px; flex:0 0 auto; }
+
+  .barouter{ height:6px; border-radius:100px; background:var(--border); margin:10px var(--s4) 0; overflow:hidden; }
+  .barouter--muted .barinner{ background:var(--text-3); opacity:.6; }
+  .barinner{ height:100%; width:0%; background:var(--accent); border-radius:100px; }
+  .barinner--anim{ transition:width .2s linear; }
+
+  .playerctrl{ display:flex; gap:var(--s2); padding:var(--s4); }
+  .playerctrl .btn{ flex:1; }
+  .passlabel{ font-size:11px; color:var(--text-3); padding:0 var(--s4); }
+
+  .presetrow{ display:flex; align-items:center; gap:8px; padding:9px 0; }
+  .presetrow + .presetrow{ border-top:1px solid var(--border); }
+  .presetrow__main{ flex:1; min-width:0; }
+  .presetrow__name{ font-size:13px; color:var(--text); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .presetrow__meta{ font-size:11px; color:var(--text-3); }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
+    <h1 data-i18n="t.title">Multi-cue timer</h1>
+    <p data-i18n="t.desc">Chain multiple timed segments — set each one by typing a duration or dragging the dial — then run them in order, with optional repeats.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 編集 -->
+    <div>
+      <div class="card" id="editor-card">
+        <div class="card__title" data-i18n="t.newcue">New cue</div>
+        <div class="field">
+          <label class="label" data-i18n="t.cuename">Cue name</label>
+          <input class="input" id="cue-name" type="text" maxlength="40" data-i18n-ph="t.cuenameph" placeholder="e.g. Warm-up">
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.duration">Duration</label>
+          <div class="durgrid">
+            <div class="dial preview">
+              <svg viewBox="0 0 160 160" role="img" aria-label="Duration dial">
+                <circle id="dial-hit" class="grab" cx="80" cy="80" r="70" fill="none" stroke="rgba(0,0,0,0)" stroke-width="16" pointer-events="stroke"></circle>
+                <circle cx="80" cy="80" r="70" fill="none" stroke="var(--border-strong)" stroke-width="2"></circle>
+                <path id="dial-prog" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"></path>
+                <circle cx="80" cy="80" r="60" fill="var(--surface-2)" stroke="var(--border)"></circle>
+                <path id="dial-arc" fill="var(--accent-tint)" stroke="none"></path>
+                <g id="dial-ticks" stroke="var(--text-3)" stroke-linecap="round"></g>
+                <circle id="dial-knob" class="grab" cx="80" cy="10" r="6.5" fill="var(--accent)" stroke="var(--surface)"
+                        stroke-width="2" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="3600"></circle>
+                <text id="dial-h" text-anchor="middle" x="80" y="72" font-family="var(--font-mono)" font-size="12" font-weight="600" fill="var(--text-3)"></text>
+                <text id="dial-ms" text-anchor="middle" x="80" y="93" font-family="var(--font-mono)" font-size="19" font-weight="600" fill="var(--text)"></text>
+              </svg>
+            </div>
+            <div>
+              <div class="timein">
+                <div class="tcol">
+                  <input class="input" id="dur-h" type="number" min="0" max="99" inputmode="numeric" aria-label="Hours">
+                  <span class="u" data-i18n="u.h">h</span>
+                </div>
+                <span class="colon">:</span>
+                <div class="tcol">
+                  <input class="input" id="dur-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutes">
+                  <span class="u" data-i18n="u.m">m</span>
+                </div>
+                <span class="colon">:</span>
+                <div class="tcol">
+                  <input class="input" id="dur-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Seconds">
+                  <span class="u" data-i18n="u.s">s</span>
+                </div>
+              </div>
+              <div class="quickdur" id="quickdur" role="group" aria-label="quick durations"></div>
+              <div class="adjustdur" id="adjustdur" role="group" aria-label="adjust duration">
+                <button type="button" data-adj="-60">−1<span data-i18n="u.m">m</span></button>
+                <button type="button" data-adj="60">+1<span data-i18n="u.m">m</span></button>
+                <button type="button" data-adj="-10">−10<span data-i18n="u.s">s</span></button>
+                <button type="button" data-adj="10">+10<span data-i18n="u.s">s</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--primary btn--block" id="add-cue" data-i18n="t.add">Add to queue</button>
+          <button class="btn btn--ghost" id="cancel-edit" data-i18n="t.cancel" hidden>Cancel edit</button>
+        </div>
+      </div>
+
+      <div class="card" id="queue-card">
+        <div class="card__title" data-i18n="t.queue">Queue</div>
+        <div class="cuelist" id="cue-list"></div>
+        <div class="hint" id="queue-empty" data-i18n="t.queueempty">No cues yet — add one above.</div>
+        <div class="queuemeta">
+          <span data-i18n="t.total">Total</span><b id="queue-total">0:00</b>
+        </div>
+        <div class="field" style="margin-top:var(--s4)">
+          <label class="label" data-i18n="t.repeat">Repeat</label>
+          <div class="seg" id="seg-repeat" role="group">
+            <button type="button" data-repeat="none" data-i18n="t.repeatnone" aria-pressed="true">Once</button>
+            <button type="button" data-repeat="count" data-i18n="t.repeatcount">Repeat</button>
+            <button type="button" data-repeat="infinite" data-i18n="t.repeatinf">Loop</button>
+          </div>
+          <div class="repeatcount" id="repeat-count-row" hidden>
+            <span>×</span>
+            <input class="input" id="repeat-count" type="number" min="2" max="99" value="2">
+            <span data-i18n="t.times">times</span>
+          </div>
+        </div>
+        <div class="editlock" id="edit-lock" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span data-i18n="t.editlockmsg">Stop the timer to edit the queue.</span>
+        </div>
+      </div>
+
+      <div class="card" id="sound-card">
+        <div class="card__title" data-i18n="t.sound">Sound &amp; screen</div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="opt-soundcue" checked><span class="track"></span><span data-i18n="t.soundcue">Cue-change sound</span></label>
+          <label class="toggle"><input type="checkbox" id="opt-countdown" checked><span class="track"></span><span data-i18n="t.soundcountdown">3-2-1 countdown beep</span></label>
+          <label class="toggle"><input type="checkbox" id="opt-awake" checked><span class="track"></span><span data-i18n="t.keepawake">Keep screen awake while running</span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: プレーヤー + プリセット -->
+    <div>
+      <div class="readout" id="player" style="margin-bottom:var(--s4)">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.now">Now playing</span>
+          <span class="live" id="live-indicator" hidden><span class="dot"></span><span data-i18n="t.running">Running</span></span>
+        </div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" id="cue-index-label">—</span>
+          <span class="rrow__value" id="time-remaining">0:00</span>
+        </div>
+        <div class="barouter"><div class="barinner barinner--anim" id="cue-progress"></div></div>
+        <span class="passlabel" id="pass-label" hidden></span>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.next">Next</span>
+          <span class="rrow__value" id="next-cue" style="font-size:14px;color:var(--text-2);font-weight:500">—</span>
+        </div>
+        <div class="barouter barouter--muted"><div class="barinner barinner--anim" id="overall-progress"></div></div>
+        <div class="playerctrl">
+          <button class="btn btn--secondary" id="btn-reset" data-i18n="t.reset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            Reset
+          </button>
+          <button class="btn btn--secondary" id="btn-skip" data-i18n="t.skip">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6 5v14l11-7z"/><rect x="17" y="5" width="2.4" height="14"/></svg>
+            Skip
+          </button>
+          <button class="btn btn--primary" id="btn-startpause" data-i18n="t.start">
+            <svg id="ico-startpause" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M7 5v14l12-7z"/></svg>
+            Start
+          </button>
+        </div>
+      </div>
+
+      <div class="card" id="presets-card">
+        <div class="card__title" data-i18n="t.presets">Presets</div>
+        <div class="btnrow" style="margin-top:0">
+          <input class="input" id="preset-name" data-i18n-ph="t.presetnameph" placeholder="Preset name" style="flex:1">
+          <button class="btn btn--secondary" id="save-preset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span data-i18n="t.save">Save</span>
+          </button>
+        </div>
+        <div id="preset-list"></div>
+        <div class="hint" id="preset-empty" data-i18n="t.presetsempty">No presets saved yet.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=4"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var MAXSEC = 99 * 3600 + 59 * 60 + 59;
+  var PKEY = "cuetimer.presets";
+
+  /* ---------------------------------------------------------------------
+     state
+     --------------------------------------------------------------------- */
+  var cues = [];                 // [{name, seconds}]
+  var editingIndex = -1;
+  var repeatMode = "none";       // none | count | infinite
+  var repeatCount = 2;
+
+  var durTotal = 60;             // seconds, editor's current duration
+
+  var running = false, paused = false;
+  var curIndex = -1, passesDone = 0, finished = false;
+  var segDurationMs = 0, segStartPerf = 0, pausedRemainingMs = 0;
+  var rafId = null;
+  var lastBeepSec = null;
+  var wakeLock = null;
+  var originalTitle = document.title;
+
+  var soundCue = true, soundCountdown = true, keepAwake = true;
+
+  /* ---------------------------------------------------------------------
+     helpers
+     --------------------------------------------------------------------- */
+  function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+  function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
+  function mod(x, n) { return ((x % n) + n) % n; }
+  function fmtHMS(totalSec) {
+    totalSec = Math.max(0, Math.round(totalSec));
+    var h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60;
+    return h > 0 ? (h + ":" + pad(m) + ":" + pad(s)) : (m + ":" + pad(s));
+  }
+  function fmtShort(sec) {
+    var lang = (typeof Shell !== "undefined" && Shell) ? Shell.lang : "en";
+    if (sec % 60 === 0 && sec >= 60) { var m = sec / 60; return lang === "ja" ? (m + "分") : (m + "m"); }
+    return lang === "ja" ? (sec + "秒") : (sec + "s");
+  }
+  function tr(key, fallback) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(key) : fallback; }
+  function pt(a, r, cx, cy) { var rad = a * Math.PI / 180; return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)]; }
+  function f(n) { return Math.round(n * 100) / 100; }
+
+  /* ---------------------------------------------------------------------
+     duration dial (0..MAXSEC, one ring turn = 3600s)
+     --------------------------------------------------------------------- */
+  var dialProg = $("dial-prog"), dialArc = $("dial-arc"), dialKnob = $("dial-knob"),
+      dialH = $("dial-h"), dialMS = $("dial-ms");
+  var dialSvg = document.querySelector(".dial svg");
+  var inH = $("dur-h"), inM = $("dur-m"), inS = $("dur-s");
+
+  (function ticks() {
+    var g = $("dial-ticks"), s = "";
+    for (var i = 0; i < 12; i++) {
+      var a = i * 30, p1 = pt(a, 62, 80, 80), p2 = pt(a, 68, 80, 80);
+      var w = (i % 3 === 0) ? 2.2 : 1.1;
+      s += '<line x1="' + f(p1[0]) + '" y1="' + f(p1[1]) + '" x2="' + f(p2[0]) + '" y2="' + f(p2[1]) + '" stroke-width="' + w + '"/>';
+    }
+    g.innerHTML = s;
+  })();
+
+  function strokeArc(deg, r) {
+    if (deg < 0.05) return ""; if (deg > 359.95) deg = 359.95;
+    var A = pt(0, r, 80, 80), B = pt(deg, r, 80, 80), large = deg > 180 ? 1 : 0;
+    return "M" + f(A[0]) + " " + f(A[1]) + " A" + r + " " + r + " 0 " + large + " 1 " + f(B[0]) + " " + f(B[1]);
+  }
+  function sectorArc(deg, r) {
+    if (deg < 0.05) return "";
+    if (deg > 359.95) deg = 359.95;
+    var A = pt(0, r, 80, 80), B = pt(deg, r, 80, 80), large = deg > 180 ? 1 : 0;
+    return "M80 80 L" + f(A[0]) + " " + f(A[1]) + " A" + r + " " + r + " 0 " + large + " 1 " + f(B[0]) + " " + f(B[1]) + " Z";
+  }
+
+  function renderDial() {
+    var angle = (mod(durTotal, 3600) / 3600) * 360;
+    dialProg.setAttribute("d", strokeArc(angle, 70));
+    dialArc.setAttribute("d", sectorArc(angle, 60));
+    var kp = pt(angle, 70, 80, 80);
+    dialKnob.setAttribute("cx", f(kp[0])); dialKnob.setAttribute("cy", f(kp[1]));
+    dialKnob.setAttribute("aria-valuenow", Math.round(angle));
+    dialKnob.setAttribute("aria-valuetext", fmtHMS(durTotal));
+
+    var h = Math.floor(durTotal / 3600), m = Math.floor((durTotal % 3600) / 60), s = durTotal % 60;
+    dialH.textContent = h > 0 ? (h + (tr("u.h", "h"))) : "";
+    dialMS.textContent = pad(m) + ":" + pad(s);
+    dialMS.setAttribute("y", h > 0 ? 93 : 86);
+  }
+  function syncDurInputs() {
+    var h = Math.floor(durTotal / 3600), m = Math.floor((durTotal % 3600) / 60), s = durTotal % 60;
+    if (document.activeElement !== inH) inH.value = h;
+    if (document.activeElement !== inM) inM.value = m;
+    if (document.activeElement !== inS) inS.value = s;
+  }
+  function setDurTotal(sec) { durTotal = clamp(Math.round(sec), 0, MAXSEC); renderDial(); syncDurInputs(); }
+
+  function readDurInputs() {
+    var h = clamp(parseInt(inH.value, 10) || 0, 0, 99);
+    var m = clamp(parseInt(inM.value, 10) || 0, 0, 59);
+    var s = clamp(parseInt(inS.value, 10) || 0, 0, 59);
+    durTotal = clamp(h * 3600 + m * 60 + s, 0, MAXSEC);
+    renderDial();
+  }
+  [inH, inM, inS].forEach(function (el) {
+    el.addEventListener("input", function () { var v = el.value.replace(/[^\d]/g, ""); if (el.value !== v) el.value = v; readDurInputs(); });
+    el.addEventListener("blur", function () { if (el.value === "") el.value = "0"; readDurInputs(); });
+  });
+
+  // ring drag (continuous angle-diff accumulation, same technique as the Clock tool)
+  var dragging = false, prevA = 0;
+  function pointerAngle(e) {
+    var r = dialSvg.getBoundingClientRect();
+    var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    return Math.atan2(dx, -dy) * 180 / Math.PI;
+  }
+  function onDown(e) { e.preventDefault(); dragging = true; prevA = pointerAngle(e);
+    document.addEventListener("pointermove", onMove); document.addEventListener("pointerup", onUp); document.addEventListener("pointercancel", onUp); }
+  function onMove(e) {
+    if (!dragging) return;
+    var a = pointerAngle(e), d = a - prevA; while (d > 180) d -= 360; while (d < -180) d += 360; prevA = a;
+    setDurTotal(durTotal + (d / 360) * 3600);
+  }
+  function onUp() { dragging = false; document.removeEventListener("pointermove", onMove); document.removeEventListener("pointerup", onUp); document.removeEventListener("pointercancel", onUp); }
+  [$("dial-hit"), dialKnob].forEach(function (el) { el.addEventListener("pointerdown", onDown); });
+  dialKnob.addEventListener("keydown", function (e) {
+    var step = 0;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") step = 60;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") step = -60;
+    else if (e.key === "PageUp") step = 600; else if (e.key === "PageDown") step = -600; else return;
+    e.preventDefault(); setDurTotal(durTotal + step);
+  });
+
+  var QUICK = [30, 60, 180, 300, 600, 900];
+  function renderQuickdur() {
+    $("quickdur").innerHTML = QUICK.map(function (sec) {
+      return '<button type="button" data-set="' + sec + '">' + fmtShort(sec) + '</button>';
+    }).join("");
+  }
+  $("quickdur").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    setDurTotal(parseInt(b.getAttribute("data-set"), 10));
+  });
+  $("adjustdur").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    setDurTotal(durTotal + parseInt(b.getAttribute("data-adj"), 10));
+  });
+
+  /* ---------------------------------------------------------------------
+     queue editor
+     --------------------------------------------------------------------- */
+  var svgUp = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+  var svgDown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  var svgEdit = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  var svgTrash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>';
+
+  function editingLocked() { return running || paused; }
+
+  function renderQueue() {
+    var list = $("cue-list"), locked = editingLocked();
+    if (!cues.length) { list.innerHTML = ""; $("queue-empty").hidden = false; }
+    else {
+      $("queue-empty").hidden = true;
+      list.innerHTML = cues.map(function (c, i) {
+        var isCur = running && i === curIndex;
+        return '<div class="cuerow' + (i === editingIndex ? " is-editing" : "") + (isCur ? " is-current" : "") + '">' +
+          '<span class="cuerow__idx">' + (i + 1) + '</span>' +
+          '<div class="cuerow__main"><div class="cuerow__name">' + esc(c.name) + '</div><div class="cuerow__dur">' + fmtHMS(c.seconds) + '</div></div>' +
+          '<div class="cuerow__btns">' +
+            '<button type="button" class="icobtn" data-act="up" data-i="' + i + '" ' + (locked || i === 0 ? "disabled" : "") + '>' + svgUp + '</button>' +
+            '<button type="button" class="icobtn" data-act="down" data-i="' + i + '" ' + (locked || i === cues.length - 1 ? "disabled" : "") + '>' + svgDown + '</button>' +
+            '<button type="button" class="icobtn" data-act="edit" data-i="' + i + '" ' + (locked ? "disabled" : "") + '>' + svgEdit + '</button>' +
+            '<button type="button" class="icobtn" data-act="del" data-i="' + i + '" ' + (locked ? "disabled" : "") + '>' + svgTrash + '</button>' +
+          '</div></div>';
+      }).join("");
+    }
+    var total = cues.reduce(function (a, c) { return a + c.seconds; }, 0);
+    $("queue-total").textContent = fmtHMS(total);
+    $("edit-lock").hidden = !locked;
+    renderPlayerIdleBits();
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  $("cue-list").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b || b.disabled) return;
+    var i = parseInt(b.getAttribute("data-i"), 10), act = b.getAttribute("data-act");
+    if (act === "up" && i > 0) { var t = cues[i - 1]; cues[i - 1] = cues[i]; cues[i] = t; renderQueue(); }
+    else if (act === "down" && i < cues.length - 1) { var t2 = cues[i + 1]; cues[i + 1] = cues[i]; cues[i] = t2; renderQueue(); }
+    else if (act === "edit") { startEdit(i); }
+    else if (act === "del") { cues.splice(i, 1); if (editingIndex === i) cancelEdit(); renderQueue(); }
+  });
+
+  function startEdit(i) {
+    editingIndex = i;
+    $("cue-name").value = cues[i].name;
+    setDurTotal(cues[i].seconds);
+    $("add-cue").textContent = tr("t.update", "Update cue");
+    $("cancel-edit").hidden = false;
+    renderQueue();
+    $("cue-name").focus();
+  }
+  function cancelEdit() {
+    editingIndex = -1;
+    $("add-cue").textContent = tr("t.add", "Add to queue");
+    $("cancel-edit").hidden = true;
+    renderQueue();
+  }
+  $("cancel-edit").addEventListener("click", cancelEdit);
+
+  $("add-cue").addEventListener("click", function () {
+    if (editingLocked()) return;
+    readDurInputs();
+    if (durTotal <= 0) return;
+    var name = $("cue-name").value.trim() || (tr("t.cue", "Cue") + " " + (cues.length + 1));
+    if (editingIndex >= 0) { cues[editingIndex] = { name: name, seconds: durTotal }; cancelEdit(); }
+    else { cues.push({ name: name, seconds: durTotal }); renderQueue(); }
+    $("cue-name").value = "";
+    $("cue-name").focus();
+  });
+
+  /* repeat controls */
+  $("seg-repeat").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b || editingLocked()) return;
+    repeatMode = b.getAttribute("data-repeat");
+    $("seg-repeat").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    $("repeat-count-row").hidden = repeatMode !== "count";
+    renderPlayerIdleBits();
+  });
+  $("repeat-count").addEventListener("input", function () {
+    repeatCount = clamp(parseInt($("repeat-count").value, 10) || 2, 2, 99);
+    renderPlayerIdleBits();
+  });
+
+  /* sound / screen options */
+  $("opt-soundcue").addEventListener("change", function () { soundCue = $("opt-soundcue").checked; });
+  $("opt-countdown").addEventListener("change", function () { soundCountdown = $("opt-countdown").checked; });
+  $("opt-awake").addEventListener("change", function () {
+    keepAwake = $("opt-awake").checked;
+    if (!keepAwake) releaseWakeLock(); else if (running) requestWakeLock();
+  });
+
+  /* ---------------------------------------------------------------------
+     audio
+     --------------------------------------------------------------------- */
+  var audioCtx = null;
+  function ensureCtx() {
+    if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function beep(freq, startOffset, dur, peak) {
+    var ctx = ensureCtx(); if (!ctx) return;
+    var t0 = ctx.currentTime + startOffset;
+    var osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = "sine"; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak || 0.18, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
+  }
+  function playCueBeep() { if (soundCue) { beep(880, 0, 0.11); beep(1180, 0.13, 0.13); } }
+  function playFinishBeep() { if (soundCue) { beep(880, 0, 0.12); beep(1046, 0.14, 0.12); beep(1318, 0.28, 0.22); } }
+  function playCountdownBeep() { if (soundCountdown) beep(700, 0, 0.07, 0.14); }
+
+  /* ---------------------------------------------------------------------
+     wake lock
+     --------------------------------------------------------------------- */
+  function requestWakeLock() {
+    if (!keepAwake || !("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (s) { wakeLock = s; }).catch(function () {});
+  }
+  function releaseWakeLock() { if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; } }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && running && keepAwake && !wakeLock) requestWakeLock();
+  });
+
+  /* ---------------------------------------------------------------------
+     player engine
+     --------------------------------------------------------------------- */
+  function beginSeg(index, overflowMs) {
+    curIndex = index;
+    segDurationMs = cues[index].seconds * 1000;
+    segStartPerf = performance.now() - (overflowMs || 0);
+    lastBeepSec = null;
+    playCueBeep();
+  }
+
+  function advanceCore(overflowMs) {
+    var next = curIndex + 1;
+    if (next >= cues.length) {
+      if (repeatMode === "infinite") { next = 0; passesDone++; }
+      else if (repeatMode === "count" && passesDone + 1 < repeatCount) { next = 0; passesDone++; }
+      else { doFinish(); return false; }
+    }
+    beginSeg(next, overflowMs);
+    return true;
+  }
+
+  function tick() {
+    if (!running) return;
+    var now = performance.now();
+    var remaining = segDurationMs - (now - segStartPerf);
+    var guard = 0;
+    while (remaining <= 0 && guard < 500) {
+      if (!advanceCore(-remaining)) return;
+      remaining = segDurationMs - (performance.now() - segStartPerf);
+      guard++;
+    }
+    updateLiveUI(remaining);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (!cues.length || running) return;
+    ensureCtx();
+    if (paused) {
+      segStartPerf = performance.now() - (segDurationMs - pausedRemainingMs);
+      paused = false;
+    } else if (curIndex === -1 || finished) {
+      curIndex = -1; passesDone = 0; finished = false;
+      beginSeg(0, 0);
+    }
+    running = true;
+    requestWakeLock();
+    renderQueue();
+    updateControls();
+    rafId = requestAnimationFrame(tick);
+  }
+  function pauseTimer() {
+    if (!running) return;
+    pausedRemainingMs = segDurationMs - (performance.now() - segStartPerf);
+    running = false; paused = true;
+    if (rafId) cancelAnimationFrame(rafId);
+    releaseWakeLock(); restoreTitle();
+    renderQueue(); updateControls(); renderIdlePlayer();
+  }
+  function skipCue() {
+    if (!running && !paused) return;
+    if (paused) {
+      var idx = curIndex + 1;
+      if (idx >= cues.length) {
+        if (repeatMode === "infinite") { idx = 0; passesDone++; }
+        else if (repeatMode === "count" && passesDone + 1 < repeatCount) { idx = 0; passesDone++; }
+        else { doFinish(); return; }
+      }
+      curIndex = idx; segDurationMs = cues[idx].seconds * 1000; pausedRemainingMs = segDurationMs; lastBeepSec = null;
+      renderQueue(); renderIdlePlayer();
+    } else {
+      advanceCore(0);
+    }
+  }
+  function resetTimer() {
+    running = false; paused = false; finished = false; curIndex = -1; passesDone = 0;
+    if (rafId) cancelAnimationFrame(rafId); rafId = null;
+    releaseWakeLock(); restoreTitle();
+    renderQueue(); updateControls(); renderIdlePlayer();
+  }
+  function doFinish() {
+    running = false; paused = false; finished = true;
+    if (rafId) cancelAnimationFrame(rafId); rafId = null;
+    releaseWakeLock(); restoreTitle();
+    playFinishBeep();
+    renderQueue(); updateControls(); renderIdlePlayer();
+  }
+  function restoreTitle() { document.title = originalTitle; }
+
+  $("btn-startpause").addEventListener("click", function () { if (running) pauseTimer(); else start(); });
+  $("btn-skip").addEventListener("click", skipCue);
+  $("btn-reset").addEventListener("click", resetTimer);
+
+  function updateControls() {
+    var startBtn = $("btn-startpause"), ico = $("ico-startpause");
+    var label = startBtn.childNodes[startBtn.childNodes.length - 1];
+    if (running) {
+      startBtn.setAttribute("data-i18n", "t.pause");
+      label.textContent = " " + tr("t.pause", "Pause");
+      ico.innerHTML = '<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>';
+    } else if (paused) {
+      startBtn.setAttribute("data-i18n", "t.resume");
+      label.textContent = " " + tr("t.resume", "Resume");
+      ico.innerHTML = '<path d="M7 5v14l12-7z"/>';
+    } else {
+      startBtn.setAttribute("data-i18n", "t.start");
+      label.textContent = " " + tr("t.start", "Start");
+      ico.innerHTML = '<path d="M7 5v14l12-7z"/>';
+    }
+    $("btn-skip").disabled = !running && !paused;
+    $("btn-reset").disabled = !running && !paused && !finished && curIndex === -1;
+    $("live-indicator").hidden = !running;
+  }
+
+  function overallTotals() {
+    var perPass = cues.reduce(function (a, c) { return a + c.seconds; }, 0);
+    return perPass;
+  }
+  function elapsedSoFar(remainingMs) {
+    var elapsed = 0;
+    for (var i = 0; i < curIndex; i++) elapsed += cues[i].seconds;
+    elapsed += (segDurationMs - remainingMs) / 1000;
+    return elapsed;
+  }
+
+  function updateLiveUI(remainingMs) {
+    remainingMs = Math.max(0, remainingMs);
+    var remSec = remainingMs / 1000;
+    $("time-remaining").textContent = fmtHMS(Math.ceil(remSec));
+    var cue = cues[curIndex];
+    $("cue-index-label").textContent = "(" + (curIndex + 1) + "/" + cues.length + ") " + cue.name;
+
+    var cuePct = cue.seconds > 0 ? clamp(100 - (remSec / cue.seconds) * 100, 0, 100) : 100;
+    $("cue-progress").style.width = cuePct + "%";
+
+    var perPass = overallTotals();
+    var overallPct = perPass > 0 ? clamp((elapsedSoFar(remainingMs) / perPass) * 100, 0, 100) : 0;
+    $("overall-progress").style.width = overallPct + "%";
+
+    var nextIdx = curIndex + 1 < cues.length ? curIndex + 1 : (repeatMode !== "none" ? 0 : -1);
+    $("next-cue").textContent = nextIdx >= 0 ? (cues[nextIdx].name + " · " + fmtHMS(cues[nextIdx].seconds)) : tr("t.nonenext", "—");
+
+    var passLabel = $("pass-label");
+    if (repeatMode !== "none") {
+      passLabel.hidden = false;
+      passLabel.textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
+    } else passLabel.hidden = true;
+
+    document.title = fmtHMS(Math.ceil(remSec)) + " · " + cue.name + " — Vernier";
+
+    var curSec = Math.ceil(remSec);
+    if (curSec <= 3 && curSec >= 1 && curSec !== lastBeepSec) { playCountdownBeep(); lastBeepSec = curSec; }
+  }
+
+  function renderIdlePlayer() {
+    if (running) return;
+    if (paused && curIndex >= 0) {
+      var cue = cues[curIndex];
+      var remSec = pausedRemainingMs / 1000;
+      $("time-remaining").textContent = fmtHMS(Math.ceil(remSec));
+      $("cue-index-label").textContent = "(" + (curIndex + 1) + "/" + cues.length + ") " + cue.name + " — " + tr("t.paused", "Paused");
+      var cuePct = cue.seconds > 0 ? clamp(100 - (remSec / cue.seconds) * 100, 0, 100) : 100;
+      $("cue-progress").style.width = cuePct + "%";
+      var perPass = overallTotals();
+      var overallPct = perPass > 0 ? clamp((elapsedSoFar(pausedRemainingMs) / perPass) * 100, 0, 100) : 0;
+      $("overall-progress").style.width = overallPct + "%";
+      var nextIdx = curIndex + 1 < cues.length ? curIndex + 1 : (repeatMode !== "none" ? 0 : -1);
+      $("next-cue").textContent = nextIdx >= 0 ? (cues[nextIdx].name + " · " + fmtHMS(cues[nextIdx].seconds)) : tr("t.nonenext", "—");
+      $("pass-label").hidden = repeatMode === "none";
+      if (repeatMode !== "none") $("pass-label").textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
+    } else if (finished) {
+      $("time-remaining").textContent = "0:00";
+      $("cue-index-label").textContent = tr("t.finished", "Finished");
+      $("cue-progress").style.width = "100%";
+      $("overall-progress").style.width = "100%";
+      $("next-cue").textContent = tr("t.nonenext", "—");
+      $("pass-label").hidden = true;
+    } else {
+      $("time-remaining").textContent = cues.length ? fmtHMS(cues[0].seconds) : "0:00";
+      $("cue-index-label").textContent = cues.length ? (tr("t.ready", "Ready") + " — " + cues[0].name) : tr("t.ready", "Ready");
+      $("cue-progress").style.width = "0%";
+      $("overall-progress").style.width = "0%";
+      $("next-cue").textContent = cues.length > 1 ? (cues[1].name + " · " + fmtHMS(cues[1].seconds)) : tr("t.nonenext", "—");
+      $("pass-label").hidden = true;
+    }
+  }
+  function renderPlayerIdleBits() { if (!running) renderIdlePlayer(); updateControls(); }
+
+  /* ---------------------------------------------------------------------
+     presets (localStorage)
+     --------------------------------------------------------------------- */
+  var svgLoad = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6"/><path d="M16 22l6-6M22 22v-6h-6"/></svg>';
+  var svgDel = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+
+  function loadPresets() { try { return JSON.parse(localStorage.getItem(PKEY) || "[]"); } catch (e) { return []; } }
+  function savePresets(arr) { try { localStorage.setItem(PKEY, JSON.stringify(arr)); } catch (e) {} }
+
+  function renderPresets() {
+    var arr = loadPresets(), box = $("preset-list");
+    $("preset-empty").hidden = arr.length > 0;
+    box.innerHTML = arr.map(function (p, i) {
+      var total = p.cues.reduce(function (a, c) { return a + c.seconds; }, 0);
+      var rep = p.repeatMode === "infinite" ? (" · " + tr("t.repeatinf", "Loop"))
+              : p.repeatMode === "count" ? (" · ×" + p.repeatCount) : "";
+      return '<div class="presetrow"><div class="presetrow__main"><div class="presetrow__name">' + esc(p.name) + '</div>' +
+        '<div class="presetrow__meta">' + p.cues.length + " " + tr("t.cue", "cue") + "s · " + fmtHMS(total) + esc(rep) + '</div></div>' +
+        '<button type="button" class="icobtn" data-pact="load" data-i="' + i + '" title="' + tr("t.load", "Load") + '">' + svgLoad + '</button>' +
+        '<button type="button" class="icobtn" data-pact="del" data-i="' + i + '" title="' + tr("t.delete", "Delete") + '">' + svgDel + '</button></div>';
+    }).join("");
+  }
+  $("preset-list").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var arr = loadPresets(), i = parseInt(b.getAttribute("data-i"), 10), act = b.getAttribute("data-pact");
+    if (act === "load") {
+      var p = arr[i]; if (!p) return;
+      resetTimer();
+      cues = p.cues.map(function (c) { return { name: c.name, seconds: c.seconds }; });
+      repeatMode = p.repeatMode || "none"; repeatCount = p.repeatCount || 2;
+      $("seg-repeat").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-repeat") === repeatMode)); });
+      $("repeat-count-row").hidden = repeatMode !== "count";
+      $("repeat-count").value = repeatCount;
+      cancelEdit(); renderQueue(); renderIdlePlayer();
+    } else if (act === "del") {
+      arr.splice(i, 1); savePresets(arr); renderPresets();
+    }
+  });
+  $("save-preset").addEventListener("click", function () {
+    if (!cues.length) return;
+    var name = $("preset-name").value.trim() || (tr("t.presets", "Preset") + " " + (loadPresets().length + 1));
+    var arr = loadPresets();
+    arr.push({ name: name, cues: cues.map(function (c) { return { name: c.name, seconds: c.seconds }; }), repeatMode: repeatMode, repeatCount: repeatCount });
+    savePresets(arr); $("preset-name").value = ""; renderPresets();
+  });
+
+  /* ---------------------------------------------------------------------
+     boot
+     --------------------------------------------------------------------- */
+  renderQuickdur();
+  setDurTotal(60);
+  renderQueue();
+  renderIdlePlayer();
+  updateControls();
+  renderPresets();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "cue-timer",
+      strings: {
+        en: {
+          "t.title": "Multi-cue timer",
+          "t.desc": "Chain multiple timed segments — set each one by typing a duration or dragging the dial — then run them in order, with optional repeats.",
+          "t.newcue": "New cue", "t.cuename": "Cue name", "t.cuenameph": "e.g. Warm-up",
+          "t.duration": "Duration", "t.add": "Add to queue", "t.update": "Update cue", "t.cancel": "Cancel edit",
+          "t.queue": "Queue", "t.queueempty": "No cues yet — add one above.", "t.total": "Total",
+          "t.repeat": "Repeat", "t.repeatnone": "Once", "t.repeatcount": "Repeat", "t.repeatinf": "Loop", "t.times": "times",
+          "t.editlockmsg": "Stop the timer to edit the queue.",
+          "t.sound": "Sound & screen", "t.soundcue": "Cue-change sound", "t.soundcountdown": "3-2-1 countdown beep",
+          "t.keepawake": "Keep screen awake while running",
+          "t.now": "Now playing", "t.running": "Running", "t.paused": "Paused", "t.ready": "Ready", "t.finished": "Finished",
+          "t.next": "Next", "t.nonenext": "—", "t.start": "Start", "t.resume": "Resume", "t.pause": "Pause",
+          "t.skip": "Skip", "t.reset": "Reset", "t.pass": "Pass",
+          "t.presets": "Presets", "t.presetnameph": "Preset name", "t.save": "Save", "t.presetsempty": "No presets saved yet.",
+          "t.load": "Load", "t.delete": "Delete", "t.cue": "Cue",
+          "u.h": "h", "u.m": "m", "u.s": "s"
+        },
+        ja: {
+          "t.title": "多機能タイマー",
+          "t.desc": "複数の区間を連結して、順に消化するタイマーです。長さは数値入力かダイヤルのドラッグで設定できます。",
+          "t.newcue": "新しいキュー", "t.cuename": "キュー名", "t.cuenameph": "例: ウォームアップ",
+          "t.duration": "長さ", "t.add": "キューに追加", "t.update": "キューを更新", "t.cancel": "編集をキャンセル",
+          "t.queue": "キュー", "t.queueempty": "まだキューがありません。上で追加してください。", "t.total": "合計",
+          "t.repeat": "繰り返し", "t.repeatnone": "1回のみ", "t.repeatcount": "回数指定", "t.repeatinf": "無限ループ", "t.times": "回",
+          "t.editlockmsg": "キューを編集するにはタイマーを停止してください。",
+          "t.sound": "音・画面設定", "t.soundcue": "キュー切り替え音", "t.soundcountdown": "残り3-2-1のカウントダウン音",
+          "t.keepawake": "実行中は画面のスリープを防止",
+          "t.now": "再生中", "t.running": "実行中", "t.paused": "一時停止中", "t.ready": "準備完了", "t.finished": "終了",
+          "t.next": "次", "t.nonenext": "—", "t.start": "開始", "t.resume": "再開", "t.pause": "一時停止",
+          "t.skip": "スキップ", "t.reset": "リセット", "t.pass": "周回",
+          "t.presets": "プリセット", "t.presetnameph": "プリセット名", "t.save": "保存", "t.presetsempty": "保存されたプリセットはまだありません。",
+          "t.load": "読み込み", "t.delete": "削除", "t.cue": "キュー",
+          "u.h": "時", "u.m": "分", "u.s": "秒"
+        }
+      },
+      onSettingsChange: function () {
+        renderDial(); renderQuickdur(); renderQueue(); renderIdlePlayer(); updateControls(); renderPresets();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
