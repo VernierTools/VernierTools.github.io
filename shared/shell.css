@@ -70,7 +70,7 @@ button{ font-family:inherit; }
 /* =========================================================================
    HEADER (shell.js が <body> 先頭に注入する)
    ========================================================================= */
-.tb-header{ position:sticky; top:0; z-index:20; border-bottom:1px solid var(--border);
+.tb-header{ position:sticky; top:0; z-index:20; isolation:isolate; border-bottom:1px solid var(--border);
   background:color-mix(in srgb, var(--surface) 82%, transparent);
   backdrop-filter:saturate(1.2) blur(8px); -webkit-backdrop-filter:saturate(1.2) blur(8px); }
 .tb-header__in{ max-width:var(--maxw); margin:0 auto; padding:0 var(--s5);
