@@ -704,11 +704,20 @@
   var audioCtx = null;
   function ensureCtx() {
     if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
-    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
   }
+  // AudioContext が確実に "running" 状態になってから resolve する。
+  // suspended のまま beep() を呼ぶと currentTime が凍結されたままになり、
+  // 複数の音が同じ時刻に積み重なって、resume 完了時に一斉に鳴ってしまうため
+  // （ロード直後の初回だけ無音→次の操作で音がまとめて鳴る不具合の原因）。
+  function ensureCtxRunning() {
+    var ctx = ensureCtx();
+    if (!ctx) return Promise.resolve(null);
+    if (ctx.state === "running") return Promise.resolve(ctx);
+    return ctx.resume().then(function () { return ctx; }).catch(function () { return ctx; });
+  }
   function beep(freq, startOffset, dur, peak) {
-    var ctx = ensureCtx(); if (!ctx) return null;
+    var ctx = audioCtx; if (!ctx) return null;
     var t0 = ctx.currentTime + startOffset;
     var osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = "sine"; osc.frequency.value = freq;
@@ -720,13 +729,18 @@
     osc.start(t0); osc.stop(t0 + dur + 0.03);
     return osc;
   }
-  // 組み込みパターンを1回分再生し、パターン中で最後に終わるオシレーターを返す
-  // （ループ時、そのノードの onended をきっかけに次の周を鳴らすため）
-  function playPatternOnce(kind) {
-    if (kind === "bell") { beep(880, 0, 0.6, 0.32); return beep(1320, 0, 0.6, 0.14); }
-    if (kind === "doublebeep") { beep(880, 0, 0.12, 0.38); return beep(880, 0.18, 0.12, 0.38); }
-    if (kind === "alarm") { beep(1046, 0, 0.09, 0.38); beep(784, 0.11, 0.09, 0.38); beep(1046, 0.22, 0.09, 0.38); return beep(784, 0.33, 0.09, 0.38); }
-    return (beep(784, 0, 0.18, 0.3), beep(988, 0.12, 0.18, 0.3), beep(1175, 0.24, 0.3, 0.32)); // chime (既定)
+  // 組み込みパターンを1回分再生する。ctx の resume を待ってから鳴らすため非同期。
+  // 完了後、パターン中で最後に終わるオシレーター（ループ時の次周きっかけ用）を cb に渡す。
+  function playPatternOnce(kind, cb) {
+    ensureCtxRunning().then(function (ctx) {
+      if (!ctx) { if (cb) cb(null); return; }
+      var lastNode = null;
+      if (kind === "bell") { beep(880, 0, 0.6, 0.32); lastNode = beep(1320, 0, 0.6, 0.14); }
+      else if (kind === "doublebeep") { beep(880, 0, 0.12, 0.38); lastNode = beep(880, 0.18, 0.12, 0.38); }
+      else if (kind === "alarm") { beep(1046, 0, 0.09, 0.38); beep(784, 0.11, 0.09, 0.38); beep(1046, 0.22, 0.09, 0.38); lastNode = beep(784, 0.33, 0.09, 0.38); }
+      else { beep(784, 0, 0.18, 0.3); beep(988, 0.12, 0.18, 0.3); lastNode = beep(1175, 0.24, 0.3, 0.32); } // chime (既定)
+      if (cb) cb(lastNode);
+    });
   }
   function makeAudio(url) {
     var a = new Audio(url);
@@ -741,7 +755,7 @@
       try { makeAudio(customAudioURL).play().catch(function () {}); } catch (e) {}
       return;
     }
-    ensureCtx(); playPatternOnce(kind);
+    playPatternOnce(kind);
   }
 
   var alertToken = 0;
@@ -768,15 +782,16 @@
       a.play().catch(function () {});
       return;
     }
-    ensureCtx();
     function cycle() {
       if (myToken !== alertToken) return;
-      var lastNode = playPatternOnce(alertSound);
-      if (!lastNode) { setTimeout(function () { if (myToken === alertToken) cycle(); }, 500); return; }
-      lastNode.onended = function () {
+      playPatternOnce(alertSound, function (lastNode) {
         if (myToken !== alertToken) return;
-        setTimeout(function () { if (myToken === alertToken) cycle(); }, 250);
-      };
+        if (!lastNode) { setTimeout(function () { if (myToken === alertToken) cycle(); }, 500); return; }
+        lastNode.onended = function () {
+          if (myToken !== alertToken) return;
+          setTimeout(function () { if (myToken === alertToken) cycle(); }, 250);
+        };
+      });
     }
     cycle();
   }
