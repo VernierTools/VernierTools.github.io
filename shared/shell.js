@@ -24,24 +24,24 @@
     { id:"text",    key:"cat.text" },
     { id:"image",   key:"cat.image" },
     { id:"video",   key:"cat.video" },
+    { id:"audio",   key:"cat.audio" },
     { id:"3dcg",    key:"cat.3dcg" },
-    { id:"blender", key:"cat.blender" },
-    { id:"audio",   key:"cat.audio" }
+    { id:"blender", key:"cat.blender" }
   ];
 
   /* ---- 共通辞書（cat.* とヘッダー/一覧の文言） ---- */
   var COMMON = {
     en: {
-      "cat.general":"General","cat.text":"Text","cat.image":"Image","cat.video":"Video","cat.3dcg":"3DCG","cat.blender":"Blender","cat.audio":"Audio",
+      "cat.general":"General","cat.text":"Text","cat.image":"Image","cat.video":"Video","cat.3dcg":"3DCG","cat.blender":"Extensions","cat.audio":"Audio",
       "nav.home":"Home","nav.about":"About","hub.search":"Search tools…","hub.all":"All",
-      "hub.empty":"No tools found.","badge.blender":"Blender add-on",
+      "hub.empty":"No tools found.","badge.addonSuffix":" add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied"
     },
     ja: {
-      "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"Blender","cat.audio":"音声",
+      "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"拡張機能","cat.audio":"音声",
       "nav.home":"ホーム","nav.about":"About","hub.search":"ツールを検索…","hub.all":"すべて",
-      "hub.empty":"該当するツールがありません。","badge.blender":"Blenderアドオン",
+      "hub.empty":"該当するツールがありません。","badge.addonSuffix":"アドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
       "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました"
     }
@@ -269,7 +269,11 @@
     var name = loc(tool.name), desc = loc(tool.description);
     var ico  = tool.icon ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'+tool.icon+'"/></svg>' : defaultIcon;
     var tags = (tool.categories||[]).map(function(id){ return '<span class="tag">'+t("cat."+id)+'</span>'; }).join("");
-    var bl   = tool.type === "blender" ? '<span class="bl-badge">'+t("badge.blender")+'</span>' : "";
+    // アドオン系バッジ: tool.platform（"Blender"/"FreeCAD"等、ソフト名は翻訳しない固有名詞）
+    // + 現在言語の「アドオン」接尾辞。platform 未指定時は cat.blender（"Extensions"/"拡張機能"）にフォールバック。
+    var bl   = tool.type === "blender"
+      ? '<span class="bl-badge">'+esc(tool.platform || t("cat.blender"))+t("badge.addonSuffix")+'</span>'
+      : "";
     return '<a class="toolcard" href="'+ROOT+tool.path+'">'+bl+
       '<div class="toolcard__ico">'+ico+'</div>'+
       '<h3>'+esc(name)+'</h3><p>'+esc(desc)+'</p>'+
