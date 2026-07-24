@@ -116,6 +116,11 @@
           <button type="button" class="charchip" data-ch="." aria-pressed="false">.</button>
           <button type="button" class="charchip" data-ch="," aria-pressed="false">,</button>
         </div>
+        <label class="toggle" style="margin-top:var(--s4)" id="mix-toggle-row">
+          <input type="checkbox" id="mix-toggle" checked>
+          <span class="track"></span>
+          <span data-i18n="t.mixToggle">Also detect mixed 、／。 runs</span>
+        </label>
         <div class="hint" data-i18n="t.dupHint" style="margin:var(--s3) 0; font-size:12px; color:var(--text-3);">
           Detects the same character repeated in a row (e.g. "！！"). Choose which characters to check.
         </div>
@@ -135,6 +140,7 @@
   var btnFixSpace = $("btn-fix-space"), btnFixDigit = $("btn-fix-digit");
   var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
   var charToggle = $("char-toggle"), dupBadge = $("dup-badge"), dupCountEl = $("dup-count"), btnFixDup = $("btn-fix-dup");
+  var mixToggle = $("mix-toggle"), mixToggleRow = $("mix-toggle-row");
 
   function esc(s) {
     return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
@@ -155,14 +161,26 @@
     return Array.prototype.slice.call(charToggle.querySelectorAll('[aria-pressed="true"]'))
       .map(function (b) { return b.getAttribute("data-ch"); });
   }
+  // 「、」と「。」は、両方選択されている時だけ「混在の連続」（、。／。、 等）も
+  // 例外的に検出対象にする。片方しか選択されていない場合はその文字単体の連続のみ。
   function buildDupRegex(chars) {
     if (!chars.length) return null;
-    return new RegExp("(" + "[" + chars.join("") + "]" + ")\\1+", "g");
+    var hasTouten = chars.indexOf("、") !== -1;
+    var hasKuten = chars.indexOf("。") !== -1;
+    var mixToutenKuten = hasTouten && hasKuten && mixToggle.checked;
+    var genericChars = chars.filter(function (c) {
+      return !(mixToutenKuten && (c === "、" || c === "。"));
+    });
+    var parts = [];
+    if (genericChars.length) parts.push("(" + "[" + genericChars.join("") + "]" + ")\\1+");
+    if (mixToutenKuten) parts.push("[、。]{2,}");
+    if (!parts.length) return null;
+    return new RegExp(parts.join("|"), "g");
   }
   function fixDuplicates(v, chars) {
     var re = buildDupRegex(chars);
     if (!re) return v;
-    return v.replace(re, function (m, c) { return c; });
+    return v.replace(re, function (m) { return m.charAt(0); });
   }
 
   charToggle.addEventListener("click", function (e) {
@@ -170,6 +188,14 @@
     b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
     refreshDerived();
   });
+  mixToggle.addEventListener("change", refreshDerived);
+
+  function syncMixToggleAvailability() {
+    var chars = selectedChars();
+    var available = chars.indexOf("、") !== -1 && chars.indexOf("。") !== -1;
+    mixToggle.disabled = !available;
+    mixToggleRow.style.opacity = available ? "1" : ".5";
+  }
 
   /* =========================================================
      再描画：カウント・ハイライト（本文欄の背後レイヤーに直接）
@@ -180,6 +206,7 @@
     cntSpace.textContent = sp; cntDigit.textContent = dg;
     btnFixSpace.disabled = sp === 0; btnFixDigit.disabled = dg === 0;
 
+    syncMixToggleAvailability();
     var chars = selectedChars();
     var re = buildDupRegex(chars);
     var count = 0, html;
@@ -273,6 +300,7 @@
         "t.fwSpace": "Full-width spaces", "t.fwDigit": "Full-width digits", "t.fix": "Fix",
         "t.dupTitle": "Repeated punctuation",
         "t.dupChars": "Characters to check",
+        "t.mixToggle": "Also detect mixed \u3001\uff0f\u3002 runs (e.g. \u201c\u3001\u3002\u201d)",
         "t.dupHint": "Detects the same character repeated in a row (e.g. \u201c\uff01\uff01\u201d). Choose which characters to check.",
         "t.dupFix": "Merge repeated characters"
       },
@@ -286,6 +314,7 @@
         "t.fwSpace": "全角スペース", "t.fwDigit": "全角数字", "t.fix": "修正",
         "t.dupTitle": "句読点などの連続",
         "t.dupChars": "対象の文字",
+        "t.mixToggle": "「、」「。」の混在も検出する（例:「、。」）",
         "t.dupHint": "同じ文字が連続している箇所を検出します（例:「！！」）。対象の文字は選択できます。",
         "t.dupFix": "選択した文字の重複をまとめて修正"
       }
