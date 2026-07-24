@@ -7,19 +7,27 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css?v=4">
 <style>
-  /* ---- 追加フォーム ---- */
-  .quickdur{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:var(--s3); }
-  .quickdur button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500; height:32px;
-    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--text-2);
-    transition:all var(--tap); }
-  .quickdur button:hover{ border-color:var(--text-3); color:var(--text); }
-  .durrow{ display:flex; align-items:end; gap:8px; }
-  .durrow .tcol{ display:flex; flex-direction:column; gap:5px; }
-  .durrow .tcol:nth-child(1),.durrow .tcol:nth-child(2){ width:76px; }
-  .durrow .input{ text-align:center; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15px; }
-  .durrow .addwrap{ flex:1; display:flex; }
-  .durrow .addwrap .btn{ width:100%; }
-  .fielderr{ font-size:12px; color:var(--neg); margin-top:8px; }
+  /* ---- 時・分・秒ホイール ---- */
+  .wheelrow{ display:flex; align-items:flex-end; justify-content:center; gap:4px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s4) var(--s3); }
+  .wheelcol{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .wheelcol .label{ margin-bottom:0; }
+  .wheelsep{ font-family:var(--font-mono); font-size:20px; font-weight:600; color:var(--text-3); align-self:center; margin:0 0 34px; }
+  .wheel{ position:relative; width:60px; height:108px; overflow-y:auto; overflow-x:hidden; scroll-snap-type:y mandatory;
+    -webkit-overflow-scrolling:touch; cursor:grab; border-radius:var(--r); background:var(--surface);
+    border:1px solid var(--border-strong); scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; }
+  .wheel::-webkit-scrollbar{ display:none; }
+  .wheel:active{ cursor:grabbing; }
+  .wheel:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .wheel__track{ padding:36px 0; }
+  .wheel__cell{ height:36px; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:14px; color:var(--text-3); scroll-snap-align:center; user-select:none; }
+  .wheel__cell.is-center{ color:var(--text); font-size:19px; font-weight:700; }
+  .wheel__highlight{ position:absolute; left:0; right:0; top:36px; height:36px; pointer-events:none;
+    border-top:1px solid var(--border-strong); border-bottom:1px solid var(--border-strong);
+    background:var(--accent-tint); opacity:.55; }
+  .wheelhint{ font-size:11px; color:var(--text-3); text-align:center; margin-top:var(--s2); }
+  .fielderr{ font-size:12px; color:var(--neg); margin-top:var(--s3); }
 
   /* ---- キュー一覧 ---- */
   .cuelist{ display:flex; flex-direction:column; }
@@ -47,7 +55,7 @@
     margin-top:var(--s3); border-top:1px solid var(--border); font-size:12.5px; color:var(--text-2); }
   .queuemeta b{ font-family:var(--font-mono); color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
 
-  /* ---- 繰り返しセグメント（明確な選択表示） ---- */
+  /* ---- 繰り返しセグメント ---- */
   .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500; height:38px;
     border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface); color:var(--text-2);
@@ -93,23 +101,29 @@
       <div class="card" id="queue-card">
         <div class="card__title" data-i18n="t.queue">Queue</div>
 
-        <div class="quickdur" id="quickdur" role="group" aria-label="quick durations"></div>
-
-        <div class="durrow">
-          <div class="tcol">
+        <div class="wheelrow">
+          <div class="wheelcol">
+            <label class="label" data-i18n="t.hour">Hour</label>
+            <div class="wheel" id="wheel-h" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="99"></div>
+          </div>
+          <span class="wheelsep">:</span>
+          <div class="wheelcol">
             <label class="label" data-i18n="t.min">Min</label>
-            <input class="input" id="dur-m" type="number" min="0" max="999" inputmode="numeric" placeholder="0">
+            <div class="wheel" id="wheel-m" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59"></div>
           </div>
-          <div class="tcol">
+          <span class="wheelsep">:</span>
+          <div class="wheelcol">
             <label class="label" data-i18n="t.sec">Sec</label>
-            <input class="input" id="dur-s" type="number" min="0" max="59" inputmode="numeric" placeholder="0">
-          </div>
-          <div class="addwrap">
-            <button type="button" class="btn btn--primary" id="btn-add"><span data-i18n="t.add">Add</span></button>
-            <button type="button" class="btn btn--primary" id="btn-update" hidden><span data-i18n="t.update">Update</span></button>
+            <div class="wheel" id="wheel-s" tabindex="0" role="spinbutton" aria-valuemin="0" aria-valuemax="59"></div>
           </div>
         </div>
+        <div class="wheelhint" data-i18n="t.wheelhint">Drag, scroll, or use the arrow keys to set each value.</div>
         <div class="fielderr" id="dur-err" hidden data-i18n="t.durerr">Enter a duration longer than 0 seconds.</div>
+
+        <div class="btnrow" style="margin-top:var(--s4)">
+          <button type="button" class="btn btn--primary btn--block" id="btn-add"><span data-i18n="t.add">Add to queue</span></button>
+          <button type="button" class="btn btn--primary btn--block" id="btn-update" hidden><span data-i18n="t.update">Update cue</span></button>
+        </div>
         <button type="button" class="btn btn--ghost" id="btn-canceledit" hidden style="margin-top:8px; width:100%">
           <span data-i18n="t.cancel">Cancel edit</span>
         </button>
@@ -259,29 +273,108 @@
   }
 
   /* ---------------------------------------------------------------------
-     add / edit cue duration
+     duration wheels
+     PC: クリック+縦ドラッグ or マウスホイールで値を変更。
+     スマホ: 指でフリック/スクロールして回す（ネイティブのタッチスクロール + scroll-snap）。
+     どちらも矢印キー・数字キー入力にも対応。
      --------------------------------------------------------------------- */
-  var QUICK = [30, 60, 180, 300, 600, 900];
-  function renderQuickdur() {
-    $("quickdur").innerHTML = QUICK.map(function (sec) {
-      var m = Math.floor(sec / 60), s = sec % 60;
-      return '<button type="button" data-set="' + sec + '">' + (s ? (m + ":" + pad(s)) : (m + (tr("t.min", "min")))) + '</button>';
-    }).join("");
-  }
-  $("quickdur").addEventListener("click", function (e) {
-    var b = e.target.closest("button"); if (!b) return;
-    var sec = parseInt(b.getAttribute("data-set"), 10);
-    $("dur-m").value = Math.floor(sec / 60); $("dur-s").value = sec % 60;
-    $("dur-err").hidden = true;
-  });
+  function makeWheel(el, opts) {
+    var min = opts.min, max = opts.max, CH = 36;
+    var val = clamp(opts.value || 0, min, max);
+    var track = document.createElement("div"); track.className = "wheel__track";
+    var cells = [];
+    for (var v = min; v <= max; v++) {
+      var c = document.createElement("div"); c.className = "wheel__cell"; c.textContent = pad(v); c.setAttribute("data-v", v);
+      track.appendChild(c); cells.push(c);
+    }
+    el.innerHTML = ""; el.appendChild(track);
+    var hi = document.createElement("div"); hi.className = "wheel__highlight"; el.appendChild(hi);
 
-  function readCustomDuration() {
-    var m = clamp(parseInt($("dur-m").value, 10) || 0, 0, 999);
-    var s = clamp(parseInt($("dur-s").value, 10) || 0, 0, 59);
-    return m * 60 + s;
+    function highlightCenter() {
+      var idx = clamp(Math.round(el.scrollTop / CH), 0, cells.length - 1);
+      cells.forEach(function (c, i) { c.classList.toggle("is-center", i === idx); });
+      return idx;
+    }
+    function setValue(v, silent) {
+      val = clamp(Math.round(v), min, max);
+      el.scrollTop = (val - min) * CH;
+      highlightCenter();
+      el.setAttribute("aria-valuenow", val);
+      if (!silent && opts.onChange) opts.onChange(val);
+    }
+
+    var settleTimer = null;
+    el.addEventListener("scroll", function () {
+      highlightCenter();
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(function () {
+        var idx = highlightCenter();
+        val = min + idx;
+        el.scrollTop = idx * CH;
+        el.setAttribute("aria-valuenow", val);
+        if (opts.onChange) opts.onChange(val);
+      }, 110);
+    });
+
+    // マウスのみ: 縦ドラッグでスクロール（タッチはネイティブのスクロールに任せる）
+    var dragging = false, startY = 0, startTop = 0, moved = false;
+    el.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "mouse") return;
+      dragging = true; moved = false; startY = e.clientY; startTop = el.scrollTop;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (!dragging || e.pointerType !== "mouse") return;
+      var dy = startY - e.clientY;
+      if (Math.abs(dy) > 3) moved = true;
+      el.scrollTop = startTop + dy;
+    });
+    function endDrag() { dragging = false; }
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
+
+    track.addEventListener("click", function (e) {
+      if (moved) { moved = false; return; }
+      var cell = e.target.closest(".wheel__cell"); if (!cell) return;
+      setValue(parseInt(cell.getAttribute("data-v"), 10));
+    });
+
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); setValue(val - 1); }
+      else if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); setValue(val + 1); }
+      else if (e.key === "PageUp") { e.preventDefault(); setValue(val - 10); }
+      else if (e.key === "PageDown") { e.preventDefault(); setValue(val + 10); }
+      else if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        el._buf = ((el._buf || "") + e.key).slice(-2);
+        var nv = parseInt(el._buf, 10);
+        if (!isNaN(nv)) setValue(nv);
+        clearTimeout(el._bufTimer);
+        el._bufTimer = setTimeout(function () { el._buf = ""; }, 700);
+      }
+    });
+
+    el.setAttribute("aria-valuenow", val);
+    setValue(val, true);
+    return {
+      get value() { return val; },
+      set: function (v) { setValue(v); },
+      setSilent: function (v) { setValue(v, true); }
+    };
+  }
+
+  var wheelH = makeWheel($("wheel-h"), { min: 0, max: 99, value: 0, onChange: function () { $("dur-err").hidden = true; } });
+  var wheelM = makeWheel($("wheel-m"), { min: 0, max: 59, value: 0, onChange: function () { $("dur-err").hidden = true; } });
+  var wheelS = makeWheel($("wheel-s"), { min: 0, max: 59, value: 0, onChange: function () { $("dur-err").hidden = true; } });
+
+  function readDuration() { return wheelH.value * 3600 + wheelM.value * 60 + wheelS.value; }
+  function setWheels(sec, silent) {
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    if (silent) { wheelH.setSilent(h); wheelM.setSilent(m); wheelS.setSilent(s); }
+    else { wheelH.set(h); wheelM.set(m); wheelS.set(s); }
   }
   function commitDuration() {
-    var sec = readCustomDuration();
+    var sec = readDuration();
     if (sec <= 0) { $("dur-err").hidden = false; return null; }
     $("dur-err").hidden = true;
     return sec;
@@ -290,7 +383,6 @@
   $("btn-add").addEventListener("click", function () {
     var sec = commitDuration(); if (sec == null) return;
     cues.push({ id: nextId++, seconds: sec });
-    $("dur-m").value = ""; $("dur-s").value = "";
     renderQueue();
   });
   $("btn-update").addEventListener("click", function () {
@@ -311,8 +403,7 @@
   function startEdit(id) {
     var c = cues.find(function (x) { return x.id === id; }); if (!c) return;
     editingId = id;
-    $("dur-m").value = Math.floor(c.seconds / 60);
-    $("dur-s").value = c.seconds % 60;
+    setWheels(c.seconds, true);
     $("dur-err").hidden = true;
     $("btn-add").hidden = true; $("btn-update").hidden = false; $("btn-canceledit").hidden = false;
     renderQueue();
@@ -320,7 +411,7 @@
   function cancelEdit() {
     editingId = null;
     $("btn-add").hidden = false; $("btn-update").hidden = true; $("btn-canceledit").hidden = true;
-    $("dur-m").value = ""; $("dur-s").value = ""; $("dur-err").hidden = true;
+    $("dur-err").hidden = true;
     renderQueue();
   }
 
@@ -474,8 +565,8 @@
   });
 
   /* ---------------------------------------------------------------------
-     player engine (tracks the current cue by id, so add / delete / reorder
-     are always safe, even while the timer is running)
+     player engine (id で現在のキューを追跡するので、実行中でも
+     追加・削除・並べ替えが安全に行える)
      --------------------------------------------------------------------- */
   function beginSegById(id, overflowMs) {
     curId = id;
@@ -696,7 +787,6 @@
   /* ---------------------------------------------------------------------
      boot
      --------------------------------------------------------------------- */
-  renderQuickdur();
   renderQueue();
   renderIdlePlayer();
   renderPresets();
@@ -708,7 +798,9 @@
         en: {
           "t.title": "Multi-cue timer",
           "t.desc": "Add timed cues to a queue and run them one after another, with optional repeats.",
-          "t.queue": "Queue", "t.min": "Min", "t.sec": "Sec", "t.add": "Add", "t.update": "Update",
+          "t.queue": "Queue", "t.hour": "Hour", "t.min": "Min", "t.sec": "Sec",
+          "t.wheelhint": "Drag, scroll, or use the arrow keys to set each value.",
+          "t.add": "Add to queue", "t.update": "Update cue",
           "t.cancel": "Cancel edit", "t.durerr": "Enter a duration longer than 0 seconds.",
           "t.queueempty": "No cues yet — add one above.", "t.total": "Total", "t.drag": "Drag to reorder", "t.delete": "Delete",
           "t.repeat": "Repeat", "t.repeatnone": "Once", "t.repeatcount": "Repeat", "t.repeatinf": "Loop", "t.times": "times",
@@ -723,7 +815,9 @@
         ja: {
           "t.title": "多機能タイマー",
           "t.desc": "複数の区間（キュー）を追加して、順番に実行するタイマーです。繰り返しにも対応。",
-          "t.queue": "キュー", "t.min": "分", "t.sec": "秒", "t.add": "追加", "t.update": "更新",
+          "t.queue": "キュー", "t.hour": "時", "t.min": "分", "t.sec": "秒",
+          "t.wheelhint": "ドラッグ・スクロール・矢印キーで数値を設定できます。",
+          "t.add": "キューに追加", "t.update": "キューを更新",
           "t.cancel": "編集をキャンセル", "t.durerr": "0秒より長い時間を入力してください。",
           "t.queueempty": "まだキューがありません。上で追加してください。", "t.total": "合計", "t.drag": "ドラッグで並べ替え", "t.delete": "削除",
           "t.repeat": "繰り返し", "t.repeatnone": "1回のみ", "t.repeatcount": "回数指定", "t.repeatinf": "無限ループ", "t.times": "回",
@@ -737,7 +831,7 @@
         }
       },
       onSettingsChange: function () {
-        renderQuickdur(); renderQueue(); renderIdlePlayer(); renderPresets();
+        renderQueue(); renderIdlePlayer(); renderPresets();
       }
     });
   }
