@@ -156,7 +156,10 @@
   var svgMoon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>';
   var svgMenu  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 
+  var GITHUB_URL = "https://github.com/VernierTools/VernierTools.github.io";
+
   var themeBtn, langBtn, menuBtn, menuPanel, segBtns = [];
+  var brandBtn, brandMenu;
   function navLinks(prefix){ // prefix: '' from root, 'categories/…' 用に ROOT 基準で組む
     var home = '<a href="'+ROOT+'index.html" data-i18n="nav.home">'+t("nav.home")+'</a>';
     var cats = CATEGORIES.map(function(c){
@@ -164,13 +167,25 @@
     }).join("");
     return home + cats;
   }
+  // Home + カテゴリー + About + GitHub（ブランドのドロップダウン用、および
+  // モバイルではハンバーガーメニューにも同じ内容を統合して二重の入口を作らない）
+  function navLinksExtended(){
+    var about  = '<a href="'+ROOT+'about.html" data-i18n="nav.about">'+t("nav.about")+'</a>';
+    var github = '<a href="'+GITHUB_URL+'" target="_blank" rel="noopener noreferrer">GitHub</a>';
+    return navLinks() + about + github;
+  }
   function buildHeader(){
     var h = document.createElement("header");
     h.className = "tb-header";
     h.innerHTML =
       '<div class="tb-header__in">'+
         '<button class="tb-iconbtn tb-menubtn" aria-label="Menu">'+svgMenu+'</button>'+
-        '<a class="tb-brand" href="'+ROOT+'index.html"><span class="tb-brand__mark"></span><span>Vernier</span></a>'+
+        '<div class="tb-brandwrap">'+
+          '<button class="tb-brand" type="button" aria-haspopup="true" aria-expanded="false">'+
+            '<span class="tb-brand__mark"></span><span>Vernier</span>'+
+          '</button>'+
+          '<nav class="tb-brandmenu">'+navLinksExtended()+'</nav>'+
+        '</div>'+
         '<nav class="tb-nav">'+navLinks()+'</nav>'+
         '<div class="tb-sp"></div>'+
         '<div class="tb-seg" role="group" aria-label="Units">'+
@@ -180,7 +195,7 @@
         '<button class="tb-langbtn" aria-label="Language">'+svgGlobe+'<span class="tb-langlbl"></span></button>'+
         '<button class="tb-iconbtn tb-themebtn" aria-label="Theme">'+svgMoon+'</button>'+
       '</div>'+
-      '<nav class="tb-menu">'+navLinks()+'</nav>';
+      '<nav class="tb-menu">'+navLinksExtended()+'</nav>';
     document.body.insertBefore(h, document.body.firstChild);
 
     // refs
@@ -188,6 +203,8 @@
     langBtn   = h.querySelector(".tb-langbtn");
     menuBtn   = h.querySelector(".tb-menubtn");
     menuPanel = h.querySelector(".tb-menu");
+    brandBtn  = h.querySelector(".tb-brand");
+    brandMenu = h.querySelector(".tb-brandmenu");
     segBtns   = Array.prototype.slice.call(h.querySelectorAll(".tb-seg button"));
 
     // wire
@@ -196,11 +213,32 @@
     menuBtn.addEventListener("click", function(){ menuPanel.classList.toggle("open"); });
     segBtns.forEach(function(b){ b.addEventListener("click", function(){ setUnits(b.getAttribute("data-units")); }); });
 
+    // ブランドのドロップダウン（PC幅のみ。CSSでモバイル時は非表示にし、
+    // ハンバーガーメニュー側に同内容を統合しているため二重の入口にならない）
+    brandBtn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var open = brandMenu.classList.toggle("open");
+      brandBtn.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", function(e){
+      if (brandMenu.classList.contains("open") && !brandMenu.contains(e.target) && e.target !== brandBtn){
+        brandMenu.classList.remove("open");
+        brandBtn.setAttribute("aria-expanded","false");
+      }
+    });
+    document.addEventListener("keydown", function(e){
+      if (e.key === "Escape" && brandMenu.classList.contains("open")){
+        brandMenu.classList.remove("open");
+        brandBtn.setAttribute("aria-expanded","false");
+        brandBtn.focus();
+      }
+    });
+
     // 現在ページのナビをハイライト
     var here = location.pathname.split("/").pop() || "index.html";
     var _catEl = document.querySelector("[data-tools-category]");
     var bodyCat = _catEl ? _catEl.getAttribute("data-tools-category") : null;
-    h.querySelectorAll(".tb-nav a, .tb-menu a").forEach(function(a){
+    h.querySelectorAll(".tb-nav a, .tb-menu a, .tb-brandmenu a").forEach(function(a){
       var cat = a.getAttribute("data-cat");
       if ((bodyCat && cat === bodyCat) || (!bodyCat && /index\.html$/.test(a.getAttribute("href")) && here === "index.html"))
         a.setAttribute("aria-current","page");
