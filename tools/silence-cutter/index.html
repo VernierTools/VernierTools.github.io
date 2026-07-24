@@ -76,7 +76,12 @@
             <svg id="play-orig-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             <span id="play-orig-lbl" data-i18n="t.playorig">Play original</span>
           </button>
+          <button class="btn btn--secondary" id="preview-cut" disabled>
+            <svg id="preview-cut-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="preview-cut-lbl" data-i18n="t.previewcut">Preview cut</span>
+          </button>
         </div>
+        <div class="hint" data-i18n="t.previewhint">Plays the original but skips the highlighted parts live, using the current settings — a quick way to check before committing to a cut.</div>
         <div class="btnrow">
           <button class="btn btn--primary btn--block" id="cut-btn" disabled data-i18n="t.cut">Cut silence</button>
         </div>
@@ -132,6 +137,7 @@
   var paddingEl = $("padding"), paddingVal = $("padding-val");
   var cutBtn = $("cut-btn"), staleEl = $("stale");
   var playOrigBtn = $("play-orig"), playOrigIco = $("play-orig-ico"), playOrigLbl = $("play-orig-lbl");
+  var previewBtn = $("preview-cut"), previewIco = $("preview-cut-ico"), previewLbl = $("preview-cut-lbl");
   var resultActions = $("result-actions"), playResultBtn = $("play-result"),
       playResultIco = $("play-result-ico"), playResultLbl = $("play-result-lbl"), downloadBtn = $("download-btn");
   var waveWrap = $("wavewrap"), wave = $("wave");
@@ -151,6 +157,8 @@
   var resultURL = null;
   var resultBuffer = null;
   var stale = false;
+  var previewMode = false;   // false = normal playback, true = live "preview cut" (skips highlighted parts)
+  var loopActive = false;    // guards the preview skip-ahead rAF loop
 
   origAudio.preload = "auto";
   resultAudio.preload = "auto";
@@ -323,7 +331,8 @@
     audioBuffer = null; analysis = null; regions = { raw: [], cuts: [] };
     resultBuffer = null; stale = false;
     staleEl.hidden = true; resultActions.hidden = true;
-    cutBtn.disabled = true; playOrigBtn.disabled = true;
+    cutBtn.disabled = true; playOrigBtn.disabled = true; previewBtn.disabled = true;
+    previewMode = false; loopActive = false;
     waveWrap.classList.add("disabled");
     setErr(null);
     drawWave(); updateReadout();
@@ -345,7 +354,7 @@
       fileinfo.textContent = file.name + " — " + fmtTime(buf.duration) + "s, " + buf.sampleRate + " Hz, " +
         buf.numberOfChannels + "ch";
       waveWrap.classList.remove("disabled");
-      cutBtn.disabled = false; playOrigBtn.disabled = false;
+      cutBtn.disabled = false; playOrigBtn.disabled = false; previewBtn.disabled = false;
       refreshAll();
     }).catch(function (e) {
       setErr(Shell.t("t.decodeerr"));
@@ -380,6 +389,8 @@
     ensureCtx();
     origAudio.currentTime = frac * analysis.duration;
     origAudio.play();
+    ensurePreviewLoop();
+    updateOrigButtons();
   });
 
   /* ---------------------------------------------------------------
@@ -393,8 +404,53 @@
     audioEl.addEventListener("pause", function () { ico.innerHTML = ICON_PLAY; lbl.textContent = Shell.t(playKey); });
     audioEl.addEventListener("ended", function () { ico.innerHTML = ICON_PLAY; lbl.textContent = Shell.t(playKey); });
   }
-  wirePlayButton(origAudio, playOrigBtn, playOrigIco, playOrigLbl, "t.playorig", "t.pauseorig");
   wirePlayButton(resultAudio, playResultBtn, playResultIco, playResultLbl, "t.playresult", "t.pauseresult");
+
+  // origAudio has two play modes sharing one element: normal playback (playOrigBtn)
+  // and a live "preview cut" (previewBtn) that skips the currently-highlighted regions
+  // as it plays, so it always reflects whatever the sliders are set to right now.
+  function updateOrigButtons() {
+    var playing = !origAudio.paused;
+    var origActive = playing && !previewMode, prevActive = playing && previewMode;
+    playOrigIco.innerHTML = origActive ? ICON_PAUSE : ICON_PLAY;
+    playOrigLbl.textContent = Shell.t(origActive ? "t.pauseorig" : "t.playorig");
+    previewIco.innerHTML = prevActive ? ICON_PAUSE : ICON_PLAY;
+    previewLbl.textContent = Shell.t(prevActive ? "t.pausepreview" : "t.previewcut");
+  }
+  function handlePlayClick(mode) {
+    if (!origAudio.paused && previewMode === mode) {
+      origAudio.pause();
+    } else {
+      previewMode = mode;
+      origAudio.play();
+      ensurePreviewLoop();
+    }
+    updateOrigButtons();
+  }
+  playOrigBtn.addEventListener("click", function () { handlePlayClick(false); });
+  previewBtn.addEventListener("click", function () { handlePlayClick(true); });
+
+  function previewTick() {
+    if (!previewMode || origAudio.paused) { loopActive = false; return; }
+    if (analysis) {
+      var t = origAudio.currentTime;
+      for (var i = 0; i < regions.cuts.length; i++) {
+        var r = regions.cuts[i];
+        if (t >= r.start && t < r.end) {
+          origAudio.currentTime = Math.min(r.end, Math.max(0, analysis.duration - 0.02));
+          break;
+        }
+      }
+    }
+    requestAnimationFrame(previewTick);
+  }
+  function ensurePreviewLoop() {
+    if (previewMode && !origAudio.paused && !loopActive) { loopActive = true; previewTick(); }
+  }
+
+  origAudio.addEventListener("play", function () { ensurePreviewLoop(); updateOrigButtons(); });
+  origAudio.addEventListener("pause", updateOrigButtons);
+  origAudio.addEventListener("ended", updateOrigButtons);
   origAudio.addEventListener("timeupdate", drawWave);
   origAudio.addEventListener("play", drawWave);
   origAudio.addEventListener("pause", drawWave);
@@ -491,6 +547,8 @@
         "t.paddinghint": "A little room tone is kept just before and after each cut so it doesn't sound abrupt.",
         "t.fadehint": "Each cut gets an automatic fade in/out of a few milliseconds — short enough to never overlap — to avoid clicks. This isn't adjustable.",
         "t.playorig": "Play original", "t.pauseorig": "Pause",
+        "t.previewcut": "Preview cut", "t.pausepreview": "Pause",
+        "t.previewhint": "Plays the original but skips the highlighted parts live, using the current settings — a quick way to check before committing to a cut.",
         "t.cut": "Cut silence",
         "t.stale": "Settings changed — press Cut silence again to update the result.",
         "t.playresult": "Play result", "t.pauseresult": "Pause",
@@ -509,6 +567,8 @@
         "t.paddinghint": "カットの前後に少しだけ音を残し、不自然に途切れないようにします。",
         "t.fadehint": "カットの継ぎ目には数ミリ秒の短いフェードイン/アウトを自動で入れます（絶対に重ならない長さ）。クリックノイズ防止用で、調整はできません。",
         "t.playorig": "元音源を再生", "t.pauseorig": "一時停止",
+        "t.previewcut": "カット後をプレビュー", "t.pausepreview": "一時停止",
+        "t.previewhint": "現在の設定でハイライトされている部分を飛ばしながら元音源を再生します。実際にカットする前の簡易チェック用です。",
         "t.cut": "無音をカット",
         "t.stale": "設定が変わりました。「無音をカット」を押し直すと結果が更新されます。",
         "t.playresult": "結果を再生", "t.pauseresult": "一時停止",
@@ -520,8 +580,8 @@
       }
     },
     onSettingsChange: function () {
-      // re-label play/pause buttons and stale hint in the new language
-      playOrigLbl.textContent = Shell.t(origAudio.paused ? "t.playorig" : "t.pauseorig");
+      // re-label play/pause/preview buttons in the new language
+      updateOrigButtons();
       playResultLbl.textContent = Shell.t(resultAudio.paused ? "t.playresult" : "t.pauseresult");
     }
   });
