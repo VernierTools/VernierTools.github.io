@@ -295,12 +295,12 @@
       '<div class="searchwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
       '<input class="search" data-i18n-ph="hub.search" placeholder="'+t("hub.search")+'"></div>'+
       '<div class="filterchips"></div>'+
-      '<div class="grid"></div>'+
+      '<div class="hub-sections"></div>'+
       '<div class="empty" data-i18n="hub.empty" hidden>'+t("hub.empty")+'</div>';
 
     var input = mount.querySelector(".search");
     var chipsBox = mount.querySelector(".filterchips");
-    var grid = mount.querySelector(".grid");
+    var sections = mount.querySelector(".hub-sections");
     var empty = mount.querySelector(".empty");
 
     var chips = [{ id:"all", key:"hub.all" }].concat(CATEGORIES);
@@ -310,13 +310,28 @@
 
     function draw(){
       var q = state.q.trim().toLowerCase();
-      var shown = tools.filter(function(tl){
-        var okCat = state.cat === "all" || (tl.categories||[]).indexOf(state.cat) >= 0;
-        var okQ = !q || haystack(tl).indexOf(q) >= 0;
-        return okCat && okQ;
-      });
-      grid.innerHTML = shown.map(cardHTML).join("");
-      empty.hidden = shown.length > 0;
+      function matches(tl){ return !q || haystack(tl).indexOf(q) >= 0; }
+      var anyShown = false, html = "";
+
+      if (state.cat === "all"){
+        // カテゴリー順（CATEGORIES配列の並び = ジェネラル→…→拡張機能）に、
+        // 見出し + そのカテゴリーのグリッドを並べる。該当0件のカテゴリーは丸ごと省く。
+        CATEGORIES.forEach(function(c){
+          var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(c.id) >= 0 && matches(tl); });
+          if (!shown.length) return;
+          anyShown = true;
+          html += '<div class="section">'+
+            '<div class="section__head"><h2 data-i18n="'+c.key+'">'+t(c.key)+'</h2></div>'+
+            '<div class="grid">'+shown.map(cardHTML).join("")+'</div></div>';
+        });
+      } else {
+        // 特定カテゴリーで絞り込み中は、見出し無しの単一グリッド
+        var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(state.cat) >= 0 && matches(tl); });
+        anyShown = shown.length > 0;
+        if (anyShown) html = '<div class="grid">'+shown.map(cardHTML).join("")+'</div>';
+      }
+      sections.innerHTML = html;
+      empty.hidden = anyShown;
     }
     input.addEventListener("input", function(){ state.q = input.value; syncHash(); draw(); });
     chipsBox.addEventListener("click", function(e){
