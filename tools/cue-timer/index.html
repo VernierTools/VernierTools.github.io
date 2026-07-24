@@ -183,6 +183,14 @@
         </div>
 
         <div class="field">
+          <label class="label" data-i18n="t.volume">Volume</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="alert-volume" min="0" max="150" step="5" value="100">
+            <span class="val" id="alert-volume-val">100%</span>
+          </div>
+        </div>
+
+        <div class="field">
           <label class="label" data-i18n="t.customsoundlabel">Or use your own sound file</label>
           <input type="file" id="custom-audio-input" accept=".mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.caf,.aiff,.wma,audio/*" style="display:none">
           <div class="btnrow" style="margin-top:0">
@@ -294,6 +302,7 @@
   var originalTitle = document.title;
 
   var alertSound = "chime";
+  var alertVolume = 1.0; // 0.0〜1.5倍
   var customAudioURL = null, customAudioName = null;
   var keepAwake = true;
 
@@ -642,6 +651,12 @@
     alertSound = $("alert-select").value;
     previewSound(alertSound);
   });
+  $("alert-volume").addEventListener("input", function () {
+    var pct = parseInt($("alert-volume").value, 10);
+    alertVolume = pct / 100;
+    $("alert-volume-val").textContent = pct + "%";
+  });
+  $("alert-volume").addEventListener("change", function () { previewSound(alertSound); });
   $("opt-awake").addEventListener("change", function () {
     keepAwake = $("opt-awake").checked;
     if (!keepAwake) releaseWakeLock(); else if (running) requestWakeLock();
@@ -697,8 +712,9 @@
     var t0 = ctx.currentTime + startOffset;
     var osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = "sine"; osc.frequency.value = freq;
+    var target = (peak || 0.18) * alertVolume;
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(peak || 0.18, t0 + 0.01);
+    g.gain.linearRampToValueAtTime(target, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     osc.connect(g); g.connect(ctx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.03);
@@ -707,17 +723,22 @@
   // 組み込みパターンを1回分再生し、パターン中で最後に終わるオシレーターを返す
   // （ループ時、そのノードの onended をきっかけに次の周を鳴らすため）
   function playPatternOnce(kind) {
-    if (kind === "bell") { beep(880, 0, 0.6, 0.16); return beep(1320, 0, 0.6, 0.07); }
-    if (kind === "doublebeep") { beep(880, 0, 0.12, 0.2); return beep(880, 0.18, 0.12, 0.2); }
-    if (kind === "alarm") { beep(1046, 0, 0.09, 0.2); beep(784, 0.11, 0.09, 0.2); beep(1046, 0.22, 0.09, 0.2); return beep(784, 0.33, 0.09, 0.2); }
-    return (beep(784, 0, 0.18, 0.15), beep(988, 0.12, 0.18, 0.15), beep(1175, 0.24, 0.3, 0.15)); // chime (既定)
+    if (kind === "bell") { beep(880, 0, 0.6, 0.32); return beep(1320, 0, 0.6, 0.14); }
+    if (kind === "doublebeep") { beep(880, 0, 0.12, 0.38); return beep(880, 0.18, 0.12, 0.38); }
+    if (kind === "alarm") { beep(1046, 0, 0.09, 0.38); beep(784, 0.11, 0.09, 0.38); beep(1046, 0.22, 0.09, 0.38); return beep(784, 0.33, 0.09, 0.38); }
+    return (beep(784, 0, 0.18, 0.3), beep(988, 0.12, 0.18, 0.3), beep(1175, 0.24, 0.3, 0.32)); // chime (既定)
+  }
+  function makeAudio(url) {
+    var a = new Audio(url);
+    a.volume = clamp(alertVolume, 0, 1); // HTMLMediaElementのvolumeは0〜1が上限
+    return a;
   }
   // 選択メニューやファイル読み込み直後の単発プレビュー再生（ループしない）
   function previewSound(kind) {
     if (!kind || kind === "none") return;
     if (kind === "custom") {
       if (!customAudioURL) return;
-      try { var a = new Audio(customAudioURL); a.play().catch(function () {}); } catch (e) {}
+      try { makeAudio(customAudioURL).play().catch(function () {}); } catch (e) {}
       return;
     }
     ensureCtx(); playPatternOnce(kind);
@@ -741,7 +762,7 @@
 
     if (alertSound === "custom") {
       if (!customAudioURL) { $("alert-banner").hidden = true; return; }
-      var a = new Audio(customAudioURL);
+      var a = makeAudio(customAudioURL);
       a.loop = true;
       alertLoopEl = a;
       a.play().catch(function () {});
@@ -1012,7 +1033,7 @@
           "t.cancel": "Cancel edit", "t.durerr": "Enter a duration longer than 0 seconds.",
           "t.queueempty": "No cues yet — add one above.", "t.total": "Total", "t.drag": "Drag to reorder", "t.delete": "Delete",
           "t.repeat": "Repeat", "t.repeatnone": "Once", "t.repeatcount": "Repeat", "t.repeatinf": "Loop", "t.times": "times",
-          "t.sound": "Sound & screen", "t.alertsound": "Alert sound (plays when a cue reaches 0)",
+          "t.sound": "Sound & screen", "t.alertsound": "Alert sound (plays when a cue reaches 0)", "t.volume": "Volume",
           "t.snd.chime": "Chime", "t.snd.bell": "Bell", "t.snd.doublebeep": "Double beep", "t.snd.alarm": "Alarm",
           "t.snd.none": "None", "t.snd.custom": "Custom",
           "t.customsoundlabel": "Or use your own sound file", "t.chooseaudio": "Choose audio file",
@@ -1034,7 +1055,7 @@
           "t.cancel": "編集をキャンセル", "t.durerr": "0秒より長い時間を入力してください。",
           "t.queueempty": "まだキューがありません。上で追加してください。", "t.total": "合計", "t.drag": "ドラッグで並べ替え", "t.delete": "削除",
           "t.repeat": "繰り返し", "t.repeatnone": "1回のみ", "t.repeatcount": "回数指定", "t.repeatinf": "無限ループ", "t.times": "回",
-          "t.sound": "音・画面設定", "t.alertsound": "アラート音（キューが0秒になった時に再生）",
+          "t.sound": "音・画面設定", "t.alertsound": "アラート音（キューが0秒になった時に再生）", "t.volume": "音量",
           "t.snd.chime": "チャイム", "t.snd.bell": "ベル", "t.snd.doublebeep": "ダブルビープ", "t.snd.alarm": "アラーム",
           "t.snd.none": "なし", "t.snd.custom": "カスタム",
           "t.customsoundlabel": "または、読み込んだ音声ファイルを使う", "t.chooseaudio": "音声ファイルを選択",
