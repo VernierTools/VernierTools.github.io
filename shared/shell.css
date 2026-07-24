@@ -75,10 +75,19 @@ button{ font-family:inherit; }
   backdrop-filter:saturate(1.2) blur(8px); -webkit-backdrop-filter:saturate(1.2) blur(8px); }
 .tb-header__in{ max-width:var(--maxw); margin:0 auto; padding:0 var(--s5);
   height:73px; display:flex; align-items:center; gap:var(--s4); }
-.tb-brand{ display:flex; align-items:center; gap:var(--s2); font-weight:600; letter-spacing:-.01em; color:var(--text); }
+.tb-brandwrap{ position:relative; }
+.tb-brand{ appearance:none; border:0; background:transparent; cursor:pointer; padding:0;
+  display:flex; align-items:center; gap:var(--s2); font:inherit; font-weight:600; letter-spacing:-.01em; color:var(--text); }
 .tb-brand__mark{ width:22px; height:22px; border-radius:6px; background:var(--accent); position:relative; flex:0 0 auto; }
 .tb-brand__mark::after{ content:""; position:absolute; left:50%; top:50%; width:2px; height:8px; background:#fff;
   border-radius:2px; transform:translate(-50%,-90%) rotate(38deg); transform-origin:bottom center; opacity:.95; }
+.tb-brandmenu{ display:none; position:absolute; top:100%; left:0; margin-top:8px; z-index:30;
+  flex-direction:column; gap:2px; min-width:190px; padding:6px;
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md); }
+.tb-brandmenu.open{ display:flex; }
+.tb-brandmenu a{ font-size:13px; color:var(--text-2); padding:8px 10px; border-radius:var(--r-sm); transition:background var(--tap), color var(--tap); }
+.tb-brandmenu a:hover{ background:var(--surface-2); color:var(--text); }
+.tb-brandmenu a[aria-current="page"]{ color:var(--text); background:var(--accent-tint); }
 .tb-nav{ display:flex; gap:2px; }
 .tb-nav a{ font-size:13px; color:var(--text-2); padding:6px 10px; border-radius:var(--r-sm);
   transition:background var(--tap), color var(--tap); }
@@ -111,6 +120,9 @@ button{ font-family:inherit; }
   .tb-menu a{ padding:10px; border-radius:var(--r-sm); color:var(--text-2); }
   .tb-menu a:hover{ background:var(--surface-2); color:var(--text); }
   .tb-seg{ display:none; } /* 単位は狭幅では設定メニュー相当に隠す（必要なツールが自前表示可） */
+  /* モバイルは同じ内容をハンバーガーメニュー(.tb-menu)に統合済みなので、
+     ブランドのドロップダウンは出さない（入口を二重にしない） */
+  .tb-brandmenu{ display:none !important; }
 }
 
 /* =========================================================================
