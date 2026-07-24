@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text cleanup — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .ta{ width:100%; min-height:240px; resize:vertical; font:inherit; font-size:14px; line-height:1.7;
+    color:var(--text); background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r);
+    padding:10px 12px; transition:border-color var(--tap), box-shadow var(--tap); }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+
+  .ro-body{ padding:var(--s4); }
+  .ro-text{ margin:0; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13.5px;
+    line-height:1.7; white-space:pre-wrap; word-break:break-word; color:var(--text); cursor:pointer; min-height:48px; }
+  .ro-text.placeholder{ color:var(--text-3); font-family:var(--font-sans); cursor:default; }
+
+  .cardhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .cardhead .label{ margin:0; }
+  .hlbox{ font-size:14px; line-height:1.85; white-space:pre-wrap; word-break:break-word; min-height:140px;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); padding:var(--s3) var(--s4);
+    color:var(--text-2); }
+  .hlbox.placeholder{ color:var(--text-3); display:flex; align-items:center; }
+  .hlbox mark{ background:var(--neg-tint); color:var(--neg); border-radius:3px; padding:0 1px; font-weight:600; }
+
+  .badge .d{ transition:background var(--tap); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Text cleanup</h1>
+    <p data-i18n="t.desc">Convert full-width digits and spaces to half-width, and check for repeated punctuation.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field" style="margin-bottom:var(--s4)">
+          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
+          <textarea id="ta-in" class="ta" rows="10" data-i18n-ph="t.inputPh"></textarea>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <button class="btn btn--primary btn--block" id="btn-convert" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 7l3-3M7 7l3 3"/><path d="M17 17H7M17 17l-3-3M17 17l-3 3"/></svg>
+            <span data-i18n="t.convert">Convert full-width numbers &amp; spaces</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 変換結果 + 句読点連続チェック -->
+    <div>
+      <div class="readout" style="margin-bottom:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.convertedOut">Converted</span></div>
+        <div class="ro-body">
+          <pre class="ro-text placeholder" id="out-converted"></pre>
+        </div>
+        <div class="copyhint" data-i18n="t.copyhint">Click to copy.</div>
+      </div>
+
+      <div class="card">
+        <div class="cardhead">
+          <label class="label" data-i18n="t.punctTitle">Repeated punctuation</label>
+          <span class="badge badge--muted" id="punct-badge">
+            <span class="d"></span><span id="punct-count">0</span>
+          </span>
+        </div>
+        <div class="hlbox placeholder" id="hl-preview"></div>
+        <div class="hint" data-i18n="t.punctHint" style="margin-top:var(--s3); font-size:12px; color:var(--text-3);">
+          Detects runs like "！！" or "。。". Detection only — nothing is changed automatically.
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var taIn = $("ta-in"), outEl = $("out-converted");
+  var hlBox = $("hl-preview"), badge = $("punct-badge"), countEl = $("punct-count");
+  var btnConvert = $("btn-convert");
+
+  function esc(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  // ---- ① 全角数字・全角スペース → 半角（対象はこの2種のみ） ----
+  function toHalfWidth(text) {
+    return text
+      .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+      .replace(/\u3000/g, " ");
+  }
+
+  function doConvert() {
+    var v = taIn.value;
+    if (!v) {
+      outEl.textContent = Shell.t("t.emptyIn");
+      outEl.classList.add("placeholder");
+      outEl.removeAttribute("data-copy");
+      return;
+    }
+    var out = toHalfWidth(v);
+    outEl.textContent = out;
+    outEl.classList.remove("placeholder");
+    outEl.setAttribute("data-copy", out);
+  }
+  btnConvert.addEventListener("click", doConvert);
+
+  // ---- ② 句読点の連続検出（同一記号が2回以上連続。検出のみ、修正はしない） ----
+  var PUNCT_RUN = /([、。！？!?])\1+/g;
+
+  function renderHighlight() {
+    var v = taIn.value;
+    if (!v) {
+      hlBox.classList.add("placeholder");
+      hlBox.textContent = Shell.t("t.emptyIn");
+      setBadge(0);
+      return;
+    }
+    hlBox.classList.remove("placeholder");
+    var count = 0;
+    var html = esc(v).replace(PUNCT_RUN, function (m) { count++; return "<mark>" + m + "</mark>"; });
+    if (count === 0) {
+      hlBox.classList.add("placeholder");
+      hlBox.textContent = Shell.t("t.noIssues");
+    } else {
+      hlBox.innerHTML = html;
+    }
+    setBadge(count);
+  }
+
+  function setBadge(n) {
+    countEl.textContent = n;
+    badge.classList.toggle("badge--neg", n > 0);
+    badge.classList.toggle("badge--muted", n === 0);
+  }
+
+  taIn.addEventListener("input", renderHighlight);
+
+  function renderAll() {
+    // プレースホルダー文言の再表示（言語切替時、値が入っていない場合のみ）
+    if (!taIn.value) { renderHighlight(); }
+    else { renderHighlight(); }
+    if (!outEl.getAttribute("data-copy")) {
+      outEl.textContent = taIn.value ? Shell.t("t.notYet") : Shell.t("t.emptyIn");
+    }
+  }
+
+  Shell.init({
+    id: "text-cleanup",
+    strings: {
+      en: {
+        "t.title": "Text cleanup",
+        "t.desc": "Convert full-width digits and spaces to half-width, and check for repeated punctuation.",
+        "t.input": "Text",
+        "t.inputPh": "Paste or type text here…",
+        "t.convert": "Convert full-width numbers & spaces",
+        "t.convertedOut": "Converted",
+        "t.copyhint": "Click to copy.",
+        "t.punctTitle": "Repeated punctuation",
+        "t.punctHint": "Detects runs like \u201c\uff01\uff01\u201d or \u201c\u3002\u3002\u201d. Detection only \u2014 nothing is changed automatically.",
+        "t.emptyIn": "Type or paste text on the left.",
+        "t.notYet": "Press the button above to see the converted text here.",
+        "t.noIssues": "No repeated punctuation found."
+      },
+      ja: {
+        "t.title": "表記ゆれ・ミス検出＆修正",
+        "t.desc": "全角数字とスペースを半角に変換し、句読点の連続を検出します。",
+        "t.input": "テキスト",
+        "t.inputPh": "ここにテキストを貼り付け／入力…",
+        "t.convert": "全角数字・スペースを半角に変換",
+        "t.convertedOut": "変換結果",
+        "t.copyhint": "クリックでコピー。",
+        "t.punctTitle": "句読点の連続",
+        "t.punctHint": "「！！」「。。」のような連続を検出します。検出のみで自動修正はしません。",
+        "t.emptyIn": "左にテキストを入力してください。",
+        "t.notYet": "上のボタンを押すと変換結果がここに表示されます。",
+        "t.noIssues": "連続した句読点は見つかりませんでした。"
+      }
+    },
+    onSettingsChange: renderAll
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
