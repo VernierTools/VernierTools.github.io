@@ -42,7 +42,12 @@
   .cuerow{ display:flex; align-items:center; gap:2px; padding:8px 0; touch-action:pan-y; }
   .cuerow + .cuerow{ border-top:1px solid var(--border); }
   .cuerow.is-editing{ background:var(--accent-tint); margin:0 calc(-1*var(--s5)); padding-left:var(--s5); padding-right:var(--s5); border-radius:var(--r); }
-  .cuerow.dragging{ opacity:.4; }
+  .cuerow.dragging{ background:var(--surface-2); border:1px dashed var(--border-strong); border-radius:var(--r-sm); }
+  .cuerow.dragging > *{ visibility:hidden; }
+  .dragghost{ position:fixed; z-index:100; pointer-events:none; top:0; left:0;
+    transform:translate(-50%,-140%); background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:var(--shadow-md); border-radius:var(--r); padding:8px 16px; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:16px; font-weight:700; color:var(--text); }
   .cuerow.is-current .cuerow__dur{ color:var(--accent); font-weight:700; }
   .cuerow__idx{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); width:16px; flex:0 0 auto; }
   .draghandle{ width:28px; height:28px; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
@@ -382,7 +387,27 @@
       setValue(parseInt(cell.getAttribute("data-v"), 10));
     });
 
-    // ダブルクリック / ダブルタップで、その場に数値入力欄を開く
+    // ダブルクリック / ダブルタップで、その場に数値入力欄を開く。
+    // iOS/Androidではスクロール可能な要素上でネイティブの dblclick が安定して発火しないため、
+    // pointerup の間隔と位置から自前で「二連タップ」を検出する（マウスもこれで統一）。
+    var tapMoveX = 0, tapMoveY = 0, tapMoved = false;
+    var lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+    el.addEventListener("pointerdown", function (e) { tapMoveX = e.clientX; tapMoveY = e.clientY; tapMoved = false; });
+    el.addEventListener("pointermove", function (e) {
+      if (Math.abs(e.clientX - tapMoveX) > 10 || Math.abs(e.clientY - tapMoveY) > 10) tapMoved = true;
+    });
+    el.addEventListener("pointerup", function (e) {
+      if (tapMoved) return; // スクロール/ドラッグ操作だったのでタップ扱いしない
+      var now = Date.now();
+      if (now - lastTapTime < 400 && Math.abs(e.clientX - lastTapX) < 30 && Math.abs(e.clientY - lastTapY) < 30) {
+        e.preventDefault();
+        openEditor();
+        lastTapTime = 0;
+      } else {
+        lastTapTime = now; lastTapX = e.clientX; lastTapY = e.clientY;
+      }
+    });
+
     function openEditor() {
       if (el.querySelector(".wheel__edit")) return;
       var input = document.createElement("input");
@@ -406,7 +431,6 @@
       input.addEventListener("click", function (ev) { ev.stopPropagation(); });
       input.addEventListener("blur", commit);
     }
-    el.addEventListener("dblclick", function (e) { e.preventDefault(); openEditor(); });
 
     el.addEventListener("keydown", function (e) {
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); setValue(val - 1); }
@@ -539,18 +563,41 @@
   }
 
   // drag-to-reorder (pointer events; works for mouse and touch)
+  // ドラッグ中はカーソル/指の位置に追従する「ゴースト」を表示し、
+  // 元の行はプレースホルダー（点線の空欄）にして、どこに何が移動中か分かりやすくする。
+  var ghostEl = null;
+  function createGhost(text, x, y) {
+    removeGhost();
+    ghostEl = document.createElement("div");
+    ghostEl.className = "dragghost";
+    ghostEl.textContent = text;
+    document.body.appendChild(ghostEl);
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y) {
+    if (!ghostEl) return;
+    ghostEl.style.left = x + "px";
+    ghostEl.style.top = y + "px";
+  }
+  function removeGhost() {
+    if (ghostEl) { ghostEl.parentNode.removeChild(ghostEl); ghostEl = null; }
+  }
+
   listEl.addEventListener("pointerdown", function (e) {
     var handle = e.target.closest(".draghandle"); if (!handle) return;
     var row = handle.closest(".cuerow"); if (!row) return;
     e.preventDefault();
     dragId = parseInt(row.getAttribute("data-id"), 10);
     dragMoved = false;
+    var c = cues.find(function (x) { return x.id === dragId; });
+    createGhost(c ? fmtHMS(c.seconds) : "", e.clientX, e.clientY);
     renderQueue();
     document.addEventListener("pointermove", onDragMove);
     document.addEventListener("pointerup", onDragEnd);
   });
   function onDragMove(e) {
     if (dragId == null) return;
+    moveGhost(e.clientX, e.clientY);
     var rows = Array.prototype.slice.call(listEl.querySelectorAll(".cuerow"));
     var fromIdx = cues.findIndex(function (c) { return c.id === dragId; }); if (fromIdx < 0) return;
     var toIdx = fromIdx;
@@ -571,6 +618,7 @@
   }
   function onDragEnd() {
     dragId = null;
+    removeGhost();
     document.removeEventListener("pointermove", onDragMove);
     document.removeEventListener("pointerup", onDragEnd);
     renderQueue();
