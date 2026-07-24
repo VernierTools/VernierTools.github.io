@@ -81,6 +81,13 @@ button{ font-family:inherit; }
 .tb-brand__mark{ width:22px; height:22px; border-radius:6px; background:var(--accent); position:relative; flex:0 0 auto; }
 .tb-brand__mark::after{ content:""; position:absolute; left:50%; top:50%; width:2px; height:8px; background:#fff;
   border-radius:2px; transform:translate(-50%,-90%) rotate(38deg); transform-origin:bottom center; opacity:.95; }
+@media (max-width:760px){
+  /* モバイルではロゴのマークがハンバーガーアイコンに差し替わり、
+     このボタン1つがメニュー開閉の唯一の入口になる（§ tb-menu 側参照） */
+  .tb-brand__mark::after{ display:none; }
+  .tb-brand__mark::before{ content:""; position:absolute; left:50%; top:50%; width:12px; height:2px; background:#fff;
+    border-radius:2px; transform:translate(-50%,-50%); box-shadow:0 -4px 0 #fff, 0 4px 0 #fff; opacity:.95; }
+}
 .tb-brandmenu{ display:none; position:absolute; top:100%; left:0; margin-top:8px; z-index:30;
   flex-direction:column; gap:2px; min-width:190px; padding:6px;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md); }
@@ -109,11 +116,9 @@ button{ font-family:inherit; }
 .tb-seg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px;
   font-weight:500; color:var(--text-2); padding:4px 10px; border-radius:4px; transition:all var(--tap); }
 .tb-seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
-.tb-menubtn{ display:none; }
 .tb-menu{ display:none; }
 @media (max-width:760px){
   .tb-nav{ display:none; }
-  .tb-menubtn{ display:inline-flex; }
   .tb-menu{ display:none; position:absolute; top:73px; left:0; right:0; background:var(--surface);
     border-bottom:1px solid var(--border); padding:var(--s3) var(--s5); flex-direction:column; gap:2px; }
   .tb-menu.open{ display:flex; }
