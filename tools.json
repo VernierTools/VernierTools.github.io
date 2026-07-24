@@ -138,8 +138,8 @@
         "ja": "表記ゆれ・ミス検出＆修正"
       },
       "description": {
-        "en": "Detect and fix full-width spaces, stray characters, and doubled punctuation.",
-        "ja": "全角スペース・紛れ込んだ文字・連続した句読点を検出して修正。"
+        "en": "Convert full-width digits/spaces to half-width, and flag repeated punctuation.",
+        "ja": "全角数字・スペースを半角に変換し、連続した句読点を検出します。"
       },
       "keywords": [
         "cleanup",
