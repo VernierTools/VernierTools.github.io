@@ -238,6 +238,7 @@ button{ font-family:inherit; }
    HUB / SEARCH / CARDS  (shell.js が index・category ページに生成)
    ========================================================================= */
 .section{ padding:var(--s7) 0; }
+.hub-sections .section:first-child{ padding-top:0; }
 .section__head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:var(--s5); }
 .section__head h2{ font-size:16px; font-weight:600; letter-spacing:-.01em; }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:var(--s3); }
