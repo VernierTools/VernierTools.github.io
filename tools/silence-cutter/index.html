@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio silence cutter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<style>
+  .wavebox{ background:var(--surface); cursor:pointer; position:relative; }
+  .wavebox canvas{ display:block; width:100%; height:auto; }
+  .wavebox.disabled{ cursor:default; opacity:.6; }
+  .sliderrow .val{ min-width:64px; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:6px; }
+  .stale{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-3);
+    background:var(--surface-2); border:1px dashed var(--border-strong); border-radius:var(--r-sm);
+    padding:8px 10px; margin-top:var(--s3); }
+  .stale svg{ width:14px; height:14px; flex:0 0 auto; }
+  .err{ margin-top:var(--s3); }
+  .rrow__value.dim{ color:var(--text-3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Audio silence cutter</h1>
+    <p data-i18n="t.desc">Load an audio file, see its waveform, and cut out the silent parts in one click.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 読み込み・設定・操作 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.file">Audio file</label>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <b data-i18n="t.dropb">Click to choose a file</b> <span data-i18n="t.dropor">or drag &amp; drop</span>
+            <small id="fileinfo" data-i18n="t.nofile">No file selected</small>
+          </div>
+          <input type="file" id="file-input" accept="audio/*" hidden>
+          <div class="badge badge--neg err" id="err" hidden></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.threshold">Silence threshold</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="thresh" min="-70" max="-10" step="1" value="-40">
+            <span class="val mono" id="thresh-val">-40 dB</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.mindur">Counts as silence after</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="mindur" min="0.1" max="3" step="0.05" value="0.5">
+            <span class="val mono" id="mindur-val">0.50 s</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.padding">Padding kept at each edge</label>
+          <div class="sliderrow">
+            <input type="range" class="slider" id="padding" min="0" max="300" step="10" value="60">
+            <span class="val mono" id="padding-val">60 ms</span>
+          </div>
+          <div class="hint" data-i18n="t.paddinghint">A little room tone is kept just before and after each cut so it doesn't sound abrupt.</div>
+        </div>
+        <div class="hint" data-i18n="t.fadehint">Each cut gets an automatic fade in/out of a few milliseconds — short enough to never overlap — to avoid clicks. This isn't adjustable.</div>
+      </div>
+
+      <div class="card">
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--secondary" id="play-orig" disabled>
+            <svg id="play-orig-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="play-orig-lbl" data-i18n="t.playorig">Play original</span>
+          </button>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--primary btn--block" id="cut-btn" disabled data-i18n="t.cut">Cut silence</button>
+        </div>
+        <div class="stale" id="stale" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17.1A2 2 0 0 0 4.4 20h15.2a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+          <span data-i18n="t.stale">Settings changed — press Cut silence again to update the result.</span>
+        </div>
+        <div class="btnrow" id="result-actions" hidden>
+          <button class="btn btn--secondary" id="play-result">
+            <svg id="play-result-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="play-result-lbl" data-i18n="t.playresult">Play result</span>
+          </button>
+          <button class="btn btn--secondary" id="download-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="t.download">Download WAV</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 波形 + 出力 -->
+    <div>
+      <div class="preview wavebox disabled" id="wavewrap" style="margin-bottom:var(--s4)">
+        <canvas id="wave" width="1000" height="220"></canvas>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Analysis</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.duration">Original length</span>
+          <span class="rrow__value dim" id="ro-duration">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.regions">Silent parts found</span>
+          <span class="rrow__value dim" id="ro-regions">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.silencetotal">Total silence</span>
+          <span class="rrow__value dim" id="ro-silence">—</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.resultdur">Result length</span>
+          <span class="rrow__value" id="ro-result">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.reduction">Shorter by</span>
+          <span class="rrow__value dim" id="ro-reduction">—</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js?v=3"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var dropEl = $("drop"), fileInput = $("file-input"), fileinfo = $("fileinfo"), errEl = $("err");
+  var threshEl = $("thresh"), threshVal = $("thresh-val");
+  var mindurEl = $("mindur"), mindurVal = $("mindur-val");
+  var paddingEl = $("padding"), paddingVal = $("padding-val");
+  var cutBtn = $("cut-btn"), staleEl = $("stale");
+  var playOrigBtn = $("play-orig"), playOrigIco = $("play-orig-ico"), playOrigLbl = $("play-orig-lbl");
+  var resultActions = $("result-actions"), playResultBtn = $("play-result"),
+      playResultIco = $("play-result-ico"), playResultLbl = $("play-result-lbl"), downloadBtn = $("download-btn");
+  var waveWrap = $("wavewrap"), wave = $("wave");
+  var roDuration = $("ro-duration"), roRegions = $("ro-regions"), roSilence = $("ro-silence"),
+      roResult = $("ro-result"), roReduction = $("ro-reduction");
+
+  var ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
+  var ICON_PAUSE = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+
+  var audioCtx = null;
+  var audioBuffer = null;     // decoded original
+  var analysis = null;        // {peaks, frameDur, numFrames, duration}
+  var regions = { raw: [], cuts: [] };
+  var origAudio = new Audio();
+  var origURL = null;
+  var resultAudio = new Audio();
+  var resultURL = null;
+  var resultBuffer = null;
+  var stale = false;
+
+  origAudio.preload = "auto";
+  resultAudio.preload = "auto";
+
+  /* ---------------------------------------------------------------
+     util
+     --------------------------------------------------------------- */
+  function fmtTime(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    var m = Math.floor(s / 60), r = s - m * 60;
+    return m + ":" + (r < 10 ? "0" : "") + r.toFixed(1);
+  }
+  function dbToLin(db) { return Math.pow(10, db / 20); }
+
+  function setErr(msg) {
+    if (!msg) { errEl.hidden = true; errEl.textContent = ""; return; }
+    errEl.hidden = false; errEl.textContent = msg;
+  }
+
+  /* ---------------------------------------------------------------
+     analysis: peak envelope in fixed 10ms frames (independent of
+     display resolution, so threshold/duration changes stay precise)
+     --------------------------------------------------------------- */
+  function analyze(buf) {
+    var sr = buf.sampleRate, nCh = buf.numberOfChannels;
+    var frameLen = Math.max(1, Math.round(0.01 * sr));
+    var numFrames = Math.ceil(buf.length / frameLen) || 1;
+    var peaks = new Float32Array(numFrames);
+    var chans = []; for (var c = 0; c < nCh; c++) chans.push(buf.getChannelData(c));
+    for (var i = 0; i < numFrames; i++) {
+      var s = i * frameLen, e = Math.min(buf.length, s + frameLen), m = 0;
+      for (var c2 = 0; c2 < nCh; c2++) {
+        var d = chans[c2];
+        for (var k = s; k < e; k++) { var v = d[k]; if (v < 0) v = -v; if (v > m) m = v; }
+      }
+      peaks[i] = m;
+    }
+    return { peaks: peaks, frameDur: frameLen / sr, numFrames: numFrames, duration: buf.duration };
+  }
+
+  function computeRegions() {
+    if (!analysis) { regions = { raw: [], cuts: [] }; return; }
+    var threshLin = dbToLin(parseFloat(threshEl.value));
+    var minDur = parseFloat(mindurEl.value);
+    var pad = parseFloat(paddingEl.value) / 1000;
+    var peaks = analysis.peaks, frameDur = analysis.frameDur, n = analysis.numFrames;
+    var raw = [], i = 0;
+    while (i < n) {
+      if (peaks[i] <= threshLin) {
+        var j = i; while (j < n && peaks[j] <= threshLin) j++;
+        var startT = i * frameDur, endT = Math.min(j * frameDur, analysis.duration);
+        if (endT - startT >= minDur) raw.push({ start: startT, end: endT });
+        i = j;
+      } else i++;
+    }
+    var cuts = [];
+    raw.forEach(function (r) {
+      var s = r.start + pad, e = r.end - pad;
+      if (e > s) cuts.push({ start: s, end: e });
+    });
+    regions = { raw: raw, cuts: cuts };
+  }
+
+  function keptSegments(cuts, duration) {
+    var kept = [], pos = 0;
+    cuts.forEach(function (c) {
+      if (c.start > pos) kept.push({ start: pos, end: c.start });
+      pos = Math.max(pos, c.end);
+    });
+    if (pos < duration) kept.push({ start: pos, end: duration });
+    return kept;
+  }
+
+  /* ---------------------------------------------------------------
+     waveform drawing
+     --------------------------------------------------------------- */
+  function inCutRegion(t) {
+    for (var i = 0; i < regions.cuts.length; i++) {
+      var r = regions.cuts[i]; if (t >= r.start && t < r.end) return true;
+    }
+    return false;
+  }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function drawWave() {
+    var W = wave.width, H = wave.height, ctx = wave.getContext("2d");
+    ctx.clearRect(0, 0, W, H);
+    if (!analysis) return;
+    var mid = H / 2;
+    var colBar = cssVar("--text-3"), colCut = cssVar("--neg"), colCutTint = cssVar("--neg-tint"), colAccent = cssVar("--accent");
+    var dur = analysis.duration, peaks = analysis.peaks, frameDur = analysis.frameDur, nF = analysis.numFrames;
+
+    ctx.fillStyle = colCutTint;
+    regions.cuts.forEach(function (r) {
+      var x1 = Math.round(r.start / dur * W), x2 = Math.round(r.end / dur * W);
+      ctx.fillRect(x1, 0, Math.max(1, x2 - x1), H);
+    });
+
+    for (var x = 0; x < W; x++) {
+      var t0 = x / W * dur, t1 = (x + 1) / W * dur;
+      var f0 = Math.floor(t0 / frameDur), f1 = Math.min(nF, Math.ceil(t1 / frameDur));
+      var m = 0;
+      for (var i = f0; i < f1; i++) if (peaks[i] > m) m = peaks[i];
+      var h = Math.max(1, m * (H * 0.9));
+      ctx.fillStyle = inCutRegion(t0) ? colCut : colBar;
+      ctx.fillRect(x, mid - h / 2, 1, h);
+    }
+
+    if (!origAudio.paused && audioBuffer) {
+      var px = Math.round((origAudio.currentTime / dur) * W);
+      ctx.fillStyle = colAccent;
+      ctx.fillRect(px, 0, 2, H);
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     readout
+     --------------------------------------------------------------- */
+  function updateReadout() {
+    if (!analysis) {
+      roDuration.textContent = roRegions.textContent = roSilence.textContent = roResult.textContent = roReduction.textContent = "—";
+      return;
+    }
+    var dur = analysis.duration;
+    var silenceTotal = regions.cuts.reduce(function (a, r) { return a + (r.end - r.start); }, 0);
+    var resultDur = Math.max(0, dur - silenceTotal);
+    var pct = dur > 0 ? (silenceTotal / dur * 100) : 0;
+    roDuration.textContent = fmtTime(dur) + "s";
+    roRegions.textContent = String(regions.cuts.length);
+    roSilence.textContent = fmtTime(silenceTotal) + "s";
+    roResult.textContent = fmtTime(resultDur) + "s";
+    roReduction.textContent = pct.toFixed(1) + "%";
+  }
+
+  function markStale() {
+    if (!resultBuffer) return;
+    stale = true; staleEl.hidden = false; resultActions.hidden = true;
+  }
+
+  function refreshAll() {
+    computeRegions(); drawWave(); updateReadout(); markStale();
+  }
+
+  /* ---------------------------------------------------------------
+     slider labels
+     --------------------------------------------------------------- */
+  function syncSliderLabels() {
+    threshVal.textContent = parseFloat(threshEl.value).toFixed(0) + " dB";
+    mindurVal.textContent = parseFloat(mindurEl.value).toFixed(2) + " s";
+    paddingVal.textContent = parseFloat(paddingEl.value).toFixed(0) + " ms";
+  }
+  [threshEl, mindurEl, paddingEl].forEach(function (el) {
+    el.addEventListener("input", function () { syncSliderLabels(); refreshAll(); });
+  });
+  syncSliderLabels();
+
+  /* ---------------------------------------------------------------
+     file loading (click + drag & drop)
+     --------------------------------------------------------------- */
+  function ensureCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  function resetForNewFile() {
+    origAudio.pause(); resultAudio.pause();
+    if (origURL) { URL.revokeObjectURL(origURL); origURL = null; }
+    if (resultURL) { URL.revokeObjectURL(resultURL); resultURL = null; }
+    audioBuffer = null; analysis = null; regions = { raw: [], cuts: [] };
+    resultBuffer = null; stale = false;
+    staleEl.hidden = true; resultActions.hidden = true;
+    cutBtn.disabled = true; playOrigBtn.disabled = true;
+    waveWrap.classList.add("disabled");
+    setErr(null);
+    drawWave(); updateReadout();
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    resetForNewFile();
+    fileinfo.textContent = file.name;
+    setErr(null);
+    var ctx = ensureCtx();
+    origURL = URL.createObjectURL(file);
+    origAudio.src = origURL;
+    file.arrayBuffer().then(function (ab) {
+      return ctx.decodeAudioData(ab);
+    }).then(function (buf) {
+      audioBuffer = buf;
+      analysis = analyze(buf);
+      fileinfo.textContent = file.name + " — " + fmtTime(buf.duration) + "s, " + buf.sampleRate + " Hz, " +
+        buf.numberOfChannels + "ch";
+      waveWrap.classList.remove("disabled");
+      cutBtn.disabled = false; playOrigBtn.disabled = false;
+      refreshAll();
+    }).catch(function (e) {
+      setErr(Shell.t("t.decodeerr"));
+      fileinfo.textContent = file.name;
+    });
+  }
+
+  dropEl.addEventListener("click", function () { fileInput.click(); });
+  dropEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener("change", function () { loadFile(fileInput.files[0]); });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("dragover"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("dragover"); });
+  });
+  dropEl.addEventListener("drop", function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  /* ---------------------------------------------------------------
+     waveform click-to-seek
+     --------------------------------------------------------------- */
+  waveWrap.addEventListener("click", function (e) {
+    if (!analysis) return;
+    var r = wave.getBoundingClientRect();
+    var frac = (e.clientX - r.left) / r.width;
+    frac = Math.min(1, Math.max(0, frac));
+    ensureCtx();
+    origAudio.currentTime = frac * analysis.duration;
+    origAudio.play();
+  });
+
+  /* ---------------------------------------------------------------
+     playback controls
+     --------------------------------------------------------------- */
+  function wirePlayButton(audioEl, btn, ico, lbl, playKey, pauseKey) {
+    btn.addEventListener("click", function () {
+      if (audioEl.paused) audioEl.play(); else audioEl.pause();
+    });
+    audioEl.addEventListener("play", function () { ico.innerHTML = ICON_PAUSE; lbl.textContent = Shell.t(pauseKey); });
+    audioEl.addEventListener("pause", function () { ico.innerHTML = ICON_PLAY; lbl.textContent = Shell.t(playKey); });
+    audioEl.addEventListener("ended", function () { ico.innerHTML = ICON_PLAY; lbl.textContent = Shell.t(playKey); });
+  }
+  wirePlayButton(origAudio, playOrigBtn, playOrigIco, playOrigLbl, "t.playorig", "t.pauseorig");
+  wirePlayButton(resultAudio, playResultBtn, playResultIco, playResultLbl, "t.playresult", "t.pauseresult");
+  origAudio.addEventListener("timeupdate", drawWave);
+  origAudio.addEventListener("play", drawWave);
+  origAudio.addEventListener("pause", drawWave);
+
+  /* ---------------------------------------------------------------
+     cutting
+     --------------------------------------------------------------- */
+  function buildCutBuffer() {
+    var duration = audioBuffer.duration, sr = audioBuffer.sampleRate, nCh = audioBuffer.numberOfChannels;
+    var kept = keptSegments(regions.cuts, duration);
+    var FADE_SEC = 0.008; // ~8ms — imperceptible, and always clamped below so it never overlaps
+    var segs = kept.map(function (k) {
+      var s = Math.round(k.start * sr), e = Math.round(k.end * sr);
+      if (e < s) e = s;
+      return { s: s, e: e, fadeIn: k.start > 1e-6, fadeOut: (duration - k.end) > 1e-6 };
+    });
+    var total = segs.reduce(function (a, s) { return a + (s.e - s.s); }, 0);
+    if (total <= 0) return null;
+    var ctx = ensureCtx();
+    var out = ctx.createBuffer(nCh, total, sr);
+    var writeOffset = 0;
+    segs.forEach(function (seg) {
+      var len = seg.e - seg.s;
+      var fadeSamples = Math.min(Math.round(FADE_SEC * sr), Math.floor(len / 2));
+      for (var ch = 0; ch < nCh; ch++) {
+        var src = audioBuffer.getChannelData(ch), dst = out.getChannelData(ch);
+        for (var k = 0; k < len; k++) {
+          var v = src[seg.s + k];
+          if (seg.fadeIn && fadeSamples > 0 && k < fadeSamples) v *= k / fadeSamples;
+          if (seg.fadeOut && fadeSamples > 0 && k >= len - fadeSamples) v *= (len - 1 - k) / fadeSamples;
+          dst[writeOffset + k] = v;
+        }
+      }
+      writeOffset += len;
+    });
+    return out;
+  }
+
+  function bufferToWav(buf) {
+    var nCh = buf.numberOfChannels, sr = buf.sampleRate, len = buf.length;
+    var blockAlign = nCh * 2, dataSize = len * blockAlign;
+    var ab = new ArrayBuffer(44 + dataSize), view = new DataView(ab);
+    function ws(o, s) { for (var i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); }
+    ws(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); ws(8, "WAVE");
+    ws(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, nCh, true); view.setUint32(24, sr, true);
+    view.setUint32(28, sr * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+    ws(36, "data"); view.setUint32(40, dataSize, true);
+    var off = 44, chans = []; for (var c = 0; c < nCh; c++) chans.push(buf.getChannelData(c));
+    for (var i = 0; i < len; i++) {
+      for (var c2 = 0; c2 < nCh; c2++) {
+        var s = Math.max(-1, Math.min(1, chans[c2][i]));
+        view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2;
+      }
+    }
+    return new Blob([ab], { type: "audio/wav" });
+  }
+
+  cutBtn.addEventListener("click", function () {
+    if (!audioBuffer) return;
+    computeRegions();
+    var out = buildCutBuffer();
+    if (!out) { setErr(Shell.t("t.allsilent")); return; }
+    setErr(null);
+    resultBuffer = out;
+    var blob = bufferToWav(out);
+    if (resultURL) URL.revokeObjectURL(resultURL);
+    resultURL = URL.createObjectURL(blob);
+    resultAudio.pause(); resultAudio.src = resultURL;
+    stale = false; staleEl.hidden = true; resultActions.hidden = false;
+    updateReadout(); drawWave();
+
+    downloadBtn.onclick = function () {
+      var a = document.createElement("a");
+      a.href = resultURL; a.download = "silence-cut.wav";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    };
+  });
+
+  /* ---------------------------------------------------------------
+     init
+     --------------------------------------------------------------- */
+  refreshAll();
+
+  Shell.init({
+    id: "silence-cutter",
+    strings: {
+      en: {
+        "t.title": "Audio silence cutter",
+        "t.desc": "Load an audio file, see its waveform, and cut out the silent parts in one click.",
+        "t.file": "Audio file", "t.dropb": "Click to choose a file", "t.dropor": "or drag & drop",
+        "t.nofile": "No file selected",
+        "t.threshold": "Silence threshold", "t.mindur": "Counts as silence after", "t.padding": "Padding kept at each edge",
+        "t.paddinghint": "A little room tone is kept just before and after each cut so it doesn't sound abrupt.",
+        "t.fadehint": "Each cut gets an automatic fade in/out of a few milliseconds — short enough to never overlap — to avoid clicks. This isn't adjustable.",
+        "t.playorig": "Play original", "t.pauseorig": "Pause",
+        "t.cut": "Cut silence",
+        "t.stale": "Settings changed — press Cut silence again to update the result.",
+        "t.playresult": "Play result", "t.pauseresult": "Pause",
+        "t.download": "Download WAV",
+        "t.output": "Analysis", "t.duration": "Original length", "t.regions": "Silent parts found",
+        "t.silencetotal": "Total silence", "t.resultdur": "Result length", "t.reduction": "Shorter by",
+        "t.decodeerr": "Couldn't decode this file — try a different audio format.",
+        "t.allsilent": "Nothing is left after cutting — try a lower threshold or shorter minimum duration."
+      },
+      ja: {
+        "t.title": "音声の無音カット",
+        "t.desc": "音声ファイルを読み込むと波形が表示され、無音部分をワンクリックでカットできます。",
+        "t.file": "音声ファイル", "t.dropb": "クリックしてファイルを選択", "t.dropor": "またはドラッグ&ドロップ",
+        "t.nofile": "ファイル未選択",
+        "t.threshold": "無音とみなす閾値", "t.mindur": "何秒続いたら無音と判定するか", "t.padding": "端に残す余白",
+        "t.paddinghint": "カットの前後に少しだけ音を残し、不自然に途切れないようにします。",
+        "t.fadehint": "カットの継ぎ目には数ミリ秒の短いフェードイン/アウトを自動で入れます（絶対に重ならない長さ）。クリックノイズ防止用で、調整はできません。",
+        "t.playorig": "元音源を再生", "t.pauseorig": "一時停止",
+        "t.cut": "無音をカット",
+        "t.stale": "設定が変わりました。「無音をカット」を押し直すと結果が更新されます。",
+        "t.playresult": "結果を再生", "t.pauseresult": "一時停止",
+        "t.download": "WAVをダウンロード",
+        "t.output": "解析結果", "t.duration": "元の長さ", "t.regions": "検出した無音部分",
+        "t.silencetotal": "無音の合計時間", "t.resultdur": "カット後の長さ", "t.reduction": "短縮率",
+        "t.decodeerr": "このファイルをデコードできませんでした。別の形式を試してください。",
+        "t.allsilent": "カットすると何も残りません。閾値を下げるか、最小の無音時間を短くしてみてください。"
+      }
+    },
+    onSettingsChange: function () {
+      // re-label play/pause buttons and stale hint in the new language
+      playOrigLbl.textContent = Shell.t(origAudio.paused ? "t.playorig" : "t.pauseorig");
+      playResultLbl.textContent = Shell.t(resultAudio.paused ? "t.playresult" : "t.pauseresult");
+    }
+  });
+})();
+</script>
+</body>
+</html>
