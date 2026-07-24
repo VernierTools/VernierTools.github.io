@@ -833,7 +833,15 @@
   }
 
   function start() {
-    if (!cues.length || running) return;
+    if (running) return;
+    if (!cues.length) {
+      // キューが1件もない状態で開始が押されたら、編集欄に入っている時間を
+      // そのまま1件のキューとして追加してから開始する（0秒のときだけ警告して止める）。
+      var sec = commitDuration();
+      if (sec == null) return;
+      cues.push({ id: nextId++, seconds: sec });
+      renderQueue();
+    }
     ensureCtx();
     if (paused) {
       segStartPerf = performance.now() - (segDurationMs - pausedRemainingMs);
