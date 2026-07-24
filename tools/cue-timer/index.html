@@ -157,9 +157,32 @@
 
       <div class="card" id="sound-card">
         <div class="card__title" data-i18n="t.sound">Sound &amp; screen</div>
-        <div class="toggles">
-          <label class="toggle"><input type="checkbox" id="opt-soundcue" checked><span class="track"></span><span data-i18n="t.soundcue">Cue-change sound</span></label>
-          <label class="toggle"><input type="checkbox" id="opt-countdown" checked><span class="track"></span><span data-i18n="t.soundcountdown">3-2-1 countdown beep</span></label>
+
+        <div class="field">
+          <label class="label" data-i18n="t.alertsound">Alert sound (plays when a cue reaches 0)</label>
+          <select class="select" id="alert-select">
+            <option value="chime" data-i18n="t.snd.chime">Chime</option>
+            <option value="bell" data-i18n="t.snd.bell">Bell</option>
+            <option value="doublebeep" data-i18n="t.snd.doublebeep">Double beep</option>
+            <option value="alarm" data-i18n="t.snd.alarm">Alarm</option>
+            <option value="none" data-i18n="t.snd.none">None</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.customsoundlabel">Or use your own sound file</label>
+          <input type="file" id="custom-audio-input" accept=".mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.caf,.aiff,.wma,audio/*" style="display:none">
+          <div class="btnrow" style="margin-top:0">
+            <button type="button" class="btn btn--secondary" id="btn-choose-audio">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <span data-i18n="t.chooseaudio">Choose audio file</span>
+            </button>
+            <button type="button" class="btn btn--ghost" id="btn-clear-audio" hidden><span data-i18n="t.clearaudio">Clear</span></button>
+          </div>
+          <div class="hint" id="custom-audio-name" hidden></div>
+        </div>
+
+        <div class="toggles" style="margin-top:var(--s4)">
           <label class="toggle"><input type="checkbox" id="opt-awake" checked><span class="track"></span><span data-i18n="t.keepawake">Keep screen awake while running</span></label>
         </div>
       </div>
@@ -250,11 +273,12 @@
   var curId = null, passesDone = 0;
   var segDurationMs = 0, segStartPerf = 0, pausedRemainingMs = 0;
   var rafId = null;
-  var lastBeepSec = null;
   var wakeLock = null;
   var originalTitle = document.title;
 
-  var soundCue = true, soundCountdown = true, keepAwake = true;
+  var alertSound = "chime";
+  var customAudioURL = null, customAudioName = null;
+  var keepAwake = true;
 
   var dragId = null, dragMoved = false;
 
@@ -495,7 +519,7 @@
       else {
         var newIdx = clamp(idx, 0, cues.length - 1);
         curId = cues[newIdx].id; segDurationMs = cues[newIdx].seconds * 1000;
-        if (running) { segStartPerf = performance.now(); lastBeepSec = null; playCueBeep(); }
+        if (running) { segStartPerf = performance.now(); playAlert(); }
         else { pausedRemainingMs = segDurationMs; }
       }
     }
@@ -554,15 +578,48 @@
   });
 
   /* sound / screen options */
-  $("opt-soundcue").addEventListener("change", function () { soundCue = $("opt-soundcue").checked; });
-  $("opt-countdown").addEventListener("change", function () { soundCountdown = $("opt-countdown").checked; });
+  $("alert-select").addEventListener("change", function () { alertSound = $("alert-select").value; });
   $("opt-awake").addEventListener("change", function () {
     keepAwake = $("opt-awake").checked;
     if (!keepAwake) releaseWakeLock(); else if (running) requestWakeLock();
   });
 
+  /* カスタム音声ファイルの読み込み。
+     iOS Safari は accept="audio/*" 単体だと音声ファイルがピッカー上でグレーアウトして
+     選べなくなる既知の不具合があるため（video/* 相当として扱われてしまう）、
+     拡張子の指定を併記して回避している（input の accept 属性を参照）。 */
+  $("btn-choose-audio").addEventListener("click", function () { $("custom-audio-input").click(); });
+  $("custom-audio-input").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    if (customAudioURL) URL.revokeObjectURL(customAudioURL);
+    customAudioURL = URL.createObjectURL(f);
+    customAudioName = f.name;
+    ensureCustomOption();
+    alertSound = "custom"; $("alert-select").value = "custom";
+    $("custom-audio-name").hidden = false;
+    $("custom-audio-name").textContent = tr("t.loaded", "Loaded:") + " " + f.name;
+    $("btn-clear-audio").hidden = false;
+    try { var a = new Audio(customAudioURL); a.play().catch(function () {}); } catch (err) {}
+  });
+  $("btn-clear-audio").addEventListener("click", function () {
+    if (customAudioURL) URL.revokeObjectURL(customAudioURL);
+    customAudioURL = null; customAudioName = null;
+    removeCustomOption();
+    if (alertSound === "custom") { alertSound = "chime"; $("alert-select").value = "chime"; }
+    $("custom-audio-name").hidden = true; $("btn-clear-audio").hidden = true;
+    $("custom-audio-input").value = "";
+  });
+  function ensureCustomOption() {
+    var sel = $("alert-select"), opt = sel.querySelector('option[value="custom"]');
+    if (!opt) { opt = document.createElement("option"); opt.value = "custom"; sel.appendChild(opt); }
+    opt.textContent = tr("t.snd.custom", "Custom") + ": " + customAudioName;
+  }
+  function removeCustomOption() {
+    var sel = $("alert-select"), opt = sel.querySelector('option[value="custom"]'); if (opt) opt.remove();
+  }
+
   /* ---------------------------------------------------------------------
-     audio
+     audio — 組み込みの数種類の音 + 読み込んだ音声ファイルの再生
      --------------------------------------------------------------------- */
   var audioCtx = null;
   function ensureCtx() {
@@ -581,9 +638,19 @@
     osc.connect(g); g.connect(ctx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.03);
   }
-  function playCueBeep() { if (soundCue) { beep(880, 0, 0.11); beep(1180, 0.13, 0.13); } }
-  function playFinishBeep() { if (soundCue) { beep(880, 0, 0.12); beep(1046, 0.14, 0.12); beep(1318, 0.28, 0.22); } }
-  function playCountdownBeep() { if (soundCountdown) beep(700, 0, 0.07, 0.14); }
+  function playAlert() {
+    if (alertSound === "none") return;
+    if (alertSound === "custom") {
+      if (!customAudioURL) return;
+      try { var a = new Audio(customAudioURL); a.play().catch(function () {}); } catch (e) {}
+      return;
+    }
+    ensureCtx();
+    if (alertSound === "bell") { beep(880, 0, 0.6, 0.16); beep(1320, 0, 0.6, 0.07); }
+    else if (alertSound === "doublebeep") { beep(880, 0, 0.12, 0.2); beep(880, 0.18, 0.12, 0.2); }
+    else if (alertSound === "alarm") { beep(1046, 0, 0.09, 0.2); beep(784, 0.11, 0.09, 0.2); beep(1046, 0.22, 0.09, 0.2); beep(784, 0.33, 0.09, 0.2); }
+    else { beep(784, 0, 0.18, 0.15); beep(988, 0.12, 0.18, 0.15); beep(1175, 0.24, 0.3, 0.15); } // chime (default)
+  }
 
   /* ---------------------------------------------------------------------
      wake lock
@@ -606,8 +673,7 @@
     var c = cues.find(function (x) { return x.id === id; });
     segDurationMs = c.seconds * 1000;
     segStartPerf = performance.now() - (overflowMs || 0);
-    lastBeepSec = null;
-    playCueBeep();
+    playAlert();
   }
   function advanceCore(overflowMs) {
     if (!cues.length) { doFinish(); return false; }
@@ -666,7 +732,7 @@
         else if (repeatMode === "count" && passesDone + 1 < repeatCount) { nextIdx = 0; passesDone++; }
         else { doFinish(); return; }
       }
-      curId = cues[nextIdx].id; segDurationMs = cues[nextIdx].seconds * 1000; pausedRemainingMs = segDurationMs; lastBeepSec = null;
+      curId = cues[nextIdx].id; segDurationMs = cues[nextIdx].seconds * 1000; pausedRemainingMs = segDurationMs;
       renderQueue();
     } else {
       advanceCore(0);
@@ -682,7 +748,7 @@
     running = false; paused = false; finished = true;
     if (rafId) cancelAnimationFrame(rafId); rafId = null;
     releaseWakeLock(); restoreTitle();
-    playFinishBeep();
+    playAlert();
     renderQueue();
   }
   function restoreTitle() { document.title = originalTitle; }
@@ -731,9 +797,6 @@
     } else passLabel.hidden = true;
 
     document.title = fmtHMS(Math.ceil(remSec)) + " — Vernier";
-
-    var curSec = Math.ceil(remSec);
-    if (curSec <= 3 && curSec >= 1 && curSec !== lastBeepSec) { playCountdownBeep(); lastBeepSec = curSec; }
   }
 
   function renderIdlePlayer() {
@@ -837,7 +900,11 @@
           "t.cancel": "Cancel edit", "t.durerr": "Enter a duration longer than 0 seconds.",
           "t.queueempty": "No cues yet — add one above.", "t.total": "Total", "t.drag": "Drag to reorder", "t.delete": "Delete",
           "t.repeat": "Repeat", "t.repeatnone": "Once", "t.repeatcount": "Repeat", "t.repeatinf": "Loop", "t.times": "times",
-          "t.sound": "Sound & screen", "t.soundcue": "Cue-change sound", "t.soundcountdown": "3-2-1 countdown beep",
+          "t.sound": "Sound & screen", "t.alertsound": "Alert sound (plays when a cue reaches 0)",
+          "t.snd.chime": "Chime", "t.snd.bell": "Bell", "t.snd.doublebeep": "Double beep", "t.snd.alarm": "Alarm",
+          "t.snd.none": "None", "t.snd.custom": "Custom",
+          "t.customsoundlabel": "Or use your own sound file", "t.chooseaudio": "Choose audio file",
+          "t.clearaudio": "Clear", "t.loaded": "Loaded:",
           "t.keepawake": "Keep screen awake while running",
           "t.now": "Now playing", "t.running": "Running", "t.paused": "Paused", "t.ready": "Ready", "t.finished": "Finished",
           "t.next": "Next", "t.overall": "Overall progress", "t.nonenext": "—",
@@ -854,7 +921,11 @@
           "t.cancel": "編集をキャンセル", "t.durerr": "0秒より長い時間を入力してください。",
           "t.queueempty": "まだキューがありません。上で追加してください。", "t.total": "合計", "t.drag": "ドラッグで並べ替え", "t.delete": "削除",
           "t.repeat": "繰り返し", "t.repeatnone": "1回のみ", "t.repeatcount": "回数指定", "t.repeatinf": "無限ループ", "t.times": "回",
-          "t.sound": "音・画面設定", "t.soundcue": "キュー切り替え音", "t.soundcountdown": "残り3-2-1のカウントダウン音",
+          "t.sound": "音・画面設定", "t.alertsound": "アラート音（キューが0秒になった時に再生）",
+          "t.snd.chime": "チャイム", "t.snd.bell": "ベル", "t.snd.doublebeep": "ダブルビープ", "t.snd.alarm": "アラーム",
+          "t.snd.none": "なし", "t.snd.custom": "カスタム",
+          "t.customsoundlabel": "または、読み込んだ音声ファイルを使う", "t.chooseaudio": "音声ファイルを選択",
+          "t.clearaudio": "クリア", "t.loaded": "読み込み済み:",
           "t.keepawake": "実行中は画面のスリープを防止",
           "t.now": "再生中", "t.running": "実行中", "t.paused": "一時停止中", "t.ready": "準備完了", "t.finished": "終了",
           "t.next": "次", "t.overall": "全体の進捗", "t.nonenext": "—",
@@ -865,6 +936,7 @@
       },
       onSettingsChange: function () {
         renderQueue(); renderIdlePlayer(); renderPresets();
+        if (customAudioName) ensureCustomOption();
       }
     });
   }
