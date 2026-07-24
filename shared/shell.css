@@ -243,7 +243,7 @@ button{ font-family:inherit; }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:var(--s3); }
 .toolcard{ display:block; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--s4); position:relative; transition:border-color var(--tap), box-shadow var(--tap), transform var(--tap); }
-.toolcard:hover{ border-color:var(--border-strong); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.toolcard:hover{ border-color:var(--border-strong); box-shadow:var(--shadow-md); }
 .toolcard__ico{ width:34px; height:34px; border-radius:var(--r); background:var(--accent-tint);
   display:flex; align-items:center; justify-content:center; color:var(--accent); margin-bottom:var(--s3); }
 .toolcard__ico svg{ width:18px; height:18px; }
