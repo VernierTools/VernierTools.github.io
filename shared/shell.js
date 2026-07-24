@@ -238,12 +238,15 @@
     });
 
     // 現在ページのナビをハイライト
-    var here = location.pathname.split("/").pop() || "index.html";
+    // 「URL末尾を見て判定」は /tools/xxx/ のような末尾スラッシュのツールページを
+    // ホームと誤認識するバグがあったため、実際のホームURLと厳密比較する方式に変更
+    var homePath = new URL(ROOT + "index.html", location.href).pathname;
+    var isHome = location.pathname === homePath || location.pathname === homePath.replace(/index\.html$/, "");
     var _catEl = document.querySelector("[data-tools-category]");
     var bodyCat = _catEl ? _catEl.getAttribute("data-tools-category") : null;
     h.querySelectorAll(".tb-nav a, .tb-menu a, .tb-brandmenu a").forEach(function(a){
       var cat = a.getAttribute("data-cat");
-      if ((bodyCat && cat === bodyCat) || (!bodyCat && /index\.html$/.test(a.getAttribute("href")) && here === "index.html"))
+      if ((bodyCat && cat === bodyCat) || (!bodyCat && isHome && /index\.html$/.test(a.getAttribute("href"))))
         a.setAttribute("aria-current","page");
     });
 
