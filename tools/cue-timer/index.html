@@ -120,7 +120,12 @@
     <!-- 左: キュー編集・一覧・繰り返し -->
     <div>
       <div class="card" id="queue-card">
-        <div class="card__title" data-i18n="t.queue">Queue</div>
+        <div class="card__title" id="queue-card-title" data-i18n="t.timer">Timer</div>
+
+        <label class="toggle" style="margin-bottom:var(--s4)">
+          <input type="checkbox" id="opt-queue"><span class="track"></span>
+          <span data-i18n="t.usequeue">Use a queue (multiple cues, repeat)</span>
+        </label>
 
         <div class="wheelbox">
           <div class="wheelgrid">
@@ -140,20 +145,23 @@
         <div class="wheelhintwrap"><span class="wheelhint" data-i18n="t.wheelhint">Drag, scroll, or use the arrow keys — double-click to type a value.</span></div>
         <div class="fielderr" id="dur-err" hidden data-i18n="t.durerr">Enter a duration longer than 0 seconds.</div>
 
-        <div class="btnrow" style="margin-top:var(--s4)">
-          <button type="button" class="btn btn--primary btn--block" id="btn-add"><span data-i18n="t.add">Add to queue</span></button>
-          <button type="button" class="btn btn--primary btn--block" id="btn-update" hidden><span data-i18n="t.update">Update cue</span></button>
+        <div id="queue-add-row" hidden>
+          <div class="btnrow" style="margin-top:var(--s4)">
+            <button type="button" class="btn btn--primary btn--block" id="btn-add"><span data-i18n="t.add">Add to queue</span></button>
+            <button type="button" class="btn btn--primary btn--block" id="btn-update" hidden><span data-i18n="t.update">Update cue</span></button>
+          </div>
+          <button type="button" class="btn btn--ghost" id="btn-canceledit" hidden style="margin-top:8px; width:100%">
+            <span data-i18n="t.cancel">Cancel edit</span>
+          </button>
         </div>
-        <button type="button" class="btn btn--ghost" id="btn-canceledit" hidden style="margin-top:8px; width:100%">
-          <span data-i18n="t.cancel">Cancel edit</span>
-        </button>
 
-        <div class="cuelist" id="cue-list" style="margin-top:var(--s4)"></div>
-        <div class="hint" id="queue-empty" data-i18n="t.queueempty">No cues yet — add one above.</div>
+        <div id="cue-list-wrap" hidden>
+          <div class="cuelist" id="cue-list" style="margin-top:var(--s4)"></div>
+          <div class="hint" id="queue-empty" data-i18n="t.queueempty">No cues yet — add one above.</div>
+          <div class="queuemeta"><span data-i18n="t.total">Total</span><b id="queue-total">0:00</b></div>
+        </div>
 
-        <div class="queuemeta"><span data-i18n="t.total">Total</span><b id="queue-total">0:00</b></div>
-
-        <div class="field" style="margin-top:var(--s4)">
+        <div class="field" id="repeat-field" style="margin-top:var(--s4)" hidden>
           <label class="label" data-i18n="t.repeat">Repeat</label>
           <div class="seg" id="seg-repeat" role="group">
             <button type="button" data-repeat="none" data-i18n="t.repeatnone" aria-pressed="true">Once</button>
@@ -228,15 +236,17 @@
         <div class="barouter"><div class="barinner barinner--anim" id="cue-progress"></div></div>
         <span class="passlabel" id="pass-label" hidden></span>
 
-        <div class="rrow">
-          <span class="rrow__label" data-i18n="t.next">Next</span>
-          <span class="rrow__value" id="next-cue" style="font-size:14px;color:var(--text-2);font-weight:500">—</span>
+        <div id="queue-extra-rows" hidden>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.next">Next</span>
+            <span class="rrow__value" id="next-cue" style="font-size:14px;color:var(--text-2);font-weight:500">—</span>
+          </div>
+          <div class="rrow" style="padding-top:0">
+            <span class="rrow__label" data-i18n="t.overall">Overall progress</span>
+            <span class="rrow__value" id="overall-pct" style="font-size:14px;color:var(--text-2);font-weight:500">0%</span>
+          </div>
+          <div class="barouter barouter--muted"><div class="barinner barinner--anim" id="overall-progress"></div></div>
         </div>
-        <div class="rrow" style="padding-top:0">
-          <span class="rrow__label" data-i18n="t.overall">Overall progress</span>
-          <span class="rrow__value" id="overall-pct" style="font-size:14px;color:var(--text-2);font-weight:500">0%</span>
-        </div>
-        <div class="barouter barouter--muted"><div class="barinner barinner--anim" id="overall-progress"></div></div>
 
         <div class="playerctrl" id="playerctrl">
           <button type="button" class="btn btn--primary btn--block" id="btn-start">
@@ -288,9 +298,11 @@
   /* ---------------------------------------------------------------------
      state
      --------------------------------------------------------------------- */
-  var cues = [];                 // [{id, seconds}]
+  var cues = [];                 // [{id, seconds}] — キュー機能をOFFにしても消えない実体
   var nextId = 1;
   var editingId = null;
+  var queueEnabled = false;      // 既定はOFF（普通の単発タイマーとして動く）
+  var simpleSeconds = 0;         // キューOFF時、直近にStartした長さ
   var repeatMode = "none";       // none | count | infinite
   var repeatCount = 2;
 
@@ -320,11 +332,18 @@
   }
   function tr(key, fallback) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(key) : fallback; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function curIdx() { return cues.findIndex(function (c) { return c.id === curId; }); }
-  function overallTotal() { return cues.reduce(function (a, c) { return a + c.seconds; }, 0); }
+  // 再生エンジンが実際に読む「今使うキュー」。ONなら本物の cues、OFFなら直近Startした
+  // 1件だけの仮想キュー（simpleSeconds由来）。cues 自体はOFFの間も一切変更しない。
+  function activeCues() {
+    if (queueEnabled) return cues;
+    return simpleSeconds > 0 ? [{ id: "simple", seconds: simpleSeconds }] : [];
+  }
+  function curIdx() { return activeCues().findIndex(function (c) { return c.id === curId; }); }
+  function overallTotal() { return activeCues().reduce(function (a, c) { return a + c.seconds; }, 0); }
   function elapsedSoFar(remainingMs, idx) {
+    var ac = activeCues();
     var elapsed = 0;
-    for (var i = 0; i < idx; i++) elapsed += cues[i].seconds;
+    for (var i = 0; i < idx; i++) elapsed += ac[i].seconds;
     elapsed += (segDurationMs - remainingMs) / 1000;
     return elapsed;
   }
@@ -465,9 +484,10 @@
     };
   }
 
-  var wheelH = makeWheel($("wheel-h"), { min: 0, max: 99, value: 0, onChange: function () { $("dur-err").hidden = true; } });
-  var wheelM = makeWheel($("wheel-m"), { min: 0, max: 59, value: 0, onChange: function () { $("dur-err").hidden = true; } });
-  var wheelS = makeWheel($("wheel-s"), { min: 0, max: 59, value: 0, onChange: function () { $("dur-err").hidden = true; } });
+  function onDurWheelChange() { $("dur-err").hidden = true; if (!running) renderIdlePlayer(); }
+  var wheelH = makeWheel($("wheel-h"), { min: 0, max: 99, value: 0, onChange: onDurWheelChange });
+  var wheelM = makeWheel($("wheel-m"), { min: 0, max: 59, value: 0, onChange: onDurWheelChange });
+  var wheelS = makeWheel($("wheel-s"), { min: 0, max: 59, value: 0, onChange: onDurWheelChange });
 
   function readDuration() { return wheelH.value * 3600 + wheelM.value * 60 + wheelS.value; }
   function setWheels(sec, silent) {
@@ -815,21 +835,22 @@
      --------------------------------------------------------------------- */
   function beginSegById(id, overflowMs) {
     curId = id;
-    var c = cues.find(function (x) { return x.id === id; });
+    var c = activeCues().find(function (x) { return x.id === id; });
     segDurationMs = c.seconds * 1000;
     segStartPerf = performance.now() - (overflowMs || 0);
   }
   // natural = true のときだけ「0秒に到達した」とみなしてアラートをループ再生する
   // （tick() からの自然な到達のみ true。スキップ操作などの手動遷移では鳴らさない）
   function advanceCore(overflowMs, natural) {
-    if (!cues.length) { doFinish(); return false; }
+    var ac = activeCues();
+    if (!ac.length) { doFinish(); return false; }
     var idx = curIdx(), nextIdx = idx + 1;
-    if (nextIdx >= cues.length) {
-      if (repeatMode === "infinite") { nextIdx = 0; passesDone++; }
-      else if (repeatMode === "count" && passesDone + 1 < repeatCount) { nextIdx = 0; passesDone++; }
+    if (nextIdx >= ac.length) {
+      if (queueEnabled && repeatMode === "infinite") { nextIdx = 0; passesDone++; }
+      else if (queueEnabled && repeatMode === "count" && passesDone + 1 < repeatCount) { nextIdx = 0; passesDone++; }
       else { doFinish(); return false; }
     }
-    beginSegById(cues[nextIdx].id, overflowMs);
+    beginSegById(ac[nextIdx].id, overflowMs);
     if (natural) startAlertLoop();
     return true;
   }
@@ -849,22 +870,31 @@
 
   function start() {
     if (running) return;
-    if (!cues.length) {
-      // キューが1件もない状態で開始が押されたら、編集欄に入っている時間を
-      // そのまま1件のキューとして追加してから開始する（0秒のときだけ警告して止める）。
-      var sec = commitDuration();
-      if (sec == null) return;
-      cues.push({ id: nextId++, seconds: sec });
-      renderQueue();
-    }
-    ensureCtx();
     if (paused) {
       segStartPerf = performance.now() - (segDurationMs - pausedRemainingMs);
       paused = false;
     } else if (curId === null || finished) {
+      if (queueEnabled) {
+        // キューが1件もない状態で開始が押されたら、編集欄に入っている時間を
+        // そのまま1件のキューとして追加してから開始する（0秒のときだけ警告して止める）。
+        if (!cues.length) {
+          var sec = commitDuration();
+          if (sec == null) return;
+          cues.push({ id: nextId++, seconds: sec });
+          renderQueue();
+        }
+      } else {
+        // 普通の単発タイマー: 編集欄の時間をそのまま使う。実際のキュー(cues)には触れない。
+        var sec2 = commitDuration();
+        if (sec2 == null) return;
+        simpleSeconds = sec2;
+      }
+      var ac = activeCues();
+      if (!ac.length) return;
       curId = null; passesDone = 0; finished = false;
-      beginSegById(cues[0].id, 0);
+      beginSegById(ac[0].id, 0);
     }
+    ensureCtx();
     running = true;
     requestWakeLock();
     renderQueue();
@@ -879,15 +909,16 @@
     renderQueue();
   }
   function skipCue() {
-    if (!running && !paused) return;
+    if (!queueEnabled || (!running && !paused)) return;
     if (paused) {
+      var ac = activeCues();
       var idx = curIdx(), nextIdx = idx + 1;
-      if (nextIdx >= cues.length) {
+      if (nextIdx >= ac.length) {
         if (repeatMode === "infinite") { nextIdx = 0; passesDone++; }
         else if (repeatMode === "count" && passesDone + 1 < repeatCount) { nextIdx = 0; passesDone++; }
         else { doFinish(); return; }
       }
-      curId = cues[nextIdx].id; segDurationMs = cues[nextIdx].seconds * 1000; pausedRemainingMs = segDurationMs;
+      curId = ac[nextIdx].id; segDurationMs = ac[nextIdx].seconds * 1000; pausedRemainingMs = segDurationMs;
       renderQueue();
     } else {
       advanceCore(0, false);
@@ -919,38 +950,63 @@
     $("btn-start").hidden = running || paused;
     $("btn-pause").hidden = !running;
     $("btn-resume").hidden = !paused;
-    $("btn-skip").hidden = !(running || paused);
+    $("btn-skip").hidden = !queueEnabled || !(running || paused);
     $("btn-reset").hidden = !(running || paused || finished || curId !== null);
     $("live-indicator").hidden = !running;
+    $("opt-queue").disabled = running || paused;
   }
+
+  /* ---------------------------------------------------------------------
+     キュー機能 ON/OFF。OFFが既定＝普通の単発タイマーとして動く。
+     OFFにしても cues（実際のキュー内容）はそのまま保持し、消さない。
+     --------------------------------------------------------------------- */
+  function syncQueueModeUI() {
+    var on = queueEnabled;
+    $("queue-card-title").textContent = tr(on ? "t.queue" : "t.timer", on ? "Queue" : "Timer");
+    $("queue-card-title").setAttribute("data-i18n", on ? "t.queue" : "t.timer");
+    $("queue-add-row").hidden = !on;
+    $("cue-list-wrap").hidden = !on;
+    $("repeat-field").hidden = !on;
+    $("queue-extra-rows").hidden = !on;
+    updateControls();
+    renderIdlePlayer();
+  }
+  $("opt-queue").addEventListener("change", function () {
+    queueEnabled = $("opt-queue").checked;
+    if (!queueEnabled) cancelEdit();
+    syncQueueModeUI();
+  });
 
   /* ---------------------------------------------------------------------
      player display
      --------------------------------------------------------------------- */
   function updateLiveUI(remainingMs) {
     remainingMs = Math.max(0, remainingMs);
-    var remSec = remainingMs / 1000, idx = curIdx(), cue = cues[idx];
+    var ac = activeCues();
+    var remSec = remainingMs / 1000, idx = curIdx(), cue = ac[idx];
     if (!cue) return;
     $("time-remaining").textContent = fmtHMS(Math.ceil(remSec));
-    $("cue-index-label").textContent = "(" + (idx + 1) + "/" + cues.length + ")";
+    $("cue-index-label").textContent = queueEnabled ? ("(" + (idx + 1) + "/" + ac.length + ")") : tr("t.running", "Running");
     $("elapsed-line").textContent = fmtHMS((segDurationMs - remainingMs) / 1000) + " / " + fmtHMS(cue.seconds);
 
     var cuePct = cue.seconds > 0 ? clamp(100 - (remSec / cue.seconds) * 100, 0, 100) : 100;
     $("cue-progress").style.width = cuePct + "%";
 
-    var perPass = overallTotal();
-    var overallPct = perPass > 0 ? clamp((elapsedSoFar(remainingMs, idx) / perPass) * 100, 0, 100) : 0;
-    $("overall-progress").style.width = overallPct + "%";
-    $("overall-pct").textContent = Math.round(overallPct) + "%";
+    if (queueEnabled) {
+      var perPass = overallTotal();
+      var overallPct = perPass > 0 ? clamp((elapsedSoFar(remainingMs, idx) / perPass) * 100, 0, 100) : 0;
+      $("overall-progress").style.width = overallPct + "%";
+      $("overall-pct").textContent = Math.round(overallPct) + "%";
 
-    var nextIdx = idx + 1 < cues.length ? idx + 1 : (repeatMode !== "none" ? 0 : -1);
-    $("next-cue").textContent = nextIdx >= 0 ? fmtHMS(cues[nextIdx].seconds) : tr("t.nonenext", "—");
+      var nextIdx = idx + 1 < ac.length ? idx + 1 : (repeatMode !== "none" ? 0 : -1);
+      $("next-cue").textContent = nextIdx >= 0 ? fmtHMS(ac[nextIdx].seconds) : tr("t.nonenext", "—");
 
-    var passLabel = $("pass-label");
-    if (repeatMode !== "none") {
-      passLabel.hidden = false;
-      passLabel.textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
-    } else passLabel.hidden = true;
+      var passLabel = $("pass-label");
+      if (repeatMode !== "none") {
+        passLabel.hidden = false;
+        passLabel.textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
+      } else passLabel.hidden = true;
+    }
 
     document.title = fmtHMS(Math.ceil(remSec)) + " — Vernier";
   }
@@ -958,34 +1014,45 @@
   function renderIdlePlayer() {
     updateControls();
     if (running) return;
+    var ac = activeCues();
     if (paused && curId !== null) {
-      var idx = curIdx(), cue = cues[idx];
+      var idx = curIdx(), cue = ac[idx];
       if (!cue) { resetTimer(); return; }
       var remSec = pausedRemainingMs / 1000;
       $("time-remaining").textContent = fmtHMS(Math.ceil(remSec));
-      $("cue-index-label").textContent = "(" + (idx + 1) + "/" + cues.length + ") " + tr("t.paused", "Paused");
+      $("cue-index-label").textContent = (queueEnabled ? ("(" + (idx + 1) + "/" + ac.length + ") ") : "") + tr("t.paused", "Paused");
       $("elapsed-line").textContent = fmtHMS((segDurationMs - pausedRemainingMs) / 1000) + " / " + fmtHMS(cue.seconds);
       var cuePct = cue.seconds > 0 ? clamp(100 - (remSec / cue.seconds) * 100, 0, 100) : 100;
       $("cue-progress").style.width = cuePct + "%";
-      var perPass = overallTotal();
-      var overallPct = perPass > 0 ? clamp((elapsedSoFar(pausedRemainingMs, idx) / perPass) * 100, 0, 100) : 0;
-      $("overall-progress").style.width = overallPct + "%"; $("overall-pct").textContent = Math.round(overallPct) + "%";
-      var nextIdx = idx + 1 < cues.length ? idx + 1 : (repeatMode !== "none" ? 0 : -1);
-      $("next-cue").textContent = nextIdx >= 0 ? fmtHMS(cues[nextIdx].seconds) : tr("t.nonenext", "—");
-      $("pass-label").hidden = repeatMode === "none";
-      if (repeatMode !== "none") $("pass-label").textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
+      if (queueEnabled) {
+        var perPass = overallTotal();
+        var overallPct = perPass > 0 ? clamp((elapsedSoFar(pausedRemainingMs, idx) / perPass) * 100, 0, 100) : 0;
+        $("overall-progress").style.width = overallPct + "%"; $("overall-pct").textContent = Math.round(overallPct) + "%";
+        var nextIdx = idx + 1 < ac.length ? idx + 1 : (repeatMode !== "none" ? 0 : -1);
+        $("next-cue").textContent = nextIdx >= 0 ? fmtHMS(ac[nextIdx].seconds) : tr("t.nonenext", "—");
+        $("pass-label").hidden = repeatMode === "none";
+        if (repeatMode !== "none") $("pass-label").textContent = tr("t.pass", "Pass") + " " + (passesDone + 1) + (repeatMode === "count" ? (" / " + repeatCount) : "");
+      }
     } else if (finished) {
       $("time-remaining").textContent = "0:00";
       $("cue-index-label").textContent = tr("t.finished", "Finished");
       $("elapsed-line").textContent = "";
       $("cue-progress").style.width = "100%"; $("overall-progress").style.width = "100%"; $("overall-pct").textContent = "100%";
       $("next-cue").textContent = tr("t.nonenext", "—"); $("pass-label").hidden = true;
-    } else {
-      $("time-remaining").textContent = cues.length ? fmtHMS(cues[0].seconds) : "0:00";
-      $("cue-index-label").textContent = cues.length ? (tr("t.ready", "Ready") + " (1/" + cues.length + ")") : tr("t.ready", "Ready");
-      $("elapsed-line").textContent = cues.length ? ("0:00 / " + fmtHMS(cues[0].seconds)) : "";
+    } else if (queueEnabled) {
+      $("time-remaining").textContent = ac.length ? fmtHMS(ac[0].seconds) : "0:00";
+      $("cue-index-label").textContent = ac.length ? (tr("t.ready", "Ready") + " (1/" + ac.length + ")") : tr("t.ready", "Ready");
+      $("elapsed-line").textContent = ac.length ? ("0:00 / " + fmtHMS(ac[0].seconds)) : "";
       $("cue-progress").style.width = "0%"; $("overall-progress").style.width = "0%"; $("overall-pct").textContent = "0%";
-      $("next-cue").textContent = cues.length > 1 ? fmtHMS(cues[1].seconds) : tr("t.nonenext", "—");
+      $("next-cue").textContent = ac.length > 1 ? fmtHMS(ac[1].seconds) : tr("t.nonenext", "—");
+      $("pass-label").hidden = true;
+    } else {
+      // シンプルモード（未開始）: 現在のホイールの値をそのままライブプレビュー表示
+      var previewSec = readDuration();
+      $("time-remaining").textContent = fmtHMS(previewSec);
+      $("cue-index-label").textContent = tr("t.ready", "Ready");
+      $("elapsed-line").textContent = "0:00 / " + fmtHMS(previewSec);
+      $("cue-progress").style.width = "0%";
       $("pass-label").hidden = true;
     }
   }
@@ -1040,7 +1107,7 @@
      boot
      --------------------------------------------------------------------- */
   renderQueue();
-  renderIdlePlayer();
+  syncQueueModeUI();
   renderPresets();
 
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
@@ -1050,7 +1117,8 @@
         en: {
           "t.title": "Multi-cue timer",
           "t.desc": "Add timed cues to a queue and run them one after another, with optional repeats.",
-          "t.queue": "Queue", "t.hour": "Hour", "t.min": "Min", "t.sec": "Sec",
+          "t.queue": "Queue", "t.timer": "Timer", "t.usequeue": "Use a queue (multiple cues, repeat)",
+          "t.hour": "Hour", "t.min": "Min", "t.sec": "Sec",
           "t.wheelhint": "Drag, scroll, or use the arrow keys — double-click to type a value.",
           "t.add": "Add to queue", "t.update": "Update cue",
           "t.cancel": "Cancel edit", "t.durerr": "Enter a duration longer than 0 seconds.",
@@ -1072,7 +1140,8 @@
         ja: {
           "t.title": "多機能タイマー",
           "t.desc": "複数の区間（キュー）を追加して、順番に実行するタイマーです。繰り返しにも対応。",
-          "t.queue": "キュー", "t.hour": "時", "t.min": "分", "t.sec": "秒",
+          "t.queue": "キュー", "t.timer": "タイマー", "t.usequeue": "キューを使う（複数キュー・繰り返し）",
+          "t.hour": "時", "t.min": "分", "t.sec": "秒",
           "t.wheelhint": "ドラッグ・スクロール・矢印キーに加え、ダブルクリックで直接入力できます。",
           "t.add": "キューに追加", "t.update": "キューを更新",
           "t.cancel": "編集をキャンセル", "t.durerr": "0秒より長い時間を入力してください。",
@@ -1093,7 +1162,7 @@
         }
       },
       onSettingsChange: function () {
-        renderQueue(); renderIdlePlayer(); renderPresets();
+        renderQueue(); syncQueueModeUI(); renderPresets();
         if (customAudioName) ensureCustomOption();
       }
     });
