@@ -154,12 +154,12 @@
      ======================================================================= */
   var svgGlobe = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
   var svgMoon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>';
-  var svgMenu  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 
   var GITHUB_URL = "https://github.com/VernierTools/VernierTools.github.io";
 
-  var themeBtn, langBtn, menuBtn, menuPanel, segBtns = [];
+  var themeBtn, langBtn, menuPanel, segBtns = [];
   var brandBtn, brandMenu;
+  var mqMobile = window.matchMedia ? window.matchMedia("(max-width:760px)") : { matches:false };
   function navLinks(prefix){ // prefix: '' from root, 'categories/…' 用に ROOT 基準で組む
     var home = '<a href="'+ROOT+'index.html" data-i18n="nav.home">'+t("nav.home")+'</a>';
     var cats = CATEGORIES.map(function(c){
@@ -179,10 +179,9 @@
     h.className = "tb-header";
     h.innerHTML =
       '<div class="tb-header__in">'+
-        '<button class="tb-iconbtn tb-menubtn" aria-label="Menu">'+svgMenu+'</button>'+
         '<div class="tb-brandwrap">'+
           '<button class="tb-brand" type="button" aria-haspopup="true" aria-expanded="false">'+
-            '<span class="tb-brand__mark"></span><span>Vernier</span>'+
+            '<span class="tb-brand__mark"></span><span class="tb-brand__label">Vernier</span>'+
           '</button>'+
           '<nav class="tb-brandmenu">'+navLinksExtended()+'</nav>'+
         '</div>'+
@@ -201,7 +200,6 @@
     // refs
     themeBtn  = h.querySelector(".tb-themebtn");
     langBtn   = h.querySelector(".tb-langbtn");
-    menuBtn   = h.querySelector(".tb-menubtn");
     menuPanel = h.querySelector(".tb-menu");
     brandBtn  = h.querySelector(".tb-brand");
     brandMenu = h.querySelector(".tb-brandmenu");
@@ -210,25 +208,30 @@
     // wire
     themeBtn.addEventListener("click", cycleTheme);
     langBtn.addEventListener("click", function(){ LANG = (LANG === "ja" ? "en" : "ja"); lsSet(K.lang, LANG); syncLangUI(); notify(); });
-    menuBtn.addEventListener("click", function(){ menuPanel.classList.toggle("open"); });
     segBtns.forEach(function(b){ b.addEventListener("click", function(){ setUnits(b.getAttribute("data-units")); }); });
 
-    // ブランドのドロップダウン（PC幅のみ。CSSでモバイル時は非表示にし、
-    // ハンバーガーメニュー側に同内容を統合しているため二重の入口にならない）
+    // ブランドボタン: PC幅ではドロップダウン(.tb-brandmenu)、モバイル幅では
+    // アイコンがハンバーガーに差し替わり、既存のメニューパネル(.tb-menu)を開閉する
+    // （入口を二重にしないため、同じボタンが両方の役割を兼ねる）
     brandBtn.addEventListener("click", function(e){
       e.stopPropagation();
-      var open = brandMenu.classList.toggle("open");
+      var panel = mqMobile.matches ? menuPanel : brandMenu;
+      var open = panel.classList.toggle("open");
       brandBtn.setAttribute("aria-expanded", String(open));
+      var other = mqMobile.matches ? brandMenu : menuPanel;
+      other.classList.remove("open");
     });
     document.addEventListener("click", function(e){
-      if (brandMenu.classList.contains("open") && !brandMenu.contains(e.target) && e.target !== brandBtn){
-        brandMenu.classList.remove("open");
+      var panel = mqMobile.matches ? menuPanel : brandMenu;
+      if (panel.classList.contains("open") && !panel.contains(e.target) && e.target !== brandBtn && !brandBtn.contains(e.target)){
+        panel.classList.remove("open");
         brandBtn.setAttribute("aria-expanded","false");
       }
     });
     document.addEventListener("keydown", function(e){
-      if (e.key === "Escape" && brandMenu.classList.contains("open")){
-        brandMenu.classList.remove("open");
+      var panel = mqMobile.matches ? menuPanel : brandMenu;
+      if (e.key === "Escape" && panel.classList.contains("open")){
+        panel.classList.remove("open");
         brandBtn.setAttribute("aria-expanded","false");
         brandBtn.focus();
       }
