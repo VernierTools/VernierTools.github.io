@@ -278,6 +278,7 @@
     {
       "id": "overwrite-save-warning",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/overwrite-save-warning/",
       "categories": [
         "blender"
@@ -302,6 +303,7 @@
     {
       "id": "enhanced-folder-ops",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/enhanced-folder-ops/",
       "categories": [
         "blender"
@@ -325,6 +327,7 @@
     {
       "id": "static-keyframe-cleaner",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/static-keyframe-cleaner/",
       "categories": [
         "blender"
@@ -349,6 +352,7 @@
     {
       "id": "vse-silence-cutter",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/vse-silence-cutter/",
       "categories": [
         "blender"
@@ -905,6 +909,7 @@
     {
       "id": "vroid-to-blender",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/vroid-to-blender/",
       "categories": [
         "blender"
@@ -929,6 +934,7 @@
     {
       "id": "stmap-setup-node",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/stmap-setup-node/",
       "categories": [
         "blender"
@@ -954,6 +960,7 @@
     {
       "id": "material-less-counter",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/material-less-counter/",
       "categories": [
         "blender"
@@ -978,6 +985,7 @@
     {
       "id": "editor-subtabs",
       "type": "blender",
+      "platform": "Blender",
       "path": "tools/editor-subtabs/",
       "categories": [
         "blender"
