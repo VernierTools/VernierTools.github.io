@@ -10,19 +10,21 @@
   .swatch{ aspect-ratio:16/9; position:relative; }
   .swatch__fill{ position:absolute; inset:0; }
 
-  .hexrow{ display:flex; gap:var(--s2); align-items:stretch; }
-  .hexrow .input{ font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.03em; }
-  .hexrow .input.input--err{ border-color:var(--neg); }
+  .fmtrow{ display:flex; gap:var(--s2); align-items:stretch; }
+  .fmtrow .select{ flex:1; }
   .colorpick{ flex:0 0 auto; width:38px; height:38px; padding:0; border:1px solid var(--border-strong);
     border-radius:var(--r); background:none; cursor:pointer; overflow:hidden; }
   .colorpick input{ width:150%; height:150%; margin:-25% 0 0 -25%; border:0; cursor:pointer; padding:0; }
 
+  .mono-input{ font-family:var(--font-mono); letter-spacing:.02em; }
+  .mono-input.input--err{ border-color:var(--neg); }
+  .chanbox{ margin-top:var(--s3); }
   .chan{ display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3); }
   .chan:last-child{ margin-bottom:0; }
-  .chan .clabel{ width:16px; font-size:12px; font-weight:600; color:var(--text-3); flex:0 0 auto; }
+  .chan .clabel{ width:18px; font-size:12px; font-weight:600; color:var(--text-3); flex:0 0 auto; }
   .chan .slider{ flex:1; }
-  .chan .cval{ width:56px; flex:0 0 auto; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
-    font-size:13px; text-align:right; background:transparent; border:0; color:var(--text); padding:0; }
+  .chan .cval{ width:66px; flex:0 0 auto; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:12.5px; text-align:right; background:transparent; border:0; color:var(--text); padding:0; }
   .chan .cval:focus{ outline:none; }
   .chan .cval::-webkit-outer-spin-button,.chan .cval::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .chan .cval{ -moz-appearance:textfield; }
@@ -38,7 +40,7 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
     <h1 data-i18n="t.title">Color format converter</h1>
-    <p data-i18n="t.desc">Enter a color once and read it back in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.</p>
+    <p data-i18n="t.desc">Pick an input format and enter a color to get it instantly in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.</p>
   </div>
 
   <div class="work">
@@ -47,24 +49,13 @@
 
       <div class="card" style="margin-top:var(--s4)">
         <div class="field">
-          <label class="label" data-i18n="t.input">Input (HEX / rgb() / hsl())</label>
-          <div class="hexrow">
-            <input class="input" id="in-hex" type="text" inputmode="text" spellcheck="false" placeholder="#5457E5">
+          <label class="label" data-i18n="t.formatlabel">Input format</label>
+          <div class="fmtrow">
+            <select class="select" id="fmt-select"></select>
             <div class="colorpick"><input type="color" id="in-native" value="#5457e5" aria-label="Pick color"></div>
           </div>
         </div>
-        <div class="field">
-          <label class="label" data-i18n="t.rgb">RGB</label>
-          <div class="chan"><span class="clabel">R</span>
-            <input class="slider" id="sl-r" type="range" min="0" max="255" step="1">
-            <input class="cval" id="nv-r" type="number" min="0" max="255" step="1"></div>
-          <div class="chan"><span class="clabel">G</span>
-            <input class="slider" id="sl-g" type="range" min="0" max="255" step="1">
-            <input class="cval" id="nv-g" type="number" min="0" max="255" step="1"></div>
-          <div class="chan"><span class="clabel">B</span>
-            <input class="slider" id="sl-b" type="range" min="0" max="255" step="1">
-            <input class="cval" id="nv-b" type="number" min="0" max="255" step="1"></div>
-        </div>
+        <div class="field" id="fmt-fields"></div>
         <div class="field">
           <label class="label" data-i18n="t.alpha">Alpha</label>
           <div class="chan"><span class="clabel">A</span>
@@ -97,7 +88,7 @@
         <div class="rrow"><span class="rrow__label">LCH</span><span class="rrow__value small" id="ro-lch" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">OKLab</span><span class="rrow__value small" id="ro-oklab" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">OKLCH</span><span class="rrow__value small" id="ro-oklch" data-copy=""></span></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy — ready to paste as-is, no function wrapper.</div>
       </div>
 
       <div class="readout" style="margin-top:var(--s4)">
@@ -116,18 +107,97 @@
 (function () {
   var DEFAULT = { r: 0x54, g: 0x57, b: 0xE5, a: 1 };
   var state = { r: DEFAULT.r, g: DEFAULT.g, b: DEFAULT.b, a: DEFAULT.a };
+  var fmtId = "rgb";
+  var curVals = null; // channel values in the currently selected input format's own space
 
   var $ = function (id) { return document.getElementById(id); };
-  var elHex = $("in-hex"), elNative = $("in-native");
-  var slR = $("sl-r"), slG = $("sl-g"), slB = $("sl-b"), slA = $("sl-a");
-  var nvR = $("nv-r"), nvG = $("nv-g"), nvB = $("nv-b"), nvA = $("nv-a");
 
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
   function mod(x, n) { return ((x % n) + n) % n; }
   function round(n, dp) { var m = Math.pow(10, dp || 0); return Math.round(n * m) / m; }
   function pad2h(n) { n = Math.round(clamp(n, 0, 255)); var s = n.toString(16).toUpperCase(); return s.length < 2 ? "0" + s : s; }
+  function decimalsForStep(step) { var s = String(step), i = s.indexOf("."); return i < 0 ? 0 : s.length - i - 1; }
+  function splitNums(str) { return str.trim().split(/[\s,\/]+/).filter(Boolean).map(function (t) { return parseFloat(t); }); }
+  function hexStringify(r, g, b, a) { return "#" + pad2h(r) + pad2h(g) + pad2h(b) + (a < 1 ? pad2h(round(a * 255)) : ""); }
 
-  /* ---------------- parsing ---------------- */
+  /* ---------------- core color math (RGB is always the source of truth) ---------------- */
+  function hslToRgb(h, s, l) {
+    h = mod(h, 360) / 360; s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
+    if (s === 0) { var v = l * 255; return { r: v, g: v, b: v }; }
+    function hue2rgb(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    return { r: hue2rgb(p, q, h + 1 / 3) * 255, g: hue2rgb(p, q, h) * 255, b: hue2rgb(p, q, h - 1 / 3) * 255 };
+  }
+  function hsvToRgb(h, s, v) {
+    h = mod(h, 360) / 360; s = clamp(s, 0, 100) / 100; v = clamp(v, 0, 100) / 100;
+    var i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s), r, g, b;
+    switch (i % 6) {
+      case 0: r = v; g = t; b = p; break;
+      case 1: r = q; g = v; b = p; break;
+      case 2: r = p; g = v; b = t; break;
+      case 3: r = p; g = q; b = v; break;
+      case 4: r = t; g = p; b = v; break;
+      default: r = v; g = p; b = q;
+    }
+    return { r: r * 255, g: g * 255, b: b * 255 };
+  }
+  function cmykToRgb(c, m, y, k) {
+    c = clamp(c, 0, 100) / 100; m = clamp(m, 0, 100) / 100; y = clamp(y, 0, 100) / 100; k = clamp(k, 0, 100) / 100;
+    return { r: 255 * (1 - c) * (1 - k), g: 255 * (1 - m) * (1 - k), b: 255 * (1 - y) * (1 - k) };
+  }
+  function srgbToLinCh(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function linToSrgbCh(c) { c = clamp(c, 0, 1); var v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; return clamp(v, 0, 1) * 255; }
+  function rgbToLinear(r, g, b) { return { r: srgbToLinCh(r), g: srgbToLinCh(g), b: srgbToLinCh(b) }; }
+  function linearToRgb(lin) { return { r: linToSrgbCh(lin.r), g: linToSrgbCh(lin.g), b: linToSrgbCh(lin.b) }; }
+
+  function linearToXyz(lin) {
+    var R = lin.r, G = lin.g, B = lin.b;
+    return { x: 0.4124564 * R + 0.3575761 * G + 0.1804375 * B, y: 0.2126729 * R + 0.7151522 * G + 0.0721750 * B, z: 0.0193339 * R + 0.1191920 * G + 0.9503041 * B };
+  }
+  function xyzToLinear(xyz) {
+    var X = xyz.x, Y = xyz.y, Z = xyz.z;
+    return { r: 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z, g: -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z, b: 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z };
+  }
+  function xyzToLab(xyz) {
+    var Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
+    function f(t) { return t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116); }
+    var fx = f(xyz.x / Xn), fy = f(xyz.y / Yn), fz = f(xyz.z / Zn);
+    return { l: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+  }
+  function labToXyz(lab) {
+    var Xn = 0.95047, Yn = 1, Zn = 1.08883;
+    var fy = (lab.l + 16) / 116, fx = fy + lab.a / 500, fz = fy - lab.b / 200;
+    function finv(t) { var t3 = t * t * t; return t3 > 0.008856 ? t3 : (t - 16 / 116) / 7.787; }
+    return { x: finv(fx) * Xn, y: finv(fy) * Yn, z: finv(fz) * Zn };
+  }
+  function labToLch(lab) { var c = Math.sqrt(lab.a * lab.a + lab.b * lab.b), h = Math.atan2(lab.b, lab.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: lab.l, c: c, h: h }; }
+  function lchToLab(lch) { var hr = lch.h * Math.PI / 180; return { l: lch.l, a: lch.c * Math.cos(hr), b: lch.c * Math.sin(hr) }; }
+  function labToRgb(lab) { return linearToRgb(xyzToLinear(labToXyz(lab))); }
+  function lchToRgb(lch) { return labToRgb(lchToLab(lch)); }
+
+  function linearToOklab(lin) {
+    var R = lin.r, G = lin.g, B = lin.b;
+    var l = 0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B;
+    var m = 0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B;
+    var s = 0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B;
+    var l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s);
+    return { l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_, a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_, b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_ };
+  }
+  function oklabToLinear(ok) {
+    var l_ = ok.l + 0.3963377774 * ok.a + 0.2158037573 * ok.b;
+    var m_ = ok.l - 0.1055613458 * ok.a - 0.0638541728 * ok.b;
+    var s_ = ok.l - 0.0894841775 * ok.a - 1.2914855480 * ok.b;
+    var l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
+    return { r: 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, g: -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, b: -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s };
+  }
+  function rgbToOklabPct(r, g, b) { var ok = linearToOklab(rgbToLinear(r, g, b)); return { l: ok.l * 100, a: ok.a, b: ok.b }; }
+  function oklabPctToRgb(v) { return linearToRgb(oklabToLinear({ l: v.l / 100, a: v.a, b: v.b })); }
+  function rgbToOklchPct(r, g, b) { var p = rgbToOklabPct(r, g, b), c = Math.sqrt(p.a * p.a + p.b * p.b), h = Math.atan2(p.b, p.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: p.l, c: c, h: h }; }
+  function oklchPctToRgb(v) { var hr = v.h * Math.PI / 180; return oklabPctToRgb({ l: v.l, a: v.c * Math.cos(hr), b: v.c * Math.sin(hr) }); }
+
+  function relLuminance(r, g, b) { var lin = rgbToLinear(r, g, b); return 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b; }
+  function contrastRatio(L1, L2) { var hi = Math.max(L1, L2), lo = Math.min(L1, L2); return (hi + 0.05) / (lo + 0.05); }
+
   function parseHex(str) {
     var s = str.trim().replace(/^#/, "");
     if (!/^[0-9a-fA-F]+$/.test(s)) return null;
@@ -139,82 +209,214 @@
     else return null;
     return { r: r, g: g, b: b, a: a };
   }
-  function parseChan(v) { v = v.trim(); return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100 * 255, 0, 255) : clamp(parseFloat(v), 0, 255); }
-  function parseAlphaTok(v) { if (v === undefined) return 1; v = v.trim(); return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100, 0, 1) : clamp(parseFloat(v), 0, 1); }
-  function hslToRgb(h, s, l) {
-    h = mod(h, 360) / 360; s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
-    if (s === 0) { var v = Math.round(l * 255); return { r: v, g: v, b: v }; }
-    function hue2rgb(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
-    var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-    return { r: Math.round(hue2rgb(p, q, h + 1 / 3) * 255), g: Math.round(hue2rgb(p, q, h) * 255), b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255) };
-  }
+  // HEX field also accepts a pasted rgb()/hsl() string as a convenience.
   function parseColorString(str) {
     if (!str) return null;
     str = str.trim();
     var hx = parseHex(str); if (hx) return hx;
     var m = str.match(/^rgba?\(\s*([\-\d.]+%?)[\s,]+([\-\d.]+%?)[\s,]+([\-\d.]+%?)\s*(?:[,\/]\s*([\-\d.]+%?))?\s*\)$/i);
-    if (m) return { r: parseChan(m[1]), g: parseChan(m[2]), b: parseChan(m[3]), a: parseAlphaTok(m[4]) };
+    if (m) { function pc(v) { return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100 * 255, 0, 255) : clamp(parseFloat(v), 0, 255); } function pa(v) { if (v === undefined) return 1; return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100, 0, 1) : clamp(parseFloat(v), 0, 1); } return { r: pc(m[1]), g: pc(m[2]), b: pc(m[3]), a: pa(m[4]) }; }
     var m2 = str.match(/^hsla?\(\s*([\-\d.]+)(?:deg)?[\s,]+([\-\d.]+)%[\s,]+([\-\d.]+)%\s*(?:[,\/]\s*([\-\d.]+%?))?\s*\)$/i);
-    if (m2) { var rgb = hslToRgb(parseFloat(m2[1]), parseFloat(m2[2]), parseFloat(m2[3])); rgb.a = parseAlphaTok(m2[4]); return rgb; }
+    if (m2) { var rgb = hslToRgb(parseFloat(m2[1]), parseFloat(m2[2]), parseFloat(m2[3])); rgb.a = m2[4] === undefined ? 1 : (m2[4].indexOf("%") >= 0 ? clamp(parseFloat(m2[4]) / 100, 0, 1) : clamp(parseFloat(m2[4]), 0, 1)); return rgb; }
     return null;
   }
 
-  /* ---------------- forward conversions (source of truth = RGB) ---------------- */
-  function rgbToHsl(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    var max = Math.max(r, g, b), min = Math.min(r, g, b), h, s, l = (max + min) / 2;
-    if (max === min) { h = s = 0; } else {
-      var d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; }
-      h /= 6;
+  /* ---------------- per-format definitions ---------------- */
+  var FORMATS = {
+    rgb: {
+      channels: [{ key: "r", label: "R", min: 0, max: 255, step: 1 }, { key: "g", label: "G", min: 0, max: 255, step: 1 }, { key: "b", label: "B", min: 0, max: 255, step: 1 }],
+      fromRgb: function (r, g, b) { return { r: r, g: g, b: b }; },
+      toRgb: function (v) { return { r: v.r, g: v.g, b: v.b }; },
+      core: function (v) { return round(v.r, 0) + ", " + round(v.g, 0) + ", " + round(v.b, 0); },
+      example: "168, 233, 185"
+    },
+    hsl: {
+      channels: [{ key: "h", label: "H", min: 0, max: 360, step: 1 }, { key: "s", label: "S", min: 0, max: 100, step: 1 }, { key: "l", label: "L", min: 0, max: 100, step: 1 }],
+      fromRgb: function (r, g, b) {
+        r /= 255; g /= 255; b /= 255; var max = Math.max(r, g, b), min = Math.min(r, g, b), h, s, l = (max + min) / 2;
+        if (max === min) { h = s = 0; } else { var d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; } h /= 6; }
+        return { h: h * 360, s: s * 100, l: l * 100 };
+      },
+      toRgb: function (v) { return hslToRgb(v.h, v.s, v.l); },
+      core: function (v) { return round(v.h, 0) + ", " + round(v.s, 0) + "%, " + round(v.l, 0) + "%"; },
+      example: "231, 45%, 62%"
+    },
+    hsv: {
+      channels: [{ key: "h", label: "H", min: 0, max: 360, step: 1 }, { key: "s", label: "S", min: 0, max: 100, step: 1 }, { key: "v", label: "V", min: 0, max: 100, step: 1 }],
+      fromRgb: function (r, g, b) {
+        r /= 255; g /= 255; b /= 255; var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, h, s = max === 0 ? 0 : d / max, v = max;
+        if (d === 0) { h = 0; } else { switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; } h /= 6; }
+        return { h: h * 360, s: s * 100, v: v * 100 };
+      },
+      toRgb: function (v) { return hsvToRgb(v.h, v.s, v.v); },
+      core: function (v) { return round(v.h, 0) + ", " + round(v.s, 0) + "%, " + round(v.v, 0) + "%"; },
+      example: "231, 45%, 91%"
+    },
+    cmyk: {
+      channels: [{ key: "c", label: "C", min: 0, max: 100, step: 1 }, { key: "m", label: "M", min: 0, max: 100, step: 1 }, { key: "y", label: "Y", min: 0, max: 100, step: 1 }, { key: "k", label: "K", min: 0, max: 100, step: 1 }],
+      fromRgb: function (r, g, b) {
+        r /= 255; g /= 255; b /= 255; var k = 1 - Math.max(r, g, b), c, m, y;
+        if (k >= 1) { c = m = y = 0; } else { c = (1 - r - k) / (1 - k); m = (1 - g - k) / (1 - k); y = (1 - b - k) / (1 - k); }
+        return { c: c * 100, m: m * 100, y: y * 100, k: k * 100 };
+      },
+      toRgb: function (v) { return cmykToRgb(v.c, v.m, v.y, v.k); },
+      core: function (v) { return round(v.c, 0) + "%, " + round(v.m, 0) + "%, " + round(v.y, 0) + "%, " + round(v.k, 0) + "%"; },
+      example: "28%, 0%, 21%, 9%",
+      noAlpha: true
+    },
+    linear: {
+      channels: [{ key: "r", label: "R", min: 0, max: 1, step: 0.001 }, { key: "g", label: "G", min: 0, max: 1, step: 0.001 }, { key: "b", label: "B", min: 0, max: 1, step: 0.001 }],
+      fromRgb: function (r, g, b) { return rgbToLinear(r, g, b); },
+      toRgb: function (v) { return linearToRgb(v); },
+      core: function (v) { return round(v.r, 3) + ", " + round(v.g, 3) + ", " + round(v.b, 3); },
+      example: "0.375, 0.788, 0.489",
+      alphaStyle: "dec"
+    },
+    lab: {
+      channels: [{ key: "l", label: "L", min: 0, max: 100, step: 0.1 }, { key: "a", label: "a", min: -125, max: 125, step: 0.1 }, { key: "b", label: "b", min: -125, max: 125, step: 0.1 }],
+      fromRgb: function (r, g, b) { return xyzToLab(linearToXyz(rgbToLinear(r, g, b))); },
+      toRgb: function (v) { return labToRgb(v); },
+      core: function (v) { return round(v.l, 1) + "%, " + round(v.a, 1) + ", " + round(v.b, 1); },
+      example: "83.5%, -33.2, 17.4"
+    },
+    lch: {
+      channels: [{ key: "l", label: "L", min: 0, max: 100, step: 0.1 }, { key: "c", label: "C", min: 0, max: 150, step: 0.1 }, { key: "h", label: "H", min: 0, max: 360, step: 0.1 }],
+      fromRgb: function (r, g, b) { return labToLch(xyzToLab(linearToXyz(rgbToLinear(r, g, b)))); },
+      toRgb: function (v) { return lchToRgb(v); },
+      core: function (v) { return round(v.l, 1) + "%, " + round(v.c, 1) + ", " + round(v.h, 1); },
+      example: "83.5%, 37.5, 152.4"
+    },
+    oklab: {
+      channels: [{ key: "l", label: "L", min: 0, max: 100, step: 0.1 }, { key: "a", label: "a", min: -0.4, max: 0.4, step: 0.001 }, { key: "b", label: "b", min: -0.4, max: 0.4, step: 0.001 }],
+      fromRgb: function (r, g, b) { return rgbToOklabPct(r, g, b); },
+      toRgb: function (v) { return oklabPctToRgb(v); },
+      core: function (v) { return round(v.l, 1) + "%, " + round(v.a, 3) + ", " + round(v.b, 3); },
+      example: "86.3%, -0.09, 0.06"
+    },
+    oklch: {
+      channels: [{ key: "l", label: "L", min: 0, max: 100, step: 0.1 }, { key: "c", label: "C", min: 0, max: 0.4, step: 0.001 }, { key: "h", label: "H", min: 0, max: 360, step: 0.1 }],
+      fromRgb: function (r, g, b) { return rgbToOklchPct(r, g, b); },
+      toRgb: function (v) { return oklchPctToRgb(v); },
+      core: function (v) { return round(v.l, 1) + "%, " + round(v.c, 3) + ", " + round(v.h, 1); },
+      example: "86.3%, 0.108, 146.8"
     }
-    return { h: h * 360, s: s * 100, l: l * 100 };
+  };
+  var FMT_ORDER = ["hex", "rgb", "hsl", "hsv", "cmyk", "linear", "lab", "lch", "oklab", "oklch"];
+  var FMT_LABEL = { hex: "HEX", rgb: "RGB", hsl: "HSL", hsv: "HSV", cmyk: "CMYK", lab: "Lab", lch: "LCH", oklab: "OKLab", oklch: "OKLCH" };
+  function fmtLabel(id) { return id === "linear" ? Shell.t("t.linear") : FMT_LABEL[id]; }
+  function alphaSuffix(id, a) {
+    if (a >= 1) return "";
+    var f = FORMATS[id];
+    if (f && f.noAlpha) return "";
+    if (f && f.alphaStyle === "dec") return ", " + round(a, 2);
+    if (id === "rgb" || id === "hsl" || id === "hex") return "";
+    return ", " + round(a * 100, 0) + "%";
   }
-  function rgbToHsv(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, h, s = max === 0 ? 0 : d / max, v = max;
-    if (d === 0) { h = 0; } else {
-      switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; }
-      h /= 6;
-    }
-    return { h: h * 360, s: s * 100, v: v * 100 };
-  }
-  function rgbToCmyk(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    var k = 1 - Math.max(r, g, b), c, m, y;
-    if (k >= 1) { c = m = y = 0; } else { c = (1 - r - k) / (1 - k); m = (1 - g - k) / (1 - k); y = (1 - b - k) / (1 - k); }
-    return { c: c * 100, m: m * 100, y: y * 100, k: k * 100 };
-  }
-  function srgbToLinCh(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-  function rgbToLinear(r, g, b) { return { r: srgbToLinCh(r), g: srgbToLinCh(g), b: srgbToLinCh(b) }; }
-  function linearToXyz(lin) {
-    var R = lin.r, G = lin.g, B = lin.b;
-    return { x: 0.4124564 * R + 0.3575761 * G + 0.1804375 * B, y: 0.2126729 * R + 0.7151522 * G + 0.0721750 * B, z: 0.0193339 * R + 0.1191920 * G + 0.9503041 * B };
-  }
-  function xyzToLab(xyz) {
-    var Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
-    function f(t) { return t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116); }
-    var fx = f(xyz.x / Xn), fy = f(xyz.y / Yn), fz = f(xyz.z / Zn);
-    return { l: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
-  }
-  function labToLch(lab) { var c = Math.sqrt(lab.a * lab.a + lab.b * lab.b), h = Math.atan2(lab.b, lab.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: lab.l, c: c, h: h }; }
-  function linearToOklab(lin) {
-    var R = lin.r, G = lin.g, B = lin.b;
-    var l = 0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B;
-    var m = 0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B;
-    var s = 0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B;
-    var l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s);
-    return {
-      l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
-      a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
-      b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
-    };
-  }
-  function oklabToOklch(ok) { var c = Math.sqrt(ok.a * ok.a + ok.b * ok.b), h = Math.atan2(ok.b, ok.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: ok.l, c: c, h: h }; }
-  function relLuminance(r, g, b) { var lin = rgbToLinear(r, g, b); return 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b; }
-  function contrastRatio(L1, L2) { var hi = Math.max(L1, L2), lo = Math.min(L1, L2); return (hi + 0.05) / (lo + 0.05); }
 
-  function set(el, text, copy) { el.textContent = text; el.setAttribute("data-copy", copy === undefined ? text : copy); }
+  /* ---------------- DOM refs / building ---------------- */
+  var fmtSelect = $("fmt-select"), fieldsWrap = $("fmt-fields"), inNative = $("in-native");
+  var slA = $("sl-a"), nvA = $("nv-a");
+
+  FMT_ORDER.forEach(function (id) {
+    var o = document.createElement("option"); o.value = id; o.textContent = fmtLabel(id); fmtSelect.appendChild(o);
+  });
+  fmtSelect.value = fmtId;
+
+  function buildFieldsUI() {
+    fieldsWrap.innerHTML = "";
+    var textInput = document.createElement("input");
+    textInput.type = "text"; textInput.id = "val-text"; textInput.spellcheck = false;
+    textInput.className = "input mono-input";
+    fieldsWrap.appendChild(textInput);
+
+    if (fmtId === "hex") {
+      textInput.placeholder = "#5457E5";
+      textInput.addEventListener("input", function () {
+        var c = parseColorString(textInput.value);
+        if (c) { textInput.classList.remove("input--err"); state.r = clamp(Math.round(c.r), 0, 255); state.g = clamp(Math.round(c.g), 0, 255); state.b = clamp(Math.round(c.b), 0, 255); if (c.a !== undefined) state.a = clamp(c.a, 0, 1); render(); }
+        else { textInput.classList.add("input--err"); }
+      });
+      textInput.addEventListener("blur", function () { textInput.classList.remove("input--err"); render(); });
+    } else {
+      var fmt = FORMATS[fmtId];
+      textInput.placeholder = fmt.example;
+      textInput.addEventListener("input", function () {
+        var nums = splitNums(textInput.value), n = fmt.channels.length;
+        if (nums.length < n || nums.slice(0, n).some(isNaN)) { textInput.classList.add("input--err"); return; }
+        textInput.classList.remove("input--err");
+        var vals = {}; fmt.channels.forEach(function (ch, i) { vals[ch.key] = clamp(nums[i], ch.min, ch.max); });
+        curVals = vals;
+        var rgb = fmt.toRgb(curVals);
+        state.r = clamp(Math.round(rgb.r), 0, 255); state.g = clamp(Math.round(rgb.g), 0, 255); state.b = clamp(Math.round(rgb.b), 0, 255);
+        if (!fmt.noAlpha && nums.length > n && !isNaN(nums[n])) { var av = nums[n]; state.a = av > 1 ? clamp(av / 100, 0, 1) : clamp(av, 0, 1); }
+        render();
+      });
+      textInput.addEventListener("blur", function () { textInput.classList.remove("input--err"); render(); });
+
+      var box = document.createElement("div"); box.className = "chanbox"; fieldsWrap.appendChild(box);
+      fmt.channels.forEach(function (ch) {
+        var row = document.createElement("div"); row.className = "chan";
+        row.innerHTML = '<span class="clabel">' + ch.label + '</span>' +
+          '<input class="slider" type="range" min="' + ch.min + '" max="' + ch.max + '" step="' + ch.step + '" data-ch="' + ch.key + '">' +
+          '<input class="cval" type="number" min="' + ch.min + '" max="' + ch.max + '" step="' + ch.step + '" data-ch="' + ch.key + '">';
+        box.appendChild(row);
+      });
+      box.querySelectorAll(".slider,.cval").forEach(function (el) {
+        el.addEventListener("input", function () {
+          var v = parseFloat(el.value); if (isNaN(v)) return;
+          var key = el.getAttribute("data-ch"), chCfg = fmt.channels.filter(function (c) { return c.key === key; })[0];
+          v = clamp(v, chCfg.min, chCfg.max);
+          curVals[key] = v;
+          var rgb = fmt.toRgb(curVals);
+          state.r = clamp(Math.round(rgb.r), 0, 255); state.g = clamp(Math.round(rgb.g), 0, 255); state.b = clamp(Math.round(rgb.b), 0, 255);
+          render();
+        });
+      });
+    }
+    refreshFieldsUI();
+  }
+
+  function refreshFieldsUI() {
+    var textInput = $("val-text"); if (!textInput) return;
+    if (fmtId === "hex") {
+      if (document.activeElement !== textInput) textInput.value = hexStringify(state.r, state.g, state.b, state.a);
+    } else {
+      var fmt = FORMATS[fmtId];
+      if (document.activeElement !== textInput) textInput.value = fmt.core(curVals);
+      fmt.channels.forEach(function (ch) {
+        var s = fieldsWrap.querySelector('.slider[data-ch="' + ch.key + '"]'), nv = fieldsWrap.querySelector('.cval[data-ch="' + ch.key + '"]');
+        var v = curVals[ch.key];
+        if (document.activeElement !== s) s.value = v;
+        if (document.activeElement !== nv) nv.value = round(v, decimalsForStep(ch.step));
+      });
+    }
+  }
+
+  function resyncCurValsFromState() { if (fmtId !== "hex") curVals = FORMATS[fmtId].fromRgb(state.r, state.g, state.b); }
+
+  fmtSelect.addEventListener("change", function () { fmtId = fmtSelect.value; resyncCurValsFromState(); buildFieldsUI(); });
+  inNative.addEventListener("input", function () {
+    var c = parseHex(inNative.value); if (!c) return;
+    state.r = c.r; state.g = c.g; state.b = c.b; resyncCurValsFromState(); render();
+  });
+
+  function wireAlpha() {
+    function apply(v) { if (isNaN(v)) return; state.a = clamp(Math.round(v), 0, 100) / 100; render(); }
+    slA.addEventListener("input", function () { apply(parseFloat(slA.value)); });
+    nvA.addEventListener("input", function () { if (nvA.value === "") return; apply(parseFloat(nvA.value)); });
+    nvA.addEventListener("blur", function () { if (nvA.value === "") render(); });
+  }
+  wireAlpha();
+
+  $("randomize").addEventListener("click", function () {
+    state.r = Math.floor(Math.random() * 256); state.g = Math.floor(Math.random() * 256); state.b = Math.floor(Math.random() * 256);
+    resyncCurValsFromState(); render();
+  });
+  $("reset").addEventListener("click", function () {
+    state = { r: DEFAULT.r, g: DEFAULT.g, b: DEFAULT.b, a: DEFAULT.a }; resyncCurValsFromState(); render();
+  });
+
+  function set(el, text) { el.textContent = text; el.setAttribute("data-copy", text); }
   function setBadge(el, ratio) {
     var pass = ratio >= 4.5;
     el.className = "badge " + (pass ? "badge--pos" : "badge--neg");
@@ -224,99 +426,36 @@
 
   function render() {
     var r = Math.round(state.r), g = Math.round(state.g), b = Math.round(state.b), a = state.a;
-    var alphaPct = round(a * 100, 0);
 
     $("swatch-fill").style.background = "rgba(" + r + "," + g + "," + b + "," + a + ")";
+    if (document.activeElement !== inNative) inNative.value = "#" + pad2h(r) + pad2h(g) + pad2h(b);
+    var alphaPct = round(a * 100, 0);
+    if (document.activeElement !== slA) slA.value = alphaPct;
+    if (document.activeElement !== nvA) nvA.value = alphaPct;
 
-    if (document.activeElement !== elHex) elHex.value = "#" + pad2h(r) + pad2h(g) + pad2h(b) + (a < 1 ? pad2h(round(a * 255)) : "");
-    if (document.activeElement !== elNative) elNative.value = "#" + pad2h(r) + pad2h(g) + pad2h(b);
-    if (document.activeElement !== slR) slR.value = r; if (document.activeElement !== nvR) nvR.value = r;
-    if (document.activeElement !== slG) slG.value = g; if (document.activeElement !== nvG) nvG.value = g;
-    if (document.activeElement !== slB) slB.value = b; if (document.activeElement !== nvB) nvB.value = b;
-    if (document.activeElement !== slA) slA.value = alphaPct; if (document.activeElement !== nvA) nvA.value = alphaPct;
-
-    var aSuffix = a < 1 ? " / " + alphaPct + "%" : "";
-
-    set($("ro-hex"), "#" + pad2h(r) + pad2h(g) + pad2h(b) + (a < 1 ? pad2h(round(a * 255)) : ""));
-    set($("ro-rgb"), a < 1 ? "rgba(" + r + ", " + g + ", " + b + ", " + round(a, 2) + ")" : "rgb(" + r + ", " + g + ", " + b + ")");
-
-    var hsl = rgbToHsl(r, g, b);
-    set($("ro-hsl"), (a < 1 ? "hsla(" : "hsl(") + round(hsl.h, 0) + ", " + round(hsl.s, 0) + "%, " + round(hsl.l, 0) + "%" + (a < 1 ? ", " + round(a, 2) : "") + ")");
-
-    var hsv = rgbToHsv(r, g, b);
-    set($("ro-hsv"), "hsv(" + round(hsv.h, 0) + ", " + round(hsv.s, 0) + "%, " + round(hsv.v, 0) + "%)" + aSuffix);
-
-    var cmyk = rgbToCmyk(r, g, b);
-    set($("ro-cmyk"), "cmyk(" + round(cmyk.c, 0) + "%, " + round(cmyk.m, 0) + "%, " + round(cmyk.y, 0) + "%, " + round(cmyk.k, 0) + "%)");
-
-    var lin = rgbToLinear(r, g, b);
-    set($("ro-linear"), "color(srgb-linear " + round(lin.r, 3) + " " + round(lin.g, 3) + " " + round(lin.b, 3) + (a < 1 ? " / " + alphaPct + "%" : "") + ")");
-
-    var xyz = linearToXyz(lin), lab = xyzToLab(xyz);
-    set($("ro-lab"), "lab(" + round(lab.l, 1) + "% " + round(lab.a, 1) + " " + round(lab.b, 1) + aSuffix + ")");
-
-    var lch = labToLch(lab);
-    set($("ro-lch"), "lch(" + round(lch.l, 1) + "% " + round(lch.c, 1) + " " + round(lch.h, 1) + aSuffix + ")");
-
-    var oklab = linearToOklab(lin);
-    set($("ro-oklab"), "oklab(" + round(oklab.l * 100, 1) + "% " + round(oklab.a, 3) + " " + round(oklab.b, 3) + aSuffix + ")");
-
-    var oklch = oklabToOklch(oklab);
-    set($("ro-oklch"), "oklch(" + round(oklch.l * 100, 1) + "% " + round(oklch.c, 3) + " " + round(oklch.h, 1) + aSuffix + ")");
+    set($("ro-hex"), hexStringify(r, g, b, a));
+    FMT_ORDER.slice(1).forEach(function (id) {
+      var fmt = FORMATS[id], vals = fmt.fromRgb(r, g, b);
+      set($("ro-" + id), fmt.core(vals) + alphaSuffix(id, a));
+    });
 
     var Lc = relLuminance(r, g, b);
     setBadge($("badge-white"), contrastRatio(Lc, 1));
     setBadge($("badge-black"), contrastRatio(Lc, 0));
     $("alpha-note").hidden = a >= 1;
+
+    refreshFieldsUI();
   }
-
-  function setFromRgb(o) {
-    state.r = clamp(Math.round(o.r), 0, 255);
-    state.g = clamp(Math.round(o.g), 0, 255);
-    state.b = clamp(Math.round(o.b), 0, 255);
-    if (o.a !== undefined) state.a = clamp(o.a, 0, 1);
-    render();
-  }
-
-  /* ---------------- wiring ---------------- */
-  elHex.addEventListener("input", function () {
-    var c = parseColorString(elHex.value);
-    if (c) { elHex.classList.remove("input--err"); setFromRgb(c); }
-    else { elHex.classList.add("input--err"); }
-  });
-  elHex.addEventListener("blur", function () { elHex.classList.remove("input--err"); render(); });
-
-  elNative.addEventListener("input", function () {
-    var c = parseHex(elNative.value); if (c) setFromRgb({ r: c.r, g: c.g, b: c.b, a: state.a });
-  });
-
-  function wireChan(slider, num, key, max) {
-    function apply(v) { if (isNaN(v)) return; v = clamp(Math.round(v), 0, max); state[key] = key === "a" ? v / 100 : v; render(); }
-    slider.addEventListener("input", function () { apply(parseFloat(slider.value)); });
-    num.addEventListener("input", function () { if (num.value === "") return; apply(parseFloat(num.value)); });
-    num.addEventListener("blur", function () { if (num.value === "") render(); });
-  }
-  wireChan(slR, nvR, "r", 255);
-  wireChan(slG, nvG, "g", 255);
-  wireChan(slB, nvB, "b", 255);
-  wireChan(slA, nvA, "a", 100);
-
-  $("randomize").addEventListener("click", function () {
-    state.r = Math.floor(Math.random() * 256); state.g = Math.floor(Math.random() * 256); state.b = Math.floor(Math.random() * 256);
-    render();
-  });
-  $("reset").addEventListener("click", function () { state = { r: DEFAULT.r, g: DEFAULT.g, b: DEFAULT.b, a: DEFAULT.a }; render(); });
 
   Shell.init({
     id: "color-convert",
     strings: {
       en: {
         "t.title": "Color format converter",
-        "t.desc": "Enter a color once and read it back in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.",
-        "t.input": "Input (HEX / rgb() / hsl())",
-        "t.rgb": "RGB", "t.alpha": "Alpha",
+        "t.desc": "Pick an input format and enter a color to get it instantly in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.",
+        "t.formatlabel": "Input format", "t.alpha": "Alpha",
         "t.randomize": "Randomize", "t.reset": "Reset",
-        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "t.output": "Output", "t.copyhint": "Click any value to copy — ready to paste as-is, no function wrapper.",
         "t.linear": "Linear RGB",
         "t.contrast": "Contrast as background",
         "t.whitetext": "White text", "t.blacktext": "Black text",
@@ -324,19 +463,24 @@
       },
       ja: {
         "t.title": "色フォーマット変換",
-        "t.desc": "色を1つ入力すると、RGB・HEX・HSL・HSV・CMYK・Lab・LCH・OKLCH・OKLab・リニアRGBで一括表示します。",
-        "t.input": "入力（HEX / rgb() / hsl()）",
-        "t.rgb": "RGB", "t.alpha": "アルファ",
+        "t.desc": "入力形式を選んで色を入力すると、RGB・HEX・HSL・HSV・CMYK・Lab・LCH・OKLCH・OKLab・リニアRGBで一括表示します。",
+        "t.formatlabel": "入力形式", "t.alpha": "アルファ",
         "t.randomize": "ランダム", "t.reset": "リセット",
-        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。関数名なしでそのまま貼り付けられます。",
         "t.linear": "リニアRGB",
         "t.contrast": "背景として使ったときのコントラスト",
         "t.whitetext": "白文字", "t.blacktext": "黒文字",
         "t.alphanote": "上記は不透明の場合の値です。アルファが100%未満のときは、背後の色によって実際のコントラストが変わります。"
       }
     },
-    onSettingsChange: render
+    onSettingsChange: function () {
+      Array.prototype.forEach.call(fmtSelect.options, function (o) { o.textContent = fmtLabel(o.value); });
+      render();
+    }
   });
+
+  resyncCurValsFromState();
+  buildFieldsUI();
   render();
 })();
 </script>
