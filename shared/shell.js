@@ -238,15 +238,12 @@
     });
 
     // 現在ページのナビをハイライト
-    // 「URL末尾を見て判定」は /tools/xxx/ のような末尾スラッシュのツールページを
-    // ホームと誤認識するバグがあったため、実際のホームURLと厳密比較する方式に変更
-    var homePath = new URL(ROOT + "index.html", location.href).pathname;
-    var isHome = location.pathname === homePath || location.pathname === homePath.replace(/index\.html$/, "");
+    var here = location.pathname.split("/").pop() || "index.html";
     var _catEl = document.querySelector("[data-tools-category]");
     var bodyCat = _catEl ? _catEl.getAttribute("data-tools-category") : null;
     h.querySelectorAll(".tb-nav a, .tb-menu a, .tb-brandmenu a").forEach(function(a){
       var cat = a.getAttribute("data-cat");
-      if ((bodyCat && cat === bodyCat) || (!bodyCat && isHome && /index\.html$/.test(a.getAttribute("href"))))
+      if ((bodyCat && cat === bodyCat) || (!bodyCat && /index\.html$/.test(a.getAttribute("href")) && here === "index.html"))
         a.setAttribute("aria-current","page");
     });
 
@@ -283,6 +280,9 @@
       '<div class="toolcard__tags">'+tags+'</div></a>';
   }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  // langs: 省略時は全言語で表示。指定時は現在言語がその配列に含まれる場合のみ一覧・検索に表示する。
+  // ツール本体ページ（直リンク）はこのフィルタの対象外で常にアクセス可能。
+  function matchesLang(tool){ return !tool.langs || tool.langs.indexOf(LANG) >= 0; }
   function haystack(tool){
     var parts = [tool.id];
     ["name","description"].forEach(function(f){ var v=tool[f]; if(v) Object.keys(v).forEach(function(k){ parts.push(v[k]); }); });
@@ -320,7 +320,7 @@
         // カテゴリー順（CATEGORIES配列の並び = ジェネラル→…→拡張機能）に、
         // 見出し + そのカテゴリーのグリッドを並べる。該当0件のカテゴリーは丸ごと省く。
         CATEGORIES.forEach(function(c){
-          var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(c.id) >= 0 && matches(tl); });
+          var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(c.id) >= 0 && matchesLang(tl) && matches(tl); });
           if (!shown.length) return;
           anyShown = true;
           html += '<div class="section">'+
@@ -329,7 +329,7 @@
         });
       } else {
         // 特定カテゴリーで絞り込み中は、見出し無しの単一グリッド
-        var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(state.cat) >= 0 && matches(tl); });
+        var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(state.cat) >= 0 && matchesLang(tl) && matches(tl); });
         anyShown = shown.length > 0;
         if (anyShown) html = '<div class="grid">'+shown.map(cardHTML).join("")+'</div>';
       }
@@ -373,7 +373,7 @@
     mount.appendChild(grid); mount.appendChild(empty);
     var _list = [];
     function draw(){
-      var shown = _list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0; });
+      var shown = _list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0 && matchesLang(tl); });
       grid.innerHTML = shown.map(cardHTML).join(""); empty.hidden = shown.length > 0;
     }
     redrawers.push(draw);   // 言語/単位変更時に再描画
