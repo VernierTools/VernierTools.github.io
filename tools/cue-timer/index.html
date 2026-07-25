@@ -213,7 +213,9 @@
 
         <div class="toggles" style="margin-top:var(--s4)">
           <label class="toggle"><input type="checkbox" id="opt-awake" checked><span class="track"></span><span data-i18n="t.keepawake">Keep screen awake while running</span></label>
+          <label class="toggle"><input type="checkbox" id="opt-notify"><span class="track"></span><span data-i18n="t.notify">System notification when the alert sounds</span></label>
         </div>
+        <div class="hint" id="notify-hint" hidden></div>
       </div>
     </div>
 
@@ -830,6 +832,47 @@
   });
 
   /* ---------------------------------------------------------------------
+     システム通知 (Notification API)
+     --------------------------------------------------------------------- */
+  var notifyEnabled = false;
+  var notifySupported = "Notification" in window;
+  if (!notifySupported) {
+    $("opt-notify").disabled = true;
+    $("notify-hint").hidden = false;
+    $("notify-hint").textContent = tr("t.notifyunsupported", "Notifications aren't supported in this browser.");
+  }
+  $("opt-notify").addEventListener("change", function () {
+    if (!$("opt-notify").checked) { notifyEnabled = false; $("notify-hint").hidden = true; return; }
+    if (!notifySupported) { $("opt-notify").checked = false; return; }
+    if (Notification.permission === "granted") {
+      notifyEnabled = true; $("notify-hint").hidden = true;
+    } else if (Notification.permission === "denied") {
+      $("opt-notify").checked = false; notifyEnabled = false;
+      $("notify-hint").hidden = false; $("notify-hint").textContent = tr("t.notifyblocked", "Notifications are blocked — allow them in your browser's site settings.");
+    } else {
+      Notification.requestPermission().then(function (perm) {
+        if (perm === "granted") { notifyEnabled = true; $("notify-hint").hidden = true; }
+        else { $("opt-notify").checked = false; notifyEnabled = false; $("notify-hint").hidden = false; $("notify-hint").textContent = tr("t.notifyblocked", "Notifications are blocked — allow them in your browser's site settings."); }
+      });
+    }
+  });
+  function sendNotification(body) {
+    if (!notifyEnabled || !notifySupported || Notification.permission !== "granted") return;
+    try {
+      var n = new Notification(tr("t.notiftitle", "Multi-cue timer"), { body: body, tag: "cue-timer-alert", renotify: true });
+      n.onclick = function () { window.focus(); n.close(); };
+      setTimeout(function () { try { n.close(); } catch (e) {} }, 15000);
+    } catch (e) {}
+  }
+
+  /* ---------------------------------------------------------------------
+     タイマー動作中に誤ってタブを閉じてしまわないよう警告する
+     --------------------------------------------------------------------- */
+  window.addEventListener("beforeunload", function (e) {
+    if (running || paused) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  /* ---------------------------------------------------------------------
      player engine (id で現在のキューを追跡するので、実行中でも
      追加・削除・並べ替えが安全に行える)
      --------------------------------------------------------------------- */
@@ -851,7 +894,7 @@
       else { doFinish(); return false; }
     }
     beginSegById(ac[nextIdx].id, overflowMs);
-    if (natural) startAlertLoop();
+    if (natural) { startAlertLoop(); sendNotification(tr("t.notifynext", "The next cue has started.")); }
     return true;
   }
   function tick() {
@@ -936,6 +979,7 @@
     if (rafId) cancelAnimationFrame(rafId); rafId = null;
     releaseWakeLock(); restoreTitle();
     startAlertLoop();
+    sendNotification(tr("t.notifyfinish", "Timer finished."));
     renderQueue();
   }
   function restoreTitle() { document.title = originalTitle; }
@@ -1130,6 +1174,10 @@
           "t.customsoundlabel": "Or use your own sound file", "t.chooseaudio": "Choose audio file",
           "t.clearaudio": "Clear", "t.loaded": "Loaded:",
           "t.keepawake": "Keep screen awake while running",
+          "t.notify": "System notification when the alert sounds",
+          "t.notifyunsupported": "Notifications aren't supported in this browser.",
+          "t.notifyblocked": "Notifications are blocked — allow them in your browser's site settings.",
+          "t.notiftitle": "Multi-cue timer", "t.notifynext": "The next cue has started.", "t.notifyfinish": "Timer finished.",
           "t.now": "Now playing", "t.running": "Running", "t.paused": "Paused", "t.ready": "Ready", "t.finished": "Finished",
           "t.alertplaying": "Alert sounding", "t.stopalert": "Stop alert",
           "t.next": "Next", "t.overall": "Overall progress", "t.nonenext": "—",
@@ -1153,6 +1201,10 @@
           "t.customsoundlabel": "または、読み込んだ音声ファイルを使う", "t.chooseaudio": "音声ファイルを選択",
           "t.clearaudio": "クリア", "t.loaded": "読み込み済み:",
           "t.keepawake": "実行中は画面のスリープを防止",
+          "t.notify": "アラート発生時にシステム通知を出す",
+          "t.notifyunsupported": "このブラウザは通知に対応していません。",
+          "t.notifyblocked": "通知がブロックされています。ブラウザのサイト設定から許可してください。",
+          "t.notiftitle": "多機能タイマー", "t.notifynext": "次のキューが始まりました。", "t.notifyfinish": "タイマーが終了しました。",
           "t.now": "再生中", "t.running": "実行中", "t.paused": "一時停止中", "t.ready": "準備完了", "t.finished": "終了",
           "t.alertplaying": "アラート再生中", "t.stopalert": "アラートを停止",
           "t.next": "次", "t.overall": "全体の進捗", "t.nonenext": "—",
