@@ -133,6 +133,9 @@
       "categories": [
         "text"
       ],
+      "langs": [
+        "ja"
+      ],
       "name": {
         "en": "Text cleanup",
         "ja": "表記ゆれ・ミス検出＆修正"
