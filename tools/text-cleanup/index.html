@@ -19,7 +19,9 @@
     position:absolute; inset:0; color:transparent; background:var(--surface);
     pointer-events:none; z-index:1;
   }
-  .ed-backdrop mark{ background:var(--neg-tint); color:transparent; border-radius:2px; }
+  .ed-backdrop mark{ color:transparent; border-radius:2px; }
+  .ed-backdrop mark.hl-dup{ background:var(--neg-tint); }
+  .ed-backdrop mark.hl-info{ background:var(--accent-tint); }
   .ta{
     position:relative; z-index:2; resize:vertical;
     background:transparent; color:var(--text); caret-color:var(--text);
@@ -154,7 +156,7 @@
           <button class="btn btn--ghost" id="btn-num-cancel" type="button" data-i18n="t.cancel">Cancel</button>
         </div>
         <div class="hint" data-i18n="t.numCaveat" style="margin-top:var(--s3); font-size:11px; color:var(--text-3);">
-          Note: kanji like "十分" or "一般" that aren't used as numbers may also be counted.
+          Kanji→Arabic only counts tokens with a unit right after them or hiragana on both sides. Arabic→Kanji skips digits that look like phone numbers, dates, decimals, or version numbers, unless a unit follows.
         </div>
       </div>
     </div>
@@ -241,6 +243,61 @@
   var KANJI_RE = /[〇零一二三四五六七八九十百千万億兆]+/g;
   var ARABIC_RE = /[0-9]+/g;
 
+  // 単位が続く場合はほぼ確実に数字とみなす。カテゴリごとにまとめてあります。
+  // 誤検出する単位が見つかったら、ここから外すか BLACKLIST_WORDS に個別の語を足してください。
+  var UNIT_WORDS = [
+    // 時間
+    "年", "月", "日", "時", "分", "秒", "週", "週間", "ヶ月", "か月", "箇月", "時間", "世紀",
+    // 人・動物
+    "人", "名", "匹", "頭", "羽",
+    // 物を数える一般的な助数詞
+    "個", "つ", "本", "冊", "枚", "台", "着", "足", "双", "組", "杯", "皿", "膳",
+    "粒", "滴", "錠", "箱", "缶", "瓶", "部", "通", "件", "号", "巻", "話",
+    "章", "節", "曲", "首", "句", "編", "局", "戦", "試合", "点",
+    // 順序・頻度・階層
+    "歳", "才", "段", "級", "等", "位", "番", "度", "回", "割", "倍",
+    "階", "棟", "軒", "戸", "室", "両", "機", "隻",
+    // お金
+    "円", "銭", "ドル", "ユーロ",
+    // 長さ
+    "km", "m", "cm", "mm", "里",
+    // 重さ
+    "kg", "g", "mg", "t",
+    // 面積・体積
+    "㎡", "坪", "L", "ml", "cc", "合"
+  ];
+  // それでも誤検出しやすい語の例外リスト。必要に応じて追加してください。
+  var BLACKLIST_WORDS = ["十分", "一般", "一体", "一応", "一切", "一同", "一部", "二重", "四角", "九州", "七夕", "八百屋", "千葉", "万年筆"];
+  var HIRAGANA_RE = /[ぁ-んー]/;
+
+  function isBlacklistedAt(v, start) {
+    for (var i = 0; i < BLACKLIST_WORDS.length; i++) {
+      if (v.substr(start, BLACKLIST_WORDS[i].length) === BLACKLIST_WORDS[i]) return true;
+    }
+    return false;
+  }
+  function hasUnitAt(v, end) {
+    for (var i = 0; i < UNIT_WORDS.length; i++) {
+      if (v.substr(end, UNIT_WORDS[i].length) === UNIT_WORDS[i]) return true;
+    }
+    return false;
+  }
+  function isHiraganaFlanked(v, start, end) {
+    if (start <= 0 || end >= v.length) return false;
+    return HIRAGANA_RE.test(v[start - 1]) && HIRAGANA_RE.test(v[end]);
+  }
+  // 漢数字らしき並びのうち、「単位が続く」または「ひらがなに前後を挟まれる」場合だけを
+  // 数字とみなす（ブラックリストに一致する語は最優先で除外）。
+  function findKanjiNumberTokens(v) {
+    var tokens = [], re = new RegExp(KANJI_RE.source, "g"), m;
+    while ((m = re.exec(v))) {
+      var start = m.index, tok = m[0], end = start + tok.length;
+      if (isBlacklistedAt(v, start)) continue;
+      if (hasUnitAt(v, end) || isHiraganaFlanked(v, start, end)) tokens.push({ start: start, end: end, text: tok });
+    }
+    return tokens;
+  }
+
   function kanjiToNumber(tok) {
     var digitMap = { "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
     var smallUnits = { "十": 10, "百": 100, "千": 1000 };
@@ -293,13 +350,40 @@
     }
     return result || "〇";
   }
-  function convertKanjiToArabic(v) { return v.replace(KANJI_RE, kanjiTokenToArabic); }
-  function convertArabicToKanji(v) { return v.replace(ARABIC_RE, function (tok) { return numberToKanji(parseInt(tok, 10)); }); }
+  function convertKanjiToArabic(v) {
+    var tokens = findKanjiNumberTokens(v);
+    if (!tokens.length) return v;
+    var result = "", last = 0;
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + kanjiTokenToArabic(t.text); last = t.end; });
+    return result + v.slice(last);
+  }
+  // 電話番号・日付・小数・バージョン表記などに見える並び（前後に -／:．やアルファベットが
+  // 接している）は「数字ではあるが自然文の数量ではない」とみなし変換対象から外す。
+  // ただし単位が続く場合は最優先で変換対象にする。
+  var CODE_ADJACENT_RE = /[\-\/:.#@A-Za-z]/;
+  function findArabicNumberTokens(v) {
+    var tokens = [], re = new RegExp(ARABIC_RE.source, "g"), m;
+    while ((m = re.exec(v))) {
+      var start = m.index, tok = m[0], end = start + tok.length;
+      if (hasUnitAt(v, end)) { tokens.push({ start: start, end: end, text: tok }); continue; }
+      var before = start > 0 ? v[start - 1] : "", after = end < v.length ? v[end] : "";
+      if (CODE_ADJACENT_RE.test(before) || CODE_ADJACENT_RE.test(after)) continue;
+      tokens.push({ start: start, end: end, text: tok });
+    }
+    return tokens;
+  }
+  function convertArabicToKanji(v) {
+    var tokens = findArabicNumberTokens(v);
+    if (!tokens.length) return v;
+    var result = "", last = 0;
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(parseInt(t.text, 10)); last = t.end; });
+    return result + v.slice(last);
+  }
 
   function refreshNumbers() {
     var v = taIn.value;
-    var kanjiM = v.match(KANJI_RE), arabicM = v.match(ARABIC_RE);
-    var kanjiCount = kanjiM ? kanjiM.length : 0, arabicCount = arabicM ? arabicM.length : 0;
+    var kanjiCount = findKanjiNumberTokens(v).length;
+    var arabicCount = findArabicNumberTokens(v).length;
     var mixed = kanjiCount > 0 && arabicCount > 0;
     cntKanji.textContent = kanjiCount; cntArabic.textContent = arabicCount;
     numMixedInfo.hidden = !mixed; numEmptyMsg.hidden = mixed;
@@ -313,6 +397,33 @@
   btnNumToArabic.addEventListener("click", function () { applyTransform(convertKanjiToArabic); hideNumChoice(); });
   btnNumToKanji.addEventListener("click", function () { applyTransform(convertArabicToKanji); hideNumChoice(); });
 
+  // ハイライト対象のセグメント（開始/終了位置 + 種類）を集めて、重ならない前提でマージ描画する。
+  // hl-dup = 重複した句読点（赤系）／hl-info = 全角スペース・全角数字・検出済み漢数字（アクセント系）
+  function collectSegments(v) {
+    var segments = [];
+    var chars = selectedChars(), dupRe = buildDupRegex(chars);
+    if (dupRe) {
+      var m1; dupRe.lastIndex = 0;
+      while ((m1 = dupRe.exec(v))) segments.push({ start: m1.index, end: m1.index + m1[0].length, cls: "hl-dup" });
+    }
+    var spaceRe = /\u3000+/g, m2;
+    while ((m2 = spaceRe.exec(v))) segments.push({ start: m2.index, end: m2.index + m2[0].length, cls: "hl-info" });
+    var digitRe = /[０-９]+/g, m3;
+    while ((m3 = digitRe.exec(v))) segments.push({ start: m3.index, end: m3.index + m3[0].length, cls: "hl-info" });
+    findKanjiNumberTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-info" }); });
+    segments.sort(function (a, b) { return a.start - b.start; });
+    return segments;
+  }
+  function buildBackdropHTML(v, segments) {
+    var html = "", last = 0;
+    segments.forEach(function (seg) {
+      if (seg.start < last) return; // 文字集合が排他のため通常は発生しないが念のため
+      html += esc(v.slice(last, seg.start)) + '<mark class="' + seg.cls + '">' + esc(v.slice(seg.start, seg.end)) + "</mark>";
+      last = seg.end;
+    });
+    return html + esc(v.slice(last));
+  }
+
   /* =========================================================
      再描画：カウント・ハイライト（本文欄の背後レイヤーに直接）
      ========================================================= */
@@ -323,12 +434,9 @@
     btnFixSpace.disabled = sp === 0; btnFixDigit.disabled = dg === 0;
 
     syncMixToggleAvailability();
-    var chars = selectedChars();
-    var re = buildDupRegex(chars);
-    var count = 0, html;
-    if (v === "") { html = ""; }
-    else if (re) { html = esc(v).replace(re, function (m) { count++; return "<mark>" + m + "</mark>"; }); }
-    else { html = esc(v); }
+    var segments = v === "" ? [] : collectSegments(v);
+    var count = segments.filter(function (s) { return s.cls === "hl-dup"; }).length;
+    var html = v === "" ? "" : buildBackdropHTML(v, segments);
     backdrop.innerHTML = html + " "; // 末尾改行の高さ崩れ対策
 
     dupCountEl.textContent = count;
@@ -367,21 +475,50 @@
     btnUndo.disabled = histIndex <= 0;
     btnRedo.disabled = histIndex >= history.length - 1;
   }
+  // old→new の共通の前後部分から「実際に変わった範囲」を特定し、
+  // pos（旧テキスト上の位置）がその範囲の前・後・内側のどこにあったかで新テキスト上の位置に変換する。
+  function remapPosition(oldStr, newStr, pos) {
+    var oldLen = oldStr.length, newLen = newStr.length;
+    var maxPrefix = Math.min(oldLen, newLen), prefixLen = 0;
+    while (prefixLen < maxPrefix && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+    var maxSuffix = Math.min(oldLen, newLen) - prefixLen, suffixLen = 0;
+    while (suffixLen < maxSuffix && oldStr[oldLen - 1 - suffixLen] === newStr[newLen - 1 - suffixLen]) suffixLen++;
+    var oldChangeEnd = oldLen - suffixLen, newChangeEnd = newLen - suffixLen;
+    if (pos <= prefixLen) return pos;                       // 変化範囲より前 → そのまま
+    if (pos >= oldChangeEnd) return pos + (newLen - oldLen); // 変化範囲より後 → 差分だけシフト
+    return newChangeEnd;                                     // 変化範囲の内側 → 変化後の直後に置く
+  }
   function performUndo() {
     flushPending();
-    if (histIndex > 0) { histIndex--; taIn.value = history[histIndex]; refreshDerived(); syncUndoRedoUI(); }
+    if (histIndex > 0) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex--; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
   }
   function performRedo() {
-    if (histIndex < history.length - 1) { histIndex++; taIn.value = history[histIndex]; refreshDerived(); syncUndoRedoUI(); }
+    if (histIndex < history.length - 1) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex++; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
   }
   function applyTransform(fn) {
     flushPending();
-    var next = fn(taIn.value);
-    if (next === taIn.value) return;
+    var old = taIn.value, oldStart = taIn.selectionStart, oldEnd = taIn.selectionEnd;
+    var next = fn(old);
+    if (next === old) return;
     taIn.value = next;
     pushHistory(next);
     refreshDerived();
+    var start = remapPosition(old, next, oldStart);
+    var end = oldEnd === oldStart ? start : remapPosition(old, next, oldEnd);
     taIn.focus();
+    taIn.setSelectionRange(start, end);
   }
 
   btnUndo.addEventListener("click", performUndo);
@@ -429,7 +566,7 @@
         "t.numToArabic": "To Arabic (123)",
         "t.numToKanji": "To Kanji (\u4e00\u4e8c\u4e09)",
         "t.cancel": "Cancel",
-        "t.numCaveat": "Note: kanji like \u201c\u5341\u5206\u201d or \u201c\u4e00\u822c\u201d that aren't used as numbers may also be counted."
+        "t.numCaveat": "Kanji\u2192Arabic only counts tokens with a unit right after them or hiragana on both sides (with a short exception list). Arabic\u2192Kanji skips digits that look like phone numbers, dates, decimals, or version numbers (touching \"-\", \"/\", \":\", \".\", or a letter), unless a unit follows."
       },
       ja: {
         "t.title": "表記ゆれ・ミス検出＆修正",
@@ -452,7 +589,7 @@
         "t.numToArabic": "算用数字にする（123）",
         "t.numToKanji": "漢数字にする（一二三）",
         "t.cancel": "キャンセル",
-        "t.numCaveat": "「十分」「一般」のように数値以外の意味を持つ漢字も、数として検出される場合があります。"
+        "t.numCaveat": "漢数字→算用数字は、単位が続くかひらがなに挟まれているものだけを数字とみなします（例外リストあり）。算用数字→漢数字は、電話番号・日付・小数・バージョン表記のような並び（前後に「-」「/」「:」「.」やアルファベットが接する場合）は変換対象から外します（単位が続く場合は例外的に対象にします）。"
       }
     },
     onSettingsChange: refreshDerived
