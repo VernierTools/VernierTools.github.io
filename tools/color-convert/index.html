@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color format converter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .swatch{ aspect-ratio:16/9; position:relative; }
+  .swatch__fill{ position:absolute; inset:0; }
+
+  .hexrow{ display:flex; gap:var(--s2); align-items:stretch; }
+  .hexrow .input{ font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.03em; }
+  .hexrow .input.input--err{ border-color:var(--neg); }
+  .colorpick{ flex:0 0 auto; width:38px; height:38px; padding:0; border:1px solid var(--border-strong);
+    border-radius:var(--r); background:none; cursor:pointer; overflow:hidden; }
+  .colorpick input{ width:150%; height:150%; margin:-25% 0 0 -25%; border:0; cursor:pointer; padding:0; }
+
+  .chan{ display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3); }
+  .chan:last-child{ margin-bottom:0; }
+  .chan .clabel{ width:16px; font-size:12px; font-weight:600; color:var(--text-3); flex:0 0 auto; }
+  .chan .slider{ flex:1; }
+  .chan .cval{ width:56px; flex:0 0 auto; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:13px; text-align:right; background:transparent; border:0; color:var(--text); padding:0; }
+  .chan .cval:focus{ outline:none; }
+  .chan .cval::-webkit-outer-spin-button,.chan .cval::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .chan .cval{ -moz-appearance:textfield; }
+
+  .rrow__value.small{ font-size:12.5px; text-align:right; word-break:break-all; max-width:64%; }
+  .contrastrow{ display:flex; align-items:center; justify-content:space-between; padding:var(--s3) var(--s4); }
+  .contrastrow + .contrastrow{ border-top:1px solid var(--border); }
+  .note{ font-size:11px; color:var(--text-3); padding:6px var(--s4) var(--s4); line-height:1.45; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Color format converter</h1>
+    <p data-i18n="t.desc">Enter a color once and read it back in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.</p>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="preview swatch" id="swatch"><div class="swatch__fill" id="swatch-fill"></div></div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="field">
+          <label class="label" data-i18n="t.input">Input (HEX / rgb() / hsl())</label>
+          <div class="hexrow">
+            <input class="input" id="in-hex" type="text" inputmode="text" spellcheck="false" placeholder="#5457E5">
+            <div class="colorpick"><input type="color" id="in-native" value="#5457e5" aria-label="Pick color"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.rgb">RGB</label>
+          <div class="chan"><span class="clabel">R</span>
+            <input class="slider" id="sl-r" type="range" min="0" max="255" step="1">
+            <input class="cval" id="nv-r" type="number" min="0" max="255" step="1"></div>
+          <div class="chan"><span class="clabel">G</span>
+            <input class="slider" id="sl-g" type="range" min="0" max="255" step="1">
+            <input class="cval" id="nv-g" type="number" min="0" max="255" step="1"></div>
+          <div class="chan"><span class="clabel">B</span>
+            <input class="slider" id="sl-b" type="range" min="0" max="255" step="1">
+            <input class="cval" id="nv-b" type="number" min="0" max="255" step="1"></div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.alpha">Alpha</label>
+          <div class="chan"><span class="clabel">A</span>
+            <input class="slider" id="sl-a" type="range" min="0" max="100" step="1">
+            <input class="cval" id="nv-a" type="number" min="0" max="100" step="1"></div>
+        </div>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--secondary" id="randomize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+            <span data-i18n="t.randomize">Randomize</span>
+          </button>
+          <button class="btn btn--secondary" id="reset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            <span data-i18n="t.reset">Reset</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow"><span class="rrow__label">HEX</span><span class="rrow__value small" id="ro-hex" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">RGB</span><span class="rrow__value small" id="ro-rgb" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">HSL</span><span class="rrow__value small" id="ro-hsl" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">HSV</span><span class="rrow__value small" id="ro-hsv" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">CMYK</span><span class="rrow__value small" id="ro-cmyk" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.linear">Linear RGB</span><span class="rrow__value small" id="ro-linear" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">Lab</span><span class="rrow__value small" id="ro-lab" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">LCH</span><span class="rrow__value small" id="ro-lch" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">OKLab</span><span class="rrow__value small" id="ro-oklab" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">OKLCH</span><span class="rrow__value small" id="ro-oklch" data-copy=""></span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.contrast">Contrast as background</span></div>
+        <div class="contrastrow"><span class="rrow__label" data-i18n="t.whitetext">White text</span><span class="badge" id="badge-white"></span></div>
+        <div class="contrastrow"><span class="rrow__label" data-i18n="t.blacktext">Black text</span><span class="badge" id="badge-black"></span></div>
+        <div class="note" id="alpha-note" data-i18n="t.alphanote" hidden></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var DEFAULT = { r: 0x54, g: 0x57, b: 0xE5, a: 1 };
+  var state = { r: DEFAULT.r, g: DEFAULT.g, b: DEFAULT.b, a: DEFAULT.a };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elHex = $("in-hex"), elNative = $("in-native");
+  var slR = $("sl-r"), slG = $("sl-g"), slB = $("sl-b"), slA = $("sl-a");
+  var nvR = $("nv-r"), nvG = $("nv-g"), nvB = $("nv-b"), nvA = $("nv-a");
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function mod(x, n) { return ((x % n) + n) % n; }
+  function round(n, dp) { var m = Math.pow(10, dp || 0); return Math.round(n * m) / m; }
+  function pad2h(n) { n = Math.round(clamp(n, 0, 255)); var s = n.toString(16).toUpperCase(); return s.length < 2 ? "0" + s : s; }
+
+  /* ---------------- parsing ---------------- */
+  function parseHex(str) {
+    var s = str.trim().replace(/^#/, "");
+    if (!/^[0-9a-fA-F]+$/.test(s)) return null;
+    var r, g, b, a = 1;
+    if (s.length === 3) { r = parseInt(s[0] + s[0], 16); g = parseInt(s[1] + s[1], 16); b = parseInt(s[2] + s[2], 16); }
+    else if (s.length === 4) { r = parseInt(s[0] + s[0], 16); g = parseInt(s[1] + s[1], 16); b = parseInt(s[2] + s[2], 16); a = parseInt(s[3] + s[3], 16) / 255; }
+    else if (s.length === 6) { r = parseInt(s.slice(0, 2), 16); g = parseInt(s.slice(2, 4), 16); b = parseInt(s.slice(4, 6), 16); }
+    else if (s.length === 8) { r = parseInt(s.slice(0, 2), 16); g = parseInt(s.slice(2, 4), 16); b = parseInt(s.slice(4, 6), 16); a = parseInt(s.slice(6, 8), 16) / 255; }
+    else return null;
+    return { r: r, g: g, b: b, a: a };
+  }
+  function parseChan(v) { v = v.trim(); return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100 * 255, 0, 255) : clamp(parseFloat(v), 0, 255); }
+  function parseAlphaTok(v) { if (v === undefined) return 1; v = v.trim(); return v.indexOf("%") >= 0 ? clamp(parseFloat(v) / 100, 0, 1) : clamp(parseFloat(v), 0, 1); }
+  function hslToRgb(h, s, l) {
+    h = mod(h, 360) / 360; s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
+    if (s === 0) { var v = Math.round(l * 255); return { r: v, g: v, b: v }; }
+    function hue2rgb(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    return { r: Math.round(hue2rgb(p, q, h + 1 / 3) * 255), g: Math.round(hue2rgb(p, q, h) * 255), b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255) };
+  }
+  function parseColorString(str) {
+    if (!str) return null;
+    str = str.trim();
+    var hx = parseHex(str); if (hx) return hx;
+    var m = str.match(/^rgba?\(\s*([\-\d.]+%?)[\s,]+([\-\d.]+%?)[\s,]+([\-\d.]+%?)\s*(?:[,\/]\s*([\-\d.]+%?))?\s*\)$/i);
+    if (m) return { r: parseChan(m[1]), g: parseChan(m[2]), b: parseChan(m[3]), a: parseAlphaTok(m[4]) };
+    var m2 = str.match(/^hsla?\(\s*([\-\d.]+)(?:deg)?[\s,]+([\-\d.]+)%[\s,]+([\-\d.]+)%\s*(?:[,\/]\s*([\-\d.]+%?))?\s*\)$/i);
+    if (m2) { var rgb = hslToRgb(parseFloat(m2[1]), parseFloat(m2[2]), parseFloat(m2[3])); rgb.a = parseAlphaTok(m2[4]); return rgb; }
+    return null;
+  }
+
+  /* ---------------- forward conversions (source of truth = RGB) ---------------- */
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h, s, l = (max + min) / 2;
+    if (max === min) { h = s = 0; } else {
+      var d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; }
+      h /= 6;
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  }
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, h, s = max === 0 ? 0 : d / max, v = max;
+    if (d === 0) { h = 0; } else {
+      switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; }
+      h /= 6;
+    }
+    return { h: h * 360, s: s * 100, v: v * 100 };
+  }
+  function rgbToCmyk(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var k = 1 - Math.max(r, g, b), c, m, y;
+    if (k >= 1) { c = m = y = 0; } else { c = (1 - r - k) / (1 - k); m = (1 - g - k) / (1 - k); y = (1 - b - k) / (1 - k); }
+    return { c: c * 100, m: m * 100, y: y * 100, k: k * 100 };
+  }
+  function srgbToLinCh(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function rgbToLinear(r, g, b) { return { r: srgbToLinCh(r), g: srgbToLinCh(g), b: srgbToLinCh(b) }; }
+  function linearToXyz(lin) {
+    var R = lin.r, G = lin.g, B = lin.b;
+    return { x: 0.4124564 * R + 0.3575761 * G + 0.1804375 * B, y: 0.2126729 * R + 0.7151522 * G + 0.0721750 * B, z: 0.0193339 * R + 0.1191920 * G + 0.9503041 * B };
+  }
+  function xyzToLab(xyz) {
+    var Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
+    function f(t) { return t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116); }
+    var fx = f(xyz.x / Xn), fy = f(xyz.y / Yn), fz = f(xyz.z / Zn);
+    return { l: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+  }
+  function labToLch(lab) { var c = Math.sqrt(lab.a * lab.a + lab.b * lab.b), h = Math.atan2(lab.b, lab.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: lab.l, c: c, h: h }; }
+  function linearToOklab(lin) {
+    var R = lin.r, G = lin.g, B = lin.b;
+    var l = 0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B;
+    var m = 0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B;
+    var s = 0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B;
+    var l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s);
+    return {
+      l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+      a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+      b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    };
+  }
+  function oklabToOklch(ok) { var c = Math.sqrt(ok.a * ok.a + ok.b * ok.b), h = Math.atan2(ok.b, ok.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: ok.l, c: c, h: h }; }
+  function relLuminance(r, g, b) { var lin = rgbToLinear(r, g, b); return 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b; }
+  function contrastRatio(L1, L2) { var hi = Math.max(L1, L2), lo = Math.min(L1, L2); return (hi + 0.05) / (lo + 0.05); }
+
+  function set(el, text, copy) { el.textContent = text; el.setAttribute("data-copy", copy === undefined ? text : copy); }
+  function setBadge(el, ratio) {
+    var pass = ratio >= 4.5;
+    el.className = "badge " + (pass ? "badge--pos" : "badge--neg");
+    var label = ratio >= 7 ? "AAA" : ratio >= 4.5 ? "AA" : ratio >= 3 ? "AA (large)" : "Fail";
+    el.innerHTML = '<span class="d"></span>' + round(ratio, 2) + " · " + label;
+  }
+
+  function render() {
+    var r = Math.round(state.r), g = Math.round(state.g), b = Math.round(state.b), a = state.a;
+    var alphaPct = round(a * 100, 0);
+
+    $("swatch-fill").style.background = "rgba(" + r + "," + g + "," + b + "," + a + ")";
+
+    if (document.activeElement !== elHex) elHex.value = "#" + pad2h(r) + pad2h(g) + pad2h(b) + (a < 1 ? pad2h(round(a * 255)) : "");
+    if (document.activeElement !== elNative) elNative.value = "#" + pad2h(r) + pad2h(g) + pad2h(b);
+    if (document.activeElement !== slR) slR.value = r; if (document.activeElement !== nvR) nvR.value = r;
+    if (document.activeElement !== slG) slG.value = g; if (document.activeElement !== nvG) nvG.value = g;
+    if (document.activeElement !== slB) slB.value = b; if (document.activeElement !== nvB) nvB.value = b;
+    if (document.activeElement !== slA) slA.value = alphaPct; if (document.activeElement !== nvA) nvA.value = alphaPct;
+
+    var aSuffix = a < 1 ? " / " + alphaPct + "%" : "";
+
+    set($("ro-hex"), "#" + pad2h(r) + pad2h(g) + pad2h(b) + (a < 1 ? pad2h(round(a * 255)) : ""));
+    set($("ro-rgb"), a < 1 ? "rgba(" + r + ", " + g + ", " + b + ", " + round(a, 2) + ")" : "rgb(" + r + ", " + g + ", " + b + ")");
+
+    var hsl = rgbToHsl(r, g, b);
+    set($("ro-hsl"), (a < 1 ? "hsla(" : "hsl(") + round(hsl.h, 0) + ", " + round(hsl.s, 0) + "%, " + round(hsl.l, 0) + "%" + (a < 1 ? ", " + round(a, 2) : "") + ")");
+
+    var hsv = rgbToHsv(r, g, b);
+    set($("ro-hsv"), "hsv(" + round(hsv.h, 0) + ", " + round(hsv.s, 0) + "%, " + round(hsv.v, 0) + "%)" + aSuffix);
+
+    var cmyk = rgbToCmyk(r, g, b);
+    set($("ro-cmyk"), "cmyk(" + round(cmyk.c, 0) + "%, " + round(cmyk.m, 0) + "%, " + round(cmyk.y, 0) + "%, " + round(cmyk.k, 0) + "%)");
+
+    var lin = rgbToLinear(r, g, b);
+    set($("ro-linear"), "color(srgb-linear " + round(lin.r, 3) + " " + round(lin.g, 3) + " " + round(lin.b, 3) + (a < 1 ? " / " + alphaPct + "%" : "") + ")");
+
+    var xyz = linearToXyz(lin), lab = xyzToLab(xyz);
+    set($("ro-lab"), "lab(" + round(lab.l, 1) + "% " + round(lab.a, 1) + " " + round(lab.b, 1) + aSuffix + ")");
+
+    var lch = labToLch(lab);
+    set($("ro-lch"), "lch(" + round(lch.l, 1) + "% " + round(lch.c, 1) + " " + round(lch.h, 1) + aSuffix + ")");
+
+    var oklab = linearToOklab(lin);
+    set($("ro-oklab"), "oklab(" + round(oklab.l * 100, 1) + "% " + round(oklab.a, 3) + " " + round(oklab.b, 3) + aSuffix + ")");
+
+    var oklch = oklabToOklch(oklab);
+    set($("ro-oklch"), "oklch(" + round(oklch.l * 100, 1) + "% " + round(oklch.c, 3) + " " + round(oklch.h, 1) + aSuffix + ")");
+
+    var Lc = relLuminance(r, g, b);
+    setBadge($("badge-white"), contrastRatio(Lc, 1));
+    setBadge($("badge-black"), contrastRatio(Lc, 0));
+    $("alpha-note").hidden = a >= 1;
+  }
+
+  function setFromRgb(o) {
+    state.r = clamp(Math.round(o.r), 0, 255);
+    state.g = clamp(Math.round(o.g), 0, 255);
+    state.b = clamp(Math.round(o.b), 0, 255);
+    if (o.a !== undefined) state.a = clamp(o.a, 0, 1);
+    render();
+  }
+
+  /* ---------------- wiring ---------------- */
+  elHex.addEventListener("input", function () {
+    var c = parseColorString(elHex.value);
+    if (c) { elHex.classList.remove("input--err"); setFromRgb(c); }
+    else { elHex.classList.add("input--err"); }
+  });
+  elHex.addEventListener("blur", function () { elHex.classList.remove("input--err"); render(); });
+
+  elNative.addEventListener("input", function () {
+    var c = parseHex(elNative.value); if (c) setFromRgb({ r: c.r, g: c.g, b: c.b, a: state.a });
+  });
+
+  function wireChan(slider, num, key, max) {
+    function apply(v) { if (isNaN(v)) return; v = clamp(Math.round(v), 0, max); state[key] = key === "a" ? v / 100 : v; render(); }
+    slider.addEventListener("input", function () { apply(parseFloat(slider.value)); });
+    num.addEventListener("input", function () { if (num.value === "") return; apply(parseFloat(num.value)); });
+    num.addEventListener("blur", function () { if (num.value === "") render(); });
+  }
+  wireChan(slR, nvR, "r", 255);
+  wireChan(slG, nvG, "g", 255);
+  wireChan(slB, nvB, "b", 255);
+  wireChan(slA, nvA, "a", 100);
+
+  $("randomize").addEventListener("click", function () {
+    state.r = Math.floor(Math.random() * 256); state.g = Math.floor(Math.random() * 256); state.b = Math.floor(Math.random() * 256);
+    render();
+  });
+  $("reset").addEventListener("click", function () { state = { r: DEFAULT.r, g: DEFAULT.g, b: DEFAULT.b, a: DEFAULT.a }; render(); });
+
+  Shell.init({
+    id: "color-convert",
+    strings: {
+      en: {
+        "t.title": "Color format converter",
+        "t.desc": "Enter a color once and read it back in RGB, HEX, HSL, HSV, CMYK, Lab, LCH, OKLCH, OKLab, and linear RGB.",
+        "t.input": "Input (HEX / rgb() / hsl())",
+        "t.rgb": "RGB", "t.alpha": "Alpha",
+        "t.randomize": "Randomize", "t.reset": "Reset",
+        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "t.linear": "Linear RGB",
+        "t.contrast": "Contrast as background",
+        "t.whitetext": "White text", "t.blacktext": "Black text",
+        "t.alphanote": "Ratios above assume the color is fully opaque. With alpha under 100%, real contrast depends on what's behind it."
+      },
+      ja: {
+        "t.title": "色フォーマット変換",
+        "t.desc": "色を1つ入力すると、RGB・HEX・HSL・HSV・CMYK・Lab・LCH・OKLCH・OKLab・リニアRGBで一括表示します。",
+        "t.input": "入力（HEX / rgb() / hsl()）",
+        "t.rgb": "RGB", "t.alpha": "アルファ",
+        "t.randomize": "ランダム", "t.reset": "リセット",
+        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "t.linear": "リニアRGB",
+        "t.contrast": "背景として使ったときのコントラスト",
+        "t.whitetext": "白文字", "t.blacktext": "黒文字",
+        "t.alphanote": "上記は不透明の場合の値です。アルファが100%未満のときは、背後の色によって実際のコントラストが変わります。"
+      }
+    },
+    onSettingsChange: render
+  });
+  render();
+})();
+</script>
+</body>
+</html>
