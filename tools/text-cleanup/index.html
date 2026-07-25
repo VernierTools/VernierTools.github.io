@@ -22,6 +22,18 @@
   .ed-backdrop mark{ color:transparent; border-radius:2px; }
   .ed-backdrop mark.hl-dup{ background:var(--neg-tint); }
   .ed-backdrop mark.hl-info{ background:var(--accent-tint); }
+  .ed-backdrop mark.hl-warn{ background:var(--warn-tint); }
+
+  /* 「判定できない」語のための警告色。shell.css に該当トークンが無いためツール内で定義する。 */
+  :root{ --warn:#9A6B00; --warn-tint:#FBF0CE; }
+  html[data-theme="dark"]{ --warn:#E0B33C; --warn-tint:rgba(224,179,60,.18); }
+
+  .amblist{ display:flex; flex-wrap:wrap; gap:6px; }
+  .ambitem{ appearance:none; cursor:pointer; font:inherit; font-size:13px; height:32px; padding:0 12px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--warn-tint);
+    color:var(--warn); font-weight:500; transition:all var(--tap); }
+  .ambitem:hover{ border-color:var(--warn); }
+  .ambitem .pos{ font-family:var(--font-mono); font-size:11px; opacity:.7; margin-left:6px; }
   .ta{
     position:relative; z-index:2; resize:vertical;
     background:transparent; color:var(--text); caret-color:var(--text);
@@ -48,6 +60,7 @@
     background:var(--surface); color:var(--text-2); transition:all var(--tap); }
   .charchip:hover{ border-color:var(--text-3); }
   .charchip[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  #btn-dup-prev:disabled, #btn-dup-next:disabled{ opacity:.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -105,7 +118,15 @@
       <div class="card">
         <div class="cardhead">
           <label class="label" data-i18n="t.dupTitle">Repeated punctuation</label>
-          <span class="badge badge--muted" id="dup-badge"><span class="d"></span><span id="dup-count">0</span></span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="badge badge--muted" id="dup-badge"><span class="d"></span><span id="dup-count">0</span></span>
+            <button class="tb-iconbtn" id="btn-dup-prev" type="button" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="tb-iconbtn" id="btn-dup-next" type="button" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
         </div>
         <label class="label" style="font-size:11.5px" data-i18n="t.dupChars">Characters to check</label>
         <div class="chipgrid" id="char-toggle" role="group">
@@ -159,6 +180,17 @@
           Kanji→Arabic only counts tokens with a unit right after them or hiragana on both sides. Arabic→Kanji skips digits that look like phone numbers, dates, decimals, or version numbers, unless a unit follows.
         </div>
       </div>
+
+      <div class="card" id="amb-card" style="margin-top:var(--s4)" hidden>
+        <div class="cardhead">
+          <label class="label" data-i18n="t.ambTitle">Needs your judgement</label>
+          <span class="badge badge--muted" id="amb-badge"><span class="d"></span><span id="amb-count">0</span></span>
+        </div>
+        <div class="hint" data-i18n="t.ambHint" style="margin-bottom:var(--s3); font-size:12px; color:var(--text-3);">
+          These could be either a number or a set phrase, so they're left untouched. Click one to jump to it.
+        </div>
+        <div class="amblist" id="amb-list"></div>
+      </div>
     </div>
   </div>
 </main>
@@ -173,11 +205,13 @@
   var btnFixSpace = $("btn-fix-space"), btnFixDigit = $("btn-fix-digit");
   var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
   var charToggle = $("char-toggle"), dupBadge = $("dup-badge"), dupCountEl = $("dup-count"), btnFixDup = $("btn-fix-dup");
+  var btnDupPrev = $("btn-dup-prev"), btnDupNext = $("btn-dup-next");
   var mixToggle = $("mix-toggle"), mixToggleRow = $("mix-toggle-row");
   var numMixedInfo = $("num-mixed-info"), numEmptyMsg = $("num-empty-msg");
   var cntKanji = $("cnt-kanji"), cntArabic = $("cnt-arabic");
   var btnNumUnify = $("btn-num-unify"), numUnifyDefault = $("num-unify-default"), numUnifyChoice = $("num-unify-choice");
   var btnNumToArabic = $("btn-num-to-arabic"), btnNumToKanji = $("btn-num-to-kanji"), btnNumCancel = $("btn-num-cancel");
+  var ambCard = $("amb-card"), ambList = $("amb-list"), ambBadge = $("amb-badge"), ambCountEl = $("amb-count");
 
   function esc(s) {
     return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
@@ -217,7 +251,17 @@
   function fixDuplicates(v, chars) {
     var re = buildDupRegex(chars);
     if (!re) return v;
-    return v.replace(re, function (m) { return m.charAt(0); });
+    return v.replace(re, function () {
+      var m = arguments[0];
+      var offset = arguments[arguments.length - 2];
+      var str = arguments[arguments.length - 1];
+      // 「、」「。」だけからなる連続で、直後が改行またはテキストの末尾なら「。」に統一する。
+      if (/^[、。]+$/.test(m)) {
+        var endIdx = offset + m.length;
+        if (endIdx >= str.length || str[endIdx] === "\n") return "。";
+      }
+      return m.charAt(0);
+    });
   }
 
   charToggle.addEventListener("click", function (e) {
@@ -265,16 +309,45 @@
     // 面積・体積
     "㎡", "坪", "L", "ml", "cc", "合"
   ];
-  // それでも誤検出しやすい語の例外リスト。必要に応じて追加してください。
-  var BLACKLIST_WORDS = ["十分", "一般", "一体", "一応", "一切", "一同", "一部", "二重", "四角", "九州", "七夕", "八百屋", "千葉", "万年筆"];
+  // 【確実に数値ではない語】静かに除外する（ハイライトも変換もしない）。
+  // 各語は「漢数字文字の直後が単位リストにある」または「ひらがなに挟まれる」ために
+  // 誤って数字とみなされる実例のみ登録すること（根拠のない語を足しても意味がない）。
+  var BLACKLIST_WORDS = ["四六時中", "三日月", "百足", "人一倍", "一通り", "万年筆", "万万一", "万一"];
+  // 【文脈次第でどちらにもなり得る語】自動変換せず、黄色で示して一覧に出し、人間が判断する。
+  // 例: 「一件落着」（慣用句）と「残り一件」（1件）、「八百万の神」と「八百万円」。
+  var AMBIGUOUS_WORDS = ["四六時中", "十分", "一時", "一件", "一部", "八百万", "一二三"].filter(function (w) {
+    return BLACKLIST_WORDS.indexOf(w) === -1;
+  });
+  // 長い語から先に照合する（「万万一」が「万一」に横取りされないように）
+  function byLengthDesc(a, b) { return b.length - a.length; }
+  BLACKLIST_WORDS.sort(byLengthDesc);
+  AMBIGUOUS_WORDS.sort(byLengthDesc);
   var HIRAGANA_RE = /[ぁ-んー]/;
 
-  function isBlacklistedAt(v, start) {
-    for (var i = 0; i < BLACKLIST_WORDS.length; i++) {
-      if (v.substr(start, BLACKLIST_WORDS[i].length) === BLACKLIST_WORDS[i]) return true;
+  function matchWordAt(list, v, start) {
+    for (var i = 0; i < list.length; i++) {
+      if (v.substr(start, list[i].length) === list[i]) return list[i];
     }
-    return false;
+    return null;
   }
+  // 語がテキスト中に出現する範囲をすべて求める（「人一倍」のように漢数字が語頭以外に
+  // ある場合でも、トークンがその語に含まれていれば除外できるようにするため）。
+  function findWordRanges(list, v) {
+    var ranges = [];
+    list.forEach(function (w) {
+      var i = v.indexOf(w);
+      while (i !== -1) { ranges.push({ start: i, end: i + w.length, text: w }); i = v.indexOf(w, i + 1); }
+    });
+    ranges.sort(function (a, b) { return a.start - b.start; });
+    return ranges;
+  }
+  function coveringRange(ranges, start, end) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (start < ranges[i].end && end > ranges[i].start) return ranges[i];
+    }
+    return null;
+  }
+
   function hasUnitAt(v, end) {
     for (var i = 0; i < UNIT_WORDS.length; i++) {
       if (v.substr(end, UNIT_WORDS[i].length) === UNIT_WORDS[i]) return true;
@@ -286,15 +359,28 @@
     return HIRAGANA_RE.test(v[start - 1]) && HIRAGANA_RE.test(v[end]);
   }
   // 漢数字らしき並びのうち、「単位が続く」または「ひらがなに前後を挟まれる」場合だけを
-  // 数字とみなす（ブラックリストに一致する語は最優先で除外）。
+  // 数字とみなす。除外リスト・判定保留リストの語に重なるトークンは最優先で対象外にする。
   function findKanjiNumberTokens(v) {
     var tokens = [], re = new RegExp(KANJI_RE.source, "g"), m;
+    var blocked = findWordRanges(BLACKLIST_WORDS, v), pending = findWordRanges(AMBIGUOUS_WORDS, v);
     while ((m = re.exec(v))) {
       var start = m.index, tok = m[0], end = start + tok.length;
-      if (isBlacklistedAt(v, start)) continue;
+      if (coveringRange(blocked, start, end)) continue;
+      if (coveringRange(pending, start, end)) continue;
       if (hasUnitAt(v, end) || isHiraganaFlanked(v, start, end)) tokens.push({ start: start, end: end, text: tok });
     }
     return tokens;
+  }
+  // 判定保留リストに一致した箇所（人間の判断に委ねる）。除外リストに含まれる語は出さない。
+  function findAmbiguousTokens(v) {
+    var blocked = findWordRanges(BLACKLIST_WORDS, v);
+    var out = [], last = -1;
+    findWordRanges(AMBIGUOUS_WORDS, v).forEach(function (r) {
+      if (coveringRange(blocked, r.start, r.end)) return;
+      if (r.start < last) return;   // 語同士が重なる場合は先に見つかった方を優先
+      out.push(r); last = r.end;
+    });
+    return out;
   }
 
   function kanjiToNumber(tok) {
@@ -414,6 +500,7 @@
     var digitRe = /[０-９]+/g, m3;
     while ((m3 = digitRe.exec(v))) segments.push({ start: m3.index, end: m3.index + m3[0].length, cls: "hl-info" });
     findKanjiNumberTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-info" }); });
+    findAmbiguousTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-warn" }); });
     segments.sort(function (a, b) { return a.start - b.start; });
     return segments;
   }
@@ -427,6 +514,49 @@
     return html + esc(v.slice(last));
   }
 
+  // ---- 重複ハイライト間のジャンプ（前へ／次へ） ----
+  var dupMatches = [], dupCursor = -1;
+  function stepDup(delta) {
+    if (!dupMatches.length) return;
+    if (dupCursor === -1) dupCursor = delta > 0 ? 0 : dupMatches.length - 1;
+    else dupCursor = ((dupCursor + delta) % dupMatches.length + dupMatches.length) % dupMatches.length;
+    var seg = dupMatches[dupCursor];
+    taIn.focus();
+    taIn.setSelectionRange(seg.start, seg.end);
+  }
+  btnDupNext.addEventListener("click", function () { stepDup(1); });
+  btnDupPrev.addEventListener("click", function () { stepDup(-1); });
+  function updateDupNav() {
+    var prevLabel = Shell.t("t.dupPrev"), nextLabel = Shell.t("t.dupNext");
+    btnDupPrev.title = prevLabel; btnDupPrev.setAttribute("aria-label", prevLabel);
+    btnDupNext.title = nextLabel; btnDupNext.setAttribute("aria-label", nextLabel);
+    var has = dupMatches.length > 0;
+    btnDupPrev.disabled = !has; btnDupNext.disabled = !has;
+    if (dupCursor >= dupMatches.length) dupCursor = has ? 0 : -1;
+  }
+
+  // ---- 判定できなかった語の一覧（クリックでその箇所へジャンプ） ----
+  function refreshAmbiguous() {
+    var v = taIn.value;
+    var items = v === "" ? [] : findAmbiguousTokens(v);
+    ambCard.hidden = items.length === 0;
+    ambCountEl.textContent = items.length;
+    ambBadge.classList.toggle("badge--muted", true);
+    ambList.innerHTML = items.map(function (t, i) {
+      return '<button type="button" class="ambitem" data-idx="' + i + '">' + esc(t.text) +
+        '<span class="pos">' + (t.start + 1) + "</span></button>";
+    }).join("");
+    ambList._items = items;
+  }
+  ambList.addEventListener("click", function (e) {
+    var b = e.target.closest(".ambitem"); if (!b) return;
+    var items = ambList._items || [];
+    var t = items[parseInt(b.getAttribute("data-idx"), 10)];
+    if (!t) return;
+    taIn.focus();
+    taIn.setSelectionRange(t.start, t.end);
+  });
+
   /* =========================================================
      再描画：カウント・ハイライト（本文欄の背後レイヤーに直接）
      ========================================================= */
@@ -438,7 +568,8 @@
 
     syncMixToggleAvailability();
     var segments = v === "" ? [] : collectSegments(v);
-    var count = segments.filter(function (s) { return s.cls === "hl-dup"; }).length;
+    dupMatches = segments.filter(function (s) { return s.cls === "hl-dup"; });
+    var count = dupMatches.length;
     var html = v === "" ? "" : buildBackdropHTML(v, segments);
     backdrop.innerHTML = html + " "; // 末尾改行の高さ崩れ対策
 
@@ -446,8 +577,10 @@
     dupBadge.classList.toggle("badge--neg", count > 0);
     dupBadge.classList.toggle("badge--muted", count === 0);
     btnFixDup.disabled = count === 0;
+    updateDupNav();
 
     refreshNumbers();
+    refreshAmbiguous();
   }
   taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
 
@@ -557,6 +690,7 @@
         "t.detected": "Full-width check",
         "t.fwSpace": "Full-width spaces", "t.fwDigit": "Full-width digits", "t.fix": "Fix",
         "t.dupTitle": "Repeated punctuation",
+        "t.dupPrev": "Previous match", "t.dupNext": "Next match",
         "t.dupChars": "Characters to check",
         "t.mixToggle": "Also detect mixed \u3001\uff0f\u3002 runs (e.g. \u201c\u3001\u3002\u201d)",
         "t.dupHint": "Detects the same character repeated in a row (e.g. \u201c\uff01\uff01\u201d). Choose which characters to check.",
@@ -569,6 +703,8 @@
         "t.numToArabic": "To Arabic (123)",
         "t.numToKanji": "To Kanji (\u4e00\u4e8c\u4e09)",
         "t.cancel": "Cancel",
+        "t.ambTitle": "Needs your judgement",
+        "t.ambHint": "These could be either a number or a set phrase, so they're left untouched. Click one to jump to it.",
         "t.numCaveat": "Kanji\u2192Arabic only counts tokens with a unit right after them or hiragana on both sides (with a short exception list). Arabic\u2192Kanji skips digits that look like phone numbers, dates, decimals, or version numbers (touching \"-\", \"/\", \":\", \".\", or a letter), unless a unit follows."
       },
       ja: {
@@ -580,6 +716,7 @@
         "t.detected": "全角チェック",
         "t.fwSpace": "全角スペース", "t.fwDigit": "全角数字", "t.fix": "修正",
         "t.dupTitle": "句読点などの連続",
+        "t.dupPrev": "前の箇所へ", "t.dupNext": "次の箇所へ",
         "t.dupChars": "対象の文字",
         "t.mixToggle": "「、」「。」の混在も検出する（例:「、。」）",
         "t.dupHint": "同じ文字が連続している箇所を検出します（例:「！！」）。対象の文字は選択できます。",
@@ -592,6 +729,8 @@
         "t.numToArabic": "算用数字にする（123）",
         "t.numToKanji": "漢数字にする（一二三）",
         "t.cancel": "キャンセル",
+        "t.ambTitle": "自動判定できなかった語",
+        "t.ambHint": "数値とも慣用句とも取れるため、変換対象から外しています。クリックするとその箇所へ移動します。",
         "t.numCaveat": "漢数字→算用数字は、単位が続くかひらがなに挟まれているものだけを数字とみなします（例外リストあり）。算用数字→漢数字は、電話番号・日付・小数・バージョン表記のような並び（前後に「-」「/」「:」「.」やアルファベットが接する場合）は変換対象から外します（単位が続く場合は例外的に対象にします）。"
       }
     },
