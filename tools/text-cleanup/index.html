@@ -241,7 +241,6 @@
      ========================================================= */
   var KANJI_DIGIT_MAP = { "〇": "0", "零": "0", "一": "1", "二": "2", "三": "3", "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9" };
   var KANJI_RE = /[〇零一二三四五六七八九十百千万億兆]+/g;
-  var ARABIC_RE = /[0-9]+/g;
 
   // 単位が続く場合はほぼ確実に数字とみなす。カテゴリごとにまとめてあります。
   // 誤検出する単位が見つかったら、ここから外すか BLACKLIST_WORDS に個別の語を足してください。
@@ -359,10 +358,14 @@
   }
   // 電話番号・日付・小数・バージョン表記などに見える並び（前後に -／:．やアルファベットが
   // 接している）は「数字ではあるが自然文の数量ではない」とみなし変換対象から外す。
-  // ただし単位が続く場合は最優先で変換対象にする。
+  // ただし単位が続く場合は最優先で変換対象にする。全角数字（０-９）も算用数字として扱う。
   var CODE_ADJACENT_RE = /[\-\/:.#@A-Za-z]/;
+  var ARABIC_ANY_RE = /[0-9０-９]+/g;
+  function normalizeDigits(tok) {
+    return tok.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
   function findArabicNumberTokens(v) {
-    var tokens = [], re = new RegExp(ARABIC_RE.source, "g"), m;
+    var tokens = [], re = new RegExp(ARABIC_ANY_RE.source, "g"), m;
     while ((m = re.exec(v))) {
       var start = m.index, tok = m[0], end = start + tok.length;
       if (hasUnitAt(v, end)) { tokens.push({ start: start, end: end, text: tok }); continue; }
@@ -376,7 +379,7 @@
     var tokens = findArabicNumberTokens(v);
     if (!tokens.length) return v;
     var result = "", last = 0;
-    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(parseInt(t.text, 10)); last = t.end; });
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(parseInt(normalizeDigits(t.text), 10)); last = t.end; });
     return result + v.slice(last);
   }
 
