@@ -137,12 +137,12 @@
         "ja"
       ],
       "name": {
-        "en": "Text cleanup",
-        "ja": "表記ゆれ・ミス検出＆修正"
+        "en": "Text Formatting Tool",
+        "ja": "テキスト整形ツール"
       },
       "description": {
-        "en": "Convert full-width digits/spaces to half-width, and flag repeated punctuation.",
-        "ja": "全角数字・スペースを半角に変換し、連続した句読点を検出します。"
+        "en": "Convert full-width digits and spaces to half-width in one click. Also fixes repeated punctuation and kanji/Arabic numerals in place.",
+        "ja": "\u5168\u89d2\u6570\u5b57\u30fb\u30b9\u30da\u30fc\u30b9\u3092\u4e00\u62ec\u3067\u534a\u89d2\u306b\u5909\u63db\u3002\u53e5\u8aad\u70b9\u306e\u91cd\u8907\u3084\u6f22\u6570\u5b57\u2194\u7b97\u7528\u6570\u5b57\u3082\u305d\u306e\u5834\u3067\u4fee\u6b63\u3002"
       },
       "keywords": [
         "cleanup",
