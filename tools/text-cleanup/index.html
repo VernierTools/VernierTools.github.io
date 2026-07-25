@@ -126,6 +126,37 @@
         </div>
         <button class="btn btn--primary btn--block" id="btn-fix-dup" type="button" disabled data-i18n="t.dupFix">Merge repeated characters</button>
       </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="cardhead">
+          <label class="label" data-i18n="t.numTitle">Kanji ⇔ Arabic numerals</label>
+        </div>
+        <div id="num-mixed-info" hidden>
+          <div class="rrow2b" style="padding-left:0; padding-right:0;">
+            <span class="rrow2b__label" data-i18n="t.kanjiNum">Kanji numerals</span>
+            <span class="rrow2b__value" id="cnt-kanji">0</span>
+          </div>
+          <div class="rrow2b" style="padding-left:0; padding-right:0;">
+            <span class="rrow2b__label" data-i18n="t.arabicNum">Arabic numerals</span>
+            <span class="rrow2b__value" id="cnt-arabic">0</span>
+          </div>
+        </div>
+        <div class="hint" id="num-empty-msg" data-i18n="t.numEmptyMsg" style="font-size:12px; color:var(--text-3);">
+          Shown when both kanji and Arabic numerals appear in your text.
+        </div>
+
+        <div id="num-unify-default" style="margin-top:var(--s3)">
+          <button class="btn btn--primary btn--block" id="btn-num-unify" type="button" disabled data-i18n="t.numUnify">Unify…</button>
+        </div>
+        <div id="num-unify-choice" class="btnrow" hidden style="margin-top:var(--s3)">
+          <button class="btn btn--secondary" id="btn-num-to-arabic" type="button" data-i18n="t.numToArabic">To Arabic (123)</button>
+          <button class="btn btn--secondary" id="btn-num-to-kanji" type="button" data-i18n="t.numToKanji">To Kanji (一二三)</button>
+          <button class="btn btn--ghost" id="btn-num-cancel" type="button" data-i18n="t.cancel">Cancel</button>
+        </div>
+        <div class="hint" data-i18n="t.numCaveat" style="margin-top:var(--s3); font-size:11px; color:var(--text-3);">
+          Note: kanji like "十分" or "一般" that aren't used as numbers may also be counted.
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -141,6 +172,10 @@
   var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
   var charToggle = $("char-toggle"), dupBadge = $("dup-badge"), dupCountEl = $("dup-count"), btnFixDup = $("btn-fix-dup");
   var mixToggle = $("mix-toggle"), mixToggleRow = $("mix-toggle-row");
+  var numMixedInfo = $("num-mixed-info"), numEmptyMsg = $("num-empty-msg");
+  var cntKanji = $("cnt-kanji"), cntArabic = $("cnt-arabic");
+  var btnNumUnify = $("btn-num-unify"), numUnifyDefault = $("num-unify-default"), numUnifyChoice = $("num-unify-choice");
+  var btnNumToArabic = $("btn-num-to-arabic"), btnNumToKanji = $("btn-num-to-kanji"), btnNumCancel = $("btn-num-cancel");
 
   function esc(s) {
     return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
@@ -198,6 +233,87 @@
   }
 
   /* =========================================================
+     ③ 漢数字 ⇔ 算用数字 の統一
+     - 十/百/千/万/億/兆 を含む場合は通常の位取り計算（例: 二十六→26）
+     - 含まない場合は1文字=1桁として並べる読み（例: 二六→26）
+     ========================================================= */
+  var KANJI_DIGIT_MAP = { "〇": "0", "零": "0", "一": "1", "二": "2", "三": "3", "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9" };
+  var KANJI_RE = /[〇零一二三四五六七八九十百千万億兆]+/g;
+  var ARABIC_RE = /[0-9]+/g;
+
+  function kanjiToNumber(tok) {
+    var digitMap = { "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+    var smallUnits = { "十": 10, "百": 100, "千": 1000 };
+    var bigUnits = [["兆", 1000000000000], ["億", 100000000], ["万", 10000]];
+    function parseSmall(s) {
+      var num = 0, current = 0;
+      for (var i = 0; i < s.length; i++) {
+        var c = s[i];
+        if (digitMap.hasOwnProperty(c)) current = digitMap[c];
+        else if (smallUnits.hasOwnProperty(c)) { num += (current === 0 ? 1 : current) * smallUnits[c]; current = 0; }
+      }
+      return num + current;
+    }
+    var total = 0, remaining = tok;
+    bigUnits.forEach(function (bu) {
+      var idx = remaining.indexOf(bu[0]);
+      if (idx !== -1) {
+        var part = remaining.slice(0, idx);
+        total += (part ? parseSmall(part) : 1) * bu[1];
+        remaining = remaining.slice(idx + 1);
+      }
+    });
+    total += parseSmall(remaining);
+    return total;
+  }
+  function kanjiTokenToArabic(tok) {
+    if (!/[十百千万億兆]/.test(tok)) {
+      return tok.split("").map(function (c) { return KANJI_DIGIT_MAP.hasOwnProperty(c) ? KANJI_DIGIT_MAP[c] : c; }).join("");
+    }
+    return String(kanjiToNumber(tok));
+  }
+  function numberToKanji(num) {
+    var kd = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    var bigUnits = ["", "万", "億", "兆"];
+    function fourDigit(n) {
+      var s = "", th = Math.floor(n / 1000) % 10, hd = Math.floor(n / 100) % 10, te = Math.floor(n / 10) % 10, on = n % 10;
+      if (th) s += (th === 1 ? "" : kd[th]) + "千";
+      if (hd) s += (hd === 1 ? "" : kd[hd]) + "百";
+      if (te) s += (te === 1 ? "" : kd[te]) + "十";
+      if (on) s += kd[on];
+      return s;
+    }
+    if (num === 0) return "〇";
+    var groups = [], n = num;
+    while (n > 0) { groups.push(n % 10000); n = Math.floor(n / 10000); }
+    var result = "";
+    for (var i = groups.length - 1; i >= 0; i--) {
+      if (groups[i] === 0) continue;
+      result += fourDigit(groups[i]) + bigUnits[i];
+    }
+    return result || "〇";
+  }
+  function convertKanjiToArabic(v) { return v.replace(KANJI_RE, kanjiTokenToArabic); }
+  function convertArabicToKanji(v) { return v.replace(ARABIC_RE, function (tok) { return numberToKanji(parseInt(tok, 10)); }); }
+
+  function refreshNumbers() {
+    var v = taIn.value;
+    var kanjiM = v.match(KANJI_RE), arabicM = v.match(ARABIC_RE);
+    var kanjiCount = kanjiM ? kanjiM.length : 0, arabicCount = arabicM ? arabicM.length : 0;
+    var mixed = kanjiCount > 0 && arabicCount > 0;
+    cntKanji.textContent = kanjiCount; cntArabic.textContent = arabicCount;
+    numMixedInfo.hidden = !mixed; numEmptyMsg.hidden = mixed;
+    btnNumUnify.disabled = !mixed;
+    if (!mixed) hideNumChoice();
+  }
+  function showNumChoice() { numUnifyDefault.hidden = true; numUnifyChoice.hidden = false; }
+  function hideNumChoice() { numUnifyDefault.hidden = false; numUnifyChoice.hidden = true; }
+  btnNumUnify.addEventListener("click", showNumChoice);
+  btnNumCancel.addEventListener("click", hideNumChoice);
+  btnNumToArabic.addEventListener("click", function () { applyTransform(convertKanjiToArabic); hideNumChoice(); });
+  btnNumToKanji.addEventListener("click", function () { applyTransform(convertArabicToKanji); hideNumChoice(); });
+
+  /* =========================================================
      再描画：カウント・ハイライト（本文欄の背後レイヤーに直接）
      ========================================================= */
   function refreshDerived() {
@@ -219,6 +335,8 @@
     dupBadge.classList.toggle("badge--neg", count > 0);
     dupBadge.classList.toggle("badge--muted", count === 0);
     btnFixDup.disabled = count === 0;
+
+    refreshNumbers();
   }
   taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
 
@@ -302,7 +420,16 @@
         "t.dupChars": "Characters to check",
         "t.mixToggle": "Also detect mixed \u3001\uff0f\u3002 runs (e.g. \u201c\u3001\u3002\u201d)",
         "t.dupHint": "Detects the same character repeated in a row (e.g. \u201c\uff01\uff01\u201d). Choose which characters to check.",
-        "t.dupFix": "Merge repeated characters"
+        "t.dupFix": "Merge repeated characters",
+        "t.numTitle": "Kanji \u21d4 Arabic numerals",
+        "t.kanjiNum": "Kanji numerals",
+        "t.arabicNum": "Arabic numerals",
+        "t.numEmptyMsg": "Shown when both kanji and Arabic numerals appear in your text.",
+        "t.numUnify": "Unify\u2026",
+        "t.numToArabic": "To Arabic (123)",
+        "t.numToKanji": "To Kanji (\u4e00\u4e8c\u4e09)",
+        "t.cancel": "Cancel",
+        "t.numCaveat": "Note: kanji like \u201c\u5341\u5206\u201d or \u201c\u4e00\u822c\u201d that aren't used as numbers may also be counted."
       },
       ja: {
         "t.title": "表記ゆれ・ミス検出＆修正",
@@ -316,7 +443,16 @@
         "t.dupChars": "対象の文字",
         "t.mixToggle": "「、」「。」の混在も検出する（例:「、。」）",
         "t.dupHint": "同じ文字が連続している箇所を検出します（例:「！！」）。対象の文字は選択できます。",
-        "t.dupFix": "選択した文字の重複をまとめて修正"
+        "t.dupFix": "選択した文字の重複をまとめて修正",
+        "t.numTitle": "漢数字⇔算用数字",
+        "t.kanjiNum": "漢数字",
+        "t.arabicNum": "算用数字",
+        "t.numEmptyMsg": "漢数字と算用数字の両方が使われているときに表示されます。",
+        "t.numUnify": "統一する…",
+        "t.numToArabic": "算用数字にする（123）",
+        "t.numToKanji": "漢数字にする（一二三）",
+        "t.cancel": "キャンセル",
+        "t.numCaveat": "「十分」「一般」のように数値以外の意味を持つ漢字も、数として検出される場合があります。"
       }
     },
     onSettingsChange: refreshDerived
