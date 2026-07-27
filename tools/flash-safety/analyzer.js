@@ -277,6 +277,9 @@
     this.ctd = opts.ctd;
     this.darkMax = opts.darkMax;
     this.eligibleUs = (opts.eligibleMs || 66) * 1000;
+    /* 暗部が darkMax 以上のときに使う Michelson コントラスト閾値（§3.3）。
+       指定しない基準では、その領域は判定対象外になる。 */
+    this.michelson = opts.michelson || null;
     this.maskUp = new Uint8Array(n);
     this.maskDown = new Uint8Array(n);
     // 適格時間ぶんの履歴（fps未知でも足りるよう既定8枚）
@@ -344,8 +347,23 @@
       var d = cur - base;
       var ad = d < 0 ? -d : d;
 
-      if (ad >= ctd) {
-        var darker = cur < base ? cur : base;
+      /* 判定に用いる臨界差を決める。
+         暗部 < darkMax          → 固定の CTD（相対輝度差）
+         暗部 ≥ darkMax かつ michelson 指定あり
+                                 → Michelson コントラスト（§3.3）
+                                    (Lh − Ll)/(Lh + Ll) ≥ michelson
+         michelson 未指定の基準では、暗部が明るい領域は判定対象外（非該当）。 */
+      var hi = cur > base ? cur : base;
+      var lo = cur > base ? base : cur;
+      var passesMagnitude = false;
+      if (lo < darkMax) {
+        passesMagnitude = ad >= ctd;
+      } else if (this.michelson) {
+        var denom = hi + lo;
+        passesMagnitude = denom > 1e-9 && ((hi - lo) / denom) >= this.michelson;
+      }
+
+      if (passesMagnitude) {
         var nd = d > 0 ? 1 : -1;
         // ② 変化の速さ: 窓内のいずれかのフレームとの差が CTD 以上か
         var fast = true;
@@ -355,7 +373,7 @@
           var maxDev = devLow > devHigh ? devLow : devHigh;
           if (maxDev < ctd) fast = false;
         }
-        if (darker < darkMax && fast && nd !== dir[i]) {
+        if (fast && nd !== dir[i]) {
           if (nd > 0) mu[i] = 1; else md[i] = 1;
           dir[i] = nd;
           S[i] = cur;                 // 遷移成立 → 基準を更新
@@ -363,6 +381,10 @@
           // 緩やかな変化。基準だけ追従させ、遷移としては数えない
           S[i] = cur;
         }
+      } else if (ad >= ctd) {
+        /* 大きさは足りているが暗部条件を満たさない（明るい領域の点滅で、
+           かつ Michelson 規定を持たない基準）→ 基準だけ追従させる。 */
+        S[i] = cur;
       }
     }
 
@@ -400,19 +422,19 @@
   /* SDR: ピーク白 200 cd/m² 前提。20cd/m² = 相対輝度 0.10、160cd/m² = 0.80 */
   var STANDARDS = {
     jba: {
-      label: { ja: "NHK・民放連", en: "NHK / JBA" },
+      label: { ja: "NHK・民放連", en: "Japanese TV (NHK/JBA)" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       area: { mode: "global", ratio: 0.25 },
       maxTransitionsPerSec: 6
     },
     itu: {
-      label: { ja: "ITU-R BT.1702-2", en: "ITU-R BT.1702-2" },
+      label: { ja: "ITU-R BT.1702-2", en: "ITU-R BT.1702-2 (Intl.)" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       area: { mode: "global", ratio: 0.25 },
       maxTransitionsPerSec: 6
     },
     ofcom: {
-      label: { ja: "Ofcom (英)", en: "Ofcom (UK)" },
+      label: { ja: "Ofcom (英)", en: "Ofcom (UK TV)" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       area: { mode: "global", ratio: 0.25 },
       maxTransitionsPerSec: 6
@@ -430,7 +452,7 @@
       maxTransitionsPerSec: 6
     },
     proposal2024: {
-      label: { ja: "2024年提案", en: "2024 proposal" },
+      label: { ja: "2024年提案", en: "2024 proposal (research)" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       michelson: 1 / 17,          // 暗部が明るい場合のみ適用
       area: { mode: "local", ratio: 0.25, winFracW: 416 / 1920, winFracH: 416 / 1080 },
