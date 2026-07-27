@@ -136,6 +136,46 @@
   /* 判定行: 高さを揃える。baseline 揃えのままだと min-height が効かないので
      center 揃えに変更し、行の高さを一定にする。 */
   .vrow{ min-height:48px; align-items:center; }
+
+  /* ---- 同意・免責ダイアログ（consent.js）---- */
+  .cs{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200;
+    display:flex; align-items:center; justify-content:center; padding:var(--s4);
+    overflow-y:auto; }
+  .cs__box{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+    padding:var(--s5); max-width:620px; width:100%; max-height:88vh; overflow-y:auto;
+    box-shadow:var(--shadow-md); }
+  .cs__title{ font-size:16px; font-weight:600; margin-bottom:var(--s2); }
+  .cs__lead{ font-size:13px; color:var(--text-2); margin-bottom:var(--s4); }
+  .cs__items{ list-style:none; padding:0; margin:0 0 var(--s4); }
+  .cs__items li{ padding:var(--s3) 0; border-top:1px solid var(--border); }
+  .cs__items li b{ display:block; font-size:13px; margin-bottom:4px; }
+  .cs__items li span{ font-size:12.5px; color:var(--text-2); line-height:1.6; }
+  .cs__privacy{ font-size:12.5px; color:var(--pos); background:var(--pos-tint);
+    border-radius:var(--r); padding:var(--s3); margin-bottom:var(--s4); }
+  .cs__more{ border-top:1px solid var(--border); padding:var(--s3) 0; }
+  .cs__more summary{ cursor:pointer; font-size:12.5px; font-weight:500; color:var(--text-2); }
+  .cs__more summary:hover{ color:var(--text); }
+  .cs__more > div{ padding-top:var(--s3); }
+  .cs__lic{ font-size:11.5px; color:var(--text-2); line-height:1.6; margin-bottom:var(--s3);
+    padding-bottom:var(--s3); border-bottom:1px solid var(--border); }
+  .cs__lic:last-child{ border-bottom:0; }
+  .cs__lic code{ font-family:var(--font-mono); font-size:10.5px; color:var(--text-3); }
+  .cs__lic a{ color:var(--accent); text-decoration:underline; word-break:break-all; }
+  .cs__role{ color:var(--text-3); }
+  .cs__note{ margin-top:4px; color:var(--text-3); }
+  .cs__refs{ margin:0 0 var(--s3); padding-left:1.2em; }
+  .cs__refs li{ font-size:11px; color:var(--text-3); line-height:1.55; margin-bottom:5px; }
+  .cs__row{ margin-top:var(--s4); }
+  .cs__row .btn{ width:100%; }
+
+  /* 常時表示の要点バナー */
+  .notice{ display:flex; gap:var(--s3); align-items:flex-start;
+    background:var(--neg-tint); border:1px solid var(--neg); border-radius:var(--r);
+    padding:var(--s3) var(--s4); margin-top:var(--s4); }
+  .notice svg{ width:18px; height:18px; color:var(--neg); flex:0 0 auto; margin-top:1px; }
+  .notice p{ font-size:12.5px; color:var(--text); line-height:1.6; }
+  .notice b{ color:var(--neg); }
+  .notice a{ color:var(--accent); text-decoration:underline; cursor:pointer; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -144,6 +184,15 @@
     <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
+  </div>
+
+  <div class="notice">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <p data-i18n="t.notice">本ツールは一次チェック用の参考ツールであり、医療機器でも適合認証ツールでもありません。判定精度は100%ではなく、SDR動画のみに対応しています。最終的な安全性の判断は利用者自身の責任で行ってください。</p>
+  </div>
+  <div style="margin-top:var(--s2)">
+    <a href="#" id="openConsent" style="font-size:12px;color:var(--accent);text-decoration:underline"
+       data-i18n="t.openConsent">同意事項・免責・出典を表示</a>
   </div>
 
   <!-- 上段: 動画ファイル と 判定 を横並び -->
@@ -248,6 +297,7 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="player.js"></script>
+<script src="consent.js"></script>
 <script>
 "use strict";
 (function () {
@@ -704,6 +754,20 @@
     return out.join("\n");
   }
 
+  /* ---- 同意・免責ダイアログ ----
+     ⚠ 既読を記録して省略してはならない。開くたびに必ず表示する（consent.js 参照）。
+        解析はダイアログを閉じるまで開始できない。 */
+  var consentDone = false;
+  function showConsentGate() {
+    if (typeof FSConsent === "undefined") { consentDone = true; return; }
+    FSConsent.open("gate", function () { consentDone = true; });
+  }
+  var lnk = $("openConsent");
+  if (lnk) lnk.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (typeof FSConsent !== "undefined") FSConsent.open("info");
+  });
+
   /* ⚠ Shell が読めていないと言語切替が一切効かない。
      その場合は静かに諦めず、状態を残して原因を追えるようにする。 */
   if (typeof Shell === "undefined" || !Shell || typeof Shell.init !== "function") {
@@ -751,6 +815,8 @@
           "t.disclaimer": "本ツールは参考用であり、医療機器でも適合認証でもありません。放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。",
           "t.pass": "検出なし", "t.caution": "要注意", "t.fail": "抵触",
           "t.analyzing": "解析中…", "t.done": "解析完了",
+          "t.notice": "本ツールは一次チェック用の参考ツールであり、医療機器でも適合認証ツールでもありません。判定精度は100%ではなく、SDR動画のみに対応しています。最終的な安全性の判断は利用者自身の責任で行ってください。",
+          "t.openConsent": "同意事項・免責・出典を表示",
           "t.play": "再生 / 一時停止", "t.toStart": "最初に戻る",
           "t.prevFrame": "1コマ戻る", "t.nextFrame": "1コマ送る",
           "t.prevHit": "前の抵触へ", "t.nextHit": "次の抵触へ",
@@ -798,6 +864,8 @@
           "t.disclaimer": "This tool is for guidance only. It is neither a medical device nor a conformance certification. For broadcast, film or game deliverables, use a certified tool such as Harding FPA. Meeting a standard does not prevent seizures in every photosensitive viewer.",
           "t.pass": "Nothing detected", "t.caution": "Borderline", "t.fail": "Exceeds",
           "t.analyzing": "Analyzing…", "t.done": "Done",
+          "t.notice": "This is a reference tool for first-pass checking — not a medical device and not a conformance-certification tool. Accuracy is not 100%, and only SDR video is supported. Final safety judgements remain your own responsibility.",
+          "t.openConsent": "Terms, disclaimer and sources",
           "t.play": "Play / pause", "t.toStart": "Back to start",
           "t.prevFrame": "Previous frame", "t.nextFrame": "Next frame",
           "t.prevHit": "Previous flagged section", "t.nextHit": "Next flagged section",
@@ -815,6 +883,8 @@
       onSettingsChange: function () { if (player) player.draw(); }
     });
   }
+  /* ページを開くたびに同意ダイアログを出す（過去の閲覧履歴に関わらず） */
+  showConsentGate();
 })();
 </script>
 </body>
