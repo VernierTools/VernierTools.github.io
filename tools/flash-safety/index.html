@@ -206,12 +206,17 @@
   .ibtn:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-tint); }
   .infobox p{ font-size:12.5px; color:var(--text-2); line-height:1.7; margin-bottom:var(--s3); }
   .infobox b{ color:var(--text); }
+
+  /* バージョン表記。index.html を編集したら必ず上げる（キャッシュの切り分け用）。
+     言語で変わる値ではないので data-i18n は付けない。 */
+  .chip.ver{ font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    color:var(--text-3); border-color:var(--border); background:var(--surface-2); }
 </style>
 </head>
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.0</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
@@ -334,6 +339,11 @@
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
+  /* ⚠ index.html を編集したら必ず上げる。
+     画面表示（.chip.ver）とレポートの両方に出るので、
+     「反映されていないのか、直っていないのか」を切り分けられる。 */
+  var UI_VERSION = "1.0";
+
   var file = null, worker = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
      ⚠ これが無いと、言語を変えても再解析するまで日本語のままになる。 */
@@ -554,6 +564,7 @@
     out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
     out.push("");
     out.push("## " + T("t.rptEnv", "実行環境"));
+    out.push(line("ツール版", UI_VERSION));
     out.push(line("User-Agent", navigator.userAgent));
     out.push(line("確認日時", new Date().toISOString()));
     out.push("");
