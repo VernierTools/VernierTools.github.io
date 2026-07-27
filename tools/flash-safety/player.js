@@ -79,6 +79,10 @@
     this.stepOnly = false;
     this.confirmed = false;
     this.hoverUs = null;
+    this.seekError = null;        // コマ送りの実測誤差（秒）
+    this.requestedTime = null;
+    this.actualTime = null;
+    this._rvfc = null;
 
     // 抵触区間（全基準の和集合）— スキップとオーバーレイに使う
     this.failSpans = this._collectSpans(LEVEL_FAIL);
@@ -315,6 +319,7 @@
   Player.prototype.toggle = function () {
     if (this.stepOnly) return;
     if (!this.video.paused) { this.video.pause(); return; }
+    this.seekError = null;                    // 再生を始めたら誤差表示は消す
     if (this.hasFail && !this.confirmed) { this._askConfirm(); return; }
     this.video.play();
   };
@@ -354,11 +359,37 @@
     bDim.focus();
   };
 
+  /* コマ送り。§9.2.5
+     ⚠ video.currentTime へのシークはフレーム厳密ではない。
+        キーフレームまで戻って前方デコードするため誤差が出る。
+        requestVideoFrameCallback で「実際に表示されたフレームの時刻」を
+        実測し、指定値とのずれを表示する。判定結果は解析側が正であり、
+        プレビューの表示位置は参考値であることを利用者に見せるため。 */
   Player.prototype.step = function (dir) {
     this.video.pause();
     var d = 1 / (this.fps || 30);
-    this.video.currentTime = Math.max(0, this.video.currentTime + dir * d);
+    var target = Math.max(0, this.video.currentTime + dir * d);
+    this.requestedTime = target;
+    this.video.currentTime = target;
+    this._measureSeek(target);
     this.draw();
+  };
+
+  Player.prototype._measureSeek = function (target) {
+    var self = this;
+    if (typeof this.video.requestVideoFrameCallback !== "function") {
+      this.seekError = null;      // 非対応ブラウザでは表示しない
+      return;
+    }
+    if (this._rvfc) { try { this.video.cancelVideoFrameCallback(this._rvfc); } catch (e) {} }
+    this._rvfc = this.video.requestVideoFrameCallback(function (now, meta) {
+      self._rvfc = null;
+      if (meta && typeof meta.mediaTime === "number") {
+        self.actualTime = meta.mediaTime;
+        self.seekError = meta.mediaTime - target;
+        self.draw();
+      }
+    });
   };
 
   Player.prototype.jumpHit = function (dir) {
@@ -623,7 +654,13 @@
 
     var dur = (this.video.duration && isFinite(this.video.duration))
       ? this.video.duration * 1e6 : (t1 - t0);
-    this.timeLabel.textContent = fmtTime(curUs) + " / " + fmtTime(dur);
+    var label = fmtTime(curUs) + " / " + fmtTime(dur);
+    /* シーク誤差の実測値（コマ送り時のみ）。ミリ秒単位で併記する。 */
+    if (this.seekError != null && Math.abs(this.seekError) >= 0.0005) {
+      label += "  (" + (this.seekError > 0 ? "+" : "") +
+               (this.seekError * 1000).toFixed(0) + "ms)";
+    }
+    this.timeLabel.textContent = label;
 
     /* 文字が収まらない場合に末尾を省略する */
     function fitText(ctx, str, maxW) {
