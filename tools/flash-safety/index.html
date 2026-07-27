@@ -59,6 +59,57 @@
         border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
         color:var(--text); resize:vertical; }
   @media (max-width:760px){ .paths{ grid-template-columns:1fr; } .kv{ grid-template-columns:1fr; gap:2px; } }
+
+  /* ---- プレイヤー（§9.2）---- */
+  .player{ outline:none; }
+  .player:focus-visible{ box-shadow:0 0 0 3px var(--accent-ring); border-radius:var(--r-lg); }
+  .player__stage{ position:relative; background:#000; border:1px solid var(--border);
+    border-radius:var(--r-lg); overflow:hidden; }
+  .player__video{ display:block; width:100%; height:auto; max-height:52vh; background:#000; }
+  .player__overlay{ position:absolute; inset:0; border:3px solid var(--neg); pointer-events:none;
+    display:flex; align-items:flex-start; justify-content:flex-end; }
+  .player__overlay span{ background:var(--neg); color:#fff; font-size:11px; font-weight:600;
+    padding:3px 8px; border-radius:0 0 0 var(--r-sm); }
+
+  .player__transport{ display:flex; align-items:center; gap:6px; margin-top:var(--s3); flex-wrap:wrap; }
+  .pbtn{ appearance:none; cursor:pointer; width:36px; height:36px; display:inline-flex;
+    align-items:center; justify-content:center; border:1px solid var(--border-strong);
+    border-radius:var(--r); background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .pbtn:hover{ background:var(--surface-2); border-color:var(--text-3); color:var(--text); }
+  .pbtn:disabled{ opacity:.4; cursor:not-allowed; }
+  .pbtn svg{ width:16px; height:16px; }
+  .pbtn--primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .pbtn--primary:hover{ background:var(--accent-hover); border-color:var(--accent-hover); color:#fff; }
+  .player__time{ font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:13px; color:var(--text-2); margin-left:var(--s2); }
+  .player__speed{ width:auto; height:36px; margin-left:auto; }
+
+  .player__safety{ display:flex; gap:var(--s4); flex-wrap:wrap; margin-top:var(--s3);
+    padding:var(--s3); background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); }
+
+  .player__timeline{ display:block; width:100%; margin-top:var(--s4); cursor:pointer;
+    touch-action:none; border-radius:var(--r-sm); }
+  .player__legend{ display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    font-size:11px; color:var(--text-3); margin-top:6px; }
+  .lg{ width:14px; height:10px; border-radius:2px; display:inline-block; margin-left:var(--s3); }
+  .lg--fail{ background:repeating-linear-gradient(45deg, var(--neg) 0 2px, transparent 2px 5px);
+    border:1px solid var(--neg); margin-left:0; }
+  .lg--caution{ background:var(--accent-tint); border:1px solid var(--accent); }
+  .lg--ref{ border:1px dashed var(--text-3); }
+
+  .confirm{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:var(--s4); }
+  .confirm__box{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+    padding:var(--s5); max-width:460px; box-shadow:var(--shadow-md); }
+  .confirm__box h3{ font-size:15px; font-weight:600; margin-bottom:var(--s3); color:var(--neg); }
+  .confirm__box p{ font-size:13px; color:var(--text-2); margin-bottom:var(--s4); }
+  .confirm__row{ display:flex; flex-direction:column; gap:6px; }
+  .confirm__row .btn{ width:100%; }
+
+  @media (max-width:760px){
+    .player__speed{ margin-left:0; }
+    .player__safety{ flex-direction:column; gap:var(--s3); }
+  }
 </style>
 </head>
 <body>
@@ -115,6 +166,11 @@
     </div>
 
     <div>
+      <div class="card" id="playerCard" style="margin-bottom:var(--s4)" hidden>
+        <div class="card__title">プレビュー</div>
+        <div id="playerMount"></div>
+      </div>
+
       <div class="readout" id="verdictOut" hidden>
         <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
         <div id="verdictRows"></div>
@@ -160,11 +216,12 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="player.js"></script>
 <script>
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var file = null, worker = null;
+  var file = null, worker = null, player = null;
 
   function status(msg, kind) {
     $("status").innerHTML = msg
@@ -370,6 +427,19 @@
     var worst = 0;
     order.forEach(function (id) { if (r.verdicts[id] && r.verdicts[id].level > worst) worst = r.verdicts[id].level; });
     status("解析完了（" + r.elapsedMs + " ms）", worst === 2 ? "neg" : (worst === 1 ? "muted" : "pos"));
+
+    /* ---- プレビュープレイヤーを起動（§9.2）----
+       ⚠ 自動再生はしない。抵触があれば初回再生時に確認を挟む。 */
+    if (player) { player.destroy(); player = null; }
+    if (r.timeline && typeof FSPlayer !== "undefined") {
+      $("playerCard").hidden = false;
+      player = new FSPlayer.Player($("playerMount"), {
+        file: file,
+        timeline: r.timeline,
+        verdicts: r.verdicts,
+        fps: a.fps
+      });
+    }
   }
 
   /* ---- 表示 ---- */
