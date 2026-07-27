@@ -110,6 +110,10 @@ function run(buffer, opts, marginPct) {
         })
       };
     });
+    /* 画素ごとの1秒窓カウンタ（検出器と同じ組み合わせで持つ）。
+       規格の「同じものが3回超点滅」を正しく数えるために必要（§4.4）。 */
+    var pixCounters = {};
+
     /* Michelson 分岐を持つグループ（2024年提案が使う） */
     var MICH = 1 / 17;
     detectors["mich"] = {
@@ -121,6 +125,14 @@ function run(buffer, opts, marginPct) {
         michelson: MICH * (1 - marginPct / 100), eligibleMs: 66, histLen: histLen
       })
     };
+
+    Object.keys(detectors).forEach(function (grp) {
+      pixCounters[grp] = {
+        official: new PixelFlashCounter(n, 1000000),
+        margin: new PixelFlashCounter(n, 1000000)
+      };
+    });
+    var redPixCounter = new PixelFlashCounter(n, 1000000);
 
     /* 赤閃光用。⚠ 赤成分比の「変化量」ではなく、飽和赤（≥0.8）状態への／からの
        遷移で判定する（§3.4）。変化量方式では白黒点滅が赤閃光に化ける。 */
@@ -182,6 +194,9 @@ function run(buffer, opts, marginPct) {
               var up = countMask(det.maskUp), dn = countMask(det.maskDown);
               rec.up[eo + ":" + kind] = up;
               rec.down[eo + ":" + kind] = dn;
+              /* 画素ごとの1秒窓カウント（規格の「同じものが3回超」用） */
+              rec["pix:" + eo + ":" + kind] =
+                pixCounters[eo][kind].push(det.maskUp, det.maskDown, tUs);
               /* 面積は official / margin それぞれのマスクから別々に求める。
                  margin の方が遷移が多く検出されるため、official のマスクを
                  流用すると面積を過小評価し、マージン判定が甘くなる。 */
@@ -198,6 +213,8 @@ function run(buffer, opts, marginPct) {
                 var mup = countMask(md.maskUp), mdn = countMask(md.maskDown);
                 rec.up["mich:" + kind] = mup;
                 rec.down["mich:" + kind] = mdn;
+                rec["pix:mich:" + kind] =
+                  pixCounters["mich"][kind].push(md.maskUp, md.maskDown, tUs);
                 if (mup.n || mdn.n) {
                   rec["area:mich:" + kind] = areaInfo(md.maskUp, md.maskDown, size);
                 }
@@ -229,6 +246,7 @@ function run(buffer, opts, marginPct) {
               redDet.step(pl.R, pl.G, pl.B, tUs);
               var redN = countMask(redDet.mask).n;
               rec.red = redN;
+              rec.redPix = redPixCounter.push(redDet.mask, redDet.mask, tUs);
               /* 赤閃光にも面積判定をかける。輝度閃光と同じ扱いにしないと、
                  わずか数画素の色変化で全基準が抵触になる。 */
               if (redN) rec["area:red"] = areaInfo(redDet.mask, redDet.mask, size);
@@ -342,6 +360,58 @@ function countMask(mask) {
 }
 
 /* 遷移マスクから、グローバル面積比とローカル窓の最大比を求める */
+/* ---------------------------------------------------------------------
+   画素ごとの「1秒窓内の遷移回数」を追う。
+
+   ⚠ 「画面のどこかで1画素でも遷移したフレーム」を1回と数えてはならない。
+     規格が求めるのは「同じものが1秒に3回を超えて点滅すること」であり、
+     場所を問わず遷移を合算するのは別物。
+
+     実測: 20px周期の横線が毎フレーム1pxずつスクロールするだけの映像
+     （点滅ではない）で、旧方式は速度に関わらず一律60回/秒（＝全フレーム）
+     を返し、判定として機能していなかった。画素ごとに数えれば
+     1px/f=6回、3px/f=18回、8px/f=48回と速度差が正しく出る。
+
+   実装: 1秒ぶんのマスクをリングバッファに保持し、加算・減算で
+   画素ごとのカウントを維持する。毎フレーム全履歴を舐めない。
+   --------------------------------------------------------------------- */
+function PixelFlashCounter(n, windowUs) {
+  this.n = n;
+  this.windowUs = windowUs || 1000000;
+  this.count = new Uint16Array(n);   // 各画素の窓内遷移回数
+  this.frames = [];                  // {t, mask}
+  this.pool = [];
+  this.max = 0;
+}
+PixelFlashCounter.prototype.push = function (maskUp, maskDown, tUs) {
+  var n = this.n, c = this.count;
+  var m = this.pool.pop() || new Uint8Array(n);
+  var any = 0;
+  for (var i = 0; i < n; i++) {
+    var v = (maskUp[i] || maskDown[i]) ? 1 : 0;
+    m[i] = v;
+    if (v) { c[i]++; any++; }
+  }
+  this.frames.push({ t: tUs, mask: m });
+
+  // 窓外のフレームを引く
+  var lo = tUs - this.windowUs;
+  while (this.frames.length && this.frames[0].t <= lo) {
+    var old = this.frames.shift();
+    var om = old.mask;
+    for (var j = 0; j < n; j++) if (om[j]) c[j]--;
+    this.pool.push(om);
+  }
+
+  // 窓内の最大値（＝最も激しく点滅している画素の回数）
+  var mx = 0;
+  if (any || this.frames.length) {
+    for (var k = 0; k < n; k++) if (c[k] > mx) mx = c[k];
+  }
+  this.max = mx;
+  return mx;
+};
+
 function areaInfo(maskUp, maskDown, size) {
   var w = size.w, h = size.h, total = w * h;
   var upN = 0, dnN = 0;
@@ -439,6 +509,26 @@ function evaluate(id, records, size, n, marginPct) {
     while (winOfficial.length && winOfficial[0] <= lo) winOfficial.shift();
     while (winMargin.length && winMargin[0] <= lo) winMargin.shift();
     while (winRed.length && winRed[0] <= lo) winRed.shift();
+
+    /* ---- 面積規定を持たない基準（WCAG 2.3.2）の計数 ----
+       ⚠ 面積条件が無いからといって「どこかで1画素でも遷移したフレーム」を
+         数えてはならない。規格が禁じるのは「同じものが1秒に3回超点滅」すること。
+         場所を問わず合算すると、スクロールするだけの画面が
+         毎フレーム計上され、常に抵触になる（実測で確認）。
+         面積規定を持つ基準は、面積条件そのものが「まとまった領域が同時に
+         遷移すること」を要求するため、フレーム単位の計数で問題ない。 */
+    var pixOff = r["pix:" + eo + ":official"] || 0;
+    var pixMg  = r["pix:" + eo + ":margin"] || 0;
+    if (std.area.mode === "none") {
+      winOfficial.length = 0;
+      winMargin.length = 0;
+      for (var po = 0; po < pixOff; po++) winOfficial.push(t);
+      for (var pm = 0; pm < pixMg; pm++) winMargin.push(t);
+      if (isRedRelevant) {
+        winRed.length = 0;
+        for (var pr = 0; pr < (r.redPix || 0); pr++) winRed.push(t);
+      }
+    }
 
     var cOff = winOfficial.length, cMg = winMargin.length, cRed = winRed.length;
     if (cOff > out.maxTransitions) out.maxTransitions = cOff;
