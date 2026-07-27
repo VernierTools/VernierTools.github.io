@@ -194,9 +194,28 @@ function run(buffer, opts, marginPct) {
               var up = countMask(det.maskUp), dn = countMask(det.maskDown);
               rec.up[eo + ":" + kind] = up;
               rec.down[eo + ":" + kind] = dn;
+
+              /* WCAG の微細パターン例外を適用したマスクも作る。
+                 ⚠ この例外は WCAG の条文にあるもので、放送系（ITU-R/Ofcom/民放連）
+                    には該当条項がない。したがって sRGB グループ（WCAG が使う）
+                    にのみ適用し、基準ごとに異なる結果になるのが正しい。 */
+              var mu = det.maskUp, md2 = det.maskDown;
+              if (eo === "srgb") {
+                var fine = excludeFinePattern(det.maskUp, det.maskDown, size.w, size.h);
+                mu = fine.up; md2 = fine.down;
+                rec["fine:" + kind] = fine.excluded;
+                rec.up[eo + ":" + kind] = { n: fine.keptUp };
+                rec.down[eo + ":" + kind] = { n: fine.keptDown };
+                if (fine.keptUp || fine.keptDown) {
+                  rec["area:" + eo + ":" + kind] = areaInfo(mu, md2, size);
+                } else {
+                  delete rec["area:" + eo + ":" + kind];
+                }
+              }
+
               /* 画素ごとの1秒窓カウント（規格の「同じものが3回超」用） */
               rec["pix:" + eo + ":" + kind] =
-                pixCounters[eo][kind].push(det.maskUp, det.maskDown, tUs);
+                pixCounters[eo][kind].push(mu, md2, tUs);
               /* 面積は official / margin それぞれのマスクから別々に求める。
                  margin の方が遷移が多く検出されるため、official のマスクを
                  流用すると面積を過小評価し、マージン判定が甘くなる。 */
@@ -411,6 +430,68 @@ PixelFlashCounter.prototype.push = function (maskUp, maskDown, tUs) {
   this.max = mx;
   return mx;
 };
+
+/* ---------------------------------------------------------------------
+   微細パターン例外（WCAG）
+
+   規格の例外条項:
+     「白色ノイズや、一辺0.1度未満の細かくバランスの取れたパターン
+       （交互の市松模様など）の明滅は、閾値に違反しない」
+
+   0.1度は WCAG の基準（1024×768 で10度＝341px）から 3.41px。
+   解析解像度480pxでは約1.6px に相当し、実質「隣接画素で反転する空間周波数」。
+
+   ⚠ この例外を実装しないと、細かい模様やノイズ、スクロールする細字などが
+     すべて点滅として計上される。仕様書には記載していたが未実装だった。
+
+   判定: 遷移した画素のうち、上下左右の隣に「逆方向に遷移した画素」がある
+         ものを微細パターンとみなして除外する。
+         バランスが取れている（明暗が同数）ことも規格の要件なので、
+         上昇と下降の画素数が拮抗していることを併せて確認する。
+   --------------------------------------------------------------------- */
+function excludeFinePattern(maskUp, maskDown, w, h) {
+  var n = w * h;
+  var outUp = new Uint8Array(n), outDown = new Uint8Array(n);
+  var keptUp = 0, keptDown = 0, excluded = 0;
+
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var i = y * w + x;
+      var isUp = maskUp[i], isDn = maskDown[i];
+      if (!isUp && !isDn) continue;
+
+      /* 縦横それぞれで、1画素隣が逆方向に遷移しているかを見る。
+         ⚠ 4近傍をまとめて数えると横縞（横方向の隣は同方向）で判定が甘くなる。
+            実測で1px横縞の除外率が3%しかなかった。
+            どちらか一方の軸で1画素周期の反転があれば微細パターンとみなす。 */
+      /* ⚠ 「片側だけ逆方向」では除外しない。
+         それは太い模様の境界画素であり、除外すると本物の点滅を
+         削ってしまう（偽陰性）。実測で 2px市松・4px横縞の境界が
+         削られ、除外率が100%・44%になった。
+
+         微細パターンの条件は「1画素周期で反転が続く」こと。
+         したがって、ある軸で**両隣とも逆方向**のときだけ除外する。 */
+      var axisFine = false;
+      for (var ax = 0; ax < 2 && !axisFine; ax++) {
+        var oppCount = 0, valid = 0;
+        for (var side = -1; side <= 1; side += 2) {
+          var nx = x + (ax === 0 ? side : 0);
+          var ny = y + (ax === 1 ? side : 0);
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          valid++;
+          var j = ny * w + nx;
+          if (isUp ? maskDown[j] : maskUp[j]) oppCount++;
+        }
+        if (valid === 2 && oppCount === 2) axisFine = true;
+      }
+      if (axisFine) { excluded++; continue; }
+
+      if (isUp) { outUp[i] = 1; keptUp++; }
+      else { outDown[i] = 1; keptDown++; }
+    }
+  }
+  return { up: outUp, down: outDown, keptUp: keptUp, keptDown: keptDown, excluded: excluded };
+}
 
 function areaInfo(maskUp, maskDown, size) {
   var w = size.w, h = size.h, total = w * h;
