@@ -308,6 +308,9 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var file = null, worker = null, player = null;
+  /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
+     ⚠ これが無いと、言語を変えても再解析するまで日本語のままになる。 */
+  var lastVerdict = null, lastProbe = null;
 
   /* 現在言語の文言を返す（Shell 未読込でも落ちないように） */
   function T(key, fallback) {
@@ -316,6 +319,17 @@
       if (v !== key) return v;
     }
     return fallback;
+  }
+  /* {ja,en} 形式のラベルを現在言語で解決する。
+     ⚠ v.label.ja を直接読むと、言語を切り替えても日本語のままになる。 */
+  function locLabel(label, fallback) {
+    if (!label) return fallback;
+    if (typeof label === "string") return label;
+    var lang = (typeof Shell !== "undefined" && Shell && Shell.lang) ? Shell.lang : "ja";
+    return label[lang] || label.ja || label.en || fallback;
+  }
+  function motionLabel(m) {
+    return T("t.motion." + m, ({ static: "静止", drift: "一方向", oscillating: "振動・反転" })[m] || m);
   }
   function levels() { return [T("t.pass", "検出なし"), T("t.caution", "要注意"), T("t.fail", "抵触")]; }
 
@@ -426,24 +440,24 @@
 
   function buildVerdictReport(r, fm) {
     var out = [];
-    out.push("# flash-safety 判定レポート");
+    out.push("# " + T("t.rptVerdict", "flash-safety 判定レポート"));
     out.push("");
-    out.push("## ファイル");
+    out.push("## " + T("t.rptFile", "ファイル"));
     out.push(line("ファイル名", fm ? fm.name : "—"));
     out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
     out.push("");
-    out.push("## 実行環境");
+    out.push("## " + T("t.rptEnv", "実行環境"));
     out.push(line("User-Agent", navigator.userAgent));
     out.push(line("確認日時", new Date().toISOString()));
     out.push("");
     if (r.aborted) {
-      out.push("## 結果: 解析せず停止");
+      out.push("## " + T("t.rptAborted", "結果: 解析せず停止"));
       out.push(line("理由", r.reason));
       out.push(line("モード", r.mode));
       return out.join("\n");
     }
     var a = r.analysis, c = r.container;
-    out.push("## 解析条件");
+    out.push("## " + T("t.rptCond", "解析条件"));
     out.push(line("解析解像度", a.width + " × " + a.height));
     out.push(line("フレーム数", a.frames));
     out.push(line("fps", a.fps.toFixed(3)));
@@ -453,25 +467,25 @@
     out.push(line("色空間", "transfer=" + c.colorTransfer + " matrix=" + c.colorMatrix + " full=" + c.fullRange));
     out.push(line("所要時間", r.elapsedMs + " ms"));
     out.push("");
-    out.push("## 基準別判定");
+    out.push("## " + T("t.rptVerdicts", "基準別判定"));
     var LV = levels();
     var order = ["jba", "itu", "ofcom", "wcagA", "wcagAAA", "proposal2024"];
     order.forEach(function (id) {
       var v = r.verdicts[id]; if (!v) return;
-      var label = (v.label && (v.label.ja || v.label.en)) || id;
-      out.push("- " + label + (v.reference ? "（参考）" : "") + ": **" + LV[v.level] + "**" +
+      var label = locLabel(v.label, id);
+      out.push("- " + label + (v.reference ? T("t.refSuffix", "（参考）") : "") + ": **" + LV[v.level] + "**" +
                "  最初の抵触=" + fmtTime(v.firstHitUs) +
                "  最大遷移=" + v.maxTransitions + "/秒" +
                "  区間数=" + (v.spans ? v.spans.length : 0));
     });
     out.push("");
     if ((r.warnings || []).length) {
-      out.push("## 警告");
+      out.push("## " + T("t.secWarn", "警告"));
       r.warnings.forEach(function (x) { out.push("- " + x); });
       out.push("");
     }
     if ((r.notes || []).length) {
-      out.push("## 参考情報");
+      out.push("## " + T("t.secNotes", "参考情報"));
       r.notes.forEach(function (x) { out.push("- " + x); });
       out.push("");
     }
@@ -484,6 +498,7 @@
   }
 
   function renderVerdict(r) {
+    lastVerdict = r;
     $("verdictOut").hidden = false;
     $("rawcard").hidden = false;
     $("report").value = buildVerdictReport(r, fileMeta);
@@ -491,11 +506,11 @@
 
     if (r.aborted) {
       $("verdictRows").innerHTML =
-        '<div class="vrow l2"><span class="nm">解析を実行しませんでした</span>' +
-        '<span class="lv">停止</span><span class="at"></span></div>' +
+        '<div class="vrow l2"><span class="nm">' + T("t.notRun","解析を実行しませんでした") + '</span>' +
+        '<span class="lv">' + T("t.stopped","停止") + '</span><span class="at"></span></div>' +
         '<div class="warn-list"><li style="list-style:none">' + r.reason + "</li></div>";
       $("vmeta").textContent = "";
-      status("停止（" + r.mode + "）", "neg");
+      status(T("t.stopped","停止") + "（" + r.mode + "）", "neg");
       return;
     }
 
@@ -507,13 +522,13 @@
     var html = "";
     order.forEach(function (id) {
       var v = r.verdicts[id]; if (!v) return;
-      var label = (v.label && (v.label.ja || v.label.en)) || id;
+      var label = locLabel(v.label, id);
       html += '<div class="vrow l' + v.level + (v.reference ? " ref" : "") + '">' +
-              '<span class="nm">' + label + (v.reference ? "（参考）" : "") +
+              '<span class="nm">' + label + (v.reference ? T("t.refSuffix", "（参考）") : "") +
                 (v.id === "pattern" && v.maxPairs
-                  ? '<br><small style="color:var(--text-3)">最大 ' + v.maxPairs.toFixed(1) +
-                    "対 / 上限 " + v.pairLimit + "対 / " +
-                    ({static:"静止", drift:"一方向", oscillating:"振動・反転"}[v.motion] || v.motion) + "</small>"
+                  ? '<br><small style="color:var(--text-3)">' + T("t.patMax","最大") + " " + v.maxPairs.toFixed(1) +
+                    T("t.patPairs","対") + " / " + T("t.patLimit","上限") + " " + v.pairLimit + T("t.patPairs","対") + " / " +
+                    motionLabel(v.motion) + "</small>"
                   : "") + "</span>" +
               '<span class="lv">' + LV[v.level] + "</span>" +
               '<span class="at">' + fmtTime(v.firstHitUs) + "</span></div>";
@@ -523,7 +538,12 @@
     var w = r.warnings || [];
     $("vwarn-head").hidden = w.length === 0;
     $("vwarns").hidden = w.length === 0;
-    $("vwarns").innerHTML = w.map(function (x) { return "<li>" + x + "</li>"; }).join("");
+    /* ⚠ 解析エンジン（Worker）が生成する警告文は数値を埋め込む文章のため
+       現状は日本語のみ。英語UIではその旨を添える（黙って日本語を出さない）。 */
+    var isEn = (typeof Shell !== "undefined" && Shell && Shell.lang === "en");
+    $("vwarns").innerHTML =
+      (isEn && w.length ? '<li style="color:var(--text-3)">(Diagnostic messages below are currently Japanese only.)</li>' : "") +
+      w.map(function (x) { return "<li>" + x + "</li>"; }).join("");
 
     var worst = 0;
     order.forEach(function (id) { if (r.verdicts[id] && r.verdicts[id].level > worst) worst = r.verdicts[id].level; });
@@ -554,6 +574,7 @@
   }
 
   function render(r) {
+    lastProbe = r;
     $("out").hidden = false;
     $("rawcard").hidden = false;
 
@@ -664,13 +685,13 @@
     var out = [];
     out.push("# flash-safety 疎通確認レポート");
     out.push("");
-    out.push("## ファイル");
+    out.push("## " + T("t.rptFile", "ファイル"));
     out.push(line("ファイル名", fm ? fm.name : "—"));
     out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
     out.push(line("MIME", fm ? fm.mime : "—"));
     out.push(line("最終更新", fm ? fm.lastModified : "—"));
     out.push("");
-    out.push("## 実行環境");
+    out.push("## " + T("t.rptEnv", "実行環境"));
     out.push(line("User-Agent", navigator.userAgent));
     out.push(line("プラットフォーム", navigator.platform || "—"));
     out.push(line("WebCodecs", typeof VideoDecoder !== "undefined" ? "対応" : "非対応"));
@@ -746,12 +767,12 @@
     out.push("");
 
     if ((r.notes || []).length) {
-      out.push("## 参考情報");
+      out.push("## " + T("t.secNotes", "参考情報"));
       r.notes.forEach(function (n) { out.push("- " + n); });
       out.push("");
     }
     if ((r.warnings || []).length) {
-      out.push("## 警告");
+      out.push("## " + T("t.secWarn", "警告"));
       r.warnings.forEach(function (w) { out.push("- " + w); });
       out.push("");
     }
@@ -820,6 +841,12 @@
           "t.disclaimer": "本ツールは参考用であり、医療機器でも適合認証でもありません。放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。",
           "t.pass": "検出なし", "t.caution": "要注意", "t.fail": "抵触",
           "t.analyzing": "解析中…", "t.done": "解析完了",
+          "t.refSuffix": "（参考）", "t.notRun": "解析を実行しませんでした", "t.stopped": "停止",
+          "t.patMax": "最大", "t.patPairs": "対", "t.patLimit": "上限",
+          "t.motion.static": "静止", "t.motion.drift": "一方向", "t.motion.oscillating": "振動・反転",
+          "t.rptVerdict": "flash-safety 判定レポート", "t.rptFile": "ファイル",
+          "t.rptEnv": "実行環境", "t.rptCond": "解析条件", "t.rptVerdicts": "基準別判定",
+          "t.rptAborted": "結果: 解析せず停止",
           "t.notice": "本ツールは一次チェック用の参考ツールであり、医療機器でも適合認証ツールでもありません。判定精度は100%ではなく、SDR動画のみに対応しています。最終的な安全性の判断は利用者自身の責任で行ってください。",
           "t.openConsent": "同意事項・免責・出典を表示",
           "t.play": "再生 / 一時停止", "t.toStart": "最初に戻る",
@@ -869,6 +896,12 @@
           "t.disclaimer": "This tool is for guidance only. It is neither a medical device nor a conformance certification. For broadcast, film or game deliverables, use a certified tool such as Harding FPA. Meeting a standard does not prevent seizures in every photosensitive viewer.",
           "t.pass": "Nothing detected", "t.caution": "Borderline", "t.fail": "Exceeds",
           "t.analyzing": "Analyzing…", "t.done": "Done",
+          "t.refSuffix": " (reference)", "t.notRun": "Analysis was not run", "t.stopped": "Stopped",
+          "t.patMax": "max", "t.patPairs": " pairs", "t.patLimit": "limit",
+          "t.motion.static": "static", "t.motion.drift": "one-way drift", "t.motion.oscillating": "oscillating / reversing",
+          "t.rptVerdict": "flash-safety verdict report", "t.rptFile": "File",
+          "t.rptEnv": "Environment", "t.rptCond": "Analysis settings", "t.rptVerdicts": "Verdict by standard",
+          "t.rptAborted": "Result: analysis not run",
           "t.notice": "This is a reference tool for first-pass checking — not a medical device and not a conformance-certification tool. Accuracy is not 100%, and only SDR video is supported. Final safety judgements remain your own responsibility.",
           "t.openConsent": "Terms, disclaimer and sources",
           "t.play": "Play / pause", "t.toStart": "Back to start",
@@ -885,7 +918,16 @@
           "t.playAnyway": "Play as-is", "t.cancel": "Cancel"
         }
       },
-      onSettingsChange: function () { if (player) player.draw(); }
+      onSettingsChange: function () {
+        /* 言語・テーマ変更時に、既に表示済みの結果を現在言語で描き直す。
+           data-i18n は静的テキストしか差し替えないため、
+           JSで生成した判定行・レポートはここで再生成する必要がある。 */
+        if (player) player.draw();
+        if (lastVerdict) renderVerdict(lastVerdict);
+        if (lastProbe) render(lastProbe);
+        var lk = $("openConsent");
+        if (lk && typeof FSConsent !== "undefined") lk.textContent = FSConsent.openLabel();
+      }
     });
   }
   /* ページを開くたびに同意ダイアログを出す（過去の閲覧履歴に関わらず） */
