@@ -119,16 +119,17 @@
   .work--even > div{ display:flex; flex-direction:column; gap:var(--s4); }
   .work--even > div > .card,
   .work--even > div > .readout{ margin-top:0; }
-  .work--even > div > .card:last-child,
-  .work--even > div > .readout:last-child{ flex:1 1 auto; display:flex; flex-direction:column; }
+  /* ⚠ :last-child は使わない。非表示（[hidden]）の要素が最後に来ると
+     そちらに当たってしまい、実際に見えているカードが伸びない。
+     伸ばす対象は .fill で明示する。 */
+  .work--even > div > .fill{ flex:1 1 auto; display:flex; flex-direction:column; }
   /* 判定カード: 免責文を下端に寄せて余白を吸収させる */
   .work--even .readout .copyhint{ margin-top:auto; }
   /* レポートカード: テキストエリアを伸ばして高さを埋める */
   #rawcard{ display:flex; flex-direction:column; }
   #rawcard .raw{ flex:1 1 auto; min-height:200px; }
   @media (max-width:760px){
-    .work--even > div > .card:last-child,
-    .work--even > div > .readout:last-child{ flex:0 0 auto; }
+    .work--even > div > .fill{ flex:0 0 auto; }
     #rawcard .raw{ flex:0 0 auto; }
   }
 
@@ -150,7 +151,7 @@
   <!-- 上段: 動画ファイル と 判定 を横並び -->
   <div class="work work--even">
     <div>
-      <div class="card">
+      <div class="card fill">
       <div class="field">
       <label class="label" for="pick">動画ファイル（MP4 / MOV）</label>
       <div class="drop" id="drop" role="button" tabindex="0">
@@ -180,7 +181,7 @@
       </div>
     </div>
     <div>
-      <div class="readout" id="verdictOut" hidden>
+      <div class="readout fill" id="verdictOut" hidden>
       <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
       <div id="verdictRows"></div>
       <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow">警告</span></div>
@@ -202,7 +203,7 @@
   <!-- 下段: 確認したいこと / 検証情報レポート -->
   <div class="work work--even" style="padding-top:var(--s5)">
     <div>
-      <div class="card">
+      <div class="card fill">
       <div class="card__title">確認したいこと</div>
       <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
       <li><code>colorSpace.transfer</code> が取れるか（HDR判定の根幹）</li>
@@ -229,7 +230,7 @@
       </div>
     </div>
     <div>
-      <div class="card" id="rawcard" style="margin-top:var(--s4)" hidden>
+      <div class="card fill" id="rawcard" style="margin-top:var(--s4)" hidden>
       <div class="card__title">検証情報レポート</div>
       <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)">
       ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
