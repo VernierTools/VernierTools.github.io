@@ -108,33 +108,61 @@
   var PACKED_RGB = { RGBA: [0, 1, 2], BGRA: [2, 1, 0], RGBX: [0, 1, 2], BGRX: [2, 1, 0] };
   var PLANAR_Y   = ["I420", "I420A", "I422", "I444", "NV12"];
 
-  function sampleRange(bytes, format, width, height) {
+  /* ⚠ layout（copyTo が返す PlaneLayout[]）を必ず使うこと。
+     codedWidth × codedHeight でバッファを走査すると、H.264 のマクロブロック
+     整列（例: 高さ360 → 368）により Y面を超えて UV面まで読み込み、
+     クロマ値（例: 赤のCr=240）が輝度の最大値として混入する。
+     実測でこの誤読を確認済み（§2.4.7）。 */
+  function sampleRange(bytes, format, width, height, layout) {
+    var plane0 = (layout && layout[0]) ? layout[0] : null;
+    var offset = plane0 ? (plane0.offset || 0) : 0;
+
     if (PACKED_RGB[format]) {
-      var order = PACKED_RGB[format]; // [Rインデックス, Gインデックス, Bインデックス]（バイト順）
-      var min = [255, 255, 255], max = [0, 0, 0];
-      var n = width * height;
-      var step = Math.max(1, Math.floor(n / 50000)); // 上限5万画素程度に間引く
-      for (var i = 0; i < n; i += step) {
-        var o = i * 4;
-        for (var c = 0; c < 3; c++) {
-          var v = bytes[o + order[c]];
-          if (v < min[c]) min[c] = v;
-          if (v > max[c]) max[c] = v;
+      var order = PACKED_RGB[format];             // [R,G,B] のバイト位置
+      var stride = plane0 ? plane0.stride : width * 4;
+      var min = [255, 255, 255], max = [0, 0, 0], count = 0;
+      var yStep = Math.max(1, Math.floor(height / 240));      // 行を間引く
+      var xStep = Math.max(1, Math.floor(width / 240));       // 列を間引く
+      for (var y = 0; y < height; y += yStep) {
+        var rowBase = offset + y * stride;
+        var xo = (y / yStep) % xStep;   // 行ごとにずらす（エイリアシング回避）
+        for (var x = xo; x < width; x += xStep) {
+          var o = rowBase + x * 4;
+          if (o + 2 >= bytes.length) break;
+          for (var c = 0; c < 3; c++) {
+            var v = bytes[o + order[c]];
+            if (v < min[c]) min[c] = v;
+            if (v > max[c]) max[c] = v;
+          }
+          count++;
         }
       }
-      return { channels: ["R", "G", "B"], min: min, max: max, sampled: Math.ceil(n / step) };
+      return { channels: ["R", "G", "B"], min: min, max: max, sampled: count };
     }
+
     if (PLANAR_Y.indexOf(format) >= 0) {
-      var yN = width * height, yMin = 255, yMax = 0;
-      var ystep = Math.max(1, Math.floor(yN / 50000));
-      for (var j = 0; j < yN; j += ystep) {
-        var yv = bytes[j];
-        if (yv < yMin) yMin = yv;
-        if (yv > yMax) yMax = yv;
+      // I420 / NV12 いずれも先頭プレーンが輝度(Y)。stride で行を辿る。
+      var ystride = plane0 ? plane0.stride : width;
+      var yMin = 255, yMax = 0, n = 0;
+      var ys = Math.max(1, Math.floor(height / 240));
+      var xs = Math.max(1, Math.floor(width / 240));
+      for (var yy = 0; yy < height; yy += ys) {
+        var base = offset + yy * ystride;
+        // 行ごとに開始位置をずらす。等間隔のままだと、画面の縞や市松模様と
+        // 走査が同期して極値を取りこぼす（エイリアシング）。
+        var xoff = (yy / ys) % xs;
+        for (var xx = xoff; xx < width; xx += xs) {
+          var idx = base + xx;
+          if (idx >= bytes.length) break;
+          var yv = bytes[idx];
+          if (yv < yMin) yMin = yv;
+          if (yv > yMax) yMax = yv;
+          n++;
+        }
       }
-      return { channels: ["Y"], min: [yMin], max: [yMax], sampled: Math.ceil(yN / ystep) };
+      return { channels: ["Y"], min: [yMin], max: [yMax], sampled: n };
     }
-    return null; // 未対応フォーマット
+    return null;
   }
 
   /* 判定に使う伝達方向の厳しさ。数値が大きいほど「止める」方向。
@@ -418,8 +446,13 @@
       var rangeMin = null, rangeMax = null, rangeChannels = null, rangeSampledFrames = 0;
       var width = dx.width, height = dx.height;
 
-      function accumulate(frame, buf, format) {
-        var r = sampleRange(buf, format, frame.codedWidth || width, frame.codedHeight || height);
+      function accumulate(frame, buf, format, layout) {
+        // 可視領域のサイズを使う（codedWidth/Height はマクロブロック整列で
+        // 実データより大きいことがあり、プレーンをまたいで誤読する原因になる）
+        var vr = frame.visibleRect || null;
+        var w = vr ? vr.width  : (frame.displayWidth  || frame.codedWidth  || width);
+        var h = vr ? vr.height : (frame.displayHeight || frame.codedHeight || height);
+        var r = sampleRange(buf, format, w, h, layout);
         if (!r) return;
         rangeChannels = r.channels;
         if (!rangeMin) { rangeMin = r.min.slice(); rangeMax = r.max.slice(); }
@@ -477,8 +510,8 @@
                 var opt = rangePath === "native" ? null : { format: fmt };
                 var size = opt ? frame.allocationSize(opt) : frame.allocationSize();
                 var buf = new Uint8Array(size);
-                return (opt ? frame.copyTo(buf, opt) : frame.copyTo(buf)).then(function () {
-                  accumulate(frame, buf, fmt);
+                return (opt ? frame.copyTo(buf, opt) : frame.copyTo(buf)).then(function (lay) {
+                  accumulate(frame, buf, fmt, lay);
                   frame.close();
                 }).catch(function () { frame.close(); });
               }
@@ -493,8 +526,8 @@
             try {
               var size2 = opt2 ? frame.allocationSize(opt2) : frame.allocationSize();
               var buf2 = new Uint8Array(size2);
-              (opt2 ? frame.copyTo(buf2, opt2) : frame.copyTo(buf2)).then(function () {
-                accumulate(frame, buf2, fmt2);
+              (opt2 ? frame.copyTo(buf2, opt2) : frame.copyTo(buf2)).then(function (lay2) {
+                accumulate(frame, buf2, fmt2, lay2);
                 frame.close();
               }).catch(function () { frame.close(); });
               return;
