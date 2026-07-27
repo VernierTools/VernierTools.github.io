@@ -113,6 +113,28 @@
     .player__speed{ margin-left:0; }
     .player__safety{ flex-direction:column; gap:var(--s3); }
   }
+
+  /* 横並びのカード同士の高さを揃える（.work は既定で align-items:start） */
+  .work--even{ align-items:stretch; }
+  .work--even > div{ display:flex; flex-direction:column; gap:var(--s4); }
+  .work--even > div > .card,
+  .work--even > div > .readout{ margin-top:0; }
+  .work--even > div > .card:last-child,
+  .work--even > div > .readout:last-child{ flex:1 1 auto; display:flex; flex-direction:column; }
+  /* 判定カード: 免責文を下端に寄せて余白を吸収させる */
+  .work--even .readout .copyhint{ margin-top:auto; }
+  /* レポートカード: テキストエリアを伸ばして高さを埋める */
+  #rawcard{ display:flex; flex-direction:column; }
+  #rawcard .raw{ flex:1 1 auto; min-height:200px; }
+  @media (max-width:760px){
+    .work--even > div > .card:last-child,
+    .work--even > div > .readout:last-child{ flex:0 0 auto; }
+    #rawcard .raw{ flex:0 0 auto; }
+  }
+
+  /* 判定行: 高さを揃える。baseline 揃えのままだと min-height が効かないので
+     center 揃えに変更し、行の高さを一定にする。 */
+  .vrow{ min-height:48px; align-items:center; }
 </style>
 </head>
 <body>
@@ -126,7 +148,7 @@
   </div>
 
   <!-- 上段: 動画ファイル と 判定 を横並び -->
-  <div class="work">
+  <div class="work work--even">
     <div>
       <div class="card">
       <div class="field">
@@ -178,7 +200,7 @@
   </div>
 
   <!-- 下段: 確認したいこと / 検証情報レポート -->
-  <div class="work" style="padding-top:var(--s5)">
+  <div class="work work--even" style="padding-top:var(--s5)">
     <div>
       <div class="card">
       <div class="card__title">確認したいこと</div>
