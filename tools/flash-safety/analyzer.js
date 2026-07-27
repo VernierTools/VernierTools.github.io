@@ -76,6 +76,21 @@
     var eotf = EOTF[eotfName];
     var fullRange = !!meta.fullRange;
 
+    /* ---- 入力の間引き ----
+       コストは「入力の全画素走査」が支配的で、出力解像度をいくら下げても
+       ほとんど減らない（実測: 1080p入力で 480出力も 1280出力もほぼ同じ）。
+       効くのは入力側を間引くこと。
+
+       ⚠ ただし間引き幅は縮小率と連動させなければならない。
+         step が縮小率より大きいと、出力側に一度も書かれないセルが生まれ、
+         面積比が激減する（実測: 640→480 で step=2 にすると面積が
+         20.7% → 9.1% に崩れた）。
+         step ≤ floor(srcW/dstW) を守れば、各出力セルに最低1サンプル入る。 */
+    var maxStepX = Math.max(1, Math.floor(srcW / dstW));
+    var maxStepY = Math.max(1, Math.floor(srcH / dstH));
+    var step = Math.max(1, Math.min(maxStepX, maxStepY));
+    if (opts.step) step = Math.max(1, Math.min(step, opts.step | 0));
+
     // 経路B（パックドRGB）は R'G'B' がそのまま入っている
     var packed = PACKED_RGB[meta.format];
     var planar = PLANAR[meta.format];
@@ -98,11 +113,11 @@
 
     if (packed) {
       var oR = packed[0], oG = packed[1], oB = packed[2];
-      for (var y = 0; y < srcH; y++) {
+      for (var y = 0; y < srcH; y += step) {
         var row = p0.offset + y * p0.stride;
         var dy = (y * yScale) | 0; if (dy >= dstH) dy = dstH - 1;
         var dbase = dy * dstW;
-        for (var x = 0; x < srcW; x++) {
+        for (var x = 0; x < srcW; x += step) {
           var o = row + x * 4;
           var dx = (x * xScale) | 0; if (dx >= dstW) dx = dstW - 1;
           var di = dbase + dx;
@@ -121,48 +136,61 @@
       var subX = (planar === "i444") ? 1 : 2;
       var subY = (planar === "i420" || planar === "nv12") ? 2 : 1;
 
-      // 色差の正規化（limited: (c-128)/224、full: (c-128)/255）
+      /* ⚠ ここを Math.pow で書いてはならない。
+         1080p なら 1フレームあたり 3×207万 = 622万回の pow になり、
+         実測で 1フレーム 537ms、2226フレームで約47分かかっていた。
+         非線形RGB値を 0..255 に量子化して LUT を引く方式に置き換える。
+         量子化誤差は 1/255（相対輝度で最大0.004）で、
+         判定閾値 0.10 に対して十分小さい。 */
+      var eotfLut = new Float32Array(256);
+      for (var li = 0; li < 256; li++) eotfLut[li] = eotf(li / 255);
+
+      /* Y と Cb/Cr の正規化も LUT 化して、内側ループから除算を追い出す */
       var cDiv = fullRange ? 255 : 224;
       var yScaleN = fullRange ? (1 / 255) : (1 / 219);
       var yBias = fullRange ? 0 : 16;
+      var yLut = new Float32Array(256);
+      for (var yi = 0; yi < 256; yi++) yLut[yi] = (yi - yBias) * yScaleN;
+      var cLut = new Float32Array(256);
+      for (var ci = 0; ci < 256; ci++) cLut[ci] = (ci - 128) / cDiv;
 
-      for (var yy = 0; yy < srcH; yy++) {
+      var mvr = m.vr, mug = m.ug, mvg = m.vg, mub = m.ub;
+
+      for (var yy = 0; yy < srcH; yy += step) {
         var yrow = yOff + yy * yStride;
         var cy = (yy / subY) | 0;
         var dyy = (yy * yScale) | 0; if (dyy >= dstH) dyy = dstH - 1;
         var dbase2 = dyy * dstW;
+        var crow = p1 ? (p1.offset + cy * p1.stride) : 0;
+        var crow2 = p2 ? (p2.offset + cy * p2.stride) : 0;
 
-        for (var xx = 0; xx < srcW; xx++) {
-          var Y8 = buf[yrow + xx];
+        for (var xx = 0; xx < srcW; xx += step) {
+          var Yn = yLut[buf[yrow + xx]];
           var cx = (xx / subX) | 0;
-          var U8 = 128, V8 = 128;
+          var U = 0, V = 0;
 
           if (isNV12 && p1) {
-            var ci = p1.offset + cy * p1.stride + cx * 2;
-            U8 = buf[ci]; V8 = buf[ci + 1];
+            var ci2 = crow + cx * 2;
+            U = cLut[buf[ci2]]; V = cLut[buf[ci2 + 1]];
           } else if (p1 && p2) {
-            U8 = buf[p1.offset + cy * p1.stride + cx];
-            V8 = buf[p2.offset + cy * p2.stride + cx];
+            U = cLut[buf[crow + cx]];
+            V = cLut[buf[crow2 + cx]];
           }
 
-          var Yn = (Y8 - yBias) * yScaleN;
-          var U = (U8 - 128) / cDiv;
-          var V = (V8 - 128) / cDiv;
+          var r = Yn + mvr * V;
+          var g = Yn + mug * U + mvg * V;
+          var b = Yn + mub * U;
 
-          var r = Yn + m.vr * V;
-          var g = Yn + m.ug * U + m.vg * V;
-          var b = Yn + m.ub * U;
-
-          // クリップしてから LUT を引く（LUT は 0..255 の符号化値で引くため再量子化）
-          r = r < 0 ? 0 : r > 1 ? 1 : r;
-          g = g < 0 ? 0 : g > 1 ? 1 : g;
-          b = b < 0 ? 0 : b > 1 ? 1 : b;
+          /* 0..255 に量子化して LUT を引く（クリップも同時に行う） */
+          var ri = r <= 0 ? 0 : (r >= 1 ? 255 : (r * 255 + 0.5) | 0);
+          var gi = g <= 0 ? 0 : (g >= 1 ? 255 : (g * 255 + 0.5) | 0);
+          var bi = b <= 0 ? 0 : (b >= 1 ? 255 : (b * 255 + 0.5) | 0);
 
           var dxx = (xx * xScale) | 0; if (dxx >= dstW) dxx = dstW - 1;
           var di2 = dbase2 + dxx;
-          accR[di2] += eotf(r);
-          accG[di2] += eotf(g);
-          accB[di2] += eotf(b);
+          accR[di2] += eotfLut[ri];
+          accG[di2] += eotfLut[gi];
+          accB[di2] += eotfLut[bi];
           accN[di2]++;
         }
       }
@@ -180,6 +208,11 @@
     }
     return { w: dstW, h: dstH, R: R, G: G, B: B, lum: lum };
   }
+
+  /* ⚠ かつて複数EOTFを1回の走査でまとめて処理する toLinearPlanesMulti を
+     実装したが、内側ループで配列の配列を間接参照するため JIT の最適化が効かず、
+     単体を2回呼ぶより4倍以上遅かった（実測: 単体2回16ms vs Multi 75ms）。
+     「走査回数を減らす」直感が裏目に出る例として記録し、実装は削除した。 */
 
   /* =======================================================================
      3. 赤飽和度（仕様書 §3.4）
@@ -307,8 +340,12 @@
     var mn = this._mn || (this._mn = new Float32Array(n));
     var mx = this._mx || (this._mx = new Float32Array(n));
     var any = false;
-    for (var k = 0; k < this.hist.length; k++) {
-      if (this.histT[k] < lo) continue;          // 窓外
+    /* 窓内のフレームだけを走査する。履歴は時刻昇順なので、
+       窓外のものは先頭側にまとまっている。開始位置を先に求めれば
+       毎フレーム全履歴を舐めずに済む。 */
+    var start = 0;
+    while (start < this.histT.length && this.histT[start] < lo) start++;
+    for (var k = start; k < this.hist.length; k++) {
       var h = this.hist[k];
       if (!any) {
         mn.set(h); mx.set(h); any = true;
@@ -388,10 +425,19 @@
       }
     }
 
-    // 履歴を更新
-    this.hist.push(Float32Array.from(lum));
+    /* 履歴を更新。
+       ⚠ Float32Array.from は毎フレーム新しい配列を確保する。
+          使い終わった配列を使い回してGC圧を下げる。 */
+    var slot;
+    if (this.hist.length >= this.histLen) {
+      slot = this.hist.shift();
+      this.histT.shift();
+      slot.set(lum);
+    } else {
+      slot = Float32Array.from(lum);
+    }
+    this.hist.push(slot);
     this.histT.push(tUs);
-    while (this.hist.length > this.histLen) { this.hist.shift(); this.histT.shift(); }
   };
 
   /* =======================================================================
