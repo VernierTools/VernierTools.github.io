@@ -176,6 +176,19 @@ function run(buffer, opts, marginPct) {
       /* ---- ④ timestamp で並べ替える（§2.2.2） ---- */
       records.sort(function (a, b) { return a.t - b.t; });
 
+      /* ---- ④-2 先頭を 0 に正規化する ----
+         Bフレームがあると先頭サンプルの CTS が 0 にならない
+         （実測: timescale 15360 で cts=1024 → 66.7ms のオフセット）。
+         そのままだとタイムラインが 0:00.07 から始まり、
+         video.currentTime（0 始まり）と最大1フレーム以上ずれる。
+         プレビューと突き合わせるため、先頭を 0 に揃える。 */
+      var tOrigin = records.length ? records[0].t : 0;
+      if (tOrigin !== 0) {
+        for (var ri = 0; ri < records.length; ri++) records[ri].t -= tOrigin;
+        notes.push("先頭フレームの表示時刻が " + (tOrigin / 1000).toFixed(1) +
+                   "ms だったため、タイムラインを0秒起点に正規化しました。");
+      }
+
       /* ---- ⑤ 基準ごとに 1秒窓で計数して判定 ---- */
       var verdicts = {};
       stdIds.forEach(function (id) {
@@ -189,6 +202,7 @@ function run(buffer, opts, marginPct) {
         aborted: false,
         container: containerInfo(dx),
         analysis: {
+          timeOriginUs: tOrigin,
           width: size.w, height: size.h,
           frames: frameCount,
           fps: fps,
