@@ -95,7 +95,12 @@
   .player__legend{ display:flex; align-items:center; gap:6px; flex-wrap:wrap;
     font-size:11px; color:var(--text-3); margin-top:6px; }
   .lg{ width:14px; height:10px; border-radius:2px; display:inline-block; margin-left:var(--s3); }
-  .lg--fail{ background:repeating-linear-gradient(45deg, var(--neg) 0 2px, transparent 2px 5px);
+  /* ⚠ 斜線の向きは canvas 側（player.js の makeStripe）と必ず揃える。
+     canvas は x+y=一定 の線＝「/」（右上→左下）。CSS で同じ見えにするには 135deg。
+     45deg にすると「\」になり、凡例とタイムラインで向きが食い違う。
+     線幅2.5px・垂直間隔 8/√2≒5.66px も canvas の実値に合わせている。 */
+  .lg--fail{ background:repeating-linear-gradient(135deg,
+      var(--neg) 0 2.5px, transparent 2.5px 5.66px);
     border:1px solid var(--neg); margin-left:0; }
   .lg--caution{ background:var(--accent-tint); border:1px solid var(--accent); }
   .lg--ref{ border:1px dashed var(--text-3); }
