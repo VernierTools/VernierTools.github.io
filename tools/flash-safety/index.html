@@ -103,6 +103,10 @@
         <div id="kv-color"></div>
         <div class="readout__head"><span class="eyebrow">画素取得経路</span></div>
         <div class="paths" id="paths"></div>
+        <div class="readout__head"><span class="eyebrow">画素値の実測レンジ</span></div>
+        <div id="kv-range"></div>
+        <div class="readout__head" id="note-head" hidden><span class="eyebrow">参考情報</span></div>
+        <ul class="warn-list" id="notes" hidden></ul>
         <div class="readout__head" id="warn-head" hidden><span class="eyebrow">警告</span></div>
         <ul class="warn-list" id="warns" hidden></ul>
       </div>
@@ -246,6 +250,25 @@
         }).join("")
       : '<div class="path n"><h4>—</h4><div class="st">未実施</div>' +
         "<small>デコードしていないため確認できません</small></div>";
+
+    var pr = r.pixelRange;
+    if (pr) {
+      var chLabel = pr.channels.join(" / ");
+      rows($("kv-range"), [
+        ["採用経路", { native: "native copyTo", rgba: "copyTo RGBA", i420: "copyTo I420" }[pr.path]],
+        ["チャンネル", chLabel],
+        ["最小値", pr.min.join(" , ")],
+        ["最大値", pr.max.join(" , ")],
+        ["サンプル対象", pr.sampledFrames + " フレーム"]
+      ]);
+    } else {
+      $("kv-range").innerHTML = '<dl class="kv"><dt>—</dt><dd class="n">計測できませんでした</dd></dl>';
+    }
+
+    var notes = r.notes || [];
+    $("note-head").hidden = notes.length === 0;
+    $("notes").hidden = notes.length === 0;
+    $("notes").innerHTML = notes.map(function (x) { return "<li>" + x + "</li>"; }).join("");
 
     var w = r.warnings || [];
     $("warn-head").hidden = w.length === 0;
