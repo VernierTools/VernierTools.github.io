@@ -181,6 +181,9 @@ function run(buffer, opts, marginPct) {
       stdIds.forEach(function (id) {
         verdicts[id] = evaluate(id, records, size, n, marginPct);
       });
+      var timeline = buildTimeline(records, verdicts);
+      // 生系列は timeline に間引いて入れたので、verdicts 側からは外す
+      stdIds.forEach(function (id) { delete verdicts[id].seriesT; delete verdicts[id].seriesC; });
 
       return {
         aborted: false,
@@ -193,7 +196,7 @@ function run(buffer, opts, marginPct) {
           acceleration: dec.fellBackToSoftware ? "software" : "no-preference"
         },
         verdicts: verdicts,
-        timeline: buildTimeline(records, verdicts),
+        timeline: timeline,
         notes: notes,
         warnings: buildWarnings(dx, dec, verdict)
       };
@@ -259,7 +262,9 @@ function evaluate(id, records, size, n, marginPct) {
     firstHitUs: null,
     spans: [],                // [{t0,t1,level}]
     maxTransitions: 0,
-    hits: []
+    hits: [],
+    seriesT: [],              // 各フレームの時刻(µs)
+    seriesC: []               // その時刻の1秒窓内の遷移数
   };
 
   var winOfficial = [], winMargin = [], winRed = [];
@@ -291,6 +296,8 @@ function evaluate(id, records, size, n, marginPct) {
 
     var cOff = winOfficial.length, cMg = winMargin.length, cRed = winRed.length;
     if (cOff > out.maxTransitions) out.maxTransitions = cOff;
+    out.seriesT.push(t);
+    out.seriesC.push(cOff > cRed ? cOff : cRed);
 
     var lim = std.maxTransitionsPerSec;      // 6（=1秒3回の点滅）
     var level = 0;
@@ -338,16 +345,42 @@ function areaPasses(std, area, size, useMargin, marginPct) {
   return false;
 }
 
+/* 表示用に系列を間引く。長尺（30分×60fps ≒ 10万点）をそのまま送ると
+   メッセージが肥大するため、バケットごとの最大値を取る。
+   ⚠ 平均ではなく最大を取ること。1フレームだけの点滅を平滑化で消してはならない。 */
+function downsampleSeries(ts, cs, maxPoints) {
+  var n = ts.length;
+  if (n <= maxPoints) return { t: ts.slice(), c: cs.slice() };
+  var outT = [], outC = [];
+  var bucket = n / maxPoints;
+  for (var i = 0; i < maxPoints; i++) {
+    var a = Math.floor(i * bucket), b = Math.floor((i + 1) * bucket);
+    if (b <= a) b = a + 1;
+    var mx = 0, at = ts[a];
+    for (var j = a; j < b && j < n; j++) if (cs[j] > mx) { mx = cs[j]; at = ts[j]; }
+    outT.push(at); outC.push(mx);
+  }
+  return { t: outT, c: outC };
+}
+
 function buildTimeline(records, verdicts) {
+  var ids = Object.keys(verdicts);
   return {
     t0: records.length ? records[0].t : 0,
     t1: records.length ? records[records.length - 1].t : 0,
-    lanes: Object.keys(verdicts).map(function (id) {
+    lanes: ids.map(function (id) {
+      var v = verdicts[id];
+      var ds = downsampleSeries(v.seriesT, v.seriesC, 3000);
       return {
         id: id,
-        label: verdicts[id].label,
-        reference: verdicts[id].reference,
-        spans: verdicts[id].spans
+        label: v.label,
+        reference: v.reference,
+        level: v.level,
+        firstHitUs: v.firstHitUs,
+        maxTransitions: v.maxTransitions,
+        spans: v.spans,
+        seriesT: ds.t,
+        seriesC: ds.c
       };
     })
   };
