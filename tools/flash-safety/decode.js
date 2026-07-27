@@ -293,71 +293,86 @@
     var maxFrames = opts.maxFrames || Infinity;
     var onFrame   = opts.onFrame || function (f) { f.close(); };
     var onProgress = opts.onProgress || function () {};
+    var onInfo    = opts.onInfo || function () {};
 
-    return new Promise(function (resolve, reject) {
-      if (typeof VideoDecoder === "undefined") {
-        reject(new Error("このブラウザは WebCodecs に対応していません"));
-        return;
-      }
-
-      var count = 0, lastTs = -Infinity, outOfOrder = 0, stopped = false;
-      var pending = Promise.resolve();
-
-      var decoder = new VideoDecoder({
-        output: function (frame) {
-          if (stopped) { frame.close(); return; }
-          if (frame.timestamp < lastTs) outOfOrder++;
-          lastTs = frame.timestamp;
-          count++;
-          // onFrame が非同期でも順序を保つ
-          pending = pending.then(function () { return onFrame(frame, { index: count - 1 }); })
-                           .catch(function (e) { try { frame.close(); } catch (x) {} throw e; });
-          if (count % 10 === 0) onProgress(count, Math.min(dx.nbSamples, maxFrames));
-        },
-        error: function (e) { stopped = true; reject(e); }
-      });
-
-      var config = {
-        codec: dx.codec,
-        codedWidth: dx.width,
-        codedHeight: dx.height,
-        hardwareAcceleration: "no-preference"
-      };
-      if (dx.description) config.description = dx.description;
-
-      VideoDecoder.isConfigSupported(config).then(function (support) {
-        if (!support.supported) throw new Error("このコーデックは再生できません: " + dx.codec);
-        decoder.configure(config);
-
-        var i = 0;
-        function pump() {
-          if (stopped) return Promise.resolve();
-          // バックプレッシャ制御
-          if (decoder.decodeQueueSize > 24) {
-            return new Promise(function (r) { setTimeout(r, 4); }).then(pump);
-          }
-          if (i >= dx.samples.length || i >= maxFrames) return Promise.resolve();
-          var s = dx.samples[i++];
-          decoder.decode(new EncodedVideoChunk({
-            type: s.is_sync ? "key" : "delta",
-            timestamp: Math.round(1e6 * s.cts / s.timescale),
-            duration: Math.round(1e6 * s.duration / s.timescale),
-            data: s.data
-          }));
-          return pump();
+    /* ハードウェアデコーダは、小さい解像度・特殊なプロファイル等を拒否することがある
+       （実測: 320×192 の素材が Chrome/Edge で "Decoding error"、
+        ソフトウェアデコードのブラウザでは成功）。
+       そのため hardware → software の順で試す。§2.2.1 */
+    function attempt(accel) {
+      return new Promise(function (resolve, reject) {
+        if (typeof VideoDecoder === "undefined") {
+          reject(new Error("このブラウザは WebCodecs に対応していません"));
+          return;
         }
-        return pump();
-      }).then(function () {
-        return decoder.flush();
-      }).then(function () {
-        return pending;
-      }).then(function () {
-        try { decoder.close(); } catch (e) {}
-        resolve({ frames: count, outOfOrder: outOfOrder });
-      }).catch(function (e) {
-        stopped = true;
-        try { decoder.close(); } catch (x) {}
-        reject(e);
+
+        var count = 0, lastTs = -Infinity, outOfOrder = 0, stopped = false;
+        var pending = Promise.resolve();
+
+        var decoder = new VideoDecoder({
+          output: function (frame) {
+            if (stopped) { frame.close(); return; }
+            if (frame.timestamp < lastTs) outOfOrder++;
+            lastTs = frame.timestamp;
+            count++;
+            pending = pending.then(function () { return onFrame(frame, { index: count - 1 }); })
+                             .catch(function (e) { try { frame.close(); } catch (x) {} throw e; });
+            if (count % 10 === 0) onProgress(count, Math.min(dx.nbSamples, maxFrames));
+          },
+          error: function (e) { stopped = true; reject(e); }
+        });
+
+        var config = {
+          codec: dx.codec,
+          codedWidth: dx.width,
+          codedHeight: dx.height,
+          hardwareAcceleration: accel
+        };
+        if (dx.description) config.description = dx.description;
+
+        VideoDecoder.isConfigSupported(config).then(function (support) {
+          if (!support.supported) throw new Error("このコーデックは再生できません: " + dx.codec);
+          decoder.configure(config);
+
+          var i = 0;
+          function pump() {
+            if (stopped) return Promise.resolve();
+            if (decoder.decodeQueueSize > 24) {
+              return new Promise(function (r) { setTimeout(r, 4); }).then(pump);
+            }
+            if (i >= dx.samples.length || i >= maxFrames) return Promise.resolve();
+            var s = dx.samples[i++];
+            decoder.decode(new EncodedVideoChunk({
+              type: s.is_sync ? "key" : "delta",
+              timestamp: Math.round(1e6 * s.cts / s.timescale),
+              duration: Math.round(1e6 * s.duration / s.timescale),
+              data: s.data
+            }));
+            return pump();
+          }
+          return pump();
+        }).then(function () {
+          return decoder.flush();
+        }).then(function () {
+          return pending;
+        }).then(function () {
+          try { decoder.close(); } catch (e) {}
+          resolve({ frames: count, outOfOrder: outOfOrder, acceleration: accel });
+        }).catch(function (e) {
+          stopped = true;
+          try { decoder.close(); } catch (x) {}
+          reject(e);
+        });
+      });
+    }
+
+    return attempt("no-preference").catch(function (err) {
+      // ハードウェアデコーダ由来の失敗とみなし、ソフトウェアで再試行する
+      onInfo("ハードウェアデコードに失敗したため、ソフトウェアデコードで再試行します（" +
+             String((err && err.message) || err) + "）");
+      return attempt("prefer-software").then(function (r) {
+        r.fellBackToSoftware = true;
+        return r;
       });
     });
   }
@@ -423,6 +438,7 @@
         verdictFrame: null,
         pixelPaths: null,
         pixelRange: null,
+        acceleration: null,
         decoded: 0,
         outOfOrder: 0,
         warnings: [],
@@ -467,6 +483,7 @@
 
       return decode(dx, {
         maxFrames: sampleFrames,
+        onInfo: function (msg) { report.notes.push(msg); },
         onFrame: function (frame) {
           var isFirst = !first;
           if (isFirst) {
@@ -538,6 +555,12 @@
       }).then(function (r) {
         report.decoded = r.frames;
         report.outOfOrder = r.outOfOrder;
+        report.acceleration = r.fellBackToSoftware ? "software (ハードウェア失敗後の再試行)" : "no-preference";
+        if (r.fellBackToSoftware) {
+          report.warnings.push(
+            "この素材はハードウェアデコーダで復号できず、ソフトウェアデコードで処理しました。" +
+            "解析結果は有効ですが、長尺では処理時間が延びます。");
+        }
 
         if (rangePath && rangeMin) {
           report.pixelRange = {
