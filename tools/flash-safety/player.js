@@ -432,9 +432,9 @@
     var lanes = (this.timeline.lanes || []);
     var narrow = window.innerWidth <= 760;
 
-    var laneH   = narrow ? 15 : 19;
+    var laneH   = narrow ? 15 : 22;
     var laneGap = 3;
-    var graphH  = narrow ? 56 : 72;
+    var graphH  = narrow ? 56 : 88;
     var gap     = narrow ? 8 : 10;
     var axisH   = 16;
     /* ⚠ ラベル用の左マージンを必ず確保する。
