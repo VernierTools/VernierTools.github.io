@@ -491,8 +491,21 @@
     var padR = 8;
     var padT = 6;
 
+    /* 主判定と参考を分ける（§8.1.1）。参考は畳まず、間隔を空けて別グループとして描く。
+       WCAG 2.3.2・2024年提案・空間パターンは、抵触が出ても
+       ただちに実用上の危険を意味しないため、視覚的に切り離す。 */
+    var REF_IDS = { wcagAAA: 1, proposal2024: 1, pattern: 1 };
+    var mainLanes = [], refLanes = [];
+    lanes.forEach(function (l) {
+      if (REF_IDS[l.id] || l.reference) refLanes.push(l); else mainLanes.push(l);
+    });
+    var groupGap = refLanes.length ? (narrow ? 16 : 22) : 0;   // グループ間の余白
+    var headH = refLanes.length ? (narrow ? 12 : 14) : 0;      // 「参考」見出しの高さ
+
     var cssW = c.clientWidth || c.parentNode.clientWidth || 600;
-    var cssH = padT + graphH + gap + lanes.length * (laneH + laneGap) + axisH;
+    var cssH = padT + graphH + gap
+             + lanes.length * (laneH + laneGap)
+             + groupGap + headH + axisH;
     var dpr = window.devicePixelRatio || 1;
     c.width = Math.round(cssW * dpr);
     c.height = Math.round(cssH * dpr);
@@ -574,7 +587,7 @@
     var y = gBot + gap;
     var lang = (typeof Shell !== "undefined" && Shell && Shell.lang) ? Shell.lang : "ja";
 
-    lanes.forEach(function (lane) {
+    function drawLane(lane) {
       // レーン本体
       g.fillStyle = cSurf2;
       g.fillRect(padL, y, W, laneH);
@@ -602,7 +615,7 @@
       });
 
       // 参考レーンは破線枠で区別
-      if (lane.reference) {
+      if (lane.reference || REF_IDS[lane.id]) {
         g.strokeStyle = cText3; g.setLineDash([4, 3]); g.globalAlpha = .85;
         g.strokeRect(padL + .5, y + .5, W - 1, laneH - 1);
         g.setLineDash([]); g.globalAlpha = 1;
@@ -611,8 +624,13 @@
       /* ラベルは左マージン内に描く（レーンには重ねない） */
       var label = (lane.label && (lane.label[lang] || lane.label.ja || lane.label.en)) || lane.id;
       if (narrow || padL < 100) label = shortLabel(lane.id, label);
-      g.fillStyle = lane.level >= LEVEL_FAIL ? cNeg : (lane.level === LEVEL_CAUTION ? cText : cText3);
-      g.font = (lane.level >= LEVEL_FAIL ? "600 " : "") + (narrow ? "9px " : "10.5px ") + fontSans;
+      /* 参考レーンは抵触でもラベルを赤くしない。
+         主判定と同じ強さで表示すると「目安」という位置づけと矛盾する。 */
+      var isRef = lane.reference || REF_IDS[lane.id];
+      g.fillStyle = isRef ? cText3
+        : (lane.level >= LEVEL_FAIL ? cNeg : (lane.level === LEVEL_CAUTION ? cText : cText3));
+      g.font = (!isRef && lane.level >= LEVEL_FAIL ? "600 " : "") +
+               (narrow ? "9px " : "10.5px ") + fontSans;
       g.textAlign = "right"; g.textBaseline = "middle";
       var maxLabelW = padL - 8;
       label = fitText(g, label, maxLabelW);
@@ -620,7 +638,29 @@
       g.textAlign = "left"; g.textBaseline = "alphabetic";
 
       y += laneH + laneGap;
-    });
+    }
+
+    // 主判定
+    mainLanes.forEach(drawLane);
+
+    /* 参考グループ: 間隔を空け、見出しを付けて視覚的に切り離す */
+    if (refLanes.length) {
+      y += groupGap;
+      g.fillStyle = cText3;
+      g.font = (narrow ? "9px " : "10px ") + fontSans;
+      g.textAlign = "right"; g.textBaseline = "middle";
+      g.fillText(t("t.refLaneHead", "参考"), padL - 6, y - headH / 2 - 1);
+      g.textAlign = "left"; g.textBaseline = "alphabetic";
+      // 区切り線
+      g.strokeStyle = cBorder; g.lineWidth = 1; g.setLineDash([3, 3]);
+      g.beginPath();
+      g.moveTo(padL, y - headH / 2 - 0.5);
+      g.lineTo(padL + W, y - headH / 2 - 0.5);
+      g.stroke();
+      g.setLineDash([]);
+      y += headH;
+      refLanes.forEach(drawLane);
+    }
 
     /* ================= ③ 時間軸 ================= */
     var axisY = y + 2;
