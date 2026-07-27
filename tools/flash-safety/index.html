@@ -42,6 +42,17 @@
   .path .st{ font-family:var(--font-mono); font-size:16px; }
   .path.y .st{ color:var(--pos); } .path.n .st{ color:var(--neg); }
   .path small{ display:block; margin-top:4px; font-size:11px; color:var(--text-3); word-break:break-all; }
+  .vrow{ display:grid; grid-template-columns:1fr 92px 96px; gap:var(--s3); align-items:baseline;
+         padding:var(--s3) var(--s4); }
+  .vrow + .vrow{ border-top:1px solid var(--border); }
+  .vrow .nm{ font-size:13px; color:var(--text-2); }
+  .vrow .lv{ font-family:var(--font-mono); font-size:14px; font-weight:600; text-align:right; }
+  .vrow .at{ font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+             font-size:13px; color:var(--text-3); text-align:right; }
+  .vrow.l0 .lv{ color:var(--text-3); }
+  .vrow.l1 .lv{ color:var(--accent); }
+  .vrow.l2 .lv{ color:var(--neg); }
+  .vrow.ref .nm{ opacity:.7; font-style:italic; }
   .warn-list{ padding:var(--s3) var(--s4); }
   .warn-list li{ font-size:12.5px; color:var(--text-2); margin-bottom:6px; }
   .raw{ width:100%; height:220px; font-family:var(--font-mono); font-size:11px; padding:10px;
@@ -56,9 +67,8 @@
     <div class="chips"><span class="chip chip--bl">開発中プレビュー</span></div>
     <h1>ポリゴンショック・リスクチェッカー</h1>
     <p><strong>これは完成版ではありません。</strong>
-       現時点では動画の色空間・フレームレート・画素取得経路を調べる疎通確認機能のみ実装されています。
-       判定・タイムライン・プレビュープレイヤー（仕様書 §4〜§9）は未実装です。
-       404を避けるための一時的な index.html で、実装が進み次第ここに置き換わります。</p>
+       基準別の判定までは動作します。タイムライン表示とプレビュープレイヤー（仕様書 §9.2）は未実装です。
+       判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
 
   <div class="work">
@@ -77,8 +87,18 @@
           <label class="label" for="nf">デコードするフレーム数</label>
           <input class="input" id="nf" type="number" value="60" min="1" max="600" inputmode="numeric">
         </div>
+        <div class="field">
+          <label class="label" for="margin">マージン</label>
+          <select class="select" id="margin">
+            <option value="0">0%（公式閾値のみ）</option>
+            <option value="5">5%</option>
+            <option value="10" selected>10%（既定）</option>
+            <option value="20">20%</option>
+          </select>
+        </div>
         <div class="btnrow">
-          <button class="btn btn--primary" id="run" disabled>調べる</button>
+          <button class="btn btn--primary" id="runAnalyze" disabled>解析する</button>
+          <button class="btn btn--secondary" id="run" disabled>疎通確認のみ</button>
         </div>
       </div>
 
@@ -95,6 +115,16 @@
     </div>
 
     <div>
+      <div class="readout" id="verdictOut" hidden>
+        <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
+        <div id="verdictRows"></div>
+        <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow">警告</span></div>
+        <ul class="warn-list" id="vwarns" hidden></ul>
+        <div class="copyhint">本ツールは参考用であり、医療機器でも適合認証でもありません。
+          放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。
+          基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。</div>
+      </div>
+
       <div class="readout" id="out" hidden>
         <div class="verdict" id="verdict"><span class="big">—</span></div>
         <div class="readout__head"><span class="eyebrow">コンテナ</span></div>
@@ -155,6 +185,7 @@
     $("drop").querySelector("small").textContent =
       (f.size / 1048576).toFixed(2) + " MB / " + (f.type || "種別不明");
     $("run").disabled = false;
+    $("runAnalyze").disabled = false;
   }
   $("drop").addEventListener("click", function () { $("pick").click(); });
   $("drop").addEventListener("keydown", function (e) {
@@ -199,6 +230,147 @@
       );
     });
   });
+
+  /* ---- 解析の実行 ---- */
+  var aworker = null;
+  $("runAnalyze").addEventListener("click", function () {
+    if (!file) return;
+    if (typeof VideoDecoder === "undefined") { status("このブラウザは WebCodecs に非対応です", "neg"); return; }
+    $("runAnalyze").disabled = true; $("run").disabled = true;
+    status("読み込み中…", "muted");
+
+    file.arrayBuffer().then(function (buf) {
+      status("解析中…", "muted");
+      if (aworker) aworker.terminate();
+      aworker = new Worker("analyze.worker.js");
+      aworker.onmessage = function (e) {
+        if (e.data.progress) {
+          var p = e.data.progress;
+          status("解析中 " + p.done + " / " + p.total + " フレーム", "muted");
+          return;
+        }
+        $("runAnalyze").disabled = false; $("run").disabled = false;
+        if (!e.data.ok) { status("失敗: " + e.data.error, "neg"); return; }
+        renderVerdict(e.data.result);
+      };
+      aworker.onerror = function (err) {
+        $("runAnalyze").disabled = false; $("run").disabled = false;
+        status("Worker エラー: " + err.message, "neg");
+      };
+      aworker.postMessage({
+        cmd: "analyze", buffer: buf,
+        options: { marginPct: parseInt($("margin").value, 10) }
+      }, [buf]);
+    });
+  });
+
+  function fmtTime(us) {
+    if (us == null) return "—";
+    var s = us / 1e6;
+    var m = Math.floor(s / 60), sec = s - m * 60;
+    return (m < 10 ? "0" : "") + m + ":" + (sec < 10 ? "0" : "") + sec.toFixed(2);
+  }
+
+  function buildVerdictReport(r, fm) {
+    var out = [];
+    out.push("# flash-safety 判定レポート");
+    out.push("");
+    out.push("## ファイル");
+    out.push(line("ファイル名", fm ? fm.name : "—"));
+    out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
+    out.push("");
+    out.push("## 実行環境");
+    out.push(line("User-Agent", navigator.userAgent));
+    out.push(line("確認日時", new Date().toISOString()));
+    out.push("");
+    if (r.aborted) {
+      out.push("## 結果: 解析せず停止");
+      out.push(line("理由", r.reason));
+      out.push(line("モード", r.mode));
+      return out.join("\n");
+    }
+    var a = r.analysis, c = r.container;
+    out.push("## 解析条件");
+    out.push(line("解析解像度", a.width + " × " + a.height));
+    out.push(line("フレーム数", a.frames));
+    out.push(line("fps", a.fps.toFixed(3)));
+    out.push(line("マージン", a.marginPct + "%"));
+    out.push(line("デコーダ", a.acceleration));
+    out.push(line("元解像度", c.width + " × " + c.height));
+    out.push(line("色空間", "transfer=" + c.colorTransfer + " matrix=" + c.colorMatrix + " full=" + c.fullRange));
+    out.push(line("所要時間", r.elapsedMs + " ms"));
+    out.push("");
+    out.push("## 基準別判定");
+    var LV = ["検出なし", "要注意", "抵触"];
+    var order = ["jba", "itu", "ofcom", "wcagA", "wcagAAA", "proposal2024"];
+    order.forEach(function (id) {
+      var v = r.verdicts[id]; if (!v) return;
+      var label = (v.label && (v.label.ja || v.label.en)) || id;
+      out.push("- " + label + (v.reference ? "（参考）" : "") + ": **" + LV[v.level] + "**" +
+               "  最初の抵触=" + fmtTime(v.firstHitUs) +
+               "  最大遷移=" + v.maxTransitions + "/秒" +
+               "  区間数=" + (v.spans ? v.spans.length : 0));
+    });
+    out.push("");
+    if ((r.warnings || []).length) {
+      out.push("## 警告");
+      r.warnings.forEach(function (x) { out.push("- " + x); });
+      out.push("");
+    }
+    if ((r.notes || []).length) {
+      out.push("## 参考情報");
+      r.notes.forEach(function (x) { out.push("- " + x); });
+      out.push("");
+    }
+    out.push("<!-- 期待値（合成テスト素材）");
+    out.push("     t1_3hz : 全基準「検出なし」（3Hz=遷移6/秒で境界を超えない）");
+    out.push("     t2_5hz : 全基準「抵触」（5Hz=遷移10/秒）");
+    out.push("     t4_pokemon : 全基準「抵触」（12Hz・赤閃光あり）");
+    out.push("     r1_range : 点滅なし → 全基準「検出なし」 -->");
+    return out.join("\n");
+  }
+
+  function renderVerdict(r) {
+    $("verdictOut").hidden = false;
+    $("rawcard").hidden = false;
+    $("report").value = buildVerdictReport(r, fileMeta);
+    $("raw").value = JSON.stringify(r, null, 2);
+
+    if (r.aborted) {
+      $("verdictRows").innerHTML =
+        '<div class="vrow l2"><span class="nm">解析を実行しませんでした</span>' +
+        '<span class="lv">停止</span><span class="at"></span></div>' +
+        '<div class="warn-list"><li style="list-style:none">' + r.reason + "</li></div>";
+      $("vmeta").textContent = "";
+      status("停止（" + r.mode + "）", "neg");
+      return;
+    }
+
+    var a = r.analysis;
+    $("vmeta").textContent = a.frames + "フレーム / " + a.fps.toFixed(2) + "fps / マージン" + a.marginPct + "%";
+
+    var LV = ["検出なし", "要注意", "抵触"];
+    var order = ["jba", "itu", "ofcom", "wcagA", "wcagAAA", "proposal2024"];
+    var html = "";
+    order.forEach(function (id) {
+      var v = r.verdicts[id]; if (!v) return;
+      var label = (v.label && (v.label.ja || v.label.en)) || id;
+      html += '<div class="vrow l' + v.level + (v.reference ? " ref" : "") + '">' +
+              '<span class="nm">' + label + (v.reference ? "（参考）" : "") + "</span>" +
+              '<span class="lv">' + LV[v.level] + "</span>" +
+              '<span class="at">' + fmtTime(v.firstHitUs) + "</span></div>";
+    });
+    $("verdictRows").innerHTML = html;
+
+    var w = r.warnings || [];
+    $("vwarn-head").hidden = w.length === 0;
+    $("vwarns").hidden = w.length === 0;
+    $("vwarns").innerHTML = w.map(function (x) { return "<li>" + x + "</li>"; }).join("");
+
+    var worst = 0;
+    order.forEach(function (id) { if (r.verdicts[id] && r.verdicts[id].level > worst) worst = r.verdicts[id].level; });
+    status("解析完了（" + r.elapsedMs + " ms）", worst === 2 ? "neg" : (worst === 1 ? "muted" : "pos"));
+  }
 
   /* ---- 表示 ---- */
   function rows(target, pairs) {
