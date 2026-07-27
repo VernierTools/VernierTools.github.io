@@ -236,7 +236,8 @@
       ["Bフレーム", c.hasBFrames ? "あり（表示順に並べ替え済み）" : "なし"],
       ["キーフレーム数", c.syncCount],
       ["デコード済み", r.decoded + " フレーム"],
-      ["順序違反", r.outOfOrder]
+      ["順序違反", r.outOfOrder],
+      ["デコーダ", r.acceleration]
     ]);
 
     var f = r.frame || {};
@@ -348,6 +349,7 @@
     out.push(line("Bフレーム", c.hasBFrames ? "あり" : "なし"));
     out.push(line("キーフレーム数", c.syncCount));
     out.push(line("デコード済み", r.decoded + " フレーム / 順序違反 " + r.outOfOrder + " 件"));
+    out.push(line("デコーダ", r.acceleration));
     out.push("");
 
     out.push("## 色空間");
