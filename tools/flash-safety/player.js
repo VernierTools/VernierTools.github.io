@@ -341,13 +341,21 @@
     function close() { document.body.removeChild(back); }
     bDim.addEventListener("click", function () {
       self.cbDim.input.checked = true; self.dimmed = true; self._applyDim();
+      self.cbSkip.input.checked = false; self.skipDanger = false;
       self.confirmed = true; close(); self.video.play();
     });
     bSkip.addEventListener("click", function () {
       self.cbSkip.input.checked = true; self.skipDanger = true;
+      self.cbDim.input.checked = false; self.dimmed = false; self._applyDim();
       self.confirmed = true; close(); self.video.play();
     });
     bAny.addEventListener("click", function () {
+      /* 「そのまま再生」は文字どおり無加工で再生する。
+         抵触検出時は輝度低減を初期ONにしているが、ここで明示的に解除しないと
+         「そのまま」を選んだのに減光されたままになる（利用者の選択と表示が食い違う）。
+         スキップも同様に解除する。 */
+      self.cbDim.input.checked = false; self.dimmed = false; self._applyDim();
+      self.cbSkip.input.checked = false; self.skipDanger = false;
       self.confirmed = true; close(); self.video.play();
     });
     bCancel.addEventListener("click", close);
