@@ -98,10 +98,9 @@ function run(buffer, opts, marginPct) {
       };
     });
 
-    /* 赤閃光用（赤飽和度の変化を追う）。EOTF に依らないので1つでよい。 */
-    var redDet = new A.TransitionDetector(n, {
-      ctd: 0.20, darkMax: 1.01, eligibleMs: 66, histLen: histLen
-    });
+    /* 赤閃光用。⚠ 赤成分比の「変化量」ではなく、飽和赤（≥0.8）状態への／からの
+       遷移で判定する（§3.4）。変化量方式では白黒点滅が赤閃光に化ける。 */
+    var redDet = new A.RedFlashDetector(n, { satThresh: 0.8, ucsThresh: 0.2 });
 
     var records = [];       // フレームごとの解析結果（timestamp 付き・小さい数値のみ）
     var frameCount = 0;
@@ -158,12 +157,12 @@ function run(buffer, opts, marginPct) {
 
             // 赤閃光（bt1886 のときだけ計算すれば足りる）
             if (eo === "bt1886") {
-              var redMap = new Float32Array(pl.R.length);
-              for (var i = 0; i < redMap.length; i++) {
-                redMap[i] = A.redSaturation(pl.R, pl.G, pl.B, i);
-              }
-              redDet.step(redMap, tUs);
-              rec.red = countMask(redDet.maskUp).n + countMask(redDet.maskDown).n;
+              redDet.step(pl.R, pl.G, pl.B, tUs);
+              var redN = countMask(redDet.mask).n;
+              rec.red = redN;
+              /* 赤閃光にも面積判定をかける。輝度閃光と同じ扱いにしないと、
+                 わずか数画素の色変化で全基準が抵触になる。 */
+              if (redN) rec["area:red"] = areaInfo(redDet.mask, redDet.mask, size);
             }
           });
 
@@ -282,7 +281,7 @@ function evaluate(id, records, size, n, marginPct) {
 
     if ((offUp > 0 || offDn > 0) && passOfficial) winOfficial.push(t);
     if ((mgUp > 0 || mgDn > 0) && passMargin) winMargin.push(t);
-    if (r.red > 0 && isRedRelevant) winRed.push(t);
+    if (r.red > 0 && isRedRelevant && areaPasses(std, r["area:red"], size, false)) winRed.push(t);
 
     // 1秒窓の外を捨てる
     var lo = t - 1000000;
