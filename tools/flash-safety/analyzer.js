@@ -430,7 +430,7 @@
       maxTransitionsPerSec: 6
     },
     proposal2024: {
-      label: { ja: "2024年提案（参考）", en: "2024 proposal (ref.)" },
+      label: { ja: "2024年提案", en: "2024 proposal" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       michelson: 1 / 17,          // 暗部が明るい場合のみ適用
       area: { mode: "local", ratio: 0.25, winFracW: 416 / 1920, winFracH: 416 / 1080 },
