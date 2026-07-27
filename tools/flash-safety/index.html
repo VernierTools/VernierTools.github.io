@@ -64,8 +64,11 @@
   .player{ outline:none; }
   .player:focus-visible{ box-shadow:0 0 0 3px var(--accent-ring); border-radius:var(--r-lg); }
   .player__stage{ position:relative; background:#000; border:1px solid var(--border);
-    border-radius:var(--r-lg); overflow:hidden; }
-  .player__video{ display:block; width:100%; height:auto; max-height:52vh; background:#000; }
+    border-radius:var(--r-lg); overflow:hidden;
+    /* 全幅カードなので、動画は中央寄せして高さで制限する（横に伸びすぎない） */
+    display:flex; align-items:center; justify-content:center; max-height:56vh; }
+  .player__video{ display:block; width:auto; max-width:100%; height:auto;
+    max-height:56vh; background:#000; }
   .player__overlay{ position:absolute; inset:0; border:3px solid var(--neg); pointer-events:none;
     display:flex; align-items:flex-start; justify-content:flex-end; }
   .player__overlay span{ background:var(--neg); color:#fff; font-size:11px; font-weight:600;
@@ -122,95 +125,102 @@
        判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
 
+  <!-- 上段: 動画ファイル と 判定 を横並び -->
   <div class="work">
     <div>
       <div class="card">
-        <div class="field">
-          <label class="label" for="pick">動画ファイル（MP4 / MOV）</label>
-          <div class="drop" id="drop" role="button" tabindex="0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-            <b>ここにドロップ</b>
-            <small>またはクリックして選択（アップロードされません）</small>
-          </div>
-          <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
-        </div>
-        <div class="field">
-          <label class="label" for="nf">デコードするフレーム数</label>
-          <input class="input" id="nf" type="number" value="60" min="1" max="600" inputmode="numeric">
-        </div>
-        <div class="field">
-          <label class="label" for="margin">マージン</label>
-          <select class="select" id="margin">
-            <option value="0">0%（公式閾値のみ）</option>
-            <option value="5">5%</option>
-            <option value="10" selected>10%（既定）</option>
-            <option value="20">20%</option>
-          </select>
-        </div>
-        <div class="btnrow">
-          <button class="btn btn--primary" id="runAnalyze" disabled>解析する</button>
-          <button class="btn btn--secondary" id="run" disabled>疎通確認のみ</button>
-        </div>
+      <div class="field">
+      <label class="label" for="pick">動画ファイル（MP4 / MOV）</label>
+      <div class="drop" id="drop" role="button" tabindex="0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <b>ここにドロップ</b>
+      <small>またはクリックして選択（アップロードされません）</small>
       </div>
-
-      <div class="card">
-        <div class="card__title">確認したいこと</div>
-        <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
-          <li><code>colorSpace.transfer</code> が取れるか（HDR判定の根幹）</li>
-          <li><code>VideoFrame.format</code> が <code>I420</code> になるか</li>
-          <li><code>copyTo()</code> が通るか（§2.4 一次経路の可否）</li>
-          <li>デコーダ出力が表示順で来るか</li>
-          <li>DevTools の Network タブが解析中に空のままか</li>
-        </ul>
+      <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
+      </div>
+      <div class="field">
+      <label class="label" for="nf">デコードするフレーム数</label>
+      <input class="input" id="nf" type="number" value="60" min="1" max="600" inputmode="numeric">
+      </div>
+      <div class="field">
+      <label class="label" for="margin">マージン</label>
+      <select class="select" id="margin">
+      <option value="0">0%（公式閾値のみ）</option>
+      <option value="5">5%</option>
+      <option value="10" selected>10%（既定）</option>
+      <option value="20">20%</option>
+      </select>
+      </div>
+      <div class="btnrow">
+      <button class="btn btn--primary" id="runAnalyze" disabled>解析する</button>
+      <button class="btn btn--secondary" id="run" disabled>疎通確認のみ</button>
+      </div>
       </div>
     </div>
-
     <div>
-      <div class="card" id="playerCard" style="margin-bottom:var(--s4)" hidden>
-        <div class="card__title">プレビュー</div>
-        <div id="playerMount"></div>
-      </div>
-
       <div class="readout" id="verdictOut" hidden>
-        <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
-        <div id="verdictRows"></div>
-        <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow">警告</span></div>
-        <ul class="warn-list" id="vwarns" hidden></ul>
-        <div class="copyhint">本ツールは参考用であり、医療機器でも適合認証でもありません。
-          放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。
-          基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。</div>
-      </div>
-
-      <div class="readout" id="out" hidden>
-        <div class="verdict" id="verdict"><span class="big">—</span></div>
-        <div class="readout__head"><span class="eyebrow">コンテナ</span></div>
-        <div id="kv-container"></div>
-        <div class="readout__head"><span class="eyebrow">色空間</span></div>
-        <div id="kv-color"></div>
-        <div class="readout__head"><span class="eyebrow">画素取得経路</span></div>
-        <div class="paths" id="paths"></div>
-        <div class="readout__head"><span class="eyebrow">画素値の実測レンジ</span></div>
-        <div id="kv-range"></div>
-        <div class="readout__head" id="note-head" hidden><span class="eyebrow">参考情報</span></div>
-        <ul class="warn-list" id="notes" hidden></ul>
-        <div class="readout__head" id="warn-head" hidden><span class="eyebrow">警告</span></div>
-        <ul class="warn-list" id="warns" hidden></ul>
-      </div>
-      <div class="card" id="rawcard" style="margin-top:var(--s4)" hidden>
-        <div class="card__title">検証情報レポート</div>
-        <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)">
-          ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
-        <textarea class="raw" id="report" readonly></textarea>
-        <div class="btnrow">
-          <button class="btn btn--primary" id="copyReport">レポートをコピー</button>
-          <button class="btn btn--ghost" id="toggleRaw">生データ(JSON)を表示</button>
-        </div>
-        <textarea class="raw" id="raw" readonly hidden style="margin-top:var(--s3)"></textarea>
-        <div class="btnrow" id="rawCopyRow" hidden>
-          <button class="btn btn--secondary" id="copy">JSONをコピー</button>
-        </div>
+      <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
+      <div id="verdictRows"></div>
+      <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow">警告</span></div>
+      <ul class="warn-list" id="vwarns" hidden></ul>
+      <div class="copyhint">本ツールは参考用であり、医療機器でも適合認証でもありません。
+      放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。
+      基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。</div>
       </div>
       <div class="badges" id="status"></div>
+    </div>
+  </div>
+
+  <!-- 中段: プレビューを横いっぱいに -->
+  <div class="card" id="playerCard" style="margin-top:var(--s4)" hidden>
+  <div class="card__title">プレビュー</div>
+  <div id="playerMount"></div>
+  </div>
+
+  <!-- 下段: 確認したいこと / 検証情報レポート -->
+  <div class="work" style="padding-top:var(--s5)">
+    <div>
+      <div class="card">
+      <div class="card__title">確認したいこと</div>
+      <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
+      <li><code>colorSpace.transfer</code> が取れるか（HDR判定の根幹）</li>
+      <li><code>VideoFrame.format</code> が <code>I420</code> になるか</li>
+      <li><code>copyTo()</code> が通るか（§2.4 一次経路の可否）</li>
+      <li>デコーダ出力が表示順で来るか</li>
+      <li>DevTools の Network タブが解析中に空のままか</li>
+      </ul>
+      </div>
+      <div class="readout" id="out" hidden>
+      <div class="verdict" id="verdict"><span class="big">—</span></div>
+      <div class="readout__head"><span class="eyebrow">コンテナ</span></div>
+      <div id="kv-container"></div>
+      <div class="readout__head"><span class="eyebrow">色空間</span></div>
+      <div id="kv-color"></div>
+      <div class="readout__head"><span class="eyebrow">画素取得経路</span></div>
+      <div class="paths" id="paths"></div>
+      <div class="readout__head"><span class="eyebrow">画素値の実測レンジ</span></div>
+      <div id="kv-range"></div>
+      <div class="readout__head" id="note-head" hidden><span class="eyebrow">参考情報</span></div>
+      <ul class="warn-list" id="notes" hidden></ul>
+      <div class="readout__head" id="warn-head" hidden><span class="eyebrow">警告</span></div>
+      <ul class="warn-list" id="warns" hidden></ul>
+      </div>
+    </div>
+    <div>
+      <div class="card" id="rawcard" style="margin-top:var(--s4)" hidden>
+      <div class="card__title">検証情報レポート</div>
+      <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)">
+      ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
+      <textarea class="raw" id="report" readonly></textarea>
+      <div class="btnrow">
+      <button class="btn btn--primary" id="copyReport">レポートをコピー</button>
+      <button class="btn btn--ghost" id="toggleRaw">生データ(JSON)を表示</button>
+      </div>
+      <textarea class="raw" id="raw" readonly hidden style="margin-top:var(--s3)"></textarea>
+      <div class="btnrow" id="rawCopyRow" hidden>
+      <button class="btn btn--secondary" id="copy">JSONをコピー</button>
+      </div>
+      </div>
     </div>
   </div>
 </main>
