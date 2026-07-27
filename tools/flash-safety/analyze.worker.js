@@ -74,7 +74,10 @@ function run(buffer, opts, marginPct) {
        空間パターンは縮小すると縞そのものが消えるため、より高い解像度が要る。 */
     var size = analysisSize(dx.width, dx.height, opts.longSide || 480);
     var n = size.w * size.h;
-    var patSize = analysisSize(dx.width, dx.height, opts.patternLongSide || 1280);
+    /* パターン検出は長辺720pに抑える。1280pは1フレーム約105msかかり、
+       0.15秒間隔でも全体の主要因になっていた。720pなら縞の対の本数
+       （ガイドラインが問題にするのは5〜12対）の計数には十分。 */
+    var patSize = analysisSize(dx.width, dx.height, opts.patternLongSide || 720);
     var fps = dx.fpsMeasured || 30;
     var histLen = Math.max(2, Math.ceil(66 * fps / 1000) + 1);
 
@@ -164,7 +167,11 @@ function run(buffer, opts, marginPct) {
 
           var rec = { t: tUs, up: {}, down: {}, red: 0, redUp: 0, maxDelta: 0 };
 
-          // EOTF ごとに輝度マップを作り、遷移を検出する
+          /* ⚠ EOTF をまとめて処理する toLinearPlanesMulti は採用しない。
+             1回の走査で済むように見えるが、内側ループで配列の配列を
+             間接参照するため JIT の最適化が効かず、実測で
+             単体2回=16ms に対し Multi=75ms と逆に遅くなった。
+             単純なループを2回まわす方が速い。 */
           EOTF_GROUPS.forEach(function (eo) {
             var pl = A.toLinearPlanes(buf, meta, { dstW: size.w, dstH: size.h, eotf: eo });
             if (!pl) return;
@@ -341,6 +348,21 @@ function areaInfo(maskUp, maskDown, size) {
   for (var i = 0; i < total; i++) { if (maskUp[i]) upN++; if (maskDown[i]) dnN++; }
   var domMask = upN >= dnN ? maskUp : maskDown;
   var domN = Math.max(upN, dnN);
+
+  /* 遷移画素がゼロなら、積分画像も窓走査も不要。
+     大半のフレームはここで抜けるため、全体のコストが大きく下がる。 */
+  if (domN === 0) return { global: 0, local: 0, local2024: 0 };
+
+  /* ローカル窓の判定は「窓面積の25%超」を探すもの。
+     画面全体の遷移画素数が最小の窓面積の25%にも満たないなら、
+     どの窓位置でも条件を満たしようがないので走査を省ける。 */
+  var minWin = Math.min(
+    Math.max(1, Math.round(w / 3)) * Math.max(1, Math.round(h / 3)),
+    Math.max(1, Math.round(w * 416 / 1920)) * Math.max(1, Math.round(h * 416 / 1080))
+  );
+  if (domN < minWin * 0.25) {
+    return { global: domN / total, local: 0, local2024: 0 };
+  }
 
   var ii = new A.IntegralImage(domMask, w, h);
   // WCAG: 画面1/3四方の窓
