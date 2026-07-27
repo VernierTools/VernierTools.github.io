@@ -459,6 +459,7 @@
     var a = r.analysis, c = r.container;
     out.push("## " + T("t.rptCond", "解析条件"));
     out.push(line("解析解像度", a.width + " × " + a.height));
+    if (a.patternWidth) out.push(line("パターン解析解像度", a.patternWidth + " × " + a.patternHeight));
     out.push(line("フレーム数", a.frames));
     out.push(line("fps", a.fps.toFixed(3)));
     out.push(line("マージン", a.marginPct + "%"));
