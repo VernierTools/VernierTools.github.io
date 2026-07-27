@@ -451,6 +451,69 @@
     return out;
   }
 
+  /* ---------------------------------------------------------------------
+     赤閃光の検出（仕様書 §3.4）
+
+     ⚠ 「赤成分比の変化量」で検出してはならない。
+        規格の定義は **飽和赤（R/(R+G+B) ≥ 0.8）の状態への／からの遷移** であり、
+        かつ CIE 1976 UCS 上の距離が 0.2 を超えること。
+
+        変化量で判定すると、白（比 1/3 ≈ 0.333）と黒（比 0）の点滅が
+        「0.333 の変化」として赤閃光に化ける。実測でこの誤検出を確認済み
+        （白黒点滅の t5_center が全基準で抵触になった）。
+
+     状態遷移で判定するため、直前フレームのリニアRGBを保持する。
+     --------------------------------------------------------------------- */
+  function RedFlashDetector(n, opts) {
+    opts = opts || {};
+    this.n = n;
+    this.satThresh = opts.satThresh != null ? opts.satThresh : 0.8;
+    this.ucsThresh = opts.ucsThresh != null ? opts.ucsThresh : 0.2;
+    /* 色相が定義できない極端な暗部を除くための下限。
+       ⚠ 低輝度の赤は実際に危険（ポケモン事件は低輝度の赤/青交替）なので、
+          ここを大きくしてはならない。ゼロ除算回避の最小値にとどめる。 */
+    this.minSum = opts.minSum != null ? opts.minSum : 1e-4;
+    this.state = new Int8Array(n);      // 0=非飽和赤, 1=飽和赤
+    this.dir = new Int8Array(n);        // 直前の遷移方向
+    this.pR = new Float32Array(n);
+    this.pG = new Float32Array(n);
+    this.pB = new Float32Array(n);
+    this.mask = new Uint8Array(n);      // このフレームで遷移した画素
+    this.started = false;
+  }
+  RedFlashDetector.prototype._isRed = function (R, G, B, i) {
+    var s = R[i] + G[i] + B[i];
+    if (s < this.minSum) return 0;
+    return (R[i] / s) >= this.satThresh ? 1 : 0;
+  };
+  RedFlashDetector.prototype.step = function (R, G, B, tUs) {
+    var n = this.n, m = this.mask;
+    m.fill(0);
+    if (!this.started) {
+      for (var i = 0; i < n; i++) this.state[i] = this._isRed(R, G, B, i);
+      this.pR.set(R); this.pG.set(G); this.pB.set(B);
+      this.started = true;
+      return;
+    }
+    for (var j = 0; j < n; j++) {
+      var cur = this._isRed(R, G, B, j);
+      if (cur !== this.state[j]) {
+        // UCS 距離（第2条件）
+        var a = rgbToUCS(this.pR[j], this.pG[j], this.pB[j]);
+        var b = rgbToUCS(R[j], G[j], B[j]);
+        if (ucsDistance(a, b) > this.ucsThresh) {
+          var nd = cur === 1 ? 1 : -1;
+          if (nd !== this.dir[j]) {      // 対向変化のみ計上
+            m[j] = 1;
+            this.dir[j] = nd;
+          }
+        }
+        this.state[j] = cur;
+      }
+    }
+    this.pR.set(R); this.pG.set(G); this.pB.set(B);
+  };
+
   scope.FSAnalyze = {
     EOTF: EOTF,
     buildLUT: buildLUT,
@@ -460,6 +523,7 @@
     ucsDistance: ucsDistance,
     IntegralImage: IntegralImage,
     TransitionDetector: TransitionDetector,
+    RedFlashDetector: RedFlashDetector,
     SlidingWindow: SlidingWindow,
     STANDARDS: STANDARDS,
     applyMargin: applyMargin,
