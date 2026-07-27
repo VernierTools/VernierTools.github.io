@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flash-safety 疎通確認 — Vernier</title>
+
+<!-- CSP: connect-src 'none' で通信を物理的に遮断する。
+     script-src / style-src に 'unsafe-inline' が必要（テーマ先出しスクリプトと
+     ツール固有 <style> のため）。これが無いとページが白紙になる。 -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' 'unsafe-inline';
+               style-src 'self' 'unsafe-inline';
+               connect-src 'none';
+               img-src 'self' data: blob:;
+               media-src 'self' blob:;
+               worker-src 'self' blob:;
+               object-src 'none';
+               base-uri 'none'">
+
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .kv{ display:grid; grid-template-columns:minmax(0,150px) 1fr; gap:var(--s3) var(--s4);
+       padding:var(--s3) var(--s4); }
+  .kv + .kv{ border-top:1px solid var(--border); }
+  .kv dt{ font-size:12.5px; color:var(--text-2); margin:0; }
+  .kv dd{ margin:0; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+          font-size:13px; word-break:break-all; }
+  .kv dd.n{ color:var(--text-3); }
+  .verdict{ display:flex; align-items:center; gap:var(--s3); padding:var(--s4);
+            border-bottom:1px solid var(--border); }
+  .verdict .big{ font-size:20px; font-weight:600; letter-spacing:-.01em; }
+  .verdict.ok  .big{ color:var(--pos); }
+  .verdict.stop .big{ color:var(--neg); }
+  .verdict.warn .big{ color:var(--accent); }
+  .verdict p{ font-size:12.5px; color:var(--text-2); }
+  .paths{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--s3); padding:var(--s4); }
+  .path{ border:1px solid var(--border); border-radius:var(--r); padding:var(--s3); background:var(--surface); }
+  .path h4{ margin:0 0 4px; font-size:12px; font-weight:600; }
+  .path .st{ font-family:var(--font-mono); font-size:16px; }
+  .path.y .st{ color:var(--pos); } .path.n .st{ color:var(--neg); }
+  .path small{ display:block; margin-top:4px; font-size:11px; color:var(--text-3); word-break:break-all; }
+  .warn-list{ padding:var(--s3) var(--s4); }
+  .warn-list li{ font-size:12.5px; color:var(--text-2); margin-bottom:6px; }
+  .raw{ width:100%; height:220px; font-family:var(--font-mono); font-size:11px; padding:10px;
+        border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+        color:var(--text); resize:vertical; }
+  @media (max-width:760px){ .paths{ grid-template-columns:1fr; } .kv{ grid-template-columns:1fr; gap:2px; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip">開発用</span></div>
+    <h1>flash-safety 疎通確認</h1>
+    <p>動画を読み込み、色空間・フレームレート・画素取得経路を調べます。判定は行いません。
+       仕様書 §2.3 / §2.4 の前提が実機で成立するかを確認するためのページです。</p>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" for="pick">動画ファイル（MP4 / MOV）</label>
+          <div class="drop" id="drop" role="button" tabindex="0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <b>ここにドロップ</b>
+            <small>またはクリックして選択（アップロードされません）</small>
+          </div>
+          <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
+        </div>
+        <div class="field">
+          <label class="label" for="nf">デコードするフレーム数</label>
+          <input class="input" id="nf" type="number" value="60" min="1" max="600" inputmode="numeric">
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--primary" id="run" disabled>調べる</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title">確認したいこと</div>
+        <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
+          <li><code>colorSpace.transfer</code> が取れるか（HDR判定の根幹）</li>
+          <li><code>VideoFrame.format</code> が <code>I420</code> になるか</li>
+          <li><code>copyTo()</code> が通るか（§2.4 一次経路の可否）</li>
+          <li>デコーダ出力が表示順で来るか</li>
+          <li>DevTools の Network タブが解析中に空のままか</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout" id="out" hidden>
+        <div class="verdict" id="verdict"><span class="big">—</span></div>
+        <div class="readout__head"><span class="eyebrow">コンテナ</span></div>
+        <div id="kv-container"></div>
+        <div class="readout__head"><span class="eyebrow">色空間</span></div>
+        <div id="kv-color"></div>
+        <div class="readout__head"><span class="eyebrow">画素取得経路</span></div>
+        <div class="paths" id="paths"></div>
+        <div class="readout__head" id="warn-head" hidden><span class="eyebrow">警告</span></div>
+        <ul class="warn-list" id="warns" hidden></ul>
+      </div>
+      <div class="card" id="rawcard" style="margin-top:var(--s4)" hidden>
+        <div class="card__title">生データ</div>
+        <textarea class="raw" id="raw" readonly></textarea>
+        <div class="btnrow"><button class="btn btn--secondary" id="copy">コピー</button></div>
+      </div>
+      <div class="badges" id="status"></div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var file = null, worker = null;
+
+  function status(msg, kind) {
+    $("status").innerHTML = msg
+      ? '<span class="badge badge--' + (kind || "muted") + '"><span class="d"></span>' + msg + "</span>"
+      : "";
+  }
+
+  /* ---- ファイル入力 ---- */
+  function setFile(f) {
+    if (!f) return;
+    file = f;
+    $("drop").querySelector("b").textContent = f.name;
+    $("drop").querySelector("small").textContent =
+      (f.size / 1048576).toFixed(2) + " MB / " + (f.type || "種別不明");
+    $("run").disabled = false;
+  }
+  $("drop").addEventListener("click", function () { $("pick").click(); });
+  $("drop").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("pick").click(); }
+  });
+  $("pick").addEventListener("change", function (e) { setFile(e.target.files[0]); });
+  ["dragenter", "dragover"].forEach(function (t) {
+    $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.add("dragover"); });
+  });
+  ["dragleave", "drop"].forEach(function (t) {
+    $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.remove("dragover"); });
+  });
+  $("drop").addEventListener("drop", function (e) { setFile(e.dataTransfer.files[0]); });
+
+  /* ---- 実行 ---- */
+  $("run").addEventListener("click", function () {
+    if (!file) return;
+    if (typeof VideoDecoder === "undefined") {
+      status("このブラウザは WebCodecs に非対応です", "neg");
+      return;
+    }
+    $("run").disabled = true;
+    status("読み込み中…", "muted");
+
+    file.arrayBuffer().then(function (buf) {
+      status("解析中…", "muted");
+      if (worker) worker.terminate();
+      worker = new Worker("probe.worker.js");
+      worker.onmessage = function (e) {
+        $("run").disabled = false;
+        if (!e.data.ok) { status("失敗: " + e.data.error, "neg"); return; }
+        render(e.data.report);
+        status("完了（" + e.data.report.elapsedMs + " ms）", "pos");
+      };
+      worker.onerror = function (err) {
+        $("run").disabled = false;
+        status("Worker エラー: " + err.message, "neg");
+      };
+      worker.postMessage(
+        { cmd: "probe", buffer: buf, sampleFrames: parseInt($("nf").value, 10) || 60 },
+        [buf]
+      );
+    });
+  });
+
+  /* ---- 表示 ---- */
+  function rows(target, pairs) {
+    target.innerHTML = pairs.map(function (p) {
+      var v = p[1];
+      var empty = (v === null || v === undefined || v === "");
+      return '<dl class="kv"><dt>' + p[0] + '</dt><dd class="' + (empty ? "n" : "") + '">' +
+             (empty ? "—" : String(v)) + "</dd></dl>";
+    }).join("");
+  }
+
+  function render(r) {
+    $("out").hidden = false;
+    $("rawcard").hidden = false;
+
+    var v = r.verdictFrame || r.verdictContainer;
+    var cls = v.mode === "sdr" ? "ok" : (v.mode === "sdr-assumed" ? "warn" : "stop");
+    var label = { sdr: "SDR — 解析可能", "sdr-assumed": "SDRと推定 — 解析可能（要注意）",
+                  hdr: "HDR — 解析しません", unknown: "判定不能 — 解析しません" }[v.mode];
+    $("verdict").className = "verdict " + cls;
+    $("verdict").innerHTML = '<span class="big">' + label + "</span>" +
+      (v.reason ? "<p>" + v.reason + "</p>" : "");
+
+    var c = r.container;
+    rows($("kv-container"), [
+      ["コーデック", c.codec],
+      ["解像度", c.width + " × " + c.height],
+      ["ビット深度", c.bitDepth ? c.bitDepth + " bit" : null],
+      ["description", c.description],
+      ["フレーム数", c.nbSamples],
+      ["長さ", c.durationSec ? c.durationSec.toFixed(3) + " 秒" : null],
+      ["fps（名目）", c.fpsNominal ? c.fpsNominal.toFixed(3) : null],
+      ["fps（実測）", c.fpsMeasured ? c.fpsMeasured.toFixed(3) : null],
+      ["CFR / VFR", c.isCFR ? "CFR" : "VFR疑い（" + c.frameIntervalsUs.join(", ") + " µs）"],
+      ["Bフレーム", c.hasBFrames ? "あり（表示順に並べ替え済み）" : "なし"],
+      ["キーフレーム数", c.syncCount],
+      ["デコード済み", r.decoded + " フレーム"],
+      ["順序違反", r.outOfOrder]
+    ]);
+
+    var f = r.frame || {};
+    rows($("kv-color"), [
+      ["コンテナの出典", c.colorSource],
+      ["primaries（容器）", c.colorPrimaries],
+      ["transfer（容器）", c.colorTransfer],
+      ["matrix（容器）", c.colorMatrix],
+      ["fullRange（容器）", c.fullRange === null ? null : String(c.fullRange)],
+      ["format（フレーム）", f.format],
+      ["primaries（フレーム）", f.primaries],
+      ["transfer（フレーム）", f.transfer],
+      ["matrix（フレーム）", f.matrix],
+      ["fullRange（フレーム）", f.fullRange === null ? null : String(f.fullRange)]
+    ]);
+
+    var pp = r.pixelPaths;
+    var names = { native: "native copyTo", i420: "copyTo I420", rgba: "copyTo RGBA" };
+    $("paths").innerHTML = pp
+      ? ["native", "i420", "rgba"].map(function (k) {
+          var p = pp.paths[k] || { ok: false, error: "未実施" };
+          return '<div class="path ' + (p.ok ? "y" : "n") + '"><h4>' + names[k] + "</h4>" +
+                 '<div class="st">' + (p.ok ? "OK" : "NG") + "</div>" +
+                 "<small>" + (p.ok ? p.bytes + " bytes" : p.error) + "</small></div>";
+        }).join("")
+      : '<div class="path n"><h4>—</h4><div class="st">未実施</div>' +
+        "<small>デコードしていないため確認できません</small></div>";
+
+    var w = r.warnings || [];
+    $("warn-head").hidden = w.length === 0;
+    $("warns").hidden = w.length === 0;
+    $("warns").innerHTML = w.map(function (x) { return "<li>" + x + "</li>"; }).join("");
+
+    $("raw").value = JSON.stringify(r, null, 2);
+  }
+
+  $("copy").addEventListener("click", function () {
+    if (typeof Shell !== "undefined" && Shell.copy) Shell.copy($("raw").value, this);
+    else { $("raw").select(); document.execCommand("copy"); }
+  });
+
+  if (typeof Shell !== "undefined" && Shell.init) {
+    Shell.init({ id: "flash-safety-probe", strings: { en: {}, ja: {} } });
+  }
+})();
+</script>
+</body>
+</html>
