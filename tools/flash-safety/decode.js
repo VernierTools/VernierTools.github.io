@@ -224,6 +224,29 @@
         descName = box.type;
       }
 
+      /* --- edit list（elst）--- §9.2.5
+         media_time は「メディア時刻のどこを表示開始点とするか」を示す。
+         Bフレームがあると先頭サンプルの CTS が 0 にならず、その分が
+         media_time に入る（実測: media_time=1024 が CTS オフセットと一致）。
+         これを見ずにタイムラインを作ると、video.currentTime とずれる。 */
+      var editList = null;
+      try {
+        var trak = file.getTrackById(track.id);
+        if (trak && trak.edts && trak.edts.elst && trak.edts.elst.entries &&
+            trak.edts.elst.entries.length) {
+          var e0 = trak.edts.elst.entries[0];
+          editList = {
+            entries: trak.edts.elst.entries.length,
+            mediaTime: e0.media_time,
+            segmentDuration: e0.segment_duration,
+            rate: e0.media_rate_integer,
+            // メディア時刻→表示時刻へのオフセット（µs）。media_time はトラック時間軸。
+            offsetUs: (e0.media_time > 0)
+              ? Math.round(1e6 * e0.media_time / track.timescale) : 0
+          };
+        }
+      } catch (e) { editList = null; }
+
       /* --- colr ボックス（デコード前に色空間が分かる）--- */
       var container = { primaries: null, transfer: null, matrix: null, fullRange: null, source: "なし" };
       if (entry.colr && entry.colr.colour_type === "nclx") {
@@ -284,6 +307,7 @@
         frameIntervalsUs: uniq,
         frameIntervalTicks: uniqTicks,
         timescale: tsUnit,
+        editList: editList,
         isCFR: isCFR,
         hasBFrames: decodeOrder.some(function (s, i) { return i > 0 && s.cts < decodeOrder[i - 1].cts; }),
         syncCount: samples.filter(function (s) { return s.is_sync; }).length
