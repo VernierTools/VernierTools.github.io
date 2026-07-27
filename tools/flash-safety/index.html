@@ -111,9 +111,18 @@
         <ul class="warn-list" id="warns" hidden></ul>
       </div>
       <div class="card" id="rawcard" style="margin-top:var(--s4)" hidden>
-        <div class="card__title">生データ</div>
-        <textarea class="raw" id="raw" readonly></textarea>
-        <div class="btnrow"><button class="btn btn--secondary" id="copy">コピー</button></div>
+        <div class="card__title">検証情報レポート</div>
+        <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)">
+          ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
+        <textarea class="raw" id="report" readonly></textarea>
+        <div class="btnrow">
+          <button class="btn btn--primary" id="copyReport">レポートをコピー</button>
+          <button class="btn btn--ghost" id="toggleRaw">生データ(JSON)を表示</button>
+        </div>
+        <textarea class="raw" id="raw" readonly hidden style="margin-top:var(--s3)"></textarea>
+        <div class="btnrow" id="rawCopyRow" hidden>
+          <button class="btn btn--secondary" id="copy">JSONをコピー</button>
+        </div>
       </div>
       <div class="badges" id="status"></div>
     </div>
@@ -134,9 +143,14 @@
   }
 
   /* ---- ファイル入力 ---- */
+  var fileMeta = null;
   function setFile(f) {
     if (!f) return;
     file = f;
+    fileMeta = {
+      name: f.name, sizeBytes: f.size, mime: f.type || "種別不明",
+      lastModified: f.lastModified ? new Date(f.lastModified).toISOString() : null
+    };
     $("drop").querySelector("b").textContent = f.name;
     $("drop").querySelector("small").textContent =
       (f.size / 1048576).toFixed(2) + " MB / " + (f.type || "種別不明");
@@ -276,12 +290,117 @@
     $("warns").innerHTML = w.map(function (x) { return "<li>" + x + "</li>"; }).join("");
 
     $("raw").value = JSON.stringify(r, null, 2);
+    $("report").value = buildReport(r, fileMeta);
   }
 
   $("copy").addEventListener("click", function () {
     if (typeof Shell !== "undefined" && Shell.copy) Shell.copy($("raw").value, this);
     else { $("raw").select(); document.execCommand("copy"); }
   });
+  $("copyReport").addEventListener("click", function () {
+    if (typeof Shell !== "undefined" && Shell.copy) Shell.copy($("report").value, this);
+    else { $("report").select(); document.execCommand("copy"); }
+  });
+  $("toggleRaw").addEventListener("click", function () {
+    var hidden = $("raw").hidden;
+    $("raw").hidden = !hidden; $("rawCopyRow").hidden = !hidden;
+    this.textContent = hidden ? "生データ(JSON)を隠す" : "生データ(JSON)を表示";
+  });
+
+  /* ---- 検証情報レポートの生成 ----
+     ファイル名・環境・全診断結果を1つのテキストにまとめる。
+     チャットにそのまま貼れる形式（見出し+箇条書き）にする。 */
+  function fmtBytes(n) {
+    if (n == null) return "—";
+    return n >= 1048576 ? (n / 1048576).toFixed(2) + " MB" : (n / 1024).toFixed(1) + " KB";
+  }
+  function line(k, v) { return "- " + k + ": " + (v === null || v === undefined || v === "" ? "—" : v); }
+
+  function buildReport(r, fm) {
+    var out = [];
+    out.push("# flash-safety 疎通確認レポート");
+    out.push("");
+    out.push("## ファイル");
+    out.push(line("ファイル名", fm ? fm.name : "—"));
+    out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
+    out.push(line("MIME", fm ? fm.mime : "—"));
+    out.push(line("最終更新", fm ? fm.lastModified : "—"));
+    out.push("");
+    out.push("## 実行環境");
+    out.push(line("User-Agent", navigator.userAgent));
+    out.push(line("プラットフォーム", navigator.platform || "—"));
+    out.push(line("WebCodecs", typeof VideoDecoder !== "undefined" ? "対応" : "非対応"));
+    out.push(line("確認日時", new Date().toISOString()));
+    out.push(line("解析所要時間", r.elapsedMs != null ? r.elapsedMs + " ms" : "—"));
+    out.push("");
+
+    var c = r.container || {};
+    out.push("## コンテナ");
+    out.push(line("コーデック", c.codec));
+    out.push(line("解像度", (c.width != null ? c.width + " × " + c.height : "—")));
+    out.push(line("ビット深度", c.bitDepth != null ? c.bitDepth + " bit" : "—"));
+    out.push(line("description", c.description));
+    out.push(line("フレーム数", c.nbSamples));
+    out.push(line("長さ", c.durationSec != null ? c.durationSec.toFixed(3) + " 秒" : "—"));
+    out.push(line("fps(名目)", c.fpsNominal != null ? c.fpsNominal.toFixed(3) : "—"));
+    out.push(line("fps(実測)", c.fpsMeasured != null ? c.fpsMeasured.toFixed(3) : "—"));
+    out.push(line("CFR/VFR", c.isCFR ? "CFR" : "VFR疑い(" + (c.frameIntervalsUs || []).join(", ") + " µs)"));
+    out.push(line("Bフレーム", c.hasBFrames ? "あり" : "なし"));
+    out.push(line("キーフレーム数", c.syncCount));
+    out.push(line("デコード済み", r.decoded + " フレーム / 順序違反 " + r.outOfOrder + " 件"));
+    out.push("");
+
+    out.push("## 色空間");
+    out.push(line("コンテナ出典", c.colorSource));
+    out.push(line("primaries(容器)", c.colorPrimaries));
+    out.push(line("transfer(容器)", c.colorTransfer));
+    out.push(line("matrix(容器)", c.colorMatrix));
+    out.push(line("fullRange(容器)", c.fullRange === null || c.fullRange === undefined ? "—" : String(c.fullRange)));
+    var f = r.frame || {};
+    out.push(line("format(フレーム)", f.format));
+    out.push(line("primaries(フレーム)", f.primaries));
+    out.push(line("transfer(フレーム)", f.transfer));
+    out.push(line("matrix(フレーム)", f.matrix));
+    out.push(line("fullRange(フレーム)", f.fullRange === null || f.fullRange === undefined ? "—" : String(f.fullRange)));
+    var v = r.verdictFrame || r.verdictContainer || {};
+    out.push(line("判定", v.mode + (v.reason ? "（" + v.reason + "）" : "")));
+    out.push("");
+
+    out.push("## 画素取得経路");
+    var pp = (r.pixelPaths && r.pixelPaths.paths) || {};
+    ["native", "i420", "rgba"].forEach(function (k) {
+      var p = pp[k];
+      var label = { native: "native copyTo", i420: "copyTo I420", rgba: "copyTo RGBA" }[k];
+      out.push(line(label, p ? (p.ok ? "OK (" + p.bytes + " bytes)" : "NG — " + p.error) : "未実施"));
+    });
+    out.push("");
+
+    out.push("## 画素値の実測レンジ");
+    var pr = r.pixelRange;
+    if (pr) {
+      out.push(line("採用経路", { native: "native copyTo", rgba: "copyTo RGBA", i420: "copyTo I420" }[pr.path]));
+      out.push(line("チャンネル", pr.channels.join(" / ")));
+      out.push(line("最小値", pr.min.join(" , ")));
+      out.push(line("最大値", pr.max.join(" , ")));
+      out.push(line("サンプル対象", pr.sampledFrames + " フレーム"));
+    } else {
+      out.push("- 計測できませんでした");
+    }
+    out.push("");
+
+    if ((r.notes || []).length) {
+      out.push("## 参考情報");
+      r.notes.forEach(function (n) { out.push("- " + n); });
+      out.push("");
+    }
+    if ((r.warnings || []).length) {
+      out.push("## 警告");
+      r.warnings.forEach(function (w) { out.push("- " + w); });
+      out.push("");
+    }
+
+    return out.join("\n");
+  }
 
   if (typeof Shell !== "undefined" && Shell.init) {
     Shell.init({ id: "flash-safety-probe", strings: { en: {}, ja: {} } });
