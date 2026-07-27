@@ -144,7 +144,8 @@
     <div class="chips"><span class="chip chip--bl">開発中プレビュー</span></div>
     <h1>ポリゴンショック・リスクチェッカー</h1>
     <p><strong>これは完成版ではありません。</strong>
-       基準別の判定までは動作します。タイムライン表示とプレビュープレイヤー（仕様書 §9.2）は未実装です。
+       閃光（輝度・赤）の検出、5基準＋参考1件の並列判定、タイムライン表示、プレビュープレイヤーが動作します。
+       空間パターン（縞模様）の検出は未実装です。HDR映像には対応しておらず、検出した場合は解析を行いません。
        判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
 
@@ -204,13 +205,16 @@
   <div class="work work--even" style="padding-top:var(--s5)">
     <div>
       <div class="card fill">
-      <div class="card__title">確認したいこと</div>
+      <div class="card__title">この判定の前提</div>
       <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
-      <li><code>colorSpace.transfer</code> が取れるか（HDR判定の根幹）</li>
-      <li><code>VideoFrame.format</code> が <code>I420</code> になるか</li>
-      <li><code>copyTo()</code> が通るか（§2.4 一次経路の可否）</li>
-      <li>デコーダ出力が表示順で来るか</li>
-      <li>DevTools の Network タブが解析中に空のままか</li>
+      <li>SDR・ピーク白 <b>200 cd/m²</b> を前提とした推定値です。実際の画面輝度は測定していません。</li>
+      <li>面積の規定は基準ごとに異なります（放送系＝画面の1/4超 / WCAG＝任意の10度視野の25%超）。
+          <b>統合スコアは出しません。</b></li>
+      <li>ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。</li>
+      <li>赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。</li>
+      <li>ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。</li>
+      <li><b>「検出なし」は安全の保証ではありません。</b>
+          現行のガイドライン自体、感受性のある方の全員を保護できるわけではありません。</li>
       </ul>
       </div>
       <div class="readout" id="out" hidden>
