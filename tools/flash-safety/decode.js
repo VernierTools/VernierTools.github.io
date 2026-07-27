@@ -234,16 +234,22 @@
         container.source    = "colr(nclx)";
       }
 
-      /* --- 表示順（CTS昇順）に並べ替える ---
-         mp4box はデコード順で返す。Bフレームがあると CTS は単調増加しない。 */
-      var ordered = samples.slice().sort(function (a, b) { return a.cts - b.cts; });
+      /* --- ⚠ サンプルは「デコード順」で渡さなければならない ---
+         mp4box が返す順序がデコード順（DTS昇順）であり、これが正しい投入順。
+         Bフレームがあると CTS は単調増加しないため、CTS で並べ替えたものを
+         デコーダに渡すと、参照先より先にBフレームを投入することになり、
+         復号結果が壊れる（実測で確認・§2.2.2）。
+
+         並べ替えが必要なのは「解析時のフレーム順」であって「投入順」ではない。 */
+      var decodeOrder = samples;                                   // 投入用（DTS順）
+      var presOrder = samples.slice().sort(function (a, b) { return a.cts - b.cts; });
 
       /* --- フレーム間隔は timescale の目盛りで比較する ---
          µs に換算してから比較すると 16666 / 16667 のような 1µs の丸め差が出て、
          完全なCFRでもVFRと誤判定する。目盛りのままなら誤差ゼロ。 */
       var tsUnit = track.timescale;
       var tickDeltas = [];
-      for (var i = 1; i < ordered.length; i++) tickDeltas.push(ordered[i].cts - ordered[i - 1].cts);
+      for (var i = 1; i < presOrder.length; i++) tickDeltas.push(presOrder[i].cts - presOrder[i - 1].cts);
 
       var isCFR = true, medianTick = null;
       if (tickDeltas.length) {
@@ -262,7 +268,8 @@
       resolve({
         file: file,
         track: track,
-        samples: ordered,
+        samples: decodeOrder,          // ⚠ デコーダへはこの順で渡すこと（DTS順）
+        presentationOrder: presOrder,  // 解析時のフレーム順（CTS順）
         description: description,
         descriptionName: descName,
         container: container,
@@ -278,7 +285,7 @@
         frameIntervalTicks: uniqTicks,
         timescale: tsUnit,
         isCFR: isCFR,
-        hasBFrames: samples.some(function (s, i) { return i > 0 && s.cts < samples[i - 1].cts; }),
+        hasBFrames: decodeOrder.some(function (s, i) { return i > 0 && s.cts < decodeOrder[i - 1].cts; }),
         syncCount: samples.filter(function (s) { return s.is_sync; }).length
       });
     });
@@ -312,6 +319,9 @@
         var decoder = new VideoDecoder({
           output: function (frame) {
             if (stopped) { frame.close(); return; }
+            /* デコード順で投入しているため、出力が表示順で返るかはブラウザ依存。
+               ここで検出した順序違反は「解析前に timestamp で並べ替えが必要」
+               という意味であり、異常ではない（§2.2.2）。 */
             if (frame.timestamp < lastTs) outOfOrder++;
             lastTs = frame.timestamp;
             count++;
@@ -597,7 +607,9 @@
           }
         }
         if (report.outOfOrder > 0) {
-          report.warnings.push("デコーダ出力が表示順になっていません（" + report.outOfOrder + "件）。並べ替えが必要です。");
+          report.notes.push(
+            "デコーダ出力が表示順で返っていません（" + report.outOfOrder + "件）。" +
+            "解析側で timestamp による並べ替えが必要です（異常ではありません）。");
         }
         if (dx.fpsMeasured && dx.fpsMeasured < 50) {
           report.warnings.push(
