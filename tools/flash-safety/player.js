@@ -12,6 +12,12 @@
    ========================================================================= */
 (function (scope) {
 
+  /* ⚠ player.js を編集したら必ず上げる。
+     index.html のバージョンだけでは、player.js が古いキャッシュのままでも
+     気づけない（実際にレーン分離が反映されない事例が発生した）。
+     レポートに出るので、どのファイルが古いのかを切り分けられる。 */
+  var PLAYER_VERSION = "1.4";
+
   var LEVEL_NONE = 0, LEVEL_CAUTION = 1, LEVEL_FAIL = 2;
 
   function el(tag, cls, html) {
@@ -54,6 +60,15 @@
   function gutterFor(cssW, narrow) {
     if (narrow) return 56;
     return cssW >= 780 ? 116 : 84;
+  }
+
+  /* 解説ダイアログは index.html 側（showInfo）で定義され、
+     player.js の読み込み後に window.FSInfo へ入る。
+     ⚠ 読み込み時点の scope を見ると常に undefined になるため、
+        呼ぶ直前に毎回取り直すこと（実際にこれで i マークが出なかった）。 */
+  function infoFn() {
+    var w = (typeof window !== "undefined") ? window : scope;
+    return (w && typeof w.FSInfo === "function") ? w.FSInfo : null;
   }
 
   function cssVar(name, fallback) {
@@ -272,10 +287,16 @@
       self.draw();
     }
     this.canvas.addEventListener("pointerdown", function (ev) {
-      ev.preventDefault(); dragging = true; seekFromEvent(ev);
+      ev.preventDefault();
+      /* i マークを押した場合はシークせず解説を開く。
+         シーク処理より先に判定すること。 */
+      var hit = self._hitInfo(ev);
+      if (hit) { var fn = infoFn(); if (fn) fn(hit.id); return; }
+      dragging = true; seekFromEvent(ev);
       self.canvas.setPointerCapture(ev.pointerId);
     });
     this.canvas.addEventListener("pointermove", function (ev) {
+      self.canvas.style.cursor = self._hitInfo(ev) ? "help" : "pointer";
       var dur = self.video.duration || (self.durationUs / 1e6);
       self.hoverUs = fracFromEvent(ev) * dur * 1e6;
       if (dragging) seekFromEvent(ev); else self.draw();
@@ -300,6 +321,21 @@
     if (typeof Shell !== "undefined" && Shell && Shell.onSettingsChange) {
       Shell.onSettingsChange(function () { self.draw(); });
     }
+  };
+
+  /* i マークの当たり判定。canvas 上の座標で比較する。 */
+  Player.prototype._hitInfo = function (ev) {
+    var hits = this._infoHits;
+    if (!hits || !hits.length) return null;
+    var r = this.canvas.getBoundingClientRect();
+    var scale = r.width ? (this.canvas.clientWidth / r.width) : 1;
+    var x = (ev.clientX - r.left) * scale;
+    var y = (ev.clientY - r.top) * scale;
+    for (var i = 0; i < hits.length; i++) {
+      var dx = x - hits[i].x, dy = y - hits[i].y;
+      if (dx * dx + dy * dy <= hits[i].r * hits[i].r) return hits[i];
+    }
+    return null;
   };
 
   Player.prototype._applyDim = function () {
@@ -586,6 +622,8 @@
     var stripeFail = makeStripe(g, cNeg);
     var y = gBot + gap;
     var lang = (typeof Shell !== "undefined" && Shell && Shell.lang) ? Shell.lang : "ja";
+    var self = this;
+    this._infoHits = [];
 
     function drawLane(lane) {
       // レーン本体
@@ -624,6 +662,24 @@
       /* ラベルは左マージン内に描く（レーンには重ねない） */
       var label = (lane.label && (lane.label[lang] || lane.label.ja || lane.label.en)) || lane.id;
       if (narrow || padL < 100) label = shortLabel(lane.id, label);
+
+      /* 参考レーンには i マークを出し、判定コーナーと同じ解説を開けるようにする。
+         canvas なので当たり判定を自前で持つ（this._infoHits）。 */
+      var showInfo = !!(lane.reference || REF_IDS[lane.id]) && !!infoFn();
+      var iR = narrow ? 5.5 : 6.5;
+      var iCx = padL - 6 - iR;
+      var iCy = y + laneH / 2;
+      if (showInfo) {
+        g.beginPath();
+        g.arc(iCx, iCy, iR, 0, Math.PI * 2);
+        g.strokeStyle = cText3; g.lineWidth = 1; g.stroke();
+        g.fillStyle = cText3;
+        g.font = "700 " + (narrow ? "8px " : "9px ") + fontSans;
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText("i", iCx, iCy + 0.5);
+        g.textAlign = "left"; g.textBaseline = "alphabetic";
+        self._infoHits.push({ x: iCx, y: iCy, r: iR + 3, id: lane.id });
+      }
       /* 参考レーンは抵触でもラベルを赤くしない。
          主判定と同じ強さで表示すると「目安」という位置づけと矛盾する。 */
       var isRef = lane.reference || REF_IDS[lane.id];
@@ -632,9 +688,10 @@
       g.font = (!isRef && lane.level >= LEVEL_FAIL ? "600 " : "") +
                (narrow ? "9px " : "10.5px ") + fontSans;
       g.textAlign = "right"; g.textBaseline = "middle";
-      var maxLabelW = padL - 8;
+      var labelRight = showInfo ? (iCx - iR - 4) : (padL - 6);
+      var maxLabelW = labelRight - 4;
       label = fitText(g, label, maxLabelW);
-      g.fillText(label, padL - 6, y + laneH / 2);
+      g.fillText(label, labelRight, y + laneH / 2);
       g.textAlign = "left"; g.textBaseline = "alphabetic";
 
       y += laneH + laneGap;
@@ -731,6 +788,6 @@
     this.mount.innerHTML = "";
   };
 
-  scope.FSPlayer = { Player: Player, fmtTime: fmtTime };
+  scope.FSPlayer = { Player: Player, fmtTime: fmtTime, version: PLAYER_VERSION };
 
 })(typeof window !== "undefined" ? window : this);
