@@ -216,7 +216,7 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.2</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.4</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
@@ -342,7 +342,7 @@
   /* ⚠ index.html を編集したら必ず上げる。
      画面表示（.chip.ver）とレポートの両方に出るので、
      「反映されていないのか、直っていないのか」を切り分けられる。 */
-  var UI_VERSION = "1.2";
+  var UI_VERSION = "1.4";
 
   var file = null, worker = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
@@ -461,6 +461,10 @@
     document.addEventListener("keydown", esc);
     back.querySelector('[data-close]').focus();
   }
+
+  /* 解説ダイアログをプレイヤー（player.js）からも呼べるよう公開する。
+     判定コーナーとタイムラインで同じ内容を出すため、定義は1か所に保つ。 */
+  window.FSInfo = showInfo;
 
   function motionLabel(m) {
     return T("t.motion." + m, ({ static: "静止", drift: "一方向", oscillating: "振動・反転" })[m] || m);
@@ -581,7 +585,9 @@
     out.push(line("サイズ", fm ? fmtBytes(fm.sizeBytes) : "—"));
     out.push("");
     out.push("## " + T("t.rptEnv", "実行環境"));
-    out.push(line("ツール版", UI_VERSION));
+    out.push(line("ツール版", UI_VERSION +
+      "  (player.js: " + ((typeof FSPlayer !== "undefined" && FSPlayer.version) || "未読込") +
+      " / consent.js: " + (typeof FSConsent !== "undefined" ? "読込済" : "未読込") + ")"));
     out.push(line("User-Agent", navigator.userAgent));
     out.push(line("確認日時", new Date().toISOString()));
     out.push("");
