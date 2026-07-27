@@ -378,6 +378,10 @@
     out.push("");
 
     out.push("## 画素値の実測レンジ");
+    out.push("<!-- 合成テスト素材の理論値と照合すること。");
+    out.push("     r1_range.mp4 : Y ∈ {16,43,71,98,126,153,181,208,235} のみ");
+    out.push("     t4_pokemon.mp4: Y ∈ {32(青), 63(赤)} のみ");
+    out.push("     理論値に無い数値が出たら復号破綻を疑う -->");
     var pr = r.pixelRange;
     if (pr) {
       out.push(line("採用経路", { native: "native copyTo", rgba: "copyTo RGBA", i420: "copyTo I420" }[pr.path]));
