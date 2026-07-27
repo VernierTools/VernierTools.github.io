@@ -96,6 +96,52 @@
   }
 
   /* ---------------------------------------------------------------------
+     画素値の実測レンジを取る。
+     copyTo() が返す実データを解釈するには「どの経路が使えたか」だけでは
+     不十分で、パックドRGB系（BGRX等）の場合はリミテッド/フルレンジのどちらで
+     格納されているかが不明なため、実測 min/max で判定する。
+
+     対応フォーマット:
+       packed RGB系: RGBA / BGRA / RGBX / BGRX（4バイト/画素、4バイト目は無視）
+       planar YUV系: I420 / I422 / I444 / NV12（先頭 width*height バイトが輝度面）
+     --------------------------------------------------------------------- */
+  var PACKED_RGB = { RGBA: [0, 1, 2], BGRA: [2, 1, 0], RGBX: [0, 1, 2], BGRX: [2, 1, 0] };
+  var PLANAR_Y   = ["I420", "I420A", "I422", "I444", "NV12"];
+
+  function sampleRange(bytes, format, width, height) {
+    if (PACKED_RGB[format]) {
+      var order = PACKED_RGB[format]; // [Rインデックス, Gインデックス, Bインデックス]（バイト順）
+      var min = [255, 255, 255], max = [0, 0, 0];
+      var n = width * height;
+      var step = Math.max(1, Math.floor(n / 50000)); // 上限5万画素程度に間引く
+      for (var i = 0; i < n; i += step) {
+        var o = i * 4;
+        for (var c = 0; c < 3; c++) {
+          var v = bytes[o + order[c]];
+          if (v < min[c]) min[c] = v;
+          if (v > max[c]) max[c] = v;
+        }
+      }
+      return { channels: ["R", "G", "B"], min: min, max: max, sampled: Math.ceil(n / step) };
+    }
+    if (PLANAR_Y.indexOf(format) >= 0) {
+      var yN = width * height, yMin = 255, yMax = 0;
+      var ystep = Math.max(1, Math.floor(yN / 50000));
+      for (var j = 0; j < yN; j += ystep) {
+        var yv = bytes[j];
+        if (yv < yMin) yMin = yv;
+        if (yv > yMax) yMax = yv;
+      }
+      return { channels: ["Y"], min: [yMin], max: [yMax], sampled: Math.ceil(yN / ystep) };
+    }
+    return null; // 未対応フォーマット
+  }
+
+  /* 判定に使う伝達方向の厳しさ。数値が大きいほど「止める」方向。
+     hdr/unknown = 2（停止）、sdr-assumed = 1（続行だが要警告）、sdr = 0（続行・確証あり） */
+  function severity(mode) { return (mode === "hdr" || mode === "unknown") ? 2 : (mode === "sdr-assumed" ? 1 : 0); }
+
+  /* ---------------------------------------------------------------------
      demux
      --------------------------------------------------------------------- */
   function demux(arrayBuffer) {
@@ -348,9 +394,11 @@
         frame: null,
         verdictFrame: null,
         pixelPaths: null,
+        pixelRange: null,
         decoded: 0,
         outOfOrder: 0,
-        warnings: []
+        warnings: [],
+        notes: []
       };
 
       // ① コンテナ段階での判定（デコード不要）
@@ -364,12 +412,31 @@
         return report;
       }
 
-      // ② 1フレームだけデコードして VideoFrame 側の色情報と画素経路を確認
+      // ② 数フレームデコードして VideoFrame 側の色情報・画素経路・実測レンジを確認
       var first = null;
+      var rangePath = null;           // "native" | "rgba" | "i420" | null（採用する経路）
+      var rangeMin = null, rangeMax = null, rangeChannels = null, rangeSampledFrames = 0;
+      var width = dx.width, height = dx.height;
+
+      function accumulate(frame, buf, format) {
+        var r = sampleRange(buf, format, frame.codedWidth || width, frame.codedHeight || height);
+        if (!r) return;
+        rangeChannels = r.channels;
+        if (!rangeMin) { rangeMin = r.min.slice(); rangeMax = r.max.slice(); }
+        else {
+          for (var c = 0; c < r.min.length; c++) {
+            if (r.min[c] < rangeMin[c]) rangeMin[c] = r.min[c];
+            if (r.max[c] > rangeMax[c]) rangeMax[c] = r.max[c];
+          }
+        }
+        rangeSampledFrames++;
+      }
+
       return decode(dx, {
         maxFrames: sampleFrames,
         onFrame: function (frame) {
-          if (!first) {
+          var isFirst = !first;
+          if (isFirst) {
             first = true;
             var cs = frame.colorSpace || {};
             report.frame = {
@@ -383,10 +450,55 @@
               transfer: cs.transfer || null,
               bitDepth: dx.bitDepth
             });
+          }
+
+          // フレーム段階の判定が「停止」に転じた場合は、以後の画素取得を行わない。
+          // （コンテナ通過後に初めて判明する食い違いへの安全弁。§2.3.1 参照）
+          if (report.verdictFrame && report.verdictFrame.mode !== "sdr" && report.verdictFrame.mode !== "sdr-assumed") {
+            frame.close();
+            return;
+          }
+
+          if (isFirst) {
             return probePixelPaths(frame).then(function (p) {
               report.pixelPaths = p;
+              // 採用する経路を決める: native が使えて解釈可能な形式ならそれを、
+              // ダメなら明示RGBA、それもダメならi420、全滅なら計測しない。
+              if (p.paths.native && p.paths.native.ok &&
+                  (PACKED_RGB[p.format] || PLANAR_Y.indexOf(p.format) >= 0)) {
+                rangePath = "native";
+              } else if (p.paths.rgba && p.paths.rgba.ok) {
+                rangePath = "rgba";
+              } else if (p.paths.i420 && p.paths.i420.ok) {
+                rangePath = "i420";
+              }
+              if (rangePath) {
+                var fmt = rangePath === "native" ? p.format : (rangePath === "rgba" ? "RGBA" : "I420");
+                var opt = rangePath === "native" ? null : { format: fmt };
+                var size = opt ? frame.allocationSize(opt) : frame.allocationSize();
+                var buf = new Uint8Array(size);
+                return (opt ? frame.copyTo(buf, opt) : frame.copyTo(buf)).then(function () {
+                  accumulate(frame, buf, fmt);
+                  frame.close();
+                }).catch(function () { frame.close(); });
+              }
               frame.close();
             });
+          }
+
+          // 2フレーム目以降: 採用経路が決まっていれば同じ形式で取得してレンジに加算
+          if (rangePath) {
+            var fmt2 = rangePath === "native" ? frame.format : (rangePath === "rgba" ? "RGBA" : "I420");
+            var opt2 = rangePath === "native" ? null : { format: fmt2 };
+            try {
+              var size2 = opt2 ? frame.allocationSize(opt2) : frame.allocationSize();
+              var buf2 = new Uint8Array(size2);
+              (opt2 ? frame.copyTo(buf2, opt2) : frame.copyTo(buf2)).then(function () {
+                accumulate(frame, buf2, fmt2);
+                frame.close();
+              }).catch(function () { frame.close(); });
+              return;
+            } catch (e) { /* fall through to close below */ }
           }
           frame.close();
         }
@@ -394,12 +506,39 @@
         report.decoded = r.frames;
         report.outOfOrder = r.outOfOrder;
 
-        if (report.verdictFrame && report.verdictContainer &&
-            report.verdictFrame.transfer !== report.verdictContainer.transfer) {
-          report.warnings.push(
-            "コンテナ(" + (report.verdictContainer.transfer || "なし") +
-            ")とデコード結果(" + (report.verdictFrame.transfer || "なし") +
-            ")で伝達関数が食い違います。厳しい側を採用してください。");
+        if (rangePath && rangeMin) {
+          report.pixelRange = {
+            path: rangePath, channels: rangeChannels,
+            min: rangeMin, max: rangeMax, sampledFrames: rangeSampledFrames
+          };
+          // 経験則: リミテッドレンジ(16-235)は中心付近に偏り、フルレンジ(0-255)は両端に届く。
+          // ここでは単純に「両端5刻み以内まで届いたか」で判定の目安を出す（確定診断ではない）。
+          var reachesLow  = rangeMin.some(function (v) { return v <= 5; });
+          var reachesHigh = rangeMax.some(function (v) { return v >= 250; });
+          if (reachesLow && reachesHigh) {
+            report.notes.push("画素値が 0〜255 付近まで届いています。フルレンジで格納されている可能性が高いです。");
+          } else if (Math.min.apply(null, rangeMin) >= 10 && Math.max.apply(null, rangeMax) <= 240) {
+            report.notes.push("画素値が概ね16〜235の範囲に収まっています。リミテッドレンジの可能性が高いです。輝度換算時に伸張が必要です。");
+          } else {
+            report.notes.push("画素値の範囲から判別できませんでした（素材の内容が単純な白黒でない可能性があります）。");
+          }
+        }
+
+        // コンテナ推定とフレーム実測の食い違い評価。
+        // 「厳しい方を採用」ではなく、フレーム実測が常に正（より確実な情報源）とし、
+        // 実測により停止判定に転じた場合だけを警告として扱う。
+        if (report.verdictFrame && report.verdictContainer) {
+          var sevC = severity(report.verdictContainer.mode);
+          var sevF = severity(report.verdictFrame.mode);
+          if (sevF > sevC) {
+            report.warnings.push(
+              "コンテナ情報からは解析続行と判断していましたが、実際のフレーム(" +
+              (report.verdictFrame.transfer || "不明") + ")では判定できないため停止しました。");
+          } else if (sevF < sevC && report.verdictContainer.transfer !== report.verdictFrame.transfer) {
+            report.notes.push(
+              "コンテナに色情報のタグが無かったため推定していましたが、実際のフレームでは " +
+              report.verdictFrame.transfer + "（SDR）と確認できました。");
+          }
         }
         if (report.outOfOrder > 0) {
           report.warnings.push("デコーダ出力が表示順になっていません（" + report.outOfOrder + "件）。並べ替えが必要です。");
@@ -424,6 +563,8 @@
     classifyColor: classifyColor,
     bitDepthFromCodec: bitDepthFromCodec,
     probePixelPaths: probePixelPaths,
+    sampleRange: sampleRange,
+    severity: severity,
     TRANSFER: TRANSFER
   };
 
