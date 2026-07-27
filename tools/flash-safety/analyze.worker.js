@@ -69,8 +69,12 @@ function run(buffer, opts, marginPct) {
     }
 
     /* ---- ② 解析パラメータの確定 ---- */
+    /* ⚠ 解析解像度は用途で分ける（§2.5）。
+       輝度・面積は縮小しても面積比が保存されるので 480px で足りるが、
+       空間パターンは縮小すると縞そのものが消えるため、より高い解像度が要る。 */
     var size = analysisSize(dx.width, dx.height, opts.longSide || 480);
     var n = size.w * size.h;
+    var patSize = analysisSize(dx.width, dx.height, opts.patternLongSide || 1280);
     var fps = dx.fpsMeasured || 30;
     var histLen = Math.max(2, Math.ceil(66 * fps / 1000) + 1);
 
@@ -85,7 +89,13 @@ function run(buffer, opts, marginPct) {
     stdIds.forEach(function (id) { official[id] = A.applyMargin(A.STANDARDS[id], 0); });
 
     /* 遷移検出器は EOTF ごと × (公式/マージン) ごとに持つ。
-       CTD が同じでも EOTF が違えば輝度マップが違うため共有できない。 */
+       CTD が同じでも EOTF が違えば輝度マップが違うため共有できない。
+
+       ⚠ さらに 2024年提案だけは、暗部が 0.80 以上の領域でも
+          Michelson コントラスト 1/17 で判定する（§3.3）。
+          この分岐を持つ基準と持たない基準は検出器を共有できないため、
+          "mich" グループを別に用意する。
+          明るいシーンで 2024提案だけ抵触することがあるが、これは仕様どおり。 */
     var detectors = {};
     EOTF_GROUPS.forEach(function (eo) {
       detectors[eo] = {
@@ -97,6 +107,17 @@ function run(buffer, opts, marginPct) {
         })
       };
     });
+    /* Michelson 分岐を持つグループ（2024年提案が使う） */
+    var MICH = 1 / 17;
+    detectors["mich"] = {
+      official: new A.TransitionDetector(n, {
+        ctd: 0.10, darkMax: 0.80, michelson: MICH, eligibleMs: 66, histLen: histLen
+      }),
+      margin: new A.TransitionDetector(n, {
+        ctd: 0.10 * (1 - marginPct / 100), darkMax: 0.80,
+        michelson: MICH * (1 - marginPct / 100), eligibleMs: 66, histLen: histLen
+      })
+    };
 
     /* 赤閃光用。⚠ 赤成分比の「変化量」ではなく、飽和赤（≥0.8）状態への／からの
        遷移で判定する（§3.4）。変化量方式では白黒点滅が赤閃光に化ける。 */
@@ -162,11 +183,30 @@ function run(buffer, opts, marginPct) {
               }
             });
 
+            /* 2024年提案用（Michelson 分岐あり）。EOTF は bt1886 を使う。 */
+            if (eo === "bt1886") {
+              ["official", "margin"].forEach(function (kind) {
+                var md = detectors["mich"][kind];
+                md.step(pl.lum, tUs);
+                var mup = countMask(md.maskUp), mdn = countMask(md.maskDown);
+                rec.up["mich:" + kind] = mup;
+                rec.down["mich:" + kind] = mdn;
+                if (mup.n || mdn.n) {
+                  rec["area:mich:" + kind] = areaInfo(md.maskUp, md.maskDown, size);
+                }
+              });
+            }
+
             // 空間パターン（bt1886 のときだけ・0.15秒間隔）
+            // ⚠ パターン専用の高解像度バッファを別に作る。輝度用(480px)を
+            //    流用すると細かい縞が縮小段階で潰れる。
             if (eo === "bt1886" && patternOn && (tUs - lastPatUs) >= 150000) {
               lastPatUs = tUs;
               try {
-                var pr = FSFft.detectGlobal(pl.lum, size.w, size.h, {});
+                var plPat = (patSize.w === size.w && patSize.h === size.h)
+                  ? pl
+                  : A.toLinearPlanes(buf, meta, { dstW: patSize.w, dstH: patSize.h, eotf: "bt1886" });
+                var pr = FSFft.detectGlobal(plPat.lum, patSize.w, patSize.h, {});
                 if (pr) {
                   patTracker.push(pr.phase, tUs);
                   patSamples.push({ t: tUs, pairs: pr.pairs, theta: pr.theta,
@@ -222,7 +262,7 @@ function run(buffer, opts, marginPct) {
         var pv = evaluatePattern(patSamples, motion, marginPct);
         verdicts.pattern = {
           id: "pattern",
-          label: { ja: "空間パターン", en: "Spatial pattern" },
+          label: { ja: "空間パターン", en: "Spatial pattern (stripes)" },
           reference: true,
           level: pv.level,
           firstHitUs: pv.spans.length ? pv.spans[0].t0 : null,
@@ -245,6 +285,7 @@ function run(buffer, opts, marginPct) {
         analysis: {
           timeOriginUs: tOrigin,
           width: size.w, height: size.h,
+          patternWidth: patSize.w, patternHeight: patSize.h,
           frames: frameCount,
           fps: fps,
           marginPct: marginPct,
@@ -307,7 +348,9 @@ function bestWindowRatio(ii, winW, winH) {
    --------------------------------------------------------------------- */
 function evaluate(id, records, size, n, marginPct) {
   var std = A.STANDARDS[id];
-  var eo = std.eotf;
+  /* 2024年提案は Michelson 分岐を持つ専用グループを参照する（§3.3）。
+     他の基準は EOTF 名がそのままグループ名になる。 */
+  var eo = (id === "proposal2024") ? "mich" : std.eotf;
   var isRedRelevant = (id === "wcagA" || id === "wcagAAA" || id === "itu" ||
                        id === "ofcom" || id === "jba" || id === "proposal2024");
 
