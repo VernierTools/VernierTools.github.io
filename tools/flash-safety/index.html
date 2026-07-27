@@ -216,7 +216,7 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.1</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.2</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
@@ -292,7 +292,7 @@
       <li data-i18n="t.pre3">ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。</li>
       <li data-i18n="t.pre4">赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。</li>
       <li data-i18n="t.pre5">ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。</li>
-      <li data-i18n="t.pre8">画面上の一点で明暗が入れ替われば、規格上は「点滅」として数えられます。スクロールや大きなカーソル移動でも遷移が計上されることがあります（WCAGの微細パターン例外は適用済み）。</li>
+      <li data-i18n="t.pre8">規格は「画面上の一点で明暗が入れ替わること」を点滅と定義します。そのため、点滅の演出がなくても、細かい模様の上をカメラが動く、被写体が縞の前を横切る、カット割りが速いといった映像でも遷移が計上されます（WCAGの微細パターン例外は適用済み）。</li>
       <li data-i18n="t.pre7">WCAG 2.3.2（AAA）は規格自体が極めて厳しく、W3Cが「単一の画素の点滅でも違反」と定めています。ここでの抵触は、必ずしも実用上の危険を意味しません。</li>
       <li data-i18n="t.pre6">「検出なし」は安全の保証ではありません。
           現行のガイドライン自体、感受性のある方の全員を保護できるわけではありません。</li>
@@ -342,7 +342,7 @@
   /* ⚠ index.html を編集したら必ず上げる。
      画面表示（.chip.ver）とレポートの両方に出るので、
      「反映されていないのか、直っていないのか」を切り分けられる。 */
-  var UI_VERSION = "1.1";
+  var UI_VERSION = "1.2";
 
   var file = null, worker = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
@@ -370,57 +370,74 @@
   var INFO = {
     wcagAAA: {
       ja: { t: "WCAG 2.3.2（レベルAAA）",
-        b: "<p>W3Cが<b>意図的に極めて厳しく</b>定めた基準です。面積の免除がなく、"
-         + "「単一の画素の点滅でも違反」と明記されています。拡大表示やハイコントラスト設定が"
-         + "使われる可能性を考慮しているためです。</p>"
-         + "<p>その結果、<b>スクロールやページ切替でも抵触します</b>。画面上の一点で明暗が"
-         + "入れ替われば、規格上は「点滅」として数えられるからです。これは検出の誤りではなく、"
-         + "規格の定義に忠実な結果です。</p>"
-         + "<p>Webサイトでも達成例は少なく、レベルAAAは「達成できたら理想」という位置づけです。"
-         + "<b>まずは他の基準（特にWCAG 2.3.1）を満たすことを目標にしてください。</b></p>" },
+        b: "<p>W3Cが<b>意図的に極めて厳しく</b>定めた基準です。他の基準にある"
+         + "「面積が小さければ許容する」という免除がなく、"
+         + "「単一の画素の点滅でも違反」と明記されています。"
+         + "視聴者が拡大表示やハイコントラスト設定を使う可能性を考慮しているためです。</p>"
+         + "<p>この基準は<b>画面上の一点における明暗の入れ替わり</b>を数えます。"
+         + "そのため、点滅の演出がなくても、細かい模様の上をカメラが動く、"
+         + "被写体が縞や格子の前を横切る、カット割りが速い、"
+         + "画面が細かく揺れる、といった映像でも計上されます。"
+         + "これは検出の誤りではなく、規格の定義に忠実な結果です。</p>"
+         + "<p>レベルAAAは「達成できたら理想」という位置づけで、満たしている作品は多くありません。"
+         + "<b>まずは他の基準、特に同じWCAGのレベルA（2.3.1）を満たすことを目標にしてください。</b></p>" },
       en: { t: "WCAG 2.3.2 (Level AAA)",
-        b: "<p>W3C made this criterion <b>deliberately very strict</b>. There is no area exemption, "
-         + "and the specification states that even a single flashing pixel violates it — because "
-         + "magnification or high-contrast settings may be in use.</p>"
-         + "<p>As a result, <b>scrolling and page transitions also trigger it</b>. Any light-dark "
-         + "reversal at a point on screen counts as a flash under the definition. This is faithful "
+        b: "<p>W3C made this criterion <b>deliberately very strict</b>. Unlike the other criteria it "
+         + "grants no exemption for small areas, and the specification states that even a single "
+         + "flashing pixel violates it — because a viewer may be using magnification or a "
+         + "high-contrast setting.</p>"
+         + "<p>It counts <b>light-dark reversals at any single point on screen</b>. So footage with no "
+         + "intentional flashing can still register: a camera moving across fine detail, a subject "
+         + "passing in front of stripes or a grille, rapid cutting, or a shaky frame. This is faithful "
          + "to the standard, not a detection error.</p>"
-         + "<p>Few sites achieve Level AAA; it is an aspirational target. "
-         + "<b>Aim for the other criteria first, especially WCAG 2.3.1.</b></p>" }
+         + "<p>Level AAA is an aspirational target and few works meet it. "
+         + "<b>Aim for the other criteria first, especially WCAG Level A (2.3.1).</b></p>" }
     },
     proposal2024: {
       ja: { t: "2024年提案（研究段階）",
-        b: "<p>Jordan &amp; Vanderheiden による<b>提案段階の文書</b>で、まだどこの規制にも"
-         + "採用されていません（CC BY 4.0）。</p>"
-         + "<p>現行規格が現代のディスプレイ（大画面・高輝度・近い視距離）に合わなくなっている"
-         + "という問題意識から書かれたもので、いくつかの点で<b>現行基準より厳しく</b>なっています。"
-         + "特に、暗部が明るい領域（相対輝度0.80以上）でも Michelson コントラストで判定するため、"
+        b: "<p>アクセシビリティ研究者らが2024年に公開した<b>提案段階の文書</b>で、"
+         + "まだどの国の規制にも採用されていません（Jordan &amp; Vanderheiden, CC BY 4.0）。</p>"
+         + "<p>現行の基準は、ブラウン管時代の測定を前提に作られています。"
+         + "画面が大きく明るくなり、視聴距離も近くなった今のディスプレイでは"
+         + "リスクが当時より高まっている、という問題意識から書かれた文書です。"
+         + "そのため、いくつかの点で<b>現行基準より厳しく</b>なっています。</p>"
+         + "<p>特に、明るい部分どうしの明滅（現行基準では判定対象外）も拾うため、"
          + "<b>明るいシーンでこの項目だけ抵触することがあります</b>。</p>"
-         + "<p>将来の規格動向を知るための参考であり、<b>現時点で従う義務はありません。</b></p>" },
+         + "<p>基準が今後どこへ向かうかを知るための参考であり、"
+         + "<b>現時点で従う義務はありません。</b></p>" },
       en: { t: "2024 proposal (research stage)",
-        b: "<p>A <b>proposal</b> by Jordan &amp; Vanderheiden (CC BY 4.0). It has not been adopted "
-         + "into any regulation yet.</p>"
-         + "<p>It argues that current standards no longer match modern displays (larger, brighter, "
-         + "viewed closer), and is <b>stricter than current standards</b> in places. In particular it "
-         + "judges bright regions (darker state at or above 0.80) by Michelson contrast, so "
-         + "<b>this row alone may fail on bright scenes</b>.</p>"
-         + "<p>Useful for anticipating where standards may go. <b>There is no obligation to meet it today.</b></p>" }
+        b: "<p>A <b>proposal</b> published in 2024 by accessibility researchers "
+         + "(Jordan &amp; Vanderheiden, CC BY 4.0). No regulator has adopted it yet.</p>"
+         + "<p>Today's thresholds were derived in the CRT era. The proposal argues that modern "
+         + "displays — larger, brighter, viewed from closer — carry more risk than those figures "
+         + "assume, and it is therefore <b>stricter than current standards</b> in places.</p>"
+         + "<p>Notably it also catches flicker between two bright states, which current standards "
+         + "ignore, so <b>this row alone may fail on bright scenes</b>.</p>"
+         + "<p>Useful for anticipating where the standards may go. "
+         + "<b>There is no obligation to meet it today.</b></p>" }
     },
     pattern: {
       ja: { t: "空間パターン（縞模様）",
-        b: "<p>ガイドライン側が<b>「縞」を定義していません</b>。Wilkins自身が、自動判定には"
-         + "現行の規定は不十分だと述べています。</p>"
-         + "<p>本ツールは画面上の明暗の対の本数で判定していますが、実写のテクスチャ・布地・"
-         + "フェンス・圧縮ノイズなどによる<b>誤検出が避けられません</b>。逆に、陰影のかかった"
-         + "縞模様は検出できないことも確認しています。</p>"
+        b: "<p>点滅とは別に、縞模様そのものが発作を誘発することが知られています。"
+         + "ただし<b>各ガイドラインは「何をもって縞とするか」を定義していません。</b>"
+         + "この分野の基礎研究を担い、現行の縞に関する規定の原案を示した研究チーム"
+         + "（Wilkins ら, Epilepsia 2005）自身が、"
+         + "現行の規定は機械による自動判定には不十分だと述べています。</p>"
+         + "<p>本ツールは画面上の明暗の対の本数で判定していますが、"
+         + "布地・フェンス・建物の外壁・圧縮ノイズなど、"
+         + "実写に写り込む模様による<b>誤検出が避けられません</b>。"
+         + "逆に、照明のムラで陰影がかかった縞模様は検出できないことも確認しています。</p>"
          + "<p>検出された場合は、その箇所を目視で確認してください。"
          + "<b>数値をそのまま合否の根拠にはしないでください。</b></p>" },
       en: { t: "Spatial pattern (stripes)",
-        b: "<p>The guidelines <b>do not define what counts as a stripe</b>. Wilkins himself noted "
-         + "that the current wording is insufficient for automated evaluation.</p>"
+        b: "<p>Striped patterns can provoke seizures on their own, separately from flashing. "
+         + "However, <b>the guidelines never define what counts as a stripe.</b> The research team "
+         + "behind the underlying studies — who drafted the current stripe provisions "
+         + "(Wilkins et al., Epilepsia 2005) — noted themselves that the wording is not "
+         + "sufficient for automated evaluation.</p>"
          + "<p>This tool counts light-dark pairs across the screen, but <b>false positives are "
-         + "unavoidable</b> with real-world textures, fabric, fences and compression noise. We have "
-         + "also confirmed that shaded stripe patterns can be missed.</p>"
+         + "unavoidable</b> with patterns that appear in real footage: fabric, fences, building "
+         + "facades, compression noise. Conversely, stripes shaded by uneven lighting can be missed.</p>"
          + "<p>Treat any detection as a prompt to inspect that section yourself. "
          + "<b>Do not use the number alone as a pass/fail basis.</b></p>" }
     }
@@ -995,7 +1012,7 @@
           "t.pre3": "ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。",
           "t.pre4": "赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。",
           "t.pre5": "ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。",
-          "t.pre8": "画面上の一点で明暗が入れ替われば、規格上は「点滅」として数えられます。スクロールや大きなカーソル移動でも遷移が計上されることがあります（WCAGの微細パターン例外は適用済み）。",
+          "t.pre8": "規格は「画面上の一点で明暗が入れ替わること」を点滅と定義します。そのため、点滅の演出がなくても、細かい模様の上をカメラが動く、被写体が縞の前を横切る、カット割りが速いといった映像でも遷移が計上されます（WCAGの微細パターン例外は適用済み）。",
           "t.pre7": "WCAG 2.3.2（AAA）は規格自体が極めて厳しく、W3Cが「単一の画素の点滅でも違反」と定めています。ここでの抵触は、必ずしも実用上の危険を意味しません。",
           "t.pre6": "「検出なし」は安全の保証ではありません。現行のガイドライン自体、感受性のある方の全員を保護できるわけではありません。",
           "t.report": "検証情報レポート",
@@ -1057,7 +1074,7 @@
           "t.pre3": "Flashing faster than the source frame rate cannot be checked at all (a 30 fps file only reaches 15 Hz).",
           "t.pre4": "Red is judged from chroma at a quarter of the luminance resolution, so it is less reliable than the luminance result.",
           "t.pre5": "For games and other interactive content, only the single recorded playthrough is evaluated.",
-          "t.pre8": "The standards define a flash as a light-dark reversal at a point on screen, so scrolling or large cursor movement can also register as transitions (the WCAG fine-pattern exception is already applied).",
+          "t.pre8": "The standards define a flash as a light-dark reversal at a point on screen. Footage with no intentional flashing can still register transitions — a camera moving across fine detail, a subject passing in front of stripes, or rapid cutting (the WCAG fine-pattern exception is already applied).",
           "t.pre7": "WCAG 2.3.2 (AAA) is deliberately strict: W3C states that even a single flashing pixel violates it. A failure here does not necessarily indicate a practical hazard.",
           "t.pre6": "\"Nothing detected\" is not a guarantee of safety. The guidelines themselves do not protect every photosensitive person.",
           "t.report": "Diagnostic report",
