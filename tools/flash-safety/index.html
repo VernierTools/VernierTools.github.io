@@ -144,8 +144,9 @@
     <div class="chips"><span class="chip chip--bl">開発中プレビュー</span></div>
     <h1>ポリゴンショック・リスクチェッカー</h1>
     <p><strong>これは完成版ではありません。</strong>
-       閃光（輝度・赤）の検出、5基準＋参考1件の並列判定、タイムライン表示、プレビュープレイヤーが動作します。
-       空間パターン（縞模様）の検出は未実装です。HDR映像には対応しておらず、検出した場合は解析を行いません。
+       閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、
+       タイムライン表示、プレビュープレイヤーが動作します。
+       HDR映像には対応しておらず、検出した場合は解析を行いません。
        判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
 
@@ -450,7 +451,12 @@
       var v = r.verdicts[id]; if (!v) return;
       var label = (v.label && (v.label.ja || v.label.en)) || id;
       html += '<div class="vrow l' + v.level + (v.reference ? " ref" : "") + '">' +
-              '<span class="nm">' + label + (v.reference ? "（参考）" : "") + "</span>" +
+              '<span class="nm">' + label + (v.reference ? "（参考）" : "") +
+                (v.id === "pattern" && v.maxPairs
+                  ? '<br><small style="color:var(--text-3)">最大 ' + v.maxPairs.toFixed(1) +
+                    "対 / 上限 " + v.pairLimit + "対 / " +
+                    ({static:"静止", drift:"一方向", oscillating:"振動・反転"}[v.motion] || v.motion) + "</small>"
+                  : "") + "</span>" +
               '<span class="lv">' + LV[v.level] + "</span>" +
               '<span class="at">' + fmtTime(v.firstHitUs) + "</span></div>";
     });
