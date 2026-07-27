@@ -141,13 +141,9 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl">開発中プレビュー</span></div>
-    <h1>ポリゴンショック・リスクチェッカー</h1>
-    <p><strong>これは完成版ではありません。</strong>
-       閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、
-       タイムライン表示、プレビュープレイヤーが動作します。
-       HDR映像には対応しておらず、検出した場合は解析を行いません。
-       判定結果は参考用であり、医療・認証目的には使用できません。</p>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span></div>
+    <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
+    <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
 
   <!-- 上段: 動画ファイル と 判定 を横並び -->
@@ -155,42 +151,40 @@
     <div>
       <div class="card fill">
       <div class="field">
-      <label class="label" for="pick">動画ファイル（MP4 / MOV）</label>
+      <label class="label" for="pick" data-i18n="t.fileLabel">動画ファイル（MP4 / MOV）</label>
       <div class="drop" id="drop" role="button" tabindex="0">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      <b>ここにドロップ</b>
-      <small>またはクリックして選択（アップロードされません）</small>
+      <b data-i18n="t.dropMain">ここにドロップ</b>
+      <small data-i18n="t.dropSub">またはクリックして選択（アップロードされません）</small>
       </div>
       <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
       </div>
       <div class="field">
-      <label class="label" for="nf">デコードするフレーム数</label>
+      <label class="label" for="nf" data-i18n="t.frames">デコードするフレーム数</label>
       <input class="input" id="nf" type="number" value="60" min="1" max="600" inputmode="numeric">
       </div>
       <div class="field">
-      <label class="label" for="margin">マージン</label>
+      <label class="label" for="margin" data-i18n="t.margin">マージン</label>
       <select class="select" id="margin">
-      <option value="0">0%（公式閾値のみ）</option>
+      <option value="0" data-i18n="t.margin0">0%（公式閾値のみ）</option>
       <option value="5">5%</option>
-      <option value="10" selected>10%（既定）</option>
+      <option value="10" selected data-i18n="t.margin10">10%（既定）</option>
       <option value="20">20%</option>
       </select>
       </div>
       <div class="btnrow">
-      <button class="btn btn--primary" id="runAnalyze" disabled>解析する</button>
-      <button class="btn btn--secondary" id="run" disabled>疎通確認のみ</button>
+      <button class="btn btn--primary" id="runAnalyze" disabled data-i18n="t.run">解析する</button>
+      <button class="btn btn--secondary" id="run" disabled data-i18n="t.probeOnly">疎通確認のみ</button>
       </div>
       </div>
     </div>
     <div>
       <div class="readout fill" id="verdictOut" hidden>
-      <div class="readout__head"><span class="eyebrow">判定</span><span class="live" id="vmeta"></span></div>
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.verdict">判定</span><span class="live" id="vmeta"></span></div>
       <div id="verdictRows"></div>
-      <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow">警告</span></div>
+      <div class="readout__head" id="vwarn-head" hidden><span class="eyebrow" data-i18n="t.secWarn">警告</span></div>
       <ul class="warn-list" id="vwarns" hidden></ul>
-      <div class="copyhint">本ツールは参考用であり、医療機器でも適合認証でもありません。
-      放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。
-      基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。</div>
+      <div class="copyhint" data-i18n="t.disclaimer">本ツールは参考用であり、医療機器でも適合認証でもありません。放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。</div>
       </div>
       <div class="badges" id="status"></div>
     </div>
@@ -198,7 +192,7 @@
 
   <!-- 中段: プレビューを横いっぱいに -->
   <div class="card" id="playerCard" style="margin-top:var(--s4)" hidden>
-  <div class="card__title">プレビュー</div>
+  <div class="card__title" data-i18n="t.preview">プレビュー</div>
   <div id="playerMount"></div>
   </div>
 
@@ -206,29 +200,29 @@
   <div class="work work--even" style="padding-top:var(--s5)">
     <div>
       <div class="card fill">
-      <div class="card__title">この判定の前提</div>
+      <div class="card__title" data-i18n="t.premise">この判定の前提</div>
       <ul class="warn-list" style="padding:0 0 0 1.1em; margin:0;">
-      <li>SDR・ピーク白 <b>200 cd/m²</b> を前提とした推定値です。実際の画面輝度は測定していません。</li>
-      <li>面積の規定は基準ごとに異なります（放送系＝画面の1/4超 / WCAG＝任意の10度視野の25%超）。
-          <b>統合スコアは出しません。</b></li>
-      <li>ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。</li>
-      <li>赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。</li>
-      <li>ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。</li>
-      <li><b>「検出なし」は安全の保証ではありません。</b>
+      <li data-i18n="t.pre1">SDR・ピーク白 200 cd/m² を前提とした推定値です。実際の画面輝度は測定していません。</li>
+      <li data-i18n="t.pre2">面積の規定は基準ごとに異なります（放送系＝画面の1/4超 / WCAG＝任意の10度視野の25%超）。
+          統合スコアは出しません。</li>
+      <li data-i18n="t.pre3">ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。</li>
+      <li data-i18n="t.pre4">赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。</li>
+      <li data-i18n="t.pre5">ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。</li>
+      <li data-i18n="t.pre6">「検出なし」は安全の保証ではありません。
           現行のガイドライン自体、感受性のある方の全員を保護できるわけではありません。</li>
       </ul>
       </div>
       <div class="readout" id="out" hidden>
       <div class="verdict" id="verdict"><span class="big">—</span></div>
-      <div class="readout__head"><span class="eyebrow">コンテナ</span></div>
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.secContainer">コンテナ</span></div>
       <div id="kv-container"></div>
-      <div class="readout__head"><span class="eyebrow">色空間</span></div>
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.secColor">色空間</span></div>
       <div id="kv-color"></div>
-      <div class="readout__head"><span class="eyebrow">画素取得経路</span></div>
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.secPaths">画素取得経路</span></div>
       <div class="paths" id="paths"></div>
-      <div class="readout__head"><span class="eyebrow">画素値の実測レンジ</span></div>
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.secRange">画素値の実測レンジ</span></div>
       <div id="kv-range"></div>
-      <div class="readout__head" id="note-head" hidden><span class="eyebrow">参考情報</span></div>
+      <div class="readout__head" id="note-head" hidden><span class="eyebrow" data-i18n="t.secNotes">参考情報</span></div>
       <ul class="warn-list" id="notes" hidden></ul>
       <div class="readout__head" id="warn-head" hidden><span class="eyebrow">警告</span></div>
       <ul class="warn-list" id="warns" hidden></ul>
@@ -236,17 +230,16 @@
     </div>
     <div>
       <div class="card fill" id="rawcard" style="margin-top:var(--s4)" hidden>
-      <div class="card__title">検証情報レポート</div>
-      <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)">
-      ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
+      <div class="card__title" data-i18n="t.report">検証情報レポート</div>
+      <p style="font-size:12.5px; color:var(--text-2); margin:0 0 var(--s3)" data-i18n="t.reportDesc">ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。</p>
       <textarea class="raw" id="report" readonly></textarea>
       <div class="btnrow">
-      <button class="btn btn--primary" id="copyReport">レポートをコピー</button>
-      <button class="btn btn--ghost" id="toggleRaw">生データ(JSON)を表示</button>
+      <button class="btn btn--primary" id="copyReport" data-i18n="t.copyReport">レポートをコピー</button>
+      <button class="btn btn--ghost" id="toggleRaw" data-i18n="t.showRaw">生データ(JSON)を表示</button>
       </div>
       <textarea class="raw" id="raw" readonly hidden style="margin-top:var(--s3)"></textarea>
       <div class="btnrow" id="rawCopyRow" hidden>
-      <button class="btn btn--secondary" id="copy">JSONをコピー</button>
+      <button class="btn btn--secondary" id="copy" data-i18n="t.copyJson">JSONをコピー</button>
       </div>
       </div>
     </div>
@@ -260,6 +253,16 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var file = null, worker = null, player = null;
+
+  /* 現在言語の文言を返す（Shell 未読込でも落ちないように） */
+  function T(key, fallback) {
+    if (typeof Shell !== "undefined" && Shell && Shell.t) {
+      var v = Shell.t(key);
+      if (v !== key) return v;
+    }
+    return fallback;
+  }
+  function levels() { return [T("t.pass", "検出なし"), T("t.caution", "要注意"), T("t.fail", "抵触")]; }
 
   function status(msg, kind) {
     $("status").innerHTML = msg
@@ -306,7 +309,7 @@
     status("読み込み中…", "muted");
 
     file.arrayBuffer().then(function (buf) {
-      status("解析中…", "muted");
+      status(T("t.analyzing","解析中…"), "muted");
       if (worker) worker.terminate();
       worker = new Worker("probe.worker.js");
       worker.onmessage = function (e) {
@@ -335,13 +338,13 @@
     status("読み込み中…", "muted");
 
     file.arrayBuffer().then(function (buf) {
-      status("解析中…", "muted");
+      status(T("t.analyzing","解析中…"), "muted");
       if (aworker) aworker.terminate();
       aworker = new Worker("analyze.worker.js");
       aworker.onmessage = function (e) {
         if (e.data.progress) {
           var p = e.data.progress;
-          status("解析中 " + p.done + " / " + p.total + " フレーム", "muted");
+          status(T("t.analyzing","解析中…") + " " + p.done + " / " + p.total, "muted");
           return;
         }
         $("runAnalyze").disabled = false; $("run").disabled = false;
@@ -396,7 +399,7 @@
     out.push(line("所要時間", r.elapsedMs + " ms"));
     out.push("");
     out.push("## 基準別判定");
-    var LV = ["検出なし", "要注意", "抵触"];
+    var LV = levels();
     var order = ["jba", "itu", "ofcom", "wcagA", "wcagAAA", "proposal2024"];
     order.forEach(function (id) {
       var v = r.verdicts[id]; if (!v) return;
@@ -444,7 +447,7 @@
     var a = r.analysis;
     $("vmeta").textContent = a.frames + "フレーム / " + a.fps.toFixed(2) + "fps / マージン" + a.marginPct + "%";
 
-    var LV = ["検出なし", "要注意", "抵触"];
+    var LV = levels();
     var order = ["jba", "itu", "ofcom", "wcagA", "wcagAAA", "proposal2024"];
     var html = "";
     order.forEach(function (id) {
@@ -469,7 +472,7 @@
 
     var worst = 0;
     order.forEach(function (id) { if (r.verdicts[id] && r.verdicts[id].level > worst) worst = r.verdicts[id].level; });
-    status("解析完了（" + r.elapsedMs + " ms）", worst === 2 ? "neg" : (worst === 1 ? "muted" : "pos"));
+    status(T("t.done","解析完了") + "（" + r.elapsedMs + " ms）", worst === 2 ? "neg" : (worst === 1 ? "muted" : "pos"));
 
     /* ---- プレビュープレイヤーを起動（§9.2）----
        ⚠ 自動再生はしない。抵触があれば初回再生時に確認を挟む。 */
@@ -590,7 +593,7 @@
   $("toggleRaw").addEventListener("click", function () {
     var hidden = $("raw").hidden;
     $("raw").hidden = !hidden; $("rawCopyRow").hidden = !hidden;
-    this.textContent = hidden ? "生データ(JSON)を隠す" : "生データ(JSON)を表示";
+    this.textContent = hidden ? T("t.hideRaw", "生データ(JSON)を隠す") : T("t.showRaw", "生データ(JSON)を表示");
   });
 
   /* ---- 検証情報レポートの生成 ----
@@ -616,6 +619,14 @@
     out.push(line("User-Agent", navigator.userAgent));
     out.push(line("プラットフォーム", navigator.platform || "—"));
     out.push(line("WebCodecs", typeof VideoDecoder !== "undefined" ? "対応" : "非対応"));
+    /* i18n の切り分け用。Shell が読めていないと言語切替が効かない。 */
+    var shellOk = (typeof Shell !== "undefined" && Shell && typeof Shell.t === "function");
+    out.push(line("shell.js", shellOk ? "読込済み" : "★未読込（言語切替が効きません）"));
+    out.push(line("UI言語", shellOk ? Shell.lang : "—"));
+    out.push(line("i18n動作確認", shellOk
+      ? (Shell.t("t.title") !== "t.title" ? "辞書OK（t.title=" + Shell.t("t.title") + "）"
+                                          : "★辞書が未登録（Shell.init 未到達）")
+      : "—"));
     out.push(line("確認日時", new Date().toISOString()));
     out.push(line("解析所要時間", r.elapsedMs != null ? r.elapsedMs + " ms" : "—"));
     out.push("");
@@ -693,8 +704,116 @@
     return out.join("\n");
   }
 
-  if (typeof Shell !== "undefined" && Shell.init) {
-    Shell.init({ id: "flash-safety-probe", strings: { en: {}, ja: {} } });
+  /* ⚠ Shell が読めていないと言語切替が一切効かない。
+     その場合は静かに諦めず、状態を残して原因を追えるようにする。 */
+  if (typeof Shell === "undefined" || !Shell || typeof Shell.init !== "function") {
+    window.__flashSafetyShellMissing = true;
+    var st = document.getElementById("status");
+    if (st) {
+      st.innerHTML = '<span class="badge badge--neg"><span class="d"></span>' +
+        'shared/shell.js を読み込めませんでした（言語切替・テーマが動作しません）</span>';
+    }
+  } else {
+    Shell.init({
+      id: "flash-safety",
+      strings: {
+        ja: {
+          "t.chipWip": "開発中プレビュー",
+          "t.title": "ポリゴンショック・リスクチェッカー",
+          "t.desc": "これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。",
+          "t.fileLabel": "動画ファイル（MP4 / MOV）",
+          "t.dropMain": "ここにドロップ",
+          "t.dropSub": "またはクリックして選択（アップロードされません）",
+          "t.frames": "デコードするフレーム数",
+          "t.margin": "マージン",
+          "t.margin0": "0%（公式閾値のみ）",
+          "t.margin10": "10%（既定）",
+          "t.run": "解析する",
+          "t.probeOnly": "疎通確認のみ",
+          "t.verdict": "判定",
+          "t.preview": "プレビュー",
+          "t.premise": "この判定の前提",
+          "t.pre1": "SDR・ピーク白 200 cd/m² を前提とした推定値です。実際の画面輝度は測定していません。",
+          "t.pre2": "面積の規定は基準ごとに異なります（放送系＝画面の1/4超 / WCAG＝任意の10度視野の25%超）。統合スコアは出しません。",
+          "t.pre3": "ソースのfpsを超える速さの点滅は原理的に検証できません（30fpsなら15Hzまで）。",
+          "t.pre4": "赤の判定は色差が輝度の1/4解像度しかないため、輝度の判定より精度が落ちます。",
+          "t.pre5": "ゲーム等のインタラクティブな映像は、録画した1つの経路しか評価できません。",
+          "t.pre6": "「検出なし」は安全の保証ではありません。現行のガイドライン自体、感受性のある方の全員を保護できるわけではありません。",
+          "t.report": "検証情報レポート",
+          "t.reportDesc": "ファイル名・環境・全診断結果をまとめたテキストです。そのまま貼り付けて共有できます。",
+          "t.copyReport": "レポートをコピー",
+          "t.showRaw": "生データ(JSON)を表示",
+          "t.hideRaw": "生データ(JSON)を隠す",
+          "t.copyJson": "JSONをコピー",
+          "t.secContainer": "コンテナ", "t.secColor": "色空間",
+          "t.secPaths": "画素取得経路", "t.secRange": "画素値の実測レンジ",
+          "t.secNotes": "参考情報", "t.secWarn": "警告",
+          "t.disclaimer": "本ツールは参考用であり、医療機器でも適合認証でもありません。放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。",
+          "t.pass": "検出なし", "t.caution": "要注意", "t.fail": "抵触",
+          "t.analyzing": "解析中…", "t.done": "解析完了",
+          "t.play": "再生 / 一時停止", "t.toStart": "最初に戻る",
+          "t.prevFrame": "1コマ戻る", "t.nextFrame": "1コマ送る",
+          "t.prevHit": "前の抵触へ", "t.nextHit": "次の抵触へ",
+          "t.skipDanger": "危険区間をスキップ", "t.dimPlayback": "輝度を下げて再生",
+          "t.stepOnly": "静止画で送る", "t.skipped": "危険区間をスキップしました",
+          "t.overlayHit": "抵触区間", "t.transPerSec": "遷移/秒",
+          "t.legendFail": "抵触", "t.legendCaution": "要注意",
+          "t.legendRef": "参考（空間パターン等）",
+          "t.playWarnTitle": "点滅を含む映像を再生します",
+          "t.playWarnBody": "この動画には基準を超える点滅が検出されています。再生すると実際に点滅が表示されます。光感受性のある方はご注意ください。",
+          "t.playDimmed": "輝度を下げて再生", "t.playSkipping": "危険区間をスキップして再生",
+          "t.playAnyway": "そのまま再生", "t.cancel": "やめる"
+        },
+        en: {
+          "t.chipWip": "Work in progress",
+          "t.title": "Photosensitivity risk checker",
+          "t.desc": "This is not a finished tool. Flash detection (luminance and red), spatial stripe patterns (reference only), parallel checks against five standards, a timeline and a preview player all work. HDR video is not supported and will not be analysed. Results are for guidance only and must not be used for medical or certification purposes.",
+          "t.fileLabel": "Video file (MP4 / MOV)",
+          "t.dropMain": "Drop a file here",
+          "t.dropSub": "or click to choose (nothing is uploaded)",
+          "t.frames": "Frames to decode",
+          "t.margin": "Safety margin",
+          "t.margin0": "0% (official thresholds only)",
+          "t.margin10": "10% (default)",
+          "t.run": "Analyze",
+          "t.probeOnly": "Diagnostics only",
+          "t.verdict": "Verdict",
+          "t.preview": "Preview",
+          "t.premise": "What this verdict assumes",
+          "t.pre1": "Estimated from SDR video assuming a 200 cd/m² peak white. Actual screen luminance is never measured.",
+          "t.pre2": "Each standard defines area differently (broadcast: over 1/4 of the screen; WCAG: over 25% of any 10-degree field). No combined score is given.",
+          "t.pre3": "Flashing faster than the source frame rate cannot be checked at all (a 30 fps file only reaches 15 Hz).",
+          "t.pre4": "Red is judged from chroma at a quarter of the luminance resolution, so it is less reliable than the luminance result.",
+          "t.pre5": "For games and other interactive content, only the single recorded playthrough is evaluated.",
+          "t.pre6": "\"Nothing detected\" is not a guarantee of safety. The guidelines themselves do not protect every photosensitive person.",
+          "t.report": "Diagnostic report",
+          "t.reportDesc": "A single text block with the file name, environment and all diagnostics. Paste it anywhere to share.",
+          "t.copyReport": "Copy report",
+          "t.showRaw": "Show raw JSON",
+          "t.hideRaw": "Hide raw JSON",
+          "t.copyJson": "Copy JSON",
+          "t.secContainer": "Container", "t.secColor": "Colour space",
+          "t.secPaths": "Pixel access path", "t.secRange": "Measured pixel range",
+          "t.secNotes": "Notes", "t.secWarn": "Warnings",
+          "t.disclaimer": "This tool is for guidance only. It is neither a medical device nor a conformance certification. For broadcast, film or game deliverables, use a certified tool such as Harding FPA. Meeting a standard does not prevent seizures in every photosensitive viewer.",
+          "t.pass": "Nothing detected", "t.caution": "Borderline", "t.fail": "Exceeds",
+          "t.analyzing": "Analyzing…", "t.done": "Done",
+          "t.play": "Play / pause", "t.toStart": "Back to start",
+          "t.prevFrame": "Previous frame", "t.nextFrame": "Next frame",
+          "t.prevHit": "Previous flagged section", "t.nextHit": "Next flagged section",
+          "t.skipDanger": "Skip flagged sections", "t.dimPlayback": "Play dimmed",
+          "t.stepOnly": "Step frame by frame only", "t.skipped": "Skipped a flagged section",
+          "t.overlayHit": "Flagged section", "t.transPerSec": "Transitions/s",
+          "t.legendFail": "Exceeds", "t.legendCaution": "Borderline",
+          "t.legendRef": "Reference (spatial pattern)",
+          "t.playWarnTitle": "This video contains flashing",
+          "t.playWarnBody": "Flashing above the thresholds was detected in this file. Playing it will show that flashing for real. Please take care if you are photosensitive.",
+          "t.playDimmed": "Play dimmed", "t.playSkipping": "Skip flagged sections",
+          "t.playAnyway": "Play as-is", "t.cancel": "Cancel"
+        }
+      },
+      onSettingsChange: function () { if (player) player.draw(); }
+    });
   }
 })();
 </script>
