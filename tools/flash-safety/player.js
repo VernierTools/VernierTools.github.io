@@ -245,12 +245,18 @@
 
     /* タイムラインのクリック / スクラブ */
     var dragging = false;
-    function seekFromEvent(ev) {
+    /* 描画側と同じ左マージンを使う。ここを合わせないとクリック位置がずれる。 */
+    function gutter() { return window.innerWidth <= 760 ? 56 : 82; }
+    function fracFromEvent(ev) {
       var r = self.canvas.getBoundingClientRect();
-      var x = (ev.clientX - r.left) / r.width;
-      x = Math.max(0, Math.min(1, x));
+      var padL = gutter(), padR = 8;
+      var w = Math.max(10, r.width - padL - padR);
+      var x = (ev.clientX - r.left - padL) / w;
+      return Math.max(0, Math.min(1, x));
+    }
+    function seekFromEvent(ev) {
       var dur = self.video.duration || (self.durationUs / 1e6);
-      self.video.currentTime = x * dur;
+      self.video.currentTime = fracFromEvent(ev) * dur;
       self.draw();
     }
     this.canvas.addEventListener("pointerdown", function (ev) {
@@ -258,9 +264,8 @@
       self.canvas.setPointerCapture(ev.pointerId);
     });
     this.canvas.addEventListener("pointermove", function (ev) {
-      var r = self.canvas.getBoundingClientRect();
       var dur = self.video.duration || (self.durationUs / 1e6);
-      self.hoverUs = ((ev.clientX - r.left) / r.width) * dur * 1e6;
+      self.hoverUs = fracFromEvent(ev) * dur * 1e6;
       if (dragging) seekFromEvent(ev); else self.draw();
     });
     this.canvas.addEventListener("pointerleave", function () { self.hoverUs = null; self.draw(); });
@@ -425,13 +430,21 @@
   Player.prototype.draw = function () {
     var c = this.canvas;
     var lanes = (this.timeline.lanes || []);
-    var laneH = window.innerWidth <= 760 ? 14 : 18;
-    var graphH = 54;
-    var gap = 4;
-    var padL = 0, padR = 0;
+    var narrow = window.innerWidth <= 760;
+
+    var laneH   = narrow ? 15 : 19;
+    var laneGap = 3;
+    var graphH  = narrow ? 56 : 72;
+    var gap     = narrow ? 8 : 10;
+    var axisH   = 16;
+    /* ⚠ ラベル用の左マージンを必ず確保する。
+       0にするとレーンの塗り（斜線）とラベルが重なって読めなくなる。 */
+    var padL = narrow ? 56 : 82;
+    var padR = 8;
+    var padT = 6;
 
     var cssW = c.clientWidth || c.parentNode.clientWidth || 600;
-    var cssH = graphH + gap + lanes.length * (laneH + 2) + 18;
+    var cssH = padT + graphH + gap + lanes.length * (laneH + laneGap) + axisH;
     var dpr = window.devicePixelRatio || 1;
     c.width = Math.round(cssW * dpr);
     c.height = Math.round(cssH * dpr);
@@ -444,112 +457,177 @@
     var t0 = this.timeline.t0 || 0;
     var t1 = this.timeline.t1 || 1;
     var span = Math.max(1, t1 - t0);
-    var W = cssW - padL - padR;
+    var W = Math.max(10, cssW - padL - padR);
     function xOf(us) { return padL + ((us - t0) / span) * W; }
 
-    var cText3 = cssVar("--text-3", "#8A919B");
+    var cText   = cssVar("--text", "#16181D");
+    var cText2  = cssVar("--text-2", "#565D66");
+    var cText3  = cssVar("--text-3", "#8A919B");
     var cBorder = cssVar("--border", "#E7E9ED");
-    var cNeg = cssVar("--neg", "#E0484D");
+    var cNeg    = cssVar("--neg", "#E0484D");
     var cAccent = cssVar("--accent", "#5457E5");
-    var cSurface2 = cssVar("--surface-2", "#FBFCFD");
+    var cTint   = cssVar("--accent-tint", "#EEEFFE");
+    var cSurf2  = cssVar("--surface-2", "#FBFCFD");
+    var fontSans = '-apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif';
+    var fontMono = 'ui-monospace, "SF Mono", Menlo, monospace';
 
-    /* --- ① 1秒窓の遷移数グラフ --- */
-    var maxC = 12;
+    /* ================= ① 1秒窓の遷移数グラフ ================= */
+    var gTop = padT, gBot = padT + graphH;
+    var maxC = 8;
     lanes.forEach(function (l) {
       (l.seriesC || []).forEach(function (v) { if (v > maxC) maxC = v; });
     });
-    g.fillStyle = cSurface2;
-    g.fillRect(0, 0, cssW, graphH);
+    maxC = Math.ceil(maxC / 4) * 4;                    // 目盛りをきれいに
 
-    // 閾値ライン（6超で抵触）と警告ライン（4）
-    function yOf(v) { return graphH - (v / maxC) * (graphH - 6) - 2; }
-    g.strokeStyle = cText3; g.globalAlpha = .5; g.setLineDash([3, 3]); g.lineWidth = 1;
-    g.beginPath(); g.moveTo(0, yOf(4)); g.lineTo(cssW, yOf(4)); g.stroke();
+    g.fillStyle = cSurf2;
+    g.fillRect(padL, gTop, W, graphH);
+    g.strokeStyle = cBorder; g.lineWidth = 1;
+    g.strokeRect(padL + .5, gTop + .5, W - 1, graphH - 1);
+
+    function yOf(v) {
+      var r = Math.min(1, v / maxC);
+      return gBot - 3 - r * (graphH - 8);
+    }
+
+    // 警告ライン(4) と 閾値ライン(6)
+    g.strokeStyle = cText3; g.globalAlpha = .55; g.setLineDash([3, 3]); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(padL, yOf(4)); g.lineTo(padL + W, yOf(4)); g.stroke();
     g.setLineDash([]); g.globalAlpha = 1;
     g.strokeStyle = cNeg; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(0, yOf(6)); g.lineTo(cssW, yOf(6)); g.stroke();
+    g.beginPath(); g.moveTo(padL, yOf(6)); g.lineTo(padL + W, yOf(6)); g.stroke();
 
-    // 系列（非参考レーンの最大値を描く）
+    // 系列（非参考レーンのうち最大のもの）
     var main = null;
-    lanes.forEach(function (l) { if (!l.reference && (!main || l.maxTransitions > main.maxTransitions)) main = l; });
+    lanes.forEach(function (l) {
+      if (!l.reference && (!main || l.maxTransitions > main.maxTransitions)) main = l;
+    });
     if (main && main.seriesT && main.seriesT.length) {
-      g.strokeStyle = cAccent; g.lineWidth = 1.2; g.beginPath();
+      g.strokeStyle = cAccent; g.lineWidth = 1.4;
+      g.beginPath();
       for (var i = 0; i < main.seriesT.length; i++) {
         var x = xOf(main.seriesT[i]), y = yOf(main.seriesC[i]);
         if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
       }
       g.stroke();
     }
-    g.fillStyle = cText3; g.font = "10px ui-monospace, monospace";
-    g.fillText("6", 3, yOf(6) - 2);
 
-    /* --- ② 基準別レーン --- */
+    // 左側の目盛りラベル（マージン内に描く）
+    g.textAlign = "right"; g.textBaseline = "middle";
+    g.font = "10px " + fontMono;
+    g.fillStyle = cNeg;  g.fillText("6", padL - 6, yOf(6));
+    g.fillStyle = cText3; g.fillText("4", padL - 6, yOf(4));
+    g.fillText(String(maxC), padL - 6, yOf(maxC));
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+    g.fillStyle = cText3; g.font = "9px " + fontSans;
+    g.fillText(t("t.transPerSec", "遷移/秒"), padL + 4, gTop + 11);
+
+    /* ================= ② 基準別レーン ================= */
     var stripeFail = makeStripe(g, cNeg);
-    var y = graphH + gap;
-    var self = this;
-    lanes.forEach(function (lane) {
-      g.fillStyle = cSurface2;
-      g.fillRect(0, y, cssW, laneH);
-      g.strokeStyle = cBorder; g.lineWidth = 1;
-      g.strokeRect(0.5, y + 0.5, cssW - 1, laneH - 1);
+    var y = gBot + gap;
+    var lang = (typeof Shell !== "undefined" && Shell && Shell.lang) ? Shell.lang : "ja";
 
-      (lane.spans || []).forEach(function (s) {
-        var x0 = xOf(s.t0), x1 = xOf(s.t1);
-        // ⚠ 最小2px。1フレームだけの抵触が長尺で消えると、見落としは偽陰性と同じ害になる
+    lanes.forEach(function (lane) {
+      // レーン本体
+      g.fillStyle = cSurf2;
+      g.fillRect(padL, y, W, laneH);
+      g.strokeStyle = cBorder; g.lineWidth = 1;
+      g.strokeRect(padL + .5, y + .5, W - 1, laneH - 1);
+
+      (lane.spans || []).forEach(function (sp) {
+        var x0 = xOf(sp.t0), x1 = xOf(sp.t1);
+        // ⚠ 最小2px。1フレームだけの抵触が長尺で消えると偽陰性と同じ害になる
         var w = Math.max(2, x1 - x0);
-        if (s.level >= LEVEL_FAIL) {
+        if (x0 + w > padL + W) w = padL + W - x0;
+        if (sp.level >= LEVEL_FAIL) {
           g.fillStyle = stripeFail;
           g.fillRect(x0, y + 1, w, laneH - 2);
-          g.strokeStyle = cNeg; g.globalAlpha = .5;
-          g.strokeRect(x0 + .5, y + 1.5, w - 1, laneH - 3);
+          g.strokeStyle = cNeg; g.globalAlpha = .55;
+          g.strokeRect(x0 + .5, y + 1.5, Math.max(1, w - 1), laneH - 3);
           g.globalAlpha = 1;
         } else {
-          g.fillStyle = cssVar("--accent-tint", "#EEEFFE");
+          g.fillStyle = cTint;
           g.fillRect(x0, y + 1, w, laneH - 2);
+          g.strokeStyle = cAccent; g.globalAlpha = .5;
+          g.strokeRect(x0 + .5, y + 1.5, Math.max(1, w - 1), laneH - 3);
+          g.globalAlpha = 1;
         }
       });
 
-      // 参考レーンは破線枠で区別（§9.2.3）
+      // 参考レーンは破線枠で区別
       if (lane.reference) {
-        g.strokeStyle = cText3; g.setLineDash([4, 3]); g.globalAlpha = .8;
-        g.strokeRect(0.5, y + 0.5, cssW - 1, laneH - 1);
+        g.strokeStyle = cText3; g.setLineDash([4, 3]); g.globalAlpha = .85;
+        g.strokeRect(padL + .5, y + .5, W - 1, laneH - 1);
         g.setLineDash([]); g.globalAlpha = 1;
       }
 
-      // ラベル
-      var label = (lane.label && (lane.label[langCode()] || lane.label.ja || lane.label.en)) || lane.id;
-      g.fillStyle = cText3;
-      g.font = (window.innerWidth <= 760 ? "9px " : "10px ") + "-apple-system, sans-serif";
-      g.fillText(label, 4, y + laneH - 5);
+      /* ラベルは左マージン内に描く（レーンには重ねない） */
+      var label = (lane.label && (lane.label[lang] || lane.label.ja || lane.label.en)) || lane.id;
+      if (narrow) label = shortLabel(lane.id, label);
+      g.fillStyle = lane.level >= LEVEL_FAIL ? cNeg : (lane.level === LEVEL_CAUTION ? cText : cText3);
+      g.font = (lane.level >= LEVEL_FAIL ? "600 " : "") + (narrow ? "9px " : "10.5px ") + fontSans;
+      g.textAlign = "right"; g.textBaseline = "middle";
+      var maxLabelW = padL - 8;
+      label = fitText(g, label, maxLabelW);
+      g.fillText(label, padL - 6, y + laneH / 2);
+      g.textAlign = "left"; g.textBaseline = "alphabetic";
 
-      y += laneH + 2;
+      y += laneH + laneGap;
     });
 
-    /* --- ③ 再生ヘッド --- */
+    /* ================= ③ 時間軸 ================= */
+    var axisY = y + 2;
+    g.strokeStyle = cBorder; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(padL, axisY + .5); g.lineTo(padL + W, axisY + .5); g.stroke();
+    g.fillStyle = cText3; g.font = "9px " + fontMono;
+    var ticks = Math.max(2, Math.min(8, Math.floor(W / 70)));
+    for (var k = 0; k <= ticks; k++) {
+      var tu = t0 + span * (k / ticks);
+      var tx = xOf(tu);
+      g.strokeStyle = cBorder;
+      g.beginPath(); g.moveTo(tx + .5, axisY); g.lineTo(tx + .5, axisY + 3); g.stroke();
+      g.textAlign = k === 0 ? "left" : (k === ticks ? "right" : "center");
+      g.fillText(fmtTime(tu), tx, axisY + 12);
+    }
+    g.textAlign = "left";
+
+    /* ================= ④ 再生ヘッド ================= */
     var curUs = (this.video.currentTime || 0) * 1e6;
     var px = xOf(curUs);
-    g.strokeStyle = cAccent; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(px, 0); g.lineTo(px, y); g.stroke();
-    g.fillStyle = cAccent;
-    g.beginPath(); g.moveTo(px - 4, 0); g.lineTo(px + 4, 0); g.lineTo(px, 6); g.closePath(); g.fill();
-
-    /* --- ④ ホバー位置の時刻 --- */
-    if (this.hoverUs != null) {
-      var hx = xOf(this.hoverUs);
-      g.strokeStyle = cText3; g.globalAlpha = .6;
-      g.beginPath(); g.moveTo(hx, 0); g.lineTo(hx, y); g.stroke();
-      g.globalAlpha = 1;
-      g.fillStyle = cText3; g.font = "10px ui-monospace, monospace";
-      g.fillText(fmtTime(this.hoverUs), Math.min(hx + 4, cssW - 40), y + 12);
+    if (px >= padL - 1 && px <= padL + W + 1) {
+      g.strokeStyle = cAccent; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(px + .5, gTop); g.lineTo(px + .5, axisY); g.stroke();
+      g.fillStyle = cAccent;
+      g.beginPath();
+      g.moveTo(px - 4, gTop - 5); g.lineTo(px + 4, gTop - 5); g.lineTo(px, gTop + 1);
+      g.closePath(); g.fill();
     }
 
-    /* 時刻表示 */
+    /* ================= ⑤ ホバー ================= */
+    if (this.hoverUs != null) {
+      var hx = xOf(this.hoverUs);
+      if (hx >= padL && hx <= padL + W) {
+        g.strokeStyle = cText3; g.globalAlpha = .55; g.setLineDash([2, 2]);
+        g.beginPath(); g.moveTo(hx + .5, gTop); g.lineTo(hx + .5, axisY); g.stroke();
+        g.setLineDash([]); g.globalAlpha = 1;
+      }
+    }
+
     var dur = (this.video.duration && isFinite(this.video.duration))
       ? this.video.duration * 1e6 : (t1 - t0);
     this.timeLabel.textContent = fmtTime(curUs) + " / " + fmtTime(dur);
 
-    function langCode() {
-      return (typeof Shell !== "undefined" && Shell && Shell.lang) ? Shell.lang : "ja";
+    /* 文字が収まらない場合に末尾を省略する */
+    function fitText(ctx, str, maxW) {
+      if (ctx.measureText(str).width <= maxW) return str;
+      var out = str;
+      while (out.length > 1 && ctx.measureText(out + "…").width > maxW) out = out.slice(0, -1);
+      return out + "…";
+    }
+    function shortLabel(id, full) {
+      return ({
+        jba: "民放連", itu: "ITU-R", ofcom: "Ofcom",
+        wcagA: "WCAG A", wcagAAA: "WCAG AAA", proposal2024: "2024提案"
+      })[id] || full;
     }
   };
 
