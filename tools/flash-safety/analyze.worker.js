@@ -245,10 +245,35 @@ function run(buffer, opts, marginPct) {
          video.currentTime（0 始まり）と最大1フレーム以上ずれる。
          プレビューと突き合わせるため、先頭を 0 に揃える。 */
       var tOrigin = records.length ? records[0].t : 0;
+      var el = dx.editList;
+      /* edit list（elst）があれば、それが正規化の正しい根拠になる。
+         media_time は「メディア時刻のどこを表示開始点とするか」であり、
+         実測では先頭サンプルのCTSと完全に一致した（§9.2.5）。
+         elst が無い場合や値が食い違う場合は、実測した先頭CTSを使う。 */
+      if (el && el.offsetUs > 0) {
+        if (Math.abs(el.offsetUs - tOrigin) > 1000) {
+          notes.push("edit list の media_time（" + (el.offsetUs / 1000).toFixed(1) +
+                     "ms）と先頭フレームの表示時刻（" + (tOrigin / 1000).toFixed(1) +
+                     "ms）が一致しません。実測値を優先しました。");
+        } else {
+          notes.push("edit list（media_time=" + el.mediaTime + "）に基づき、" +
+                     "タイムラインを0秒起点に正規化しました。");
+        }
+      } else if (tOrigin !== 0) {
+        notes.push("先頭フレームの表示時刻が " + (tOrigin / 1000).toFixed(1) +
+                   "ms だったため、タイムラインを0秒起点に正規化しました（edit list なし）。");
+      }
       if (tOrigin !== 0) {
         for (var ri = 0; ri < records.length; ri++) records[ri].t -= tOrigin;
-        notes.push("先頭フレームの表示時刻が " + (tOrigin / 1000).toFixed(1) +
-                   "ms だったため、タイムラインを0秒起点に正規化しました。");
+      }
+      /* rate が 1 以外の edit list（早送り/スロー）は未対応。黙って誤判定しない。 */
+      if (el && el.rate && el.rate !== 1) {
+        notes.push("edit list の再生レートが " + el.rate +
+                   " です。本ツールは等速のみを想定しているため、時刻がずれる可能性があります。");
+      }
+      if (el && el.entries > 1) {
+        notes.push("edit list が " + el.entries +
+                   " 個あります（分割編集）。2個目以降は考慮していません。");
       }
 
       /* ---- ⑤ 基準ごとに 1秒窓で計数して判定 ---- */
@@ -284,6 +309,7 @@ function run(buffer, opts, marginPct) {
         container: containerInfo(dx),
         analysis: {
           timeOriginUs: tOrigin,
+          editList: dx.editList || null,
           width: size.w, height: size.h,
           patternWidth: patSize.w, patternHeight: patSize.h,
           frames: frameCount,
