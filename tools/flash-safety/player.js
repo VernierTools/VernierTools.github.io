@@ -50,6 +50,12 @@
     return ctx.createPattern(c, "repeat");
   }
 
+  /* ラベル領域の幅。描画側と入力側で必ず同じ値を使うこと。 */
+  function gutterFor(cssW, narrow) {
+    if (narrow) return 56;
+    return cssW >= 780 ? 116 : 84;
+  }
+
   function cssVar(name, fallback) {
     try {
       var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -246,7 +252,9 @@
     /* タイムラインのクリック / スクラブ */
     var dragging = false;
     /* 描画側と同じ左マージンを使う。ここを合わせないとクリック位置がずれる。 */
-    function gutter() { return window.innerWidth <= 760 ? 56 : 82; }
+    function gutter() {
+      return gutterFor(self.canvas.clientWidth || 600, window.innerWidth <= 760);
+    }
     function fracFromEvent(ev) {
       var r = self.canvas.getBoundingClientRect();
       var padL = gutter(), padR = 8;
@@ -438,8 +446,9 @@
     var gap     = narrow ? 8 : 10;
     var axisH   = 16;
     /* ⚠ ラベル用の左マージンを必ず確保する。
-       0にするとレーンの塗り（斜線）とラベルが重なって読めなくなる。 */
-    var padL = narrow ? 56 : 82;
+       0にするとレーンの塗り（斜線）とラベルが重なって読めなくなる。
+       全幅表示では基準名が省略されないよう広めに取る。 */
+    var padL = gutterFor(c.clientWidth || 600, narrow);
     var padR = 8;
     var padT = 6;
 
@@ -562,7 +571,7 @@
 
       /* ラベルは左マージン内に描く（レーンには重ねない） */
       var label = (lane.label && (lane.label[lang] || lane.label.ja || lane.label.en)) || lane.id;
-      if (narrow) label = shortLabel(lane.id, label);
+      if (narrow || padL < 100) label = shortLabel(lane.id, label);
       g.fillStyle = lane.level >= LEVEL_FAIL ? cNeg : (lane.level === LEVEL_CAUTION ? cText : cText3);
       g.font = (lane.level >= LEVEL_FAIL ? "600 " : "") + (narrow ? "9px " : "10.5px ") + fontSans;
       g.textAlign = "right"; g.textBaseline = "middle";
