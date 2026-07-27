@@ -11,7 +11,7 @@
      - フレーム自体は保持しない（メモリを圧迫するため）。
        保持するのは1フレームあたり数十バイトの数値のみ。
    ========================================================================= */
-importScripts("vendor/mp4box.all.min.js", "decode.js", "analyzer.js");
+importScripts("vendor/mp4box.all.min.js", "decode.js", "analyzer.js", "fft.js");
 
 var A = self.FSAnalyze;
 
@@ -102,6 +102,13 @@ function run(buffer, opts, marginPct) {
        遷移で判定する（§3.4）。変化量方式では白黒点滅が赤閃光に化ける。 */
     var redDet = new A.RedFlashDetector(n, { satThresh: 0.8, ucsThresh: 0.2 });
 
+    /* 空間パターン（縞）— 参考枠。§5
+       全フレームではなく 0.15秒間隔でサンプリングする（継続0.5秒の判定に足りる）。 */
+    var patternOn = opts.pattern !== false && typeof FSFft !== "undefined";
+    var patTracker = patternOn ? new FSFft.PhaseTracker() : null;
+    var patSamples = [];
+    var lastPatUs = -1e9;
+
     var records = [];       // フレームごとの解析結果（timestamp 付き・小さい数値のみ）
     var frameCount = 0;
     var lastReported = 0;
@@ -155,6 +162,21 @@ function run(buffer, opts, marginPct) {
               }
             });
 
+            // 空間パターン（bt1886 のときだけ・0.15秒間隔）
+            if (eo === "bt1886" && patternOn && (tUs - lastPatUs) >= 150000) {
+              lastPatUs = tUs;
+              try {
+                var pr = FSFft.detectGlobal(pl.lum, size.w, size.h, {});
+                if (pr) {
+                  patTracker.push(pr.phase, tUs);
+                  patSamples.push({ t: tUs, pairs: pr.pairs, theta: pr.theta,
+                                    brightest: pr.brightest, contrast: pr.contrast });
+                } else {
+                  patSamples.push({ t: tUs, pairs: 0 });
+                }
+              } catch (e) { /* パターン検出の失敗で解析全体を止めない */ }
+            }
+
             // 赤閃光（bt1886 のときだけ計算すれば足りる）
             if (eo === "bt1886") {
               redDet.step(pl.R, pl.G, pl.B, tUs);
@@ -194,6 +216,25 @@ function run(buffer, opts, marginPct) {
       stdIds.forEach(function (id) {
         verdicts[id] = evaluate(id, records, size, n, marginPct);
       });
+      /* 空間パターン（参考枠）を評価してレーンに加える */
+      if (patternOn && patSamples.length) {
+        var motion = patTracker.classify();
+        var pv = evaluatePattern(patSamples, motion, marginPct);
+        verdicts.pattern = {
+          id: "pattern",
+          label: { ja: "空間パターン", en: "Spatial pattern" },
+          reference: true,
+          level: pv.level,
+          firstHitUs: pv.spans.length ? pv.spans[0].t0 : null,
+          spans: pv.spans,
+          maxTransitions: 0,
+          motion: pv.motion,
+          maxPairs: pv.maxPairs,
+          pairLimit: pv.limit,
+          seriesT: [], seriesC: []
+        };
+      }
+
       var timeline = buildTimeline(records, verdicts);
       // 生系列は timeline に間引いて入れたので、verdicts 側からは外す
       stdIds.forEach(function (id) { delete verdicts[id].seriesT; delete verdicts[id].seriesC; });
@@ -375,6 +416,59 @@ function downsampleSeries(ts, cs, maxPoints) {
     outT.push(at); outC.push(mx);
   }
   return { t: outT, c: outC };
+}
+
+/* ---------------------------------------------------------------------
+   空間パターンの評価（§5）— 参考枠
+
+   ⚠ これは閃光判定と同格の合否にしない。呼び出し側で reference:true の
+     レーンとして扱い、readout でも別枠に出すこと。
+
+   縞の上限は動きの分類で変わる（§5.5）:
+     振動・コントラスト反転 → 5対 / 静止・一方向ドリフト → 8対（Wilkinsは12対）
+   0.5秒未満のパターンで突発波が生じることは極めて稀なため、継続を要件とする。
+   --------------------------------------------------------------------- */
+function evaluatePattern(samples, motion, marginPct) {
+  var out = { level: 0, motion: motion, spans: [], maxPairs: 0, limit: 0, reference: true };
+  if (!samples || !samples.length) return out;
+
+  var lim = FSFft.PAIR_LIMIT.ef2005[motion] || 5;
+  out.limit = lim;
+  var k = 1 - (marginPct || 0) / 100;
+  var minDurUs = 500000;                       // 0.5秒
+  var minDurMg = 500000 * k;
+
+  var runStart = -1, runLast = -1, runLevel = 0;
+  function flush() {
+    if (runStart < 0) return;
+    var dur = runLast - runStart;
+    if (runLevel === 2 && dur >= minDurUs) {
+      out.spans.push({ t0: runStart, t1: runLast, level: 2 });
+      out.level = Math.max(out.level, 2);
+    } else if (runLevel >= 1 && dur >= minDurMg) {
+      out.spans.push({ t0: runStart, t1: runLast, level: 1 });
+      out.level = Math.max(out.level, 1);
+    }
+    runStart = -1; runLevel = 0;
+  }
+
+  for (var i = 0; i < samples.length; i++) {
+    var sp = samples[i];
+    var pairs = sp.pairs || 0;
+    if (pairs > out.maxPairs) out.maxPairs = pairs;
+    var lv = 0;
+    if (pairs > lim) lv = 2;
+    else if (pairs > lim - 1) lv = 1;          // 上限−1対は要注意（§7.3 警告C）
+    if (lv > 0) {
+      if (runStart < 0) { runStart = sp.t; runLevel = lv; }
+      else runLevel = Math.max(runLevel, lv);
+      runLast = sp.t;
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return out;
 }
 
 function buildTimeline(records, verdicts) {
