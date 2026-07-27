@@ -551,6 +551,16 @@
         if (!dx.isCFR) {
           report.warnings.push("可変フレームレート（VFR）の可能性があります。1秒窓の計数に注意が必要です。");
         }
+        // 無タグ素材のマトリクス曖昧性（実測により判明・§2.4.5）
+        // コンテナに matrix タグが無い場合、エンコーダとデコーダで
+        // BT.601 / BT.709 の取り違えが起こりうる。パックドRGB経路では
+        // 変換済みの値しか得られないため、事後の補正は不可能。
+        if (!dx.container.matrix && report.frame && PACKED_RGB[report.frame.format]) {
+          report.warnings.push(
+            "コンテナに色変換マトリクスのタグがありません。エンコード時(BT.601等)と" +
+            "ブラウザの復号時(" + (report.frame.matrix || "不明") + ")で係数が食い違う可能性があり、" +
+            "その場合の輝度誤差は実測で約1〜3%です（閾値0.10に対して約3.5%）。");
+        }
         return report;
       });
     });
