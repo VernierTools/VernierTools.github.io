@@ -65,46 +65,46 @@
     <p data-i18n="t.desc">Reproduces how CRTs, VHS tape, and the early web actually degraded an image — by modelling the signal path, not by stacking filters.</p>
   </div>
 
+  <div class="card" id="loadcard" style="margin-bottom:var(--s5)">
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+      <b data-i18n="t.droptitle">Drop a video here</b>
+      <small data-i18n="t.dropsub">MP4, WebM, MOV — nothing leaves your device</small>
+    </div>
+    <input type="file" id="file" accept="video/*" hidden>
+    <div class="filemeta" id="filemeta" hidden></div>
+  </div>
+
+  <div class="card" id="playercard" hidden style="padding:var(--s4);margin-bottom:var(--s5)">
+    <div class="stage" id="stage">
+      <canvas id="out"></canvas>
+    </div>
+    <div class="transport">
+      <button class="btn btn--secondary tbtn" id="play" aria-label="Play">
+        <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <input class="slider scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position">
+      <span class="time" id="time">0:00 / 0:00</span>
+    </div>
+    <div class="btnrow" style="margin-top:var(--s4)">
+      <button class="btn btn--secondary" id="bypass" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span data-i18n="t.bypass">Show original</span>
+      </button>
+      <button class="btn btn--secondary" id="grab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span data-i18n="t.grab">Save frame</span>
+      </button>
+      <button class="btn btn--secondary" id="unload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <span data-i18n="t.unload">Close</span>
+      </button>
+    </div>
+  </div>
+
   <div class="work work--wide">
-    <!-- 左: プレビューと書き出し -->
+    <!-- 左: 書き出し -->
     <div>
-      <div class="card" id="loadcard">
-        <div class="drop" id="drop">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
-          <b data-i18n="t.droptitle">Drop a video here</b>
-          <small data-i18n="t.dropsub">MP4, WebM, MOV — nothing leaves your device</small>
-        </div>
-        <input type="file" id="file" accept="video/*" hidden>
-        <div class="filemeta" id="filemeta" hidden></div>
-      </div>
-
-      <div class="card" id="playercard" hidden style="padding:var(--s4)">
-        <div class="stage" id="stage">
-          <canvas id="out"></canvas>
-        </div>
-        <div class="transport">
-          <button class="btn btn--secondary tbtn" id="play" aria-label="Play">
-            <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <input class="slider scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position">
-          <span class="time" id="time">0:00 / 0:00</span>
-        </div>
-        <div class="btnrow" style="margin-top:var(--s4)">
-          <button class="btn btn--secondary" id="bypass" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-            <span data-i18n="t.bypass">Show original</span>
-          </button>
-          <button class="btn btn--secondary" id="grab">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <span data-i18n="t.grab">Save frame</span>
-          </button>
-          <button class="btn btn--secondary" id="unload">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            <span data-i18n="t.unload">Close</span>
-          </button>
-        </div>
-      </div>
-
       <div class="card exportbar" id="exportcard" hidden>
         <div class="card__title" data-i18n="t.export">Export</div>
         <div class="row2">
