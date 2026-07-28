@@ -216,7 +216,7 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.4</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.6</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
@@ -342,7 +342,7 @@
   /* ⚠ index.html を編集したら必ず上げる。
      画面表示（.chip.ver）とレポートの両方に出るので、
      「反映されていないのか、直っていないのか」を切り分けられる。 */
-  var UI_VERSION = "1.4";
+  var UI_VERSION = "1.6";
 
   var file = null, worker = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
@@ -368,6 +368,108 @@
   /* 各基準の解説。参考枠のものは「なぜ目安にとどめるべきか」を書く。 */
   var refOpen = false;
   var INFO = {
+    jba: {
+      ja: { t: "NHK・民放連ガイドライン",
+        b: "<p>1998年のいわゆる「ポケモンショック」を受けて策定された、"
+         + "日本の放送局向けのガイドラインです。国内でテレビ放送・配信する映像は、"
+         + "実務上まずこれを基準にします。</p>"
+         + "<p><b>原則は1秒間に3回まで。</b>点滅が同時に起こる面積が画面の1/4を超え、"
+         + "かつ輝度変化が10%以上の場合を判定の対象とします。</p>"
+         + "<p>他の2つの放送基準と違い、<b>条件付きの許容規定</b>があります。"
+         + "輝度変化が20%以下に収まる弱い点滅なら、"
+         + "1秒5回まで・連続2秒以内であれば認められます。"
+         + "そのため、同じ映像でもITU-RやOfcomでは抵触し、"
+         + "民放連では通ることがあります。</p>"
+         + "<p>また、点滅とは別に<b>急激な場面転換</b>（画面全体の輝度が20%超変化するカット）も"
+         + "1秒3回までと定めており、本ツールはこれも判定しています。</p>" },
+      en: { t: "NHK / JBA guidelines (Japan)",
+        b: "<p>Japan's broadcast guidelines, written after the 1997 \"Pokémon shock\" incident. "
+         + "Anything broadcast or streamed for a Japanese audience is normally checked against "
+         + "these first.</p>"
+         + "<p><b>The basic limit is three flashes per second.</b> A flash counts when it covers "
+         + "more than a quarter of the screen and the luminance changes by 10% or more.</p>"
+         + "<p>Unlike the other two broadcast standards, it includes a <b>conditional allowance</b>: "
+         + "weaker flashing that stays within a 20% luminance change may run up to five times per "
+         + "second for no more than two continuous seconds. The same footage can therefore fail "
+         + "ITU-R and Ofcom while passing here.</p>"
+         + "<p>It also limits <b>abrupt scene changes</b> — cuts where overall screen luminance "
+         + "shifts by more than 20% — to three per second, which this tool checks as well.</p>" }
+    },
+    itu: {
+      ja: { t: "ITU-R BT.1702-2（国際勧告）",
+        b: "<p>国際電気通信連合（ITU）が定めた、放送における光過敏性発作の"
+         + "低減に関する国際勧告です。各国の放送基準の土台になっています。</p>"
+         + "<p><b>1秒間に3回を超える点滅を避ける</b>という原則で、"
+         + "点滅面積が画面の1/4を超え、かつ暗い側が160cd/m²未満で"
+         + "20cd/m²以上の輝度差がある場合を判定対象とします。"
+         + "輝度によらず、鮮やかな赤への／からの変化も対象です。</p>"
+         + "<p>民放連のような条件付き許容はなく、その分だけ厳格です。</p>"
+         + "<p>なお勧告自身が「テレビは本質的に明滅する媒体であり、"
+         + "光感受性てんかんの方の発作リスクを完全になくすことはできない」"
+         + "と述べています。適合は<b>リスクの低減であって、安全の保証ではありません</b>。</p>" },
+      en: { t: "ITU-R BT.1702-2 (international)",
+        b: "<p>An international recommendation from the ITU on reducing photosensitive seizures "
+         + "in broadcasting. It underpins most national broadcast standards.</p>"
+         + "<p>The rule is to <b>avoid more than three flashes per second</b>, judged when the "
+         + "flashing covers more than a quarter of the screen and the darker state is below "
+         + "160 cd/m² with a difference of 20 cd/m² or more. Transitions to or from saturated red "
+         + "count regardless of luminance.</p>"
+         + "<p>It has no conditional allowance like the Japanese guidelines, so it is stricter "
+         + "in that respect.</p>"
+         + "<p>The recommendation itself notes that television is inherently a flickering medium "
+         + "and that seizure risk cannot be eliminated entirely. Compliance <b>reduces risk; it "
+         + "does not guarantee safety</b>.</p>" }
+    },
+    ofcom: {
+      ja: { t: "Ofcom（英国）",
+        b: "<p>英国の放送規制機関 Ofcom が定める基準です。"
+         + "内容は ITU-R の国際勧告とほぼ同じで、"
+         + "<b>1秒間に3回を超える点滅を避ける</b>ことを求めます。</p>"
+         + "<p>特徴は、<b>規則的なパターン模様（縞模様）についての具体的な数値規定</b>を"
+         + "持っていることです。明暗の縞が5対を超え、静止なら画面の40%超、"
+         + "動くものなら25%超を占める場合を制限しています。"
+         + "本ツールでは、この縞の判定は「参考」欄の空間パターンとして別に表示しています。</p>"
+         + "<p>点滅の判定そのものは ITU-R と同じ結果になります。"
+         + "3基準を並べているのは、どの規制を参照しても通るかを"
+         + "一度に確認できるようにするためです。</p>" },
+      en: { t: "Ofcom (UK)",
+        b: "<p>The UK broadcast regulator's guidance. It closely follows the ITU-R "
+         + "recommendation and asks that content <b>avoid more than three flashes per second</b>.</p>"
+         + "<p>What distinguishes it is <b>concrete numbers for regular patterns (stripes)</b>: "
+         + "more than five light-dark pairs is restricted when the pattern covers over 40% of the "
+         + "screen while static, or over 25% while changing. This tool reports stripe findings "
+         + "separately, under the reference section.</p>"
+         + "<p>For flashing alone it produces the same result as ITU-R. Showing all three "
+         + "standards side by side lets you confirm at a glance whether footage would clear "
+         + "any of these regulators.</p>" }
+    },
+    wcagA: {
+      ja: { t: "WCAG 2.3.1（レベルA）",
+        b: "<p>Webアクセシビリティの基準ですが、動画そのものにも適用されます。"
+         + "次の<b>どちらかを満たせば合格</b>です。</p>"
+         + "<ul><li>点滅が1秒に3回以下であること</li>"
+         + "<li>または、同時に点滅する面積が<b>10度視野の25%以下</b>であること</li></ul>"
+         + "<p>10度視野とは、標準的な視聴距離で画面を見たときに視野の中心10度が占める範囲で、"
+         + "画面いっぱいに表示した場合は<b>画面の3分の1四方</b>に相当します。"
+         + "本ツールはこの<b>全画面表示を前提</b>に判定しています。"
+         + "小さく表示する場合はより緩い判定になるため、全画面前提は安全側の評価です。</p>"
+         + "<p>放送3基準が「画面全体の4分の1」で判定するのに対し、こちらは"
+         + "<b>画面のどこか一部に集中した点滅</b>も捉えます。"
+         + "そのため、画面の隅で激しく点滅する映像は、放送基準を通ってもこちらで抵触することがあります。</p>" },
+      en: { t: "WCAG 2.3.1 (Level A)",
+        b: "<p>A web accessibility criterion that applies to video as well. "
+         + "Content passes if <b>either</b> of the following is true.</p>"
+         + "<ul><li>It flashes no more than three times per second</li>"
+         + "<li>Or the combined area of concurrent flashes is <b>no more than 25% of any "
+         + "10-degree visual field</b></li></ul>"
+         + "<p>A 10-degree field is the central part of your vision at a typical viewing distance — "
+         + "roughly <b>one third of the screen on each side</b> when content fills the display. "
+         + "This tool assumes <b>full-screen viewing</b>. Smaller playback would be judged more "
+         + "leniently, so this assumption errs on the safe side.</p>"
+         + "<p>Unlike the three broadcast standards, which measure against a quarter of the whole "
+         + "screen, this criterion also catches <b>flashing concentrated in one part of the frame</b>. "
+         + "Footage that passes the broadcast standards can still fail here.</p>" }
+    },
     wcagAAA: {
       ja: { t: "WCAG 2.3.2（レベルAAA）",
         b: "<p>W3Cが<b>意図的に極めて厳しく</b>定めた基準です。他の基準にある"
