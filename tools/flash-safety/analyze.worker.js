@@ -114,6 +114,22 @@ function run(buffer, opts, marginPct) {
        規格の「同じものが3回超点滅」を正しく数えるために必要（§4.4）。 */
     var pixCounters = {};
 
+    /* 民放連 1(3) 用: 輝度変化20%（=40cd/m²）以上の「強い」遷移だけを数える検出器。
+       弱い点滅（10〜20%）は2秒以内なら5回/秒まで許容されるため、
+       強弱を分けないと条件付き許容を判定できない。 */
+    detectors["jbaStrong"] = {
+      official: new A.TransitionDetector(n, {
+        ctd: 0.20, darkMax: 0.80, eligibleMs: 66, histLen: histLen
+      }),
+      margin: new A.TransitionDetector(n, {
+        ctd: 0.20 * (1 - marginPct / 100), darkMax: 0.80, eligibleMs: 66, histLen: histLen
+      })
+    };
+
+    /* 民放連 2. 急激な場面転換の検出用（画面全体の平均輝度が20%超変化） */
+    var prevMeanY = null;
+    var sceneCuts = [];
+
     /* Michelson 分岐を持つグループ（2024年提案が使う） */
     var MICH = 1 / 17;
     detectors["mich"] = {
@@ -133,6 +149,7 @@ function run(buffer, opts, marginPct) {
       };
     });
     var redPixCounter = new PixelFlashCounter(n, 1000000);
+
 
     /* 赤閃光用。⚠ 赤成分比の「変化量」ではなく、飽和赤（≥0.8）状態への／からの
        遷移で判定する（§3.4）。変化量方式では白黒点滅が赤閃光に化ける。 */
@@ -184,6 +201,11 @@ function run(buffer, opts, marginPct) {
              間接参照するため JIT の最適化が効かず、実測で
              単体2回=16ms に対し Multi=75ms と逆に遅くなった。
              単純なループを2回まわす方が速い。 */
+          /* ⚠ かつてここで全体の平行移動（スクロール）を推定し、
+             「動いただけ」の画素を閃光から除外する実装を試みたが、**撤回した**。
+             理由は §4.5 に記録。周期的なパターン（テキスト行など）では
+             移動量が一意に定まらず（dy=1 と dy=19 が同じ残差になる）、
+             誤った補償で**本物の点滅を消す危険**があったため。 */
           EOTF_GROUPS.forEach(function (eo) {
             var pl = A.toLinearPlanes(buf, meta, { dstW: size.w, dstH: size.h, eotf: eo });
             if (!pl) return;
@@ -223,6 +245,32 @@ function run(buffer, opts, marginPct) {
                 rec["area:" + eo + ":" + kind] = areaInfo(det.maskUp, det.maskDown, size);
               }
             });
+
+            /* 民放連 1(3) 用の強い遷移（bt1886 のみ） */
+            if (eo === "bt1886") {
+              ["official", "margin"].forEach(function (kind) {
+                var sd = detectors["jbaStrong"][kind];
+                sd.step(pl.lum, tUs);
+                var su = countMask(sd.maskUp), sdn = countMask(sd.maskDown);
+                rec.up["jbaStrong:" + kind] = su;
+                rec.down["jbaStrong:" + kind] = sdn;
+                if (su.n || sdn.n) {
+                  rec["area:jbaStrong:" + kind] = areaInfo(sd.maskUp, sd.maskDown, size);
+                }
+              });
+
+              /* 民放連 2. 急激な場面転換: 画面全体の平均輝度が20%超変化したフレーム */
+              var sum = 0;
+              for (var mi = 0; mi < pl.lum.length; mi++) sum += pl.lum[mi];
+              var meanY = sum / pl.lum.length;
+              if (prevMeanY !== null) {
+                var dY = meanY - prevMeanY;
+                if (dY < 0) dY = -dY;
+                if (dY > 0.20) sceneCuts.push(tUs);
+              }
+              prevMeanY = meanY;
+              rec.sceneCut = sceneCuts.length ? sceneCuts[sceneCuts.length - 1] === tUs : false;
+            }
 
             /* 2024年提案用（Michelson 分岐あり）。EOTF は bt1886 を使う。 */
             if (eo === "bt1886") {
@@ -565,6 +613,8 @@ function evaluate(id, records, size, n, marginPct) {
   };
 
   var winOfficial = [], winMargin = [], winRed = [];
+  var winStrong = [], winCuts = [];              // 民放連 1(3) / 2 用
+  var weakRunStart = null, weakRunLast = 0;
   var curSpan = null;
 
   for (var i = 0; i < records.length; i++) {
@@ -612,13 +662,54 @@ function evaluate(id, records, size, n, marginPct) {
     }
 
     var cOff = winOfficial.length, cMg = winMargin.length, cRed = winRed.length;
+
+    /* ---- 民放連 1(3) の条件付き許容 ----
+       輝度変化が10〜20%の弱い点滅は、2秒以内かつ5回/秒までなら許容される。
+       強い点滅（20%超）は原則どおり3回/秒まで。 */
+    if (id === "jba" && std.conditional) {
+      var cond = std.conditional;
+      var strongUp = (r.up["jbaStrong:official"] || { n: 0 }).n;
+      var strongDn = (r.down["jbaStrong:official"] || { n: 0 }).n;
+      var strongArea = r["area:jbaStrong:official"];
+      if ((strongUp > 0 || strongDn > 0) && areaPasses(std, strongArea, size, false)) {
+        winStrong.push(t);
+      }
+      while (winStrong.length && winStrong[0] <= lo) winStrong.shift();
+
+      /* 弱い点滅だけが基準を超えている状態が続いた時間を測る */
+      if (cOff > std.maxTransitionsPerSec) {
+        if (weakRunStart === null) weakRunStart = t;
+        weakRunLast = t;
+      } else {
+        weakRunStart = null;
+      }
+      var weakRunUs = (weakRunStart !== null) ? (weakRunLast - weakRunStart) : 0;
+
+      var strongExceeds = winStrong.length > std.maxTransitionsPerSec;   // 20%超が3回/秒超
+      var redPresent = cond.requiresNoRedFlash && cRed > 0;
+      var tooMany = cOff > cond.maxTransitions;                          // 5回/秒超
+      var tooLong = weakRunUs > cond.maxDurationUs;                      // 連続2秒超
+
+      /* 条件付き許容が効くのは、強い点滅も赤も無く、5回/秒以内で2秒以内のときだけ */
+      var allowed = !strongExceeds && !redPresent && !tooMany && !tooLong;
+      if (allowed) {
+        cOff = Math.min(cOff, std.maxTransitionsPerSec);   // 抵触に至らない扱い
+        if (cMg > std.maxTransitionsPerSec) cMg = std.maxTransitionsPerSec + 1;  // 要注意は残す
+      }
+    }
+
+    /* ---- 民放連 2. 急激な場面転換 ---- */
+    if (id === "jba" && std.sceneCut && r.sceneCut) winCuts.push(t);
+    while (winCuts.length && winCuts[0] <= lo) winCuts.shift();
+    var cutsExceed = (id === "jba" && std.sceneCut) &&
+                     winCuts.length > std.sceneCut.maxPerSec;
     if (cOff > out.maxTransitions) out.maxTransitions = cOff;
     out.seriesT.push(t);
     out.seriesC.push(cOff > cRed ? cOff : cRed);
 
     var lim = std.maxTransitionsPerSec;      // 6（=1秒3回の点滅）
     var level = 0;
-    if (cOff > lim || cRed > lim) level = 2;
+    if (cOff > lim || cRed > lim || cutsExceed) level = 2;
     else if (cMg > lim) level = 1;
     // 持続性による要注意（§7.3 警告A / ITUの5秒注記）
     else if (cOff >= 4) level = Math.max(level, sustained(winOfficial) ? 1 : 0);
