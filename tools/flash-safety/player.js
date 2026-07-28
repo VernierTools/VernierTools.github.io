@@ -16,7 +16,7 @@
      index.html のバージョンだけでは、player.js が古いキャッシュのままでも
      気づけない（実際にレーン分離が反映されない事例が発生した）。
      レポートに出るので、どのファイルが古いのかを切り分けられる。 */
-  var PLAYER_VERSION = "1.4";
+  var PLAYER_VERSION = "1.6";
 
   var LEVEL_NONE = 0, LEVEL_CAUTION = 1, LEVEL_FAIL = 2;
 
@@ -531,6 +531,8 @@
        WCAG 2.3.2・2024年提案・空間パターンは、抵触が出ても
        ただちに実用上の危険を意味しないため、視覚的に切り離す。 */
     var REF_IDS = { wcagAAA: 1, proposal2024: 1, pattern: 1 };
+    /* i マークを出すレーン（参考枠に限らない。解説がある基準すべて） */
+    var INFO_IDS = { jba: 1, itu: 1, ofcom: 1, wcagA: 1, wcagAAA: 1, proposal2024: 1, pattern: 1 };
     var mainLanes = [], refLanes = [];
     lanes.forEach(function (l) {
       if (REF_IDS[l.id] || l.reference) refLanes.push(l); else mainLanes.push(l);
@@ -665,7 +667,7 @@
 
       /* 参考レーンには i マークを出し、判定コーナーと同じ解説を開けるようにする。
          canvas なので当たり判定を自前で持つ（this._infoHits）。 */
-      var showInfo = !!(lane.reference || REF_IDS[lane.id]) && !!infoFn();
+      var showInfo = !!INFO_IDS[lane.id] && !!infoFn();
       var iR = narrow ? 5.5 : 6.5;
       var iCx = padL - 6 - iR;
       var iCy = y + laneH / 2;
