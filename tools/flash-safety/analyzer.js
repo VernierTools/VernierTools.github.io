@@ -365,6 +365,12 @@
     }
     return true;
   };
+  /* 平行移動で説明できる画素を除外するためのマスクを設定する。
+     motionMask[i] が 1 の画素は「動いただけ」とみなし、遷移として数えない。
+     呼び出し側（worker）が毎フレーム設定する。null なら無効。 */
+  TransitionDetector.prototype.setMotionMask = function (mask) {
+    this.motionMask = mask || null;
+  };
   TransitionDetector.prototype.step = function (lum, tUs) {
     if (!this.started) {
       this.reset(lum, tUs);
@@ -398,6 +404,13 @@
       } else if (this.michelson) {
         var denom = hi + lo;
         passesMagnitude = denom > 1e-9 && ((hi - lo) / denom) >= this.michelson;
+      }
+
+      /* 前フレームを平行移動しただけで説明できる変化は閃光ではない（§4.5）。
+         基準値だけ追従させて、遷移としては数えない。 */
+      if (passesMagnitude && this.motionMask && this.motionMask[i]) {
+        S[i] = cur;
+        continue;
       }
 
       if (passesMagnitude) {
@@ -467,11 +480,31 @@
 
   /* SDR: ピーク白 200 cd/m² 前提。20cd/m² = 相対輝度 0.10、160cd/m² = 0.80 */
   var STANDARDS = {
+    /* NHK・民放連「アニメーション等の映像手法に関するガイドライン」
+       他の2基準と異なり、条件付き許容の規定を持つ（原文 1(3)）:
+
+         1(2) 面積が画面の1/4超 かつ 輝度変化10%以上 を基準とする
+         1(3) 1(1)（鮮やかな赤の点滅を慎重に扱う）を満たしたうえで
+              1(2)の基準を超える場合、点滅は1秒5回を限度とし、
+              輝度変化を20%以下に抑え、連続2秒を超えて使用しない
+
+       すなわち輝度変化が10〜20%の弱い点滅は、2秒以内なら5回/秒まで許容される。
+       ⚠ この条項を実装しないと、民放連が許容する映像まで抵触と判定してしまう。 */
     jba: {
       label: { ja: "NHK・民放連", en: "Japanese TV (NHK/JBA)" },
       eotf: "bt1886", ctd: 0.10, darkMax: 0.80,
       area: { mode: "global", ratio: 0.25 },
-      maxTransitionsPerSec: 6
+      maxTransitionsPerSec: 6,
+      /* 条件付き許容（1(3)） */
+      conditional: {
+        strongCtd: 0.20,          // 輝度変化20%（=40cd/m²）を超えると許容されない
+        maxTransitions: 10,       // 1秒5回まで（=10遷移）
+        maxDurationUs: 2000000,   // 連続2秒まで
+        requiresNoRedFlash: true  // 飽和赤の点滅を含まないこと（1(1)の保守的解釈）
+      },
+      /* 2. コントラストの強い画面の反転や、輝度変化が20%を超える急激な
+         場面転換は、原則として1秒間に3回を超えて使用しない */
+      sceneCut: { deltaY: 0.20, maxPerSec: 3 }
     },
     itu: {
       label: { ja: "ITU-R BT.1702-2", en: "ITU-R BT.1702-2 (Intl.)" },
