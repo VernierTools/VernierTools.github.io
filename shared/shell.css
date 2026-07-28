@@ -81,10 +81,13 @@ button{ font-family:inherit; }
 .tb-brand__mark{ width:18px; height:12px; position:relative; flex:0 0 auto; }
 .tb-brand__mark::before{ content:""; position:absolute; left:0; top:50%; width:18px; height:2px; background:currentColor;
   border-radius:2px; transform:translateY(-50%); box-shadow:0 -5px 0 currentColor, 0 5px 0 currentColor; }
-.tb-brandmenu{ display:none; position:absolute; top:100%; left:0; margin-top:8px; z-index:30;
+.tb-brandmenu{ display:flex; position:absolute; top:100%; left:0; margin-top:8px; z-index:30;
   flex-direction:column; gap:2px; min-width:190px; padding:6px;
-  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md); }
-.tb-brandmenu.open{ display:flex; }
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md);
+  opacity:0; visibility:hidden; transform:translateY(-6px) scale(.98);
+  transition:opacity var(--tap), transform var(--tap), visibility 0s linear var(--tap); }
+.tb-brandmenu.open{ opacity:1; visibility:visible; transform:translateY(0) scale(1);
+  transition:opacity var(--tap), transform var(--tap), visibility 0s linear 0s; }
 .tb-brandmenu a{ font-size:13px; color:var(--text-2); padding:8px 10px; border-radius:var(--r-sm); transition:background var(--tap), color var(--tap); }
 .tb-brandmenu a:hover{ background:var(--surface-2); color:var(--text); }
 .tb-brandmenu a[aria-current="page"]{ color:var(--text); background:var(--accent-tint); }
@@ -112,9 +115,12 @@ button{ font-family:inherit; }
 .tb-menu{ display:none; }
 @media (max-width:760px){
   .tb-nav{ display:none; }
-  .tb-menu{ display:none; position:absolute; top:73px; left:0; right:0; background:var(--surface);
-    border-bottom:1px solid var(--border); padding:var(--s3) var(--s5); flex-direction:column; gap:2px; }
-  .tb-menu.open{ display:flex; }
+  .tb-menu{ display:flex; position:absolute; top:73px; left:0; right:0; background:var(--surface);
+    border-bottom:1px solid var(--border); padding:var(--s3) var(--s5); flex-direction:column; gap:2px;
+    opacity:0; visibility:hidden; transform:translateY(-8px);
+    transition:opacity var(--tap), transform var(--tap), visibility 0s linear var(--tap); }
+  .tb-menu.open{ opacity:1; visibility:visible; transform:translateY(0);
+    transition:opacity var(--tap), transform var(--tap), visibility 0s linear 0s; }
   .tb-menu a{ padding:10px; border-radius:var(--r-sm); color:var(--text-2); }
   .tb-menu a:hover{ background:var(--surface-2); color:var(--text); }
   .tb-seg{ display:none; } /* 単位は狭幅では設定メニュー相当に隠す（必要なツールが自前表示可） */
