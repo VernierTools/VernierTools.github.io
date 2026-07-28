@@ -216,7 +216,7 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.6</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipWip">開発中プレビュー</span><span class="chip ver">1.7</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">これは完成版ではありません。閃光（輝度・赤）の検出、空間パターン（縞模様）の参考検出、5基準の並列判定、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。</p>
   </div>
@@ -342,7 +342,7 @@
   /* ⚠ index.html を編集したら必ず上げる。
      画面表示（.chip.ver）とレポートの両方に出るので、
      「反映されていないのか、直っていないのか」を切り分けられる。 */
-  var UI_VERSION = "1.6";
+  var UI_VERSION = "1.7";
 
   var file = null, worker = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
@@ -370,7 +370,7 @@
   var INFO = {
     jba: {
       ja: { t: "NHK・民放連ガイドライン",
-        b: "<p>1998年のいわゆる「ポケモンショック」を受けて策定された、"
+        b: "<p>1997年のいわゆる「ポリゴンショック」を受けて1998年に策定された、"
          + "日本の放送局向けのガイドラインです。国内でテレビ放送・配信する映像は、"
          + "実務上まずこれを基準にします。</p>"
          + "<p><b>原則は1秒間に3回まで。</b>点滅が同時に起こる面積が画面の1/4を超え、"
@@ -383,9 +383,9 @@
          + "<p>また、点滅とは別に<b>急激な場面転換</b>（画面全体の輝度が20%超変化するカット）も"
          + "1秒3回までと定めており、本ツールはこれも判定しています。</p>" },
       en: { t: "NHK / JBA guidelines (Japan)",
-        b: "<p>Japan's broadcast guidelines, written after the 1997 \"Pokémon shock\" incident. "
-         + "Anything broadcast or streamed for a Japanese audience is normally checked against "
-         + "these first.</p>"
+        b: "<p>Japan's broadcast guidelines, drafted in 1998 after the 1997 \"Polygon shock\" "
+         + "incident. Anything broadcast or streamed for a Japanese audience is normally checked "
+         + "against these first.</p>"
          + "<p><b>The basic limit is three flashes per second.</b> A flash counts when it covers "
          + "more than a quarter of the screen and the luminance changes by 10% or more.</p>"
          + "<p>Unlike the other two broadcast standards, it includes a <b>conditional allowance</b>: "
