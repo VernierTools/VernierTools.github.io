@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="../../shared/shell.css">
 <style>
   .stage{ position:relative; background:#000; border:1px solid var(--border); border-radius:var(--r-lg);
-    overflow:hidden; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; }
-  .stage canvas{ display:block; max-width:100%; max-height:100%; }
+    overflow:hidden; aspect-ratio:4/3; width:100%; display:flex; align-items:center; justify-content:center; }
+  .stage canvas{ display:block; width:100%; height:100%; }
   .stage__empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:var(--s2); color:var(--text-3); font-size:13px; text-align:center; padding:var(--s5); }
   .stage__empty svg{ width:28px; height:28px; }
@@ -917,30 +917,44 @@ function drawResponse(o){
 /* =========================================================================
    7. 読み込み・再生・書き出し
    ========================================================================= */
-var playing = false, rafId = 0;
-function loadVideo(file){
-  if (vid){ URL.revokeObjectURL(vid.src); vid.remove(); }
+var playing = false, rafId = 0, curURL = null, pendingFile = null;
+
+/* 動画要素は起動時に1つだけ作り、以後は src を差し替えて使い回す。
+   毎回 <video> を作り直すと（DOM未接続の使い捨て要素だと特に）2つめ以降の
+   loadedmetadata が安定して発火しないブラウザがあるため。 */
+function initVideoEl(){
   vid = document.createElement("video");
   vid.muted = true; vid.playsInline = true; vid.preload = "auto"; vid.loop = true;
-  vid.src = URL.createObjectURL(file);
+  vid.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px";
+  document.body.appendChild(vid);
   vid.addEventListener("loadedmetadata", function(){
+    var file = pendingFile; pendingFile = null;
     var vw = vid.videoWidth, vh = vid.videoHeight;
     var cap = 1024, s = Math.min(1, cap/vw);
     dispW = Math.max(2, Math.round(vw*s/2)*2); dispH = Math.max(2, Math.round(vh*s/2)*2);
     cv.width = dispW; cv.height = dispH;
     $("stage").style.aspectRatio = dispW + "/" + dispH;
     allocTargets();
+    frameNo = 0; prevIdx = 0;
     ready = true;
     $("loadcard").hidden = true; $("playercard").hidden = false; $("exportcard").hidden = false;
     $("filemeta").hidden = false;
     $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + vw + "×" + vh + '</span>' +
       '<span class="badge badge--muted"><span class="d"></span>' + fmtTime(vid.duration) + '</span>' +
-      '<span class="badge badge--muted"><span class="d"></span>' + esc(file.name) + '</span>';
+      '<span class="badge badge--muted"><span class="d"></span>' + esc(file ? file.name : "") + '</span>';
     updateReadout();
     vid.currentTime = 0;
   });
   vid.addEventListener("seeked", function(){ tick(true); });
   vid.addEventListener("timeupdate", updateTransport);
+}
+function loadVideo(file){
+  setPlaying(false); ready = false;
+  if (curURL){ URL.revokeObjectURL(curURL); curURL = null; }
+  pendingFile = file;
+  curURL = URL.createObjectURL(file);
+  vid.src = curURL;
+  vid.load();
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 function fmtTime(t){ t = t||0; var m = Math.floor(t/60), s = Math.floor(t%60); return m + ":" + (s<10?"0":"") + s; }
@@ -1022,7 +1036,7 @@ function note(el, msg, warn){ el.hidden = false; el.textContent = msg; el.style.
    8. 配線
    ========================================================================= */
 $("drop").addEventListener("click", function(){ $("file").click(); });
-$("file").addEventListener("change", function(e){ if (e.target.files[0]) loadVideo(e.target.files[0]); });
+$("file").addEventListener("change", function(e){ if (e.target.files[0]) loadVideo(e.target.files[0]); e.target.value = ""; });
 ["dragenter","dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("dragover"); }); });
 ["dragleave","drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); }); });
 $("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) loadVideo(f); });
@@ -1033,6 +1047,9 @@ $("bypass").addEventListener("click", function(){
 });
 $("unload").addEventListener("click", function(){
   setPlaying(false); ready = false;
+  if (curURL){ URL.revokeObjectURL(curURL); curURL = null; }
+  vid.removeAttribute("src"); vid.load();
+  $("file").value = "";
   $("loadcard").hidden = false; $("playercard").hidden = true; $("exportcard").hidden = true;
 });
 $("grab").addEventListener("click", function(){
@@ -1170,6 +1187,7 @@ Shell.init({
 if (!initGL()){
   $("loadcard").innerHTML = '<div class="badge badge--neg"><span class="d"></span>' + Shell.t("t.nogl") + '</div>';
 } else {
+  initVideoEl();
   $("modenote").textContent = Shell.t("t.note." + mode);
   buildPresets(); buildParams(); updateReadout();
 }
