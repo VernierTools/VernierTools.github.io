@@ -29,6 +29,10 @@
   .pgroup__head button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit;
     font-size:11px; color:var(--text-3); padding:2px 6px; border-radius:var(--r-sm); }
   .pgroup__head button:hover{ color:var(--text-2); background:var(--surface-2); }
+  .pgroup__body{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:0 var(--s6); }
+
+  .sigrow{ display:grid; grid-template-columns:1.3fr 1fr; gap:var(--s5); align-items:start; margin-bottom:var(--s7); }
+  @media (max-width:760px){ .sigrow{ grid-template-columns:1fr; } }
 
   .prow{ margin-bottom:var(--s3); }
   .prow:last-child{ margin-bottom:0; }
@@ -52,7 +56,6 @@
   .fig figcaption{ font-size:11px; color:var(--text-3); margin-top:5px; }
 
   @media (max-width:760px){
-    .work{ gap:var(--s4); }
     .stage{ aspect-ratio:16/10; }
   }
 </style>
@@ -63,6 +66,38 @@
     <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
     <h1 data-i18n="t.title">Retro graphics converter</h1>
     <p data-i18n="t.desc">Reproduces how CRTs, VHS tape, and the early web actually degraded an image — by modelling the signal path, not by stacking filters.</p>
+  </div>
+
+  <div class="card exportbar" id="exportcard" hidden style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.export">Export</div>
+    <div class="row2">
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="ex-fps" data-i18n="t.exfps">Frame rate</label>
+        <select class="select" id="ex-fps">
+          <option value="0">Source</option>
+          <option value="59.94">59.94</option>
+          <option value="29.97">29.97</option>
+          <option value="24">24</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="ex-mbps" data-i18n="t.exrate">Bitrate</label>
+        <select class="select" id="ex-mbps">
+          <option value="4">4 Mbps</option>
+          <option value="8" selected>8 Mbps</option>
+          <option value="16">16 Mbps</option>
+          <option value="32">32 Mbps</option>
+        </select>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button class="btn btn--primary btn--block" id="render">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        <span data-i18n="t.render">Export WebM</span>
+      </button>
+    </div>
+    <div class="prog" id="prog" hidden><div class="prog__fill" id="progfill"></div></div>
+    <div class="prow__note" id="exnote" hidden></div>
   </div>
 
   <div class="card" id="loadcard" style="margin-bottom:var(--s5)">
@@ -102,80 +137,44 @@
     </div>
   </div>
 
-  <div class="work work--wide">
-    <!-- 左: 書き出し -->
-    <div>
-      <div class="card exportbar" id="exportcard" hidden>
-        <div class="card__title" data-i18n="t.export">Export</div>
-        <div class="row2">
-          <div class="field" style="margin-bottom:0">
-            <label class="label" for="ex-fps" data-i18n="t.exfps">Frame rate</label>
-            <select class="select" id="ex-fps">
-              <option value="0">Source</option>
-              <option value="59.94">59.94</option>
-              <option value="29.97">29.97</option>
-              <option value="24">24</option>
-            </select>
-          </div>
-          <div class="field" style="margin-bottom:0">
-            <label class="label" for="ex-mbps" data-i18n="t.exrate">Bitrate</label>
-            <select class="select" id="ex-mbps">
-              <option value="4">4 Mbps</option>
-              <option value="8" selected>8 Mbps</option>
-              <option value="16">16 Mbps</option>
-              <option value="32">32 Mbps</option>
-            </select>
-          </div>
-        </div>
-        <div class="btnrow">
-          <button class="btn btn--primary btn--block" id="render">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
-            <span data-i18n="t.render">Export WebM</span>
-          </button>
-        </div>
-        <div class="prog" id="prog" hidden><div class="prog__fill" id="progfill"></div></div>
-        <div class="prow__note" id="exnote" hidden></div>
-      </div>
+  <div class="badges" id="badges" style="margin-bottom:var(--s5)"></div>
 
-      <div class="badges" id="badges"></div>
+  <div class="card" style="margin-bottom:var(--s5)">
+    <div class="row2">
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="mode" data-i18n="t.mode">Degradation model</label>
+        <select class="select" id="mode">
+          <option value="crt" data-i18n="t.m.crt">CRT display</option>
+          <option value="vhs" data-i18n="t.m.vhs">VHS tape</option>
+          <option value="net" data-i18n="t.m.net">Early web</option>
+        </select>
+        <div class="prow__note" id="modenote"></div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="preset" data-i18n="t.preset">Preset</label>
+        <select class="select" id="preset"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="params" style="margin-bottom:var(--s5)"></div>
+
+  <div class="sigrow">
+    <div class="readout">
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.signal">Signal</span></div>
+      <div class="rrow"><span class="rrow__label" data-i18n="t.r.hres">Horizontal resolution</span>
+        <span class="rrow__value" id="r-hres" data-copy="">—</span></div>
+      <div class="rrow"><span class="rrow__label" data-i18n="t.r.cres">Chroma resolution</span>
+        <span class="rrow__value" id="r-cres" data-copy="">—</span></div>
+      <div class="rrow"><span class="rrow__label" data-i18n="t.r.fs">Sample rate</span>
+        <span class="rrow__value" id="r-fs" data-copy="">—</span></div>
+      <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
     </div>
 
-    <!-- 右: モードとパラメータ -->
-    <div>
-      <div class="card">
-        <div class="field">
-          <label class="label" for="mode" data-i18n="t.mode">Degradation model</label>
-          <select class="select" id="mode">
-            <option value="crt" data-i18n="t.m.crt">CRT display</option>
-            <option value="vhs" data-i18n="t.m.vhs">VHS tape</option>
-            <option value="net" data-i18n="t.m.net">Early web</option>
-          </select>
-          <div class="prow__note" id="modenote"></div>
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label class="label" for="preset" data-i18n="t.preset">Preset</label>
-          <select class="select" id="preset"></select>
-        </div>
-      </div>
-
-      <div class="card" id="params"></div>
-
-      <div class="readout" style="margin-top:var(--s4)">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.signal">Signal</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.r.hres">Horizontal resolution</span>
-          <span class="rrow__value" id="r-hres" data-copy="">—</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.r.cres">Chroma resolution</span>
-          <span class="rrow__value" id="r-cres" data-copy="">—</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.r.fs">Sample rate</span>
-          <span class="rrow__value" id="r-fs" data-copy="">—</span></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
-      </div>
-
-      <figure class="fig">
-        <canvas id="resp" width="600" height="128"></canvas>
-        <figcaption id="respcap" data-i18n="t.respcap">Frequency response of the horizontal filter, 0–6 MHz.</figcaption>
-      </figure>
-    </div>
+    <figure class="fig">
+      <canvas id="resp" width="600" height="128"></canvas>
+      <figcaption id="respcap" data-i18n="t.respcap">Frequency response of the horizontal filter, 0–6 MHz.</figcaption>
+    </figure>
   </div>
 </main>
 
@@ -817,7 +816,8 @@ function buildParams(){
   var box = $("params"), html = "";
   GROUPS[mode].forEach(function(g){
     html += '<div class="pgroup"><div class="pgroup__head"><span class="eyebrow">' +
-            Shell.t("g." + g) + '</span><button data-rg="' + g + '">' + Shell.t("t.resetg") + '</button></div>';
+            Shell.t("g." + g) + '</span><button data-rg="' + g + '">' + Shell.t("t.resetg") + '</button></div>' +
+            '<div class="pgroup__body">';
     DEFS[mode].filter(function(p){ return p.g === g; }).forEach(function(p){
       html += '<div class="prow" data-k="' + p.k + '"><div class="prow__top">' +
               '<span class="prow__lbl">' + Shell.t("p." + p.k) + '</span>' +
@@ -834,7 +834,7 @@ function buildParams(){
       if (note !== "n." + p.k) html += '<div class="prow__note">' + note + '</div>';
       html += '</div>';
     });
-    html += '</div>';
+    html += '</div></div>';
   });
   box.innerHTML = html;
   box.querySelectorAll("[data-p]").forEach(function(el){
