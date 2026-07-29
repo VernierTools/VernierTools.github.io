@@ -39,9 +39,13 @@ self.onmessage = function (e) {
 
   var opts = msg.options || {};
   var marginPct = opts.marginPct == null ? 10 : opts.marginPct;
+  /* 想定再生速度のシミュレーション（1x=等速・シミュレーションなし）。
+     動画を実際に速く再生するのではなく、判定側の時間窓を圧縮することで
+     倍速視聴時に体感する点滅の速さを再現する（§4.6）。 */
+  var speedFactor = opts.speedFactor > 0 ? opts.speedFactor : 1;
   var t0 = now();
 
-  run(msg.buffer, opts, marginPct).then(function (result) {
+  run(msg.buffer, opts, marginPct, speedFactor).then(function (result) {
     result.elapsedMs = Math.round(now() - t0);
     self.postMessage({ ok: true, result: result });
   }).catch(function (err) {
@@ -51,7 +55,7 @@ self.onmessage = function (e) {
 
 function now() { return (self.performance && performance.now) ? performance.now() : Date.now(); }
 
-function run(buffer, opts, marginPct) {
+function run(buffer, opts, marginPct, speedFactor) {
   return FSDecode.demux(buffer).then(function (dx) {
 
     /* ---- ① 色空間の判定。HDR / 判定不能なら解析しない（§2.3） ---- */
@@ -79,7 +83,11 @@ function run(buffer, opts, marginPct) {
        （ガイドラインが問題にするのは5〜12対）の計数には十分。 */
     var patSize = analysisSize(dx.width, dx.height, opts.patternLongSide || 720);
     var fps = dx.fpsMeasured || 30;
-    var histLen = Math.max(2, Math.ceil(66 * fps / 1000) + 1);
+    /* ⚠ 履歴バッファ長（適格継続時間66ms相当のフレーム数）は速度倍で拡張する。
+       倍速視聴では、体感66msの間に元動画のフレームがより多く含まれるため
+       （実測: 30fps・3倍速で66ms相当は7フレーム、等速では3フレーム）。
+       ここを固定のままにすると、高速点滅の適格継続時間判定が壊れる。 */
+    var histLen = Math.max(2, Math.ceil(66 * fps * speedFactor / 1000) + 1);
 
     // 基準ごとの実効パラメータ（マージン適用後）
     var stdIds = Object.keys(A.STANDARDS);
@@ -193,8 +201,14 @@ function run(buffer, opts, marginPct) {
             layout: layout
           };
           var tUs = frame.timestamp;
+          /* 想定再生速度のシミュレーション用。
+             ⚠ 実際に再生速度を変えているのではなく、判定側の「1秒」の
+                物差しを圧縮して、倍速視聴時に体感する点滅の速さを再現する。
+                プレビュー同期(rec.t)には元の実時刻を使い、
+                判定用の時間窓(rec.tRate)だけ速度で圧縮する。 */
+          var tRate = tUs / speedFactor;
 
-          var rec = { t: tUs, up: {}, down: {}, red: 0, redUp: 0, maxDelta: 0 };
+          var rec = { t: tUs, tRate: tRate, up: {}, down: {}, red: 0, redUp: 0, maxDelta: 0 };
 
           /* ⚠ EOTF をまとめて処理する toLinearPlanesMulti は採用しない。
              1回の走査で済むように見えるが、内側ループで配列の配列を
@@ -212,7 +226,7 @@ function run(buffer, opts, marginPct) {
 
             ["official", "margin"].forEach(function (kind) {
               var det = detectors[eo][kind];
-              det.step(pl.lum, tUs);
+              det.step(pl.lum, tRate);
               var up = countMask(det.maskUp), dn = countMask(det.maskDown);
               rec.up[eo + ":" + kind] = up;
               rec.down[eo + ":" + kind] = dn;
@@ -237,7 +251,7 @@ function run(buffer, opts, marginPct) {
 
               /* 画素ごとの1秒窓カウント（規格の「同じものが3回超」用） */
               rec["pix:" + eo + ":" + kind] =
-                pixCounters[eo][kind].push(mu, md2, tUs);
+                pixCounters[eo][kind].push(mu, md2, tRate);
               /* 面積は official / margin それぞれのマスクから別々に求める。
                  margin の方が遷移が多く検出されるため、official のマスクを
                  流用すると面積を過小評価し、マージン判定が甘くなる。 */
@@ -250,7 +264,7 @@ function run(buffer, opts, marginPct) {
             if (eo === "bt1886") {
               ["official", "margin"].forEach(function (kind) {
                 var sd = detectors["jbaStrong"][kind];
-                sd.step(pl.lum, tUs);
+                sd.step(pl.lum, tRate);
                 var su = countMask(sd.maskUp), sdn = countMask(sd.maskDown);
                 rec.up["jbaStrong:" + kind] = su;
                 rec.down["jbaStrong:" + kind] = sdn;
@@ -266,7 +280,7 @@ function run(buffer, opts, marginPct) {
               if (prevMeanY !== null) {
                 var dY = meanY - prevMeanY;
                 if (dY < 0) dY = -dY;
-                if (dY > 0.20) sceneCuts.push(tUs);
+                if (dY > 0.20) sceneCuts.push(tRate);
               }
               prevMeanY = meanY;
               rec.sceneCut = sceneCuts.length ? sceneCuts[sceneCuts.length - 1] === tUs : false;
@@ -276,12 +290,12 @@ function run(buffer, opts, marginPct) {
             if (eo === "bt1886") {
               ["official", "margin"].forEach(function (kind) {
                 var md = detectors["mich"][kind];
-                md.step(pl.lum, tUs);
+                md.step(pl.lum, tRate);
                 var mup = countMask(md.maskUp), mdn = countMask(md.maskDown);
                 rec.up["mich:" + kind] = mup;
                 rec.down["mich:" + kind] = mdn;
                 rec["pix:mich:" + kind] =
-                  pixCounters["mich"][kind].push(md.maskUp, md.maskDown, tUs);
+                  pixCounters["mich"][kind].push(md.maskUp, md.maskDown, tRate);
                 if (mup.n || mdn.n) {
                   rec["area:mich:" + kind] = areaInfo(md.maskUp, md.maskDown, size);
                 }
@@ -291,29 +305,32 @@ function run(buffer, opts, marginPct) {
             // 空間パターン（bt1886 のときだけ・0.15秒間隔）
             // ⚠ パターン専用の高解像度バッファを別に作る。輝度用(480px)を
             //    流用すると細かい縞が縮小段階で潰れる。
-            if (eo === "bt1886" && patternOn && (tUs - lastPatUs) >= 150000) {
-              lastPatUs = tUs;
+            /* パターン検出のサンプリング間隔・継続判定も tRate（体感時間）で揃える。
+               倍速視聴では同じ0.5秒の縞模様が、元動画では0.5*speed秒ぶん
+               表示され続けていることになるため。 */
+            if (eo === "bt1886" && patternOn && (tRate - lastPatUs) >= 150000) {
+              lastPatUs = tRate;
               try {
                 var plPat = (patSize.w === size.w && patSize.h === size.h)
                   ? pl
                   : A.toLinearPlanes(buf, meta, { dstW: patSize.w, dstH: patSize.h, eotf: "bt1886" });
                 var pr = FSFft.detectGlobal(plPat.lum, patSize.w, patSize.h, {});
                 if (pr) {
-                  patTracker.push(pr.phase, tUs);
-                  patSamples.push({ t: tUs, pairs: pr.pairs, theta: pr.theta,
+                  patTracker.push(pr.phase, tRate);
+                  patSamples.push({ t: tRate, pairs: pr.pairs, theta: pr.theta,
                                     brightest: pr.brightest, contrast: pr.contrast });
                 } else {
-                  patSamples.push({ t: tUs, pairs: 0 });
+                  patSamples.push({ t: tRate, pairs: 0 });
                 }
               } catch (e) { /* パターン検出の失敗で解析全体を止めない */ }
             }
 
             // 赤閃光（bt1886 のときだけ計算すれば足りる）
             if (eo === "bt1886") {
-              redDet.step(pl.R, pl.G, pl.B, tUs);
+              redDet.step(pl.R, pl.G, pl.B, tRate);
               var redN = countMask(redDet.mask).n;
               rec.red = redN;
-              rec.redPix = redPixCounter.push(redDet.mask, redDet.mask, tUs);
+              rec.redPix = redPixCounter.push(redDet.mask, redDet.mask, tRate);
               /* 赤閃光にも面積判定をかける。輝度閃光と同じ扱いにしないと、
                  わずか数画素の色変化で全基準が抵触になる。 */
               if (redN) rec["area:red"] = areaInfo(redDet.mask, redDet.mask, size);
@@ -407,6 +424,7 @@ function run(buffer, opts, marginPct) {
           frames: frameCount,
           fps: fps,
           marginPct: marginPct,
+          speedFactor: speedFactor,
           acceleration: dec.fellBackToSoftware ? "software" : "no-preference"
         },
         verdicts: verdicts,
@@ -615,10 +633,15 @@ function evaluate(id, records, size, n, marginPct) {
   var winOfficial = [], winMargin = [], winRed = [];
   var winStrong = [], winCuts = [];              // 民放連 1(3) / 2 用
   var weakRunStart = null, weakRunLast = 0;
-  var curSpan = null;
+  var curSpan = null, curSpanTr = 0;
 
   for (var i = 0; i < records.length; i++) {
     var r = records[i], t = r.t;
+    /* ⚠ ウィンドウ計算（1秒窓・持続時間）は tRate（速度シミュレーション後の
+       体感時間）で行う。t（実時刻）はタイムライン表示・spans の座標にのみ使う。
+       ここを混同すると、速度を上げても判定が変わらない、または
+       タイムラインの表示位置がずれる。 */
+    var tr = (r.tRate != null) ? r.tRate : t;
 
     var offUp = (r.up[eo + ":official"] || { n: 0 }).n;
     var offDn = (r.down[eo + ":official"] || { n: 0 }).n;
@@ -631,12 +654,12 @@ function evaluate(id, records, size, n, marginPct) {
     var passOfficial = areaPasses(std, areaOff, size, false);
     var passMargin   = areaPasses(std, areaMg, size, true, marginPct);
 
-    if ((offUp > 0 || offDn > 0) && passOfficial) winOfficial.push(t);
-    if ((mgUp > 0 || mgDn > 0) && passMargin) winMargin.push(t);
-    if (r.red > 0 && isRedRelevant && areaPasses(std, r["area:red"], size, false)) winRed.push(t);
+    if ((offUp > 0 || offDn > 0) && passOfficial) winOfficial.push(tr);
+    if ((mgUp > 0 || mgDn > 0) && passMargin) winMargin.push(tr);
+    if (r.red > 0 && isRedRelevant && areaPasses(std, r["area:red"], size, false)) winRed.push(tr);
 
-    // 1秒窓の外を捨てる
-    var lo = t - 1000000;
+    // 1秒窓の外を捨てる（体感時間基準）
+    var lo = tr - 1000000;
     while (winOfficial.length && winOfficial[0] <= lo) winOfficial.shift();
     while (winMargin.length && winMargin[0] <= lo) winMargin.shift();
     while (winRed.length && winRed[0] <= lo) winRed.shift();
@@ -653,11 +676,11 @@ function evaluate(id, records, size, n, marginPct) {
     if (std.area.mode === "none") {
       winOfficial.length = 0;
       winMargin.length = 0;
-      for (var po = 0; po < pixOff; po++) winOfficial.push(t);
-      for (var pm = 0; pm < pixMg; pm++) winMargin.push(t);
+      for (var po = 0; po < pixOff; po++) winOfficial.push(tr);
+      for (var pm = 0; pm < pixMg; pm++) winMargin.push(tr);
       if (isRedRelevant) {
         winRed.length = 0;
-        for (var pr = 0; pr < (r.redPix || 0); pr++) winRed.push(t);
+        for (var pr = 0; pr < (r.redPix || 0); pr++) winRed.push(tr);
       }
     }
 
@@ -672,14 +695,14 @@ function evaluate(id, records, size, n, marginPct) {
       var strongDn = (r.down["jbaStrong:official"] || { n: 0 }).n;
       var strongArea = r["area:jbaStrong:official"];
       if ((strongUp > 0 || strongDn > 0) && areaPasses(std, strongArea, size, false)) {
-        winStrong.push(t);
+        winStrong.push(tr);
       }
       while (winStrong.length && winStrong[0] <= lo) winStrong.shift();
 
-      /* 弱い点滅だけが基準を超えている状態が続いた時間を測る */
+      /* 弱い点滅だけが基準を超えている状態が続いた時間を測る（体感時間で2秒） */
       if (cOff > std.maxTransitionsPerSec) {
-        if (weakRunStart === null) weakRunStart = t;
-        weakRunLast = t;
+        if (weakRunStart === null) weakRunStart = tr;
+        weakRunLast = tr;
       } else {
         weakRunStart = null;
       }
@@ -699,7 +722,7 @@ function evaluate(id, records, size, n, marginPct) {
     }
 
     /* ---- 民放連 2. 急激な場面転換 ---- */
-    if (id === "jba" && std.sceneCut && r.sceneCut) winCuts.push(t);
+    if (id === "jba" && std.sceneCut && r.sceneCut) winCuts.push(tr);
     while (winCuts.length && winCuts[0] <= lo) winCuts.shift();
     var cutsExceed = (id === "jba" && std.sceneCut) &&
                      winCuts.length > std.sceneCut.maxPerSec;
@@ -719,12 +742,13 @@ function evaluate(id, records, size, n, marginPct) {
 
     // 区間をまとめる
     if (level > 0) {
-      if (curSpan && curSpan.level === level && t - curSpan.t1 < 500000) {
-        curSpan.t1 = t;
+      if (curSpan && curSpan.level === level && tr - curSpanTr < 500000) {
+        curSpan.t1 = t; curSpanTr = tr;
       } else {
         if (curSpan) out.spans.push(curSpan);
         curSpan = { t0: t, t1: t, level: level };
       }
+      curSpanTr = tr;
     } else if (curSpan) {
       out.spans.push(curSpan); curSpan = null;
     }
