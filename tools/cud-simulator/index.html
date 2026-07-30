@@ -44,8 +44,8 @@
   #workgrid.mode-simple{ grid-template-columns:1fr; }
   #col-right[hidden]{ display:none; }
 
-  /* ---- preview ---- */
-  .previewcard{ padding:var(--s4) var(--s4) var(--s5); }
+  /* ---- preview (Source カード内に同居するブロック) ---- */
+  .previewcard{ margin-top:var(--s5); padding-top:var(--s5); border-top:1px solid var(--border); }
   .previewbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s4); }
   .fsbtn{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500; height:32px;
     padding:0 12px; display:inline-flex; align-items:center; gap:7px; color:var(--text-2);
@@ -163,75 +163,50 @@
   </div>
   <p class="modenote" data-i18n="t.modeNote">Not a medical device, and not a certified or approved tool.</p>
 
-  <div class="card previewcard" id="previewcard" style="margin-bottom:var(--s5)">
-    <div class="previewbar">
-      <span class="eyebrow" data-i18n="t.preview">Preview</span>
-      <button class="fsbtn" id="fsbtn" type="button">
-        <svg class="fs-i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-        <svg class="fs-i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9 3v4a2 2 0 0 1-2 2H3M15 3v4a2 2 0 0 0 2 2h4M21 15h-4a2 2 0 0 0-2 2v4M3 15h4a2 2 0 0 1 2 2v4"/></svg>
-        <span id="fsbtn-lbl" data-i18n="t.fullscreen">Fullscreen</span>
+  <div class="card" id="sourcecard" style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.source">Source</div>
+    <div class="seg seg--4" id="seg-src" role="group">
+      <button data-src="image"  data-i18n="t.srcImage">Image</button>
+      <button data-src="palette" data-i18n="t.srcPalette">Palette</button>
+      <button data-src="screen" data-i18n="t.srcScreen">Screen</button>
+      <button data-src="camera" data-i18n="t.srcCamera">Camera</button>
+    </div>
+
+    <div class="srcpanel" id="pan-image">
+      <div class="drop" id="drop" tabindex="0" role="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg>
+        <b data-i18n="t.dropTitle">Drop an image</b>
+        <small data-i18n="t.dropSub">or click to choose a file. Everything stays in this browser.</small>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+
+    <div class="srcpanel" id="pan-palette" hidden>
+      <textarea class="ta" id="pal" spellcheck="false" data-i18n-ph="t.palPh"></textarea>
+      <div class="btnrow" style="margin-top:var(--s3)">
+        <button class="btn btn--secondary" id="pal-oi" data-i18n="t.palPreset">Load Okabe–Ito set</button>
+        <button class="btn btn--ghost" id="pal-clear" data-i18n="t.palClear">Clear</button>
+      </div>
+      <div class="hint" data-i18n="t.palHint">One colour per line, or separated by commas/spaces. <code>#RGB</code>, <code>#RRGGBB</code> and <code>rgb(r,g,b)</code> are accepted.</div>
+    </div>
+
+    <div class="srcpanel" id="pan-screen" hidden>
+      <button class="btn btn--primary btn--block" id="screen-start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span data-i18n="t.screenStart">Choose what to share</span>
       </button>
-    </div>
-    <div id="preview">
-      <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
-      <div class="panes" id="panes" hidden>
-        <div class="pane" id="pane-a"><div class="pane__lbl" id="lbl-a">Original</div><canvas id="cv-a"></canvas></div>
-        <div class="pane" id="pane-b"><div class="pane__lbl" id="lbl-b">Simulated</div><canvas id="cv-b"></canvas></div>
+      <div class="streamstate" id="screen-state" hidden>
+        <span class="badge badge--pos"><span class="d"></span><span data-i18n="t.live">Live</span></span>
+        <button class="btn btn--secondary" id="screen-stop" data-i18n="t.stop">Stop</button>
       </div>
-      <div class="legend" id="legend" hidden>
-        <span>0</span><span class="legend__bar" id="legend-bar"></span><span>ΔE 30+</span>
-      </div>
-      <div class="swatches" id="swatches" hidden></div>
+      <div class="hint" id="screen-hint" data-i18n="t.screenHint">Share a window or a whole screen to check a design in another app in real time.</div>
     </div>
-  </div>
 
-  <div class="work work--wide" id="workgrid">
-    <!-- ================= 左: 入力と設定 ================= -->
-    <div id="col-left">
-      <div class="card">
-        <div class="card__title" data-i18n="t.source">Source</div>
-        <div class="seg seg--4" id="seg-src" role="group">
-          <button data-src="image"  data-i18n="t.srcImage">Image</button>
-          <button data-src="palette" data-i18n="t.srcPalette">Palette</button>
-          <button data-src="screen" data-i18n="t.srcScreen">Screen</button>
-          <button data-src="camera" data-i18n="t.srcCamera">Camera</button>
-        </div>
-
-        <div class="srcpanel" id="pan-image">
-          <div class="drop" id="drop" tabindex="0" role="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg>
-            <b data-i18n="t.dropTitle">Drop an image</b>
-            <small data-i18n="t.dropSub">or click to choose a file. Everything stays in this browser.</small>
-          </div>
-          <input type="file" id="file" accept="image/*" hidden>
-        </div>
-
-        <div class="srcpanel" id="pan-palette" hidden>
-          <textarea class="ta" id="pal" spellcheck="false" data-i18n-ph="t.palPh"></textarea>
-          <div class="btnrow" style="margin-top:var(--s3)">
-            <button class="btn btn--secondary" id="pal-oi" data-i18n="t.palPreset">Load Okabe–Ito set</button>
-            <button class="btn btn--ghost" id="pal-clear" data-i18n="t.palClear">Clear</button>
-          </div>
-          <div class="hint" data-i18n="t.palHint">One colour per line, or separated by commas/spaces. <code>#RGB</code>, <code>#RRGGBB</code> and <code>rgb(r,g,b)</code> are accepted.</div>
-        </div>
-
-        <div class="srcpanel" id="pan-screen" hidden>
-          <button class="btn btn--primary btn--block" id="screen-start">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            <span data-i18n="t.screenStart">Choose what to share</span>
-          </button>
-          <div class="streamstate" id="screen-state" hidden>
-            <span class="badge badge--pos"><span class="d"></span><span data-i18n="t.live">Live</span></span>
-            <button class="btn btn--secondary" id="screen-stop" data-i18n="t.stop">Stop</button>
-          </div>
-          <div class="hint" id="screen-hint" data-i18n="t.screenHint">Share a window or a whole screen to check a design in another app in real time.</div>
-        </div>
-
-        <div class="srcpanel" id="pan-camera" hidden>
-          <button class="btn btn--primary btn--block" id="cam-start">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
-            <span data-i18n="t.camStart">Start camera</span>
-          </button>
+    <div class="srcpanel" id="pan-camera" hidden>
+      <button class="btn btn--primary btn--block" id="cam-start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <span data-i18n="t.camStart">Start camera</span>
+      </button>
           <div class="streamstate" id="cam-state" hidden>
             <span class="badge badge--pos"><span class="d"></span><span data-i18n="t.live">Live</span></span>
             <button class="btn btn--secondary" id="cam-flip" data-i18n="t.camFlip">Switch camera</button>
@@ -239,8 +214,33 @@
           </div>
           <div class="hint" id="cam-hint" data-i18n="t.camHint">Point the camera at printed material or a second monitor.</div>
         </div>
-      </div>
 
+    <div id="previewcard" class="previewcard">
+      <div class="previewbar">
+        <span class="eyebrow" data-i18n="t.preview">Preview</span>
+        <button class="fsbtn" id="fsbtn" type="button">
+          <svg class="fs-i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          <svg class="fs-i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9 3v4a2 2 0 0 1-2 2H3M15 3v4a2 2 0 0 0 2 2h4M21 15h-4a2 2 0 0 0-2 2v4M3 15h4a2 2 0 0 1 2 2v4"/></svg>
+          <span id="fsbtn-lbl" data-i18n="t.fullscreen">Fullscreen</span>
+        </button>
+      </div>
+      <div id="preview">
+        <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
+        <div class="panes" id="panes" hidden>
+          <div class="pane" id="pane-a"><div class="pane__lbl" id="lbl-a">Original</div><canvas id="cv-a"></canvas></div>
+          <div class="pane" id="pane-b"><div class="pane__lbl" id="lbl-b">Simulated</div><canvas id="cv-b"></canvas></div>
+        </div>
+        <div class="legend" id="legend" hidden>
+          <span>0</span><span class="legend__bar" id="legend-bar"></span><span>ΔE 30+</span>
+        </div>
+        <div class="swatches" id="swatches" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="work work--wide" id="workgrid">
+    <!-- ================= 左: 色覚型と表示設定 ================= -->
+    <div id="col-left">
       <div class="card">
         <div class="card__title" data-i18n="t.type">Colour vision type</div>
         <div class="seg seg--3" id="seg-type" role="group">
