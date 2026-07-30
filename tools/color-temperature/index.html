@@ -7,39 +7,70 @@
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
 <link rel="stylesheet" href="../../shared/shell.css">
 <style>
-  .ktrow{ display:flex; align-items:center; gap:var(--s3); }
-  .ktrow .slider{ flex:1; }
-  .ktrow .kval{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15px;
-    color:var(--text); min-width:64px; text-align:right; }
+  /* ---- 温度入力 ---- */
+  .kin{ display:flex; align-items:flex-start; gap:var(--s2); }
+  .kin .input{ text-align:center; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:18px; letter-spacing:.02em; padding:0 8px; }
+  .kin .unit{ display:inline-flex; align-items:center; height:38px; padding:0 12px; font-size:13px;
+    color:var(--text-2); background:var(--surface-2); border:1px solid var(--border-strong);
+    border-radius:0 var(--r) var(--r) 0; }
+  .kin .input{ border-top-right-radius:0; border-bottom-right-radius:0; }
+
+  /* スライダーのトラックを色温度のグラデーションにする（JSで生成） */
+  #k-slider{ height:12px; border-radius:100px; border:1px solid var(--border-strong); }
+  #k-slider::-webkit-slider-thumb{ width:20px; height:20px; border-width:2px; }
+  #k-slider::-moz-range-thumb{ width:20px; height:20px; border-width:2px; }
+  .scalerow{ display:flex; justify-content:space-between; margin-top:6px;
+    font-family:var(--font-mono); font-size:10.5px; color:var(--text-3); }
+
+  .fine{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .fine .btn{ height:36px; font-size:13px; font-variant-numeric:tabular-nums; padding:0 4px; }
 
   .presets{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .presets button{ appearance:none; cursor:pointer; font:inherit; text-align:left; padding:8px 10px;
     border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
-    color:var(--text-2); transition:all var(--tap); display:flex; flex-direction:column; gap:2px; }
-  .presets button:hover{ border-color:var(--accent); color:var(--text); }
-  .presets button .pn{ font-size:12.5px; font-weight:500; color:var(--text); }
-  .presets button .pk{ font-size:11px; font-family:var(--font-mono); color:var(--text-3); }
+    transition:all var(--tap); display:flex; align-items:center; gap:var(--s2); }
+  .presets button:hover{ border-color:var(--accent); }
+  .presets .pdot{ width:16px; height:16px; border-radius:50%; flex:0 0 auto;
+    border:1px solid var(--border-strong); }
+  .presets .ptx{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .presets .pn{ font-size:12.5px; font-weight:500; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .presets .pk{ font-size:11px; font-family:var(--font-mono); color:var(--text-3); }
+  .presets button[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent-tint); }
 
-  .ctstrip{ display:flex; min-height:104px; }
+  /* ---- ライブプレビュー ---- */
+  .livesw{ border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    height:150px; display:flex; align-items:flex-end; padding:var(--s3) var(--s4);
+    transition:background var(--tap); }
+  .livesw .lk{ font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:13px; font-weight:600; letter-spacing:.03em; }
+
+  /* ---- 比較 ---- */
+  .ctstrip{ display:flex; height:76px; }
   .ctstrip .sw{ flex:1 1 0; display:flex; align-items:flex-end; justify-content:center;
-    padding-bottom:8px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
-    font-size:12px; font-weight:600; letter-spacing:.02em; }
-  .ctstrip .sw + .sw{ border-left:1px solid rgba(0,0,0,.08); }
-  .ctempty{ display:flex; align-items:center; justify-content:center; min-height:104px;
-    color:var(--text-3); font-size:12.5px; }
+    padding-bottom:6px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:11px; font-weight:600; letter-spacing:.02em; }
+  .ctstrip .sw + .sw{ border-left:1px solid rgba(128,128,128,.25); }
+  .ctempty{ display:flex; align-items:center; justify-content:center; height:76px;
+    color:var(--text-3); font-size:12.5px; text-align:center; padding:0 var(--s4); }
 
-  .ro-head3{ display:grid; grid-template-columns:44px 1fr 92px 92px 28px; gap:var(--s3);
-    padding:8px var(--s4) 4px; }
-  .ro-head3 span{ font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
-    color:var(--text-3); }
+  .ro-head3, .ctrow{ display:grid; grid-template-columns:32px 1fr 84px 76px 26px;
+    gap:var(--s3); align-items:center; }
+  .ro-head3{ padding:8px var(--s4) 4px; }
+  .ro-head3 span{ font-size:10.5px; font-weight:600; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--text-3); }
   .ro-head3 span.num{ text-align:right; }
-  .ctrow{ display:grid; grid-template-columns:44px 1fr 92px 92px 28px; gap:var(--s3);
-    align-items:center; padding:var(--s3) var(--s4); }
+  .ctrow{ padding:var(--s3) var(--s4); }
   .ctrow + .ctrow{ border-top:1px solid var(--border); }
-  .ctchip{ width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-strong); }
+  .ctchip{ appearance:none; padding:0; width:26px; height:26px; border-radius:var(--r-sm);
+    border:1px solid var(--border-strong); cursor:pointer; transition:box-shadow var(--tap); }
+  .ctchip:hover{ box-shadow:0 0 0 3px var(--accent-ring); }
   .ctlbl{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-  .ctlbl .k{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px; color:var(--text); }
-  .ctlbl .n{ font-size:11px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ctlbl .k{ font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:14px; color:var(--text); }
+  .ctlbl .n{ font-size:11px; color:var(--text-3);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ctv{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12.5px;
     color:var(--text-2); text-align:right; cursor:pointer; }
   .ctrm{ appearance:none; cursor:pointer; width:24px; height:24px; border-radius:var(--r-sm);
@@ -48,8 +79,19 @@
   .ctrm:hover{ border-color:var(--neg); color:var(--neg); }
   .ctrm svg{ width:12px; height:12px; }
 
+  .rohead-btn{ appearance:none; cursor:pointer; font:inherit; font-size:12px; font-weight:500;
+    color:var(--text-3); background:transparent; border:1px solid var(--border-strong);
+    border-radius:var(--r-sm); padding:3px 9px; transition:all var(--tap); }
+  .rohead-btn:hover{ border-color:var(--neg); color:var(--neg); }
+  .rohead-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .acc-note{ font-size:11px; color:var(--text-3); padding:var(--s3) var(--s4) 0; line-height:1.5;
+    border-top:1px solid var(--border); margin-top:0; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); }
+
   @media (max-width:480px){
-    .ro-head3, .ctrow{ grid-template-columns:36px 1fr 76px 76px 24px; }
+    .ro-head3, .ctrow{ grid-template-columns:28px 1fr 78px 70px 24px; gap:var(--s2); }
+    .fine{ grid-template-columns:repeat(2,1fr); }
   }
 </style>
 </head>
@@ -62,42 +104,92 @@
   </div>
 
   <div class="work">
-    <!-- 左: 温度スライダー・プリセット -->
+    <!-- 左: 入力・操作 -->
     <div>
       <div class="card">
         <div class="field">
-          <label class="label" data-i18n="t.kelvin">Color temperature</label>
-          <div class="ktrow">
-            <input type="range" class="slider" id="k-slider" min="1000" max="12000" step="50" value="5500">
-            <span class="kval" id="k-val">5500K</span>
+          <label class="label" for="k-num" data-i18n="t.kelvin">Color temperature</label>
+          <div class="kin">
+            <input class="input" id="k-num" type="number" min="1000" max="12000" step="50"
+                   inputmode="numeric" aria-label="Kelvin">
+            <span class="unit">K</span>
           </div>
         </div>
-        <div class="btnrow" style="margin-top:0">
-          <button class="btn btn--primary btn--block" id="add-btn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            <span data-i18n="t.add">Add to comparison</span>
-          </button>
+
+        <div class="field">
+          <input type="range" class="slider" id="k-slider" min="1000" max="12000" step="50" value="5500"
+                 aria-label="Color temperature">
+          <div class="scalerow"><span>1000K</span><span>6500K</span><span>12000K</span></div>
         </div>
-        <div class="field" style="margin-top:var(--s5)">
+
+        <div class="field">
+          <label class="label" data-i18n="t.fine">Fine adjust</label>
+          <div class="fine" id="fine">
+            <button class="btn btn--secondary" data-adj="-500">−500</button>
+            <button class="btn btn--secondary" data-adj="-50">−50</button>
+            <button class="btn btn--secondary" data-adj="50">+50</button>
+            <button class="btn btn--secondary" data-adj="500">+500</button>
+          </div>
+        </div>
+
+        <div class="field">
           <label class="label" data-i18n="t.presets">Presets</label>
           <div class="presets" id="presets" role="group"></div>
         </div>
-        <div class="hint" data-i18n="t.hint">Move the slider or tap a preset — each adds a swatch to the comparison on the right.</div>
+
+        <button class="btn btn--secondary btn--block" id="reset">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+          <span data-i18n="t.reset">Reset to 5500K</span>
+        </button>
+
+        <div class="hint" data-i18n="t.hint">The preview updates as you drag. Pin a temperature to keep it for side-by-side comparison.</div>
       </div>
     </div>
 
-    <!-- 右: 比較ストリップ + readout -->
+    <!-- 右: ライブプレビュー → 現在値 → 比較 -->
     <div>
-      <div class="preview ctstrip" id="strip" style="margin-bottom:var(--s4)"></div>
+      <div class="livesw" id="livesw" style="margin-bottom:var(--s4)">
+        <span class="lk" id="live-k">5500K</span>
+      </div>
+
+      <div class="readout" style="margin-bottom:var(--s4)">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.current">Current</span>
+          <span class="live"><span class="dot"></span><span data-i18n="t.liveupd">Live</span></span>
+        </div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.kelvin">Color temperature</span>
+          <span class="rrow__value" id="cur-k" data-copy="5500">5500<span class="u">K</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.rgb">RGB</span>
+          <span class="rrow__value" id="cur-rgb" data-copy=""></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.hex">HEX</span>
+          <span class="rrow__value" id="cur-hex" data-copy=""></span>
+        </div>
+        <div style="padding:var(--s4)">
+          <button class="btn btn--primary btn--block" id="pin-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="t.add">Pin for comparison</span>
+          </button>
+        </div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
 
       <div class="readout">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Comparison</span></div>
-        <div class="ro-head3" id="ro-head3">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.output">Comparison</span>
+          <button class="rohead-btn" id="clear-btn" data-i18n="t.clear">Clear all</button>
+        </div>
+        <div class="ctstrip" id="strip"></div>
+        <div class="ro-head3" id="ro-head3" hidden>
           <span></span><span></span><span class="num" data-i18n="t.rgb">RGB</span><span class="num" data-i18n="t.hex">HEX</span><span></span>
         </div>
         <div id="rows"></div>
-        <div class="acc-note" data-i18n="t.accnote">These are approximate colors from a standard blackbody-locus formula (Tanner Helland's approximation, sRGB gamma). Actual appearance depends on your display's calibration, brightness, and surrounding light — treat this as a relative comparison, not an absolute reference.</div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any RGB or HEX value to copy.</div>
+        <div class="acc-note" data-i18n="t.accnote">Colors are approximated from the blackbody locus (Tanner Helland's formula, sRGB gamma). How they actually look depends on your display's calibration, brightness, and the light around you — use this as a relative comparison, not an absolute reference.</div>
+        <div class="copyhint" data-i18n="t.copyhint2">Click a swatch to load that temperature back into the slider.</div>
       </div>
     </div>
   </div>
@@ -108,106 +200,181 @@
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var slider = $("k-slider"), kVal = $("k-val"), addBtn = $("add-btn");
-  var strip = $("strip"), rows = $("rows"), presetsEl = $("presets");
+  var slider = $("k-slider"), numIn = $("k-num");
+  var liveSw = $("livesw"), liveK = $("live-k");
+  var curK = $("cur-k"), curRGB = $("cur-rgb"), curHex = $("cur-hex");
+  var strip = $("strip"), rows = $("rows"), roHead3 = $("ro-head3");
+  var presetsEl = $("presets"), pinBtn = $("pin-btn"), clearBtn = $("clear-btn");
+
+  var K_MIN = 1000, K_MAX = 12000, K_DEFAULT = 5500, MAX_PINS = 8;
 
   var PRESETS = [
-    { key: "candle",    k: 1900 },
-    { key: "tungsten",  k: 2700 },
-    { key: "studio",    k: 3200 },
-    { key: "daylight",  k: 5500 },
-    { key: "d65",       k: 6500 },
-    { key: "shade",     k: 8000 }
+    { key: "candle",   k: 1900 },
+    { key: "tungsten", k: 2700 },
+    { key: "studio",   k: 3200 },
+    { key: "fluoro",   k: 4300 },
+    { key: "daylight", k: 5500 },
+    { key: "d65",      k: 6500 },
+    { key: "cloudy",   k: 7500 },
+    { key: "shade",    k: 9000 }
   ];
 
-  var swatches = [];   // { id, k, presetKey|null }
+  var kelvin = K_DEFAULT;
+  var pins = [];      // { id, k, presetKey|null }
   var nextId = 1;
 
-  // ---- Kelvin -> RGB（Tanner Hellandの近似式。1000K–40000K前後で妥当） ----
+  /* ---- Kelvin → RGB（Tanner Helland の近似式 / sRGB ガンマ想定） ---- */
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-  function kelvinToRGB(kelvin) {
-    var temp = kelvin / 100, r, g, b;
-    if (temp <= 66) { r = 255; }
-    else { r = temp - 60; r = 329.698727446 * Math.pow(r, -0.1332047592); r = clamp(r, 0, 255); }
+  function kelvinToRGB(k) {
+    var t = k / 100, r, g, b;
+    if (t <= 66) { r = 255; }
+    else { r = clamp(329.698727446 * Math.pow(t - 60, -0.1332047592), 0, 255); }
 
-    if (temp <= 66) { g = temp; g = 99.4708025861 * Math.log(g) - 161.1195681661; }
-    else { g = temp - 60; g = 288.1221695283 * Math.pow(g, -0.0755148492); }
+    if (t <= 66) { g = 99.4708025861 * Math.log(t) - 161.1195681661; }
+    else { g = 288.1221695283 * Math.pow(t - 60, -0.0755148492); }
     g = clamp(g, 0, 255);
 
-    if (temp >= 66) { b = 255; }
-    else if (temp <= 19) { b = 0; }
-    else { b = temp - 10; b = 138.5177312231 * Math.log(b) - 305.0447927307; b = clamp(b, 0, 255); }
+    if (t >= 66) { b = 255; }
+    else if (t <= 19) { b = 0; }
+    else { b = clamp(138.5177312231 * Math.log(t - 10) - 305.0447927307, 0, 255); }
 
     return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
   }
+  function css(c) { return "rgb(" + c.r + "," + c.g + "," + c.b + ")"; }
   function hex2(n) { var s = n.toString(16).toUpperCase(); return s.length < 2 ? "0" + s : s; }
   function toHex(c) { return "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); }
-  function toRGBText(c) { return c.r + ", " + c.g + ", " + c.b; }
-  function luminance(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; }
+  function rgbText(c) { return c.r + ", " + c.g + ", " + c.b; }
+  // 明るいスウォッチ上では暗い文字、暗いスウォッチ上では明るい文字にする
+  function inkOn(c) { return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) > 150 ? "rgba(0,0,0,.72)" : "rgba(255,255,255,.94)"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
 
-  function presetName(keyOrNull) {
-    if (!keyOrNull) return Shell.t("t.custom");
-    return Shell.t("t.p." + keyOrNull);
+  /* ---- スライダーのトラックを色温度グラデーションで塗る ---- */
+  function paintTrack() {
+    var stops = [];
+    for (var k = K_MIN; k <= K_MAX; k += 500) {
+      var pct = ((k - K_MIN) / (K_MAX - K_MIN)) * 100;
+      stops.push(css(kelvinToRGB(k)) + " " + Math.round(pct * 10) / 10 + "%");
+    }
+    slider.style.background = "linear-gradient(to right," + stops.join(",") + ")";
   }
 
-  function addSwatch(k, presetKey) {
-    if (swatches.length >= 8) return;
-    swatches.push({ id: nextId++, k: k, presetKey: presetKey || null });
-    render();
+  function presetName(key) { return key ? Shell.t("t.p." + key) : Shell.t("t.custom"); }
+
+  function setKelvin(v, from) {
+    v = Math.round(clamp(v, K_MIN, K_MAX) / 50) * 50;
+    kelvin = v;
+    if (from !== "slider") slider.value = v;
+    if (from !== "num" && document.activeElement !== numIn) numIn.value = v;
+    renderCurrent();
+    syncPresets();
   }
-  function removeSwatch(id) {
-    swatches = swatches.filter(function (s) { return s.id !== id; });
-    render();
+
+  function renderCurrent() {
+    var c = kelvinToRGB(kelvin), ink = inkOn(c);
+    liveSw.style.background = css(c);
+    liveK.style.color = ink;
+    liveK.textContent = kelvin + "K";
+
+    curK.innerHTML = kelvin + '<span class="u">K</span>';
+    curK.setAttribute("data-copy", String(kelvin));
+    curRGB.textContent = rgbText(c); curRGB.setAttribute("data-copy", rgbText(c));
+    curHex.textContent = toHex(c);   curHex.setAttribute("data-copy", toHex(c));
+    pinBtn.disabled = pins.length >= MAX_PINS;
   }
 
   function renderPresets() {
     presetsEl.innerHTML = PRESETS.map(function (p) {
-      return '<button type="button" data-k="' + p.k + '" data-preset="' + p.key + '">' +
-        '<span class="pn" data-i18n="t.p.' + p.key + '">' + Shell.t("t.p." + p.key) + '</span>' +
-        '<span class="pk">' + p.k + 'K</span></button>';
+      var c = kelvinToRGB(p.k);
+      return '<button type="button" data-k="' + p.k + '" data-preset="' + p.key + '" aria-pressed="false">' +
+        '<span class="pdot" style="background:' + css(c) + '"></span>' +
+        '<span class="ptx"><span class="pn">' + esc(Shell.t("t.p." + p.key)) + '</span>' +
+        '<span class="pk">' + p.k + 'K</span></span></button>';
     }).join("");
+    syncPresets();
+  }
+  function syncPresets() {
+    presetsEl.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(parseInt(b.getAttribute("data-k"), 10) === kelvin));
+    });
   }
 
-  function render() {
-    // slider live label
-    kVal.textContent = slider.value + "K";
-
-    // strip
-    if (!swatches.length) {
-      strip.innerHTML = '<div class="ctempty" data-i18n="t.empty">' + Shell.t("t.empty") + '</div>';
+  function renderPins() {
+    if (!pins.length) {
+      strip.innerHTML = '<div class="ctempty">' + esc(Shell.t("t.empty")) + '</div>';
+      rows.innerHTML = "";
+      roHead3.hidden = true;
+      clearBtn.disabled = true;
     } else {
-      strip.innerHTML = swatches.map(function (s) {
-        var c = kelvinToRGB(s.k);
-        var textColor = luminance(c) > 150 ? "rgba(0,0,0,.72)" : "rgba(255,255,255,.92)";
-        return '<div class="sw" style="background:rgb(' + c.r + ',' + c.g + ',' + c.b + ');color:' + textColor + '">' + s.k + 'K</div>';
+      strip.innerHTML = pins.map(function (p) {
+        var c = kelvinToRGB(p.k);
+        return '<div class="sw" style="background:' + css(c) + ';color:' + inkOn(c) + '">' + p.k + 'K</div>';
       }).join("");
+      rows.innerHTML = pins.map(function (p) {
+        var c = kelvinToRGB(p.k), hx = toHex(c), rt = rgbText(c);
+        return '<div class="ctrow">' +
+          '<button type="button" class="ctchip" style="background:' + css(c) + '" data-load="' + p.k + '" ' +
+            'title="' + esc(Shell.t("t.load")) + '" aria-label="' + esc(Shell.t("t.load")) + ' ' + p.k + 'K"></button>' +
+          '<span class="ctlbl"><span class="k">' + p.k + 'K</span>' +
+            '<span class="n">' + esc(presetName(p.presetKey)) + '</span></span>' +
+          '<span class="ctv" data-copy="' + rt + '">' + rt + '</span>' +
+          '<span class="ctv" data-copy="' + hx + '">' + hx + '</span>' +
+          '<button type="button" class="ctrm" data-rm="' + p.id + '" ' +
+            'title="' + esc(Shell.t("t.remove")) + '" aria-label="' + esc(Shell.t("t.remove")) + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>' +
+          '</button></div>';
+      }).join("");
+      roHead3.hidden = false;
+      clearBtn.disabled = false;
     }
-
-    // readout rows
-    rows.innerHTML = swatches.map(function (s) {
-      var c = kelvinToRGB(s.k);
-      var hex = toHex(c), rgbText = toRGBText(c);
-      return '<div class="ctrow">' +
-        '<div class="ctchip" style="background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')"></div>' +
-        '<div class="ctlbl"><span class="k">' + s.k + 'K</span><span class="n">' + esc(presetName(s.presetKey)) + '</span></div>' +
-        '<span class="ctv" data-copy="' + rgbText + '">' + rgbText + '</span>' +
-        '<span class="ctv" data-copy="' + hex + '">' + hex + '</span>' +
-        '<button type="button" class="ctrm" data-rm="' + s.id + '" aria-label="' + esc(Shell.t("t.remove")) + '" title="' + esc(Shell.t("t.remove")) + '">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>' +
-        '</div>';
-    }).join("");
+    pinBtn.disabled = pins.length >= MAX_PINS;
   }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
-  slider.addEventListener("input", function () { kVal.textContent = slider.value + "K"; });
-  addBtn.addEventListener("click", function () { addSwatch(parseInt(slider.value, 10), null); });
+  function matchedPreset(k) {
+    for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i].k === k) return PRESETS[i].key;
+    return null;
+  }
+  function pin() {
+    if (pins.length >= MAX_PINS) return;
+    if (pins.some(function (p) { return p.k === kelvin; })) return;   // 同じ温度は重ねない
+    pins.push({ id: nextId++, k: kelvin, presetKey: matchedPreset(kelvin) });
+    pins.sort(function (a, b) { return a.k - b.k; });                 // 低温→高温で並べる
+    renderPins();
+  }
+
+  /* ---- events ---- */
+  slider.addEventListener("input", function () { setKelvin(parseInt(slider.value, 10), "slider"); });
+  numIn.addEventListener("input", function () {
+    var v = numIn.value.replace(/[^\d]/g, "");
+    if (v === "") return;
+    setKelvin(parseInt(v, 10), "num");
+  });
+  numIn.addEventListener("blur", function () { numIn.value = kelvin; });
+
+  $("fine").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    setKelvin(kelvin + parseInt(b.getAttribute("data-adj"), 10));
+  });
   presetsEl.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
-    addSwatch(parseInt(b.getAttribute("data-k"), 10), b.getAttribute("data-preset"));
+    setKelvin(parseInt(b.getAttribute("data-k"), 10));
   });
+  $("reset").addEventListener("click", function () { setKelvin(K_DEFAULT); });
+  pinBtn.addEventListener("click", pin);
+  clearBtn.addEventListener("click", function () { pins = []; renderPins(); });
   rows.addEventListener("click", function (e) {
-    var b = e.target.closest("[data-rm]"); if (!b) return;
-    removeSwatch(parseInt(b.getAttribute("data-rm"), 10));
+    var ld = e.target.closest("[data-load]");
+    if (ld) { setKelvin(parseInt(ld.getAttribute("data-load"), 10)); return; }
+    var rm = e.target.closest("[data-rm]");
+    if (rm) {
+      var id = parseInt(rm.getAttribute("data-rm"), 10);
+      pins = pins.filter(function (p) { return p.id !== id; });
+      renderPins();
+    }
+  });
+  slider.addEventListener("keydown", function (e) {
+    var step = 0;
+    if (e.key === "PageUp") step = 500; else if (e.key === "PageDown") step = -500; else return;
+    e.preventDefault(); setKelvin(kelvin + step);
   });
 
   Shell.init({
@@ -216,37 +383,48 @@
       en: {
         "t.title": "Color temperature comparison",
         "t.desc": "Compare Kelvin color temperatures side by side, with approximate RGB / HEX values.",
-        "t.kelvin": "Color temperature", "t.add": "Add to comparison", "t.presets": "Presets",
-        "t.hint": "Move the slider or tap a preset — each adds a swatch to the comparison on the right.",
-        "t.output": "Comparison", "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "Remove",
-        "t.custom": "Custom", "t.empty": "Add a temperature to start comparing.",
-        "t.copyhint": "Click any RGB or HEX value to copy.",
-        "t.accnote": "These are approximate colors from a standard blackbody-locus formula (Tanner Helland's approximation, sRGB gamma). Actual appearance depends on your display's calibration, brightness, and surrounding light — treat this as a relative comparison, not an absolute reference.",
-        "t.p.candle": "Candlelight", "t.p.tungsten": "Household bulb (tungsten)",
-        "t.p.studio": "Studio tungsten", "t.p.daylight": "Daylight (noon sun)",
-        "t.p.d65": "sRGB standard (D65)", "t.p.shade": "Overcast / shade"
+        "t.kelvin": "Color temperature", "t.fine": "Fine adjust", "t.presets": "Presets",
+        "t.reset": "Reset to 5500K", "t.add": "Pin for comparison", "t.clear": "Clear all",
+        "t.current": "Current", "t.liveupd": "Live", "t.output": "Comparison",
+        "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "Remove", "t.load": "Load this temperature",
+        "t.custom": "Custom", "t.empty": "Nothing pinned yet — pin a temperature to compare.",
+        "t.hint": "The preview updates as you drag. Pin a temperature to keep it for side-by-side comparison.",
+        "t.copyhint": "Click any value to copy.",
+        "t.copyhint2": "Click a swatch to load that temperature back into the slider.",
+        "t.accnote": "Colors are approximated from the blackbody locus (Tanner Helland's formula, sRGB gamma). How they actually look depends on your display's calibration, brightness, and the light around you — use this as a relative comparison, not an absolute reference.",
+        "t.p.candle": "Candlelight", "t.p.tungsten": "Household bulb", "t.p.studio": "Studio tungsten",
+        "t.p.fluoro": "Cool white fluorescent", "t.p.daylight": "Noon daylight",
+        "t.p.d65": "sRGB standard (D65)", "t.p.cloudy": "Overcast sky", "t.p.shade": "Open shade"
       },
       ja: {
         "t.title": "色温度比較",
         "t.desc": "ケルビン色温度を並べて比較。近似のRGB/HEX値つき。",
-        "t.kelvin": "色温度", "t.add": "比較に追加", "t.presets": "プリセット",
-        "t.hint": "スライダーを動かすか、プリセットをタップすると右側の比較に追加されます。",
-        "t.output": "比較", "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "削除",
-        "t.custom": "カスタム", "t.empty": "色温度を追加すると比較が始まります。",
-        "t.copyhint": "RGB・HEXの値はクリックでコピーできます。",
-        "t.accnote": "これらは標準的な黒体軌跡の近似式（Tanner Hellandの近似式、sRGBガンマ）による概算色です。実際の見え方はお使いのディスプレイのキャリブレーション・輝度・周辺の光環境に左右されます。絶対的な基準ではなく、相対的な色味の比較としてご利用ください。",
-        "t.p.candle": "ろうそくの灯り", "t.p.tungsten": "白熱電球（家庭用）",
-        "t.p.studio": "スタジオ用タングステン", "t.p.daylight": "昼光（正午の太陽）",
-        "t.p.d65": "sRGB標準（D65）", "t.p.shade": "曇天・日陰"
+        "t.kelvin": "色温度", "t.fine": "微調整", "t.presets": "プリセット",
+        "t.reset": "5500Kに戻す", "t.add": "比較にピン留め", "t.clear": "すべて消す",
+        "t.current": "現在値", "t.liveupd": "リアルタイム", "t.output": "比較",
+        "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "削除", "t.load": "この色温度を読み込む",
+        "t.custom": "カスタム", "t.empty": "まだ何もピン留めされていません。色温度を追加すると比較できます。",
+        "t.hint": "ドラッグ中もプレビューがリアルタイムに更新されます。ピン留めすると並べて比較できます。",
+        "t.copyhint": "数値をクリックでコピー。",
+        "t.copyhint2": "スウォッチをクリックすると、その色温度をスライダーに読み込みます。",
+        "t.accnote": "色は黒体軌跡の近似式（Tanner Hellandの式、sRGBガンマ想定）による概算です。実際の見え方はディスプレイのキャリブレーション・輝度・周囲の光に左右されます。絶対的な基準ではなく、相対的な色味の比較としてお使いください。",
+        "t.p.candle": "ろうそくの灯り", "t.p.tungsten": "白熱電球", "t.p.studio": "スタジオ用タングステン",
+        "t.p.fluoro": "白色蛍光灯", "t.p.daylight": "正午の昼光",
+        "t.p.d65": "sRGB標準（D65）", "t.p.cloudy": "曇天の空", "t.p.shade": "日陰"
       }
     },
-    onSettingsChange: function () { renderPresets(); render(); }
+    onSettingsChange: function () { renderPresets(); renderPins(); renderCurrent(); }
   });
 
+  /* ---- 起動 ---- */
+  paintTrack();
   renderPresets();
-  // 初期表示: 代表的な2点をあらかじめ比較状態にしておく
-  addSwatch(1900, "candle");
-  addSwatch(6500, "d65");
+  setKelvin(K_DEFAULT);
+  pins = [
+    { id: nextId++, k: 2700, presetKey: "tungsten" },
+    { id: nextId++, k: 6500, presetKey: "d65" }
+  ];
+  renderPins();
 })();
 </script>
 </body>
