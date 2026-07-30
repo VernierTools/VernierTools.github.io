@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Depth of field calculator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .dofpreview{ background:var(--surface); padding:var(--s5) var(--s4) var(--s4); }
+  .dofpreview svg{ display:block; width:100%; height:auto; }
+
+  .chipsrow{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chipsrow button.chip{ appearance:none; border:1px solid var(--border); cursor:pointer;
+    font:inherit; transition:all var(--tap); }
+  .chipsrow button.chip:hover{ border-color:var(--text-3); }
+  .chipsrow button.chip[aria-pressed="true"]{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
+
+  .inputgroup--pre .unit{ border-radius:var(--r) 0 0 var(--r); border:1px solid var(--border-strong);
+    border-right:0; background:var(--surface-2); }
+  .inputgroup--pre .input{ border-radius:0 var(--r) var(--r) 0; }
+
+  .badges .badge{ margin-top:var(--s2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Depth of field calculator</h1>
+    <p data-i18n="t.desc">Enter focal length, aperture, and focus distance to get the near limit, far limit, and total depth of field.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.focal">Focal length</label>
+          <div class="inputgroup">
+            <input class="input" id="in-focal" type="number" min="1" max="2000" step="1" inputmode="decimal" aria-label="Focal length in millimeters">
+            <span class="unit">mm</span>
+          </div>
+          <div class="chipsrow" id="focal-quick"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.aperture">Aperture (f-number)</label>
+          <div class="inputgroup inputgroup--pre">
+            <span class="unit">f/</span>
+            <input class="input" id="in-aperture" type="number" min="0.5" max="64" step="0.1" inputmode="decimal" aria-label="F-number">
+          </div>
+          <div class="chipsrow" id="aperture-quick"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.distance">Focus distance</label>
+          <div class="inputgroup">
+            <input class="input" id="in-distance" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Focus distance">
+            <span class="unit" id="distance-unit">m</span>
+          </div>
+          <div class="chipsrow" id="distance-quick"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.sensor">Sensor format</label>
+          <select class="select" id="in-sensor" aria-label="Sensor format"></select>
+        </div>
+
+        <div class="badges" id="badges"></div>
+      </div>
+    </div>
+
+    <!-- 右: 図解 + 出力 -->
+    <div>
+      <div class="preview dofpreview" style="margin-bottom:var(--s4)">
+        <svg id="dof-svg" viewBox="0 0 640 150" role="img" aria-label="Depth of field diagram">
+          <line id="axis" x1="40" y1="100" x2="600" y2="100" stroke="var(--border-strong)" stroke-width="2" stroke-linecap="round"></line>
+          <circle id="cam-dot" cx="40" cy="100" r="5" fill="var(--text-3)"></circle>
+
+          <rect id="band" y="86" height="28" fill="var(--accent-tint)"></rect>
+
+          <line id="near-tick" y1="86" y2="114" stroke="var(--text-2)" stroke-width="2"></line>
+          <line id="far-tick"  y1="86" y2="114" stroke="var(--text-2)" stroke-width="2"></line>
+          <line id="focus-tick" y1="74" y2="126" stroke="var(--accent)" stroke-width="2.5"></line>
+          <circle id="focus-dot" cy="100" r="5" fill="var(--accent)"></circle>
+
+          <text id="near-label" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--text-2)">
+            <tspan id="near-cap" x="0" dy="0"></tspan>
+            <tspan id="near-val" x="0" dy="13"></tspan>
+          </text>
+          <text id="far-label" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--text-2)">
+            <tspan id="far-cap" x="0" dy="0"></tspan>
+            <tspan id="far-val" x="0" dy="13"></tspan>
+          </text>
+          <text id="focus-label" text-anchor="middle" font-family="var(--font-mono)" font-size="11" font-weight="600" fill="var(--accent)" y="62"></text>
+          <text id="inf-label" text-anchor="middle" font-family="var(--font-mono)" font-size="20" font-weight="700" fill="var(--accent)" x="612" y="107" hidden>∞</text>
+        </svg>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.near">Near limit</span>
+          <span class="rrow__value" id="ro-near" data-copy="">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.far">Far limit</span>
+          <span class="rrow__value" id="ro-far" data-copy="">—</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.total">Total depth of field</span>
+          <span class="rrow__value" id="ro-total" data-copy="">—</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var SENSORS = [
+    { id: "ff",         coc: 0.030, label: { en: "Full frame (35mm, 36×24mm)",              ja: "フルサイズ（35mm判・36×24mm）" } },
+    { id: "apsc-canon", coc: 0.019, label: { en: "APS-C — Canon (1.6×)",                     ja: "APS-C（Canon・1.6倍）" } },
+    { id: "apsc",       coc: 0.020, label: { en: "APS-C — Nikon / Sony / Fuji (1.5×)",       ja: "APS-C（Nikon/Sony/Fuji・1.5倍）" } },
+    { id: "m43",        coc: 0.015, label: { en: "Micro Four Thirds (2.0×)",                 ja: "マイクロフォーサーズ（2.0倍）" } },
+    { id: "1inch",      coc: 0.011, label: { en: "1-inch (2.7×)",                            ja: "1インチ（2.7倍）" } },
+    { id: "mf44",       coc: 0.038, label: { en: "Medium format 44×33mm (0.79×)",            ja: "中判 44×33mm（0.79倍）" } }
+  ];
+  var FOCAL_PRESETS = [24, 35, 50, 85, 135, 200];
+  var APERTURE_PRESETS = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
+  var DISTANCE_PRESETS_M = [0.5, 1, 3, 10, 50];
+  var FT_PER_M = 3.28084;
+
+  var state = { focal: 50, aperture: 2.8, distanceM: 3, sensorId: "ff" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var inFocal = $("in-focal"), inAperture = $("in-aperture"), inDistance = $("in-distance");
+  var distUnitEl = $("distance-unit"), selSensor = $("in-sensor"), badgesWrap = $("badges");
+  var roNear = $("ro-near"), roFar = $("ro-far"), roTotal = $("ro-total");
+
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function isImperial() { return Shell.units.system === "imperial"; }
+  function metersToDisplay(m) { return isImperial() ? m * FT_PER_M : m; }
+  function displayToMeters(v) { return isImperial() ? v / FT_PER_M : v; }
+  function sensorById(id) { for (var i = 0; i < SENSORS.length; i++) if (SENSORS[i].id === id) return SENSORS[i]; return SENSORS[0]; }
+  function fmtLen(m) {
+    if (!isFinite(m)) return "∞";
+    var o = Shell.units.format(m, "length");
+    return o.value + " " + o.unit;
+  }
+
+  /* ---- 動的に作る要素（言語切替のため関数化） ---- */
+  function populateSensorSelect() {
+    var cur = selSensor.value || state.sensorId;
+    selSensor.innerHTML = SENSORS.map(function (s) {
+      return '<option value="' + s.id + '">' + esc(s.label[Shell.lang] || s.label.en) + '</option>';
+    }).join("");
+    selSensor.value = cur;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function buildChips(container, values, fmt, isActive, onPick) {
+    container.innerHTML = values.map(function (v) {
+      return '<button type="button" class="chip" data-v="' + v + '">' + esc(fmt(v)) + '</button>';
+    }).join("");
+    container.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () { onPick(parseFloat(b.getAttribute("data-v"))); });
+    });
+    syncChips(container, values, isActive);
+  }
+  function syncChips(container, values, isActive) {
+    container.querySelectorAll("button").forEach(function (b) {
+      var v = parseFloat(b.getAttribute("data-v"));
+      b.setAttribute("aria-pressed", String(isActive(v)));
+    });
+  }
+
+  function refreshDistanceUnitLabel() {
+    distUnitEl.textContent = isImperial() ? "ft" : "m";
+    if (document.activeElement !== inDistance) inDistance.value = round(metersToDisplay(state.distanceM), 2);
+  }
+  function round(n, dp) { var m = Math.pow(10, dp); return Math.round(n * m) / m; }
+
+  /* ---- 入力イベント ---- */
+  inFocal.addEventListener("input", function () {
+    var v = parseFloat(inFocal.value); if (isNaN(v)) return;
+    state.focal = clamp(v, 1, 2000); render();
+  });
+  inAperture.addEventListener("input", function () {
+    var v = parseFloat(inAperture.value); if (isNaN(v)) return;
+    state.aperture = clamp(v, 0.5, 64); render();
+  });
+  inDistance.addEventListener("input", function () {
+    var v = parseFloat(inDistance.value); if (isNaN(v)) return;
+    state.distanceM = Math.max(0, displayToMeters(v)); render();
+  });
+  inDistance.addEventListener("blur", function () {
+    inDistance.value = round(metersToDisplay(state.distanceM), 2);
+  });
+  selSensor.addEventListener("change", function () { state.sensorId = selSensor.value; render(); });
+
+  /* ---- 図解（線形スケールの数直線） ---- */
+  var svgAxis = $("axis"), svgBand = $("band"), nearTick = $("near-tick"), farTick = $("far-tick"),
+      focusTick = $("focus-tick"), focusDot = $("focus-dot"), infLabel = $("inf-label"),
+      nearLabel = $("near-label"), farLabel = $("far-label"), focusLabel = $("focus-label"),
+      nearCap = $("near-cap"), nearVal = $("near-val"), farCap = $("far-cap"), farVal = $("far-val");
+
+  function drawDiagram(focusM, nearM, farM, infiniteFar) {
+    var marginL = 40, marginR = 60, width = 640, axisEnd = width - marginR + 20;
+    var usable = width - marginL - marginR;
+    var displayMax = infiniteFar
+      ? Math.max(focusM * 2.4, nearM * 1.3, 1)
+      : Math.max(farM * 1.15, focusM * 1.2, 0.5);
+    function posX(m) { return marginL + (clamp(m, 0, displayMax) / displayMax) * usable; }
+
+    var nx = posX(nearM), fx = infiniteFar ? axisEnd : posX(farM), cx2 = posX(focusM);
+
+    svgAxis.setAttribute("x2", String(axisEnd));
+    svgBand.setAttribute("x", String(nx));
+    svgBand.setAttribute("width", String(Math.max(0, fx - nx)));
+
+    nearTick.setAttribute("x1", nx); nearTick.setAttribute("x2", nx);
+    focusTick.setAttribute("x1", cx2); focusTick.setAttribute("x2", cx2);
+    focusDot.setAttribute("cx", cx2);
+
+    nearCap.textContent = Shell.t("t.near_short");
+    nearVal.textContent = fmtLen(nearM);
+    nearCap.setAttribute("x", nx); nearVal.setAttribute("x", nx);
+    nearLabel.setAttribute("x", nx); nearLabel.setAttribute("y", 132);
+
+    focusLabel.setAttribute("x", cx2);
+    focusLabel.textContent = fmtLen(focusM);
+
+    if (infiniteFar) {
+      farTick.setAttribute("hidden", "true");
+      farLabel.setAttribute("hidden", "true");
+      infLabel.removeAttribute("hidden");
+    } else {
+      farTick.removeAttribute("hidden");
+      farLabel.removeAttribute("hidden");
+      infLabel.setAttribute("hidden", "true");
+      farTick.setAttribute("x1", fx); farTick.setAttribute("x2", fx);
+      farCap.textContent = Shell.t("t.far_short");
+      farVal.textContent = fmtLen(farM);
+      farCap.setAttribute("x", fx); farVal.setAttribute("x", fx);
+      farLabel.setAttribute("x", fx); farLabel.setAttribute("y", 132);
+    }
+  }
+
+  /* ---- 本計算 ---- */
+  function render() {
+    var f = state.focal, n = state.aperture, c = sensorById(state.sensorId).coc;
+    var minDistM = (f * 1.02) / 1000;
+    var distM = state.distanceM;
+    var effDistM = Math.max(distM, minDistM);
+    var clamped = effDistM > distM + 1e-9;
+
+    var s = effDistM * 1000;
+    var H = (f * f) / (n * c) + f;
+    var ds = s - f;
+    var Dn = H * s / (H + ds);
+    var infiniteFar = s >= H;
+    var Df = infiniteFar ? Infinity : H * s / (H - ds);
+    var dof = infiniteFar ? Infinity : (Df - Dn);
+
+    var nearM = Dn / 1000, farM = infiniteFar ? Infinity : Df / 1000, dofM = infiniteFar ? Infinity : dof / 1000;
+
+    roNear.textContent = fmtLen(nearM); roNear.setAttribute("data-copy", fmtLen(nearM));
+    roFar.textContent = fmtLen(farM); roFar.setAttribute("data-copy", fmtLen(farM));
+    roTotal.textContent = fmtLen(dofM); roTotal.setAttribute("data-copy", fmtLen(dofM));
+
+    drawDiagram(effDistM, nearM, farM, infiniteFar);
+
+    badgesWrap.innerHTML = clamped
+      ? '<span class="badge badge--neg"><span class="d"></span>' + esc(Shell.t("t.warnclose")) + '</span>'
+      : "";
+
+    syncChips($("focal-quick"), FOCAL_PRESETS, function (v) { return v === state.focal; });
+    syncChips($("aperture-quick"), APERTURE_PRESETS, function (v) { return v === state.aperture; });
+    syncChips($("distance-quick"), DISTANCE_PRESETS_M, function (v) { return Math.abs(v - state.distanceM) < 1e-6; });
+  }
+
+  function initChips() {
+    buildChips($("focal-quick"), FOCAL_PRESETS, function (v) { return v + "mm"; },
+      function (v) { return v === state.focal; },
+      function (v) { state.focal = v; inFocal.value = v; render(); });
+    buildChips($("aperture-quick"), APERTURE_PRESETS, function (v) { return "f/" + v; },
+      function (v) { return v === state.aperture; },
+      function (v) { state.aperture = v; inAperture.value = v; render(); });
+    buildChips($("distance-quick"), DISTANCE_PRESETS_M, function (v) { return v + " m"; },
+      function (v) { return Math.abs(v - state.distanceM) < 1e-6; },
+      function (v) { state.distanceM = v; refreshDistanceUnitLabel(); render(); });
+  }
+
+  function onSettingsChange() {
+    populateSensorSelect();
+    refreshDistanceUnitLabel();
+    render();
+  }
+
+  /* ---- 起動 ---- */
+  inFocal.value = state.focal;
+  inAperture.value = state.aperture;
+  populateSensorSelect(); selSensor.value = state.sensorId;
+  refreshDistanceUnitLabel();
+  initChips();
+
+  Shell.init({
+    id: "dof-calculator",
+    strings: {
+      en: {
+        "t.title": "Depth of field calculator",
+        "t.desc": "Enter focal length, aperture, and focus distance to get the near limit, far limit, and total depth of field.",
+        "t.focal": "Focal length", "t.aperture": "Aperture (f-number)", "t.distance": "Focus distance", "t.sensor": "Sensor format",
+        "t.near": "Near limit", "t.far": "Far limit", "t.total": "Total depth of field",
+        "t.near_short": "Near", "t.far_short": "Far",
+        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "t.warnclose": "Focus distance was too close for this focal length — adjusted to the closest calculable distance."
+      },
+      ja: {
+        "t.title": "被写界深度計算機",
+        "t.desc": "焦点距離・絞り値・被写体までの距離を入力すると、ピントが合う近点・遠点と被写界深度の合計を算出します。",
+        "t.focal": "焦点距離", "t.aperture": "絞り値（F値）", "t.distance": "被写体までの距離", "t.sensor": "センサーサイズ",
+        "t.near": "近点（手前側の限界）", "t.far": "遠点（奥側の限界）", "t.total": "被写界深度（合計）",
+        "t.near_short": "近点", "t.far_short": "遠点",
+        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "t.warnclose": "被写体距離が焦点距離に対して近すぎるため、計算可能な最小距離に調整しました。"
+      }
+    },
+    onSettingsChange: onSettingsChange
+  });
+})();
+</script>
+</body>
+</html>
