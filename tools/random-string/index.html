@@ -19,7 +19,6 @@
 
   .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.45; }
 
-  /* 個別選択（チップ） */
   .pickbtn{ margin-top:var(--s3); display:inline-flex; align-items:center; gap:6px; background:transparent; border:0;
     color:var(--accent); font:inherit; font-size:12.5px; font-weight:500; cursor:pointer; padding:2px 0; }
   .pickbtn svg{ width:14px; height:14px; transition:transform var(--tap); }
@@ -35,6 +34,12 @@
   .cchip:hover{ border-color:var(--accent); }
   .pick-actions{ display:flex; justify-content:flex-end; margin-top:var(--s3); }
   .pick-actions .btn{ height:30px; font-size:12px; }
+
+  /* 割合（mix）行 */
+  .wrow{ display:grid; grid-template-columns:1fr 1.5fr auto; align-items:center; gap:var(--s3); }
+  .wrow + .wrow{ margin-top:var(--s3); }
+  .wrow__lbl{ font-size:12.5px; color:var(--text-2); }
+  .wrow__pct{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-3); min-width:36px; text-align:right; }
 
   .results{ min-height:46px; }
   .res{ font-family:var(--font-mono); font-size:15px; line-height:1.5; padding:var(--s3) var(--s4);
@@ -62,7 +67,6 @@
   </div>
 
   <div class="work">
-    <!-- 左: 操作 -->
     <div>
       <div class="card">
         <div class="field">
@@ -107,6 +111,21 @@
         </div>
 
         <div class="field">
+          <label class="label" data-i18n="t.mix">Mix</label>
+          <button type="button" class="pickbtn" id="mix-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            <span data-i18n="t.mixToggle">Adjust the mix</span>
+          </button>
+          <div class="pickpanel" id="mix-panel" hidden>
+            <div id="mix-rows"></div>
+            <div class="pick-actions">
+              <button type="button" class="btn btn--ghost" id="mix-reset"><span data-i18n="t.mixreset">Reset to equal</span></button>
+            </div>
+            <div class="hint" data-i18n="t.mixhint">How often each type appears — independent of how many characters it has.</div>
+          </div>
+        </div>
+
+        <div class="field">
           <label class="label" for="exclude-field" data-i18n="t.excludeChars">Exclude characters</label>
           <input class="input" id="exclude-field" data-i18n-ph="t.excludeCharsPh" placeholder="Characters typed here are never used" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
@@ -138,7 +157,6 @@
       </div>
     </div>
 
-    <!-- 右: 結果 + 計器表示 -->
     <div>
       <div class="readout" style="margin-bottom:var(--s4)">
         <div class="readout__head">
@@ -186,37 +204,45 @@
   function range(a, b) { var s = ""; for (var c = a; c <= b; c++) s += String.fromCharCode(c); return s; }
   function greekSet() { var s = ""; for (var c = 0x0391; c <= 0x03A9; c++) if (c !== 0x03A2) s += String.fromCharCode(c); for (var d = 0x03B1; d <= 0x03C9; d++) s += String.fromCharCode(d); return s; }
   var GROUPS = {
-    lower:    { ascii: true,  chars: "abcdefghijklmnopqrstuvwxyz" },
-    upper:    { ascii: true,  chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZ" },
-    digits:   { ascii: true,  chars: "0123456789" },
-    symbols:  { ascii: true,  chars: "!@#$%^&*()-_=+[]{};:,.?" },
-    hiragana: { ascii: false, chars: range(0x3041, 0x3096) },
-    katakana: { ascii: false, chars: range(0x30A1, 0x30FA) },
-    cyrillic: { ascii: false, chars: "\u0401" + range(0x0410, 0x044F) + "\u0451" },
-    greek:    { ascii: false, chars: greekSet() },
-    hangul:   { ascii: false, chars: range(0xAC00, 0xD7A3) },
-    kanji:    { ascii: false, chars: KANJI_JOYO }
+    lower:    "abcdefghijklmnopqrstuvwxyz",
+    upper:    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    digits:   "0123456789",
+    symbols:  "!@#$%^&*()-_=+[]{};:,.?",
+    hiragana: range(0x3041, 0x3096),
+    katakana: range(0x30A1, 0x30FA),
+    cyrillic: "\u0401" + range(0x0410, 0x044F) + "\u0451",
+    greek:    greekSet(),
+    hangul:   range(0xAC00, 0xD7A3),
+    kanji:    KANJI_JOYO
   };
   var GROUP_LIST = ["lower", "upper", "digits", "symbols", "hiragana", "katakana", "cyrillic", "greek", "hangul", "kanji"];
   var ASCII_LIST = ["lower", "upper", "digits", "symbols"];
   var GROUP_ARR = {};
-  GROUP_LIST.forEach(function (id) { GROUP_ARR[id] = Array.from(GROUPS[id].chars); });
+  GROUP_LIST.forEach(function (id) { GROUP_ARR[id] = Array.from(GROUPS[id]); });
 
-  var AMBIG = "iIlL1oO0";   // 紛らわしい文字
+  var AMBIG = "iIlL1oO0";
+  var CUSTOM_ID = "__custom";
+  var DEFAULT_W = 50;
   var excludedChip = Object.create(null);   // チップでOFFにしたASCII文字
+  var weights = Object.create(null);         // 文字種ごとの重み（0-100）
   var hasGenerated = false;
 
-  // ===== 文言（shell 無時のフォールバック兼） =====
+  function getW(id) { var v = weights[id]; return (v == null) ? DEFAULT_W : v; }
+
+  // ===== 文言 =====
   var STR = {
     en: {
       "t.title": "Random string",
-      "t.desc": "Generate secure random strings with full control over the character set \u2014 pick scripts, toggle individual characters, and exclude the ones you don't want.",
+      "t.desc": "Generate secure random strings with full control over the character set \u2014 pick scripts, weight the mix, toggle individual characters, and exclude the ones you don't want.",
       "t.length": "Length", "t.basic": "Letters, digits, symbols",
       "t.lower": "Lowercase (a\u2013z)", "t.upper": "Uppercase (A\u2013Z)", "t.digits": "Digits (0\u20139)", "t.symbols": "Symbols",
       "t.pick": "Pick individual characters", "t.pickreset": "Reset selection",
       "t.pickhint": "Click a character to switch it off. Large scripts (kanji, Hangul\u2026) aren't shown as chips \u2014 use \u201cExclude characters\u201d for those.",
       "t.picknone": "Turn on a letters / digits / symbols type to choose characters here.",
       "t.scripts": "Scripts", "t.hiragana": "Hiragana", "t.katakana": "Katakana", "t.cyrillic": "Cyrillic", "t.greek": "Greek", "t.hangul": "Hangul", "t.kanji": "J\u014dy\u014d kanji",
+      "t.mix": "Mix", "t.mixToggle": "Adjust the mix", "t.mixreset": "Reset to equal",
+      "t.mixhint": "How often each type appears \u2014 independent of how many characters it has. Default is an equal share, so turning on a big script (kanji, Hangul) no longer takes over.",
+      "t.mixnone": "Turn on at least one type to adjust the mix.", "t.wcustom": "Extra characters",
       "t.excludeChars": "Exclude characters", "t.excludeCharsPh": "Characters typed here are never used (works for scripts and pasted text too)",
       "t.customAdd": "Extra characters", "t.customAddPh": "Used in addition to the selected types \u2014 paste anything (e.g. \u3042, \u03a9, \u6f22)",
       "t.options": "Options", "t.exclude": "Exclude look-alike characters", "t.norepeat": "No repeated characters", "t.eachtype": "Include at least one of each type",
@@ -234,13 +260,16 @@
     },
     ja: {
       "t.title": "\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217",
-      "t.desc": "\u6587\u5b57\u96c6\u5408\u3092\u5b8c\u5168\u306b\u5236\u5fa1\u3057\u3066\u5b89\u5168\u306a\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217\u3092\u751f\u6210\u3057\u307e\u3059\u3002\u30b9\u30af\u30ea\u30d7\u30c8\u3092\u9078\u3073\u3001\u6587\u5b57\u30921\u3064\u305a\u3064ON/OFF\u3057\u3001\u4f7f\u3044\u305f\u304f\u306a\u3044\u6587\u5b57\u3092\u9664\u5916\u3067\u304d\u307e\u3059\u3002",
+      "t.desc": "\u6587\u5b57\u96c6\u5408\u3092\u5b8c\u5168\u306b\u5236\u5fa1\u3057\u3066\u5b89\u5168\u306a\u30e9\u30f3\u30c0\u30e0\u6587\u5b57\u5217\u3092\u751f\u6210\u3057\u307e\u3059\u3002\u30b9\u30af\u30ea\u30d7\u30c8\u3092\u9078\u3073\u3001\u5272\u5408\u3092\u8abf\u6574\u3057\u3001\u6587\u5b57\u30921\u3064\u305a\u3064ON/OFF\u3057\u3001\u4f7f\u3044\u305f\u304f\u306a\u3044\u6587\u5b57\u3092\u9664\u5916\u3067\u304d\u307e\u3059\u3002",
       "t.length": "\u9577\u3055", "t.basic": "\u82f1\u6570\u30fb\u8a18\u53f7",
       "t.lower": "\u5c0f\u6587\u5b57\uff08a\u2013z\uff09", "t.upper": "\u5927\u6587\u5b57\uff08A\u2013Z\uff09", "t.digits": "\u6570\u5b57\uff080\u20139\uff09", "t.symbols": "\u8a18\u53f7",
       "t.pick": "\u500b\u5225\u306b\u6587\u5b57\u3092\u9078\u3076", "t.pickreset": "\u500b\u5225\u9078\u629e\u3092\u30ea\u30bb\u30c3\u30c8",
       "t.pickhint": "\u6587\u5b57\u3092\u30af\u30ea\u30c3\u30af\u3067OFF\u306b\u3067\u304d\u307e\u3059\u3002\u5b57\u6570\u306e\u591a\u3044\u30b9\u30af\u30ea\u30d7\u30c8\uff08\u6f22\u5b57\u30fb\u30cf\u30f3\u30b0\u30eb\u7b49\uff09\u306f\u30c1\u30c3\u30d7\u306b\u51fa\u3057\u307e\u305b\u3093\u3002\u305d\u306e\u5834\u5408\u306f\u300c\u9664\u5916\u3059\u308b\u6587\u5b57\u300d\u3092\u4f7f\u3063\u3066\u304f\u3060\u3055\u3044\u3002",
       "t.picknone": "\u82f1\u6570\u30fb\u8a18\u53f7\u3092ON\u306b\u3059\u308b\u3068\u3001\u3053\u3053\u306b\u6587\u5b57\u304c\u4e26\u3073\u307e\u3059\u3002",
       "t.scripts": "\u30b9\u30af\u30ea\u30d7\u30c8", "t.hiragana": "\u3072\u3089\u304c\u306a", "t.katakana": "\u30ab\u30bf\u30ab\u30ca", "t.cyrillic": "\u30ad\u30ea\u30eb\u6587\u5b57", "t.greek": "\u30ae\u30ea\u30b7\u30e3\u6587\u5b57", "t.hangul": "\u30cf\u30f3\u30b0\u30eb", "t.kanji": "\u5e38\u7528\u6f22\u5b57",
+      "t.mix": "\u5272\u5408", "t.mixToggle": "\u5272\u5408\u3092\u8abf\u6574", "t.mixreset": "\u5747\u7b49\u306b\u623b\u3059",
+      "t.mixhint": "\u5404\u6587\u5b57\u7a2e\u306e\u51fa\u3084\u3059\u3055\u3002\u5b57\u6570\u306b\u95a2\u4fc2\u306a\u304f\u3053\u306e\u6bd4\u7387\u3067\u6df7\u3056\u308a\u307e\u3059\u3002\u65e2\u5b9a\u306f\u5747\u7b49\u306a\u306e\u3067\u3001\u5927\u304d\u306a\u30b9\u30af\u30ea\u30d7\u30c8\uff08\u6f22\u5b57\u30fb\u30cf\u30f3\u30b0\u30eb\uff09\u3092ON\u306b\u3057\u3066\u3082\u4e00\u8272\u306b\u306a\u308a\u307e\u305b\u3093\u3002",
+      "t.mixnone": "\u6587\u5b57\u7a2e\u3092ON\u306b\u3059\u308b\u3068\u5272\u5408\u3092\u8abf\u6574\u3067\u304d\u307e\u3059\u3002", "t.wcustom": "\u8ffd\u52a0\u3057\u305f\u6587\u5b57",
       "t.excludeChars": "\u9664\u5916\u3059\u308b\u6587\u5b57", "t.excludeCharsPh": "\u3053\u3053\u306b\u66f8\u3044\u305f\u6587\u5b57\u306f\u4f7f\u3044\u307e\u305b\u3093\uff08\u30b9\u30af\u30ea\u30d7\u30c8\u3084\u8cbc\u308a\u4ed8\u3051\u306b\u3082\u6709\u52b9\uff09",
       "t.customAdd": "\u8ffd\u52a0\u3059\u308b\u6587\u5b57", "t.customAddPh": "\u9078\u629e\u3057\u305f\u6587\u5b57\u7a2e\u306b\u52a0\u3048\u3066\u4f7f\u3046\u6587\u5b57\u3002\u4f55\u3067\u3082\u8cbc\u308a\u4ed8\u3051\u53ef\uff08\u4f8b: \u3042, \u03a9, \u6f22\uff09",
       "t.options": "\u30aa\u30d7\u30b7\u30e7\u30f3", "t.exclude": "\u7d1b\u3089\u308f\u3057\u3044\u6587\u5b57\u3092\u9664\u5916", "t.norepeat": "\u540c\u3058\u6587\u5b57\u3092\u7e70\u308a\u8fd4\u3055\u306a\u3044", "t.eachtype": "\u5404\u6587\u5b57\u7a2e\u3092\u6700\u4f4e1\u6587\u5b57\u542b\u3081\u308b",
@@ -263,7 +292,7 @@
     try { navigator.clipboard && navigator.clipboard.writeText(String(text)); } catch (e) {}
   }
 
-  // ===== 乱数（リジェクションサンプリング） =====
+  // ===== 乱数 =====
   function secureRandomInt(n) {
     if (n <= 1) return 0;
     var bytesNeeded = n <= 256 ? 1 : n <= 65536 ? 2 : 4;
@@ -279,7 +308,7 @@
   function clampInt(v, min, max, def) { var n = parseInt(v, 10); if (isNaN(n)) n = def; if (n < min) n = min; if (n > max) n = max; return n; }
   function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = secureRandomInt(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; } }
 
-  // ===== 文字集合の構築 =====
+  // ===== 単位（文字種）の構築 =====
   function activeGroupIds() { return GROUP_LIST.filter(function (id) { return $("g-" + id).checked; }); }
   function exclusionSet() {
     var set = Object.create(null);
@@ -288,65 +317,86 @@
     for (var c in excludedChip) if (excludedChip[c]) set[c] = 1;
     return set;
   }
-  function buildAlphabet() {
+  // 有効かつ文字が残っている文字種の一覧（mixパネル・生成の共通の元）
+  function buildUnits() {
     var ex = exclusionSet();
-    var ids = activeGroupIds();
-    var seen = Object.create(null);
-    var chars = [];
-    var cats = [];   // each-type 用（有効グループの残存文字・配列）
-    ids.forEach(function (id) {
+    var units = [];
+    var inGroups = Object.create(null);
+    activeGroupIds().forEach(function (id) {
       var arr = GROUP_ARR[id], cat = [];
-      for (var i = 0; i < arr.length; i++) { var ch = arr[i]; if (ex[ch] || seen[ch]) continue; seen[ch] = 1; chars.push(ch); cat.push(ch); }
-      if (cat.length) cats.push(cat);
+      for (var i = 0; i < arr.length; i++) { var ch = arr[i]; if (ex[ch]) continue; cat.push(ch); inGroups[ch] = 1; }
+      if (cat.length) units.push({ id: id, chars: cat, w: getW(id) });
     });
-    var custom = Array.from($("custom").value);   // 追加（積み増し）。each-type の種別には数えない
-    for (var j = 0; j < custom.length; j++) { var cc = custom[j]; if (ex[cc] || seen[cc]) continue; seen[cc] = 1; chars.push(cc); }
-    return { chars: chars, cats: cats };
+    var custom = Array.from($("custom").value), cc = [], seenC = Object.create(null);
+    for (var j = 0; j < custom.length; j++) { var c = custom[j]; if (ex[c] || inGroups[c] || seenC[c]) continue; seenC[c] = 1; cc.push(c); }
+    if (cc.length) units.push({ id: CUSTOM_ID, chars: cc, w: getW(CUSTOM_ID) });
+    return units;
   }
+
   function getConfig() {
-    var ab = buildAlphabet();
-    var N = ab.chars.length;
+    var allUnits = buildUnits();
+    var units = allUnits.filter(function (u) { return u.w > 0; });   // 重み0は使わない
+    var N = 0; units.forEach(function (u) { N += u.chars.length; });
+    var totalW = 0; units.forEach(function (u) { totalW += u.w; });
     var reqLen = clampInt($("len-num").value, 1, 128, 16);
     var noRepeat = $("o-norepeat").checked;
     var eachType = $("o-eachtype").checked;
     var count = clampInt($("count").value, 1, 100, 1);
     var warnings = [];
     var effLen = reqLen;
-    if (N === 0) warnings.push("empty");
+    if (N === 0 || totalW === 0) warnings.push("empty");
     if (noRepeat && N > 0 && reqLen > N) { effLen = N; warnings.push("clamp"); }
-    if (eachType && ab.cats.length > 0 && effLen < ab.cats.length) warnings.push("eachlong");
-    return { chars: ab.chars, cats: ab.cats, N: N, length: effLen, noRepeat: noRepeat, eachType: eachType, count: count, warnings: warnings };
+    if (eachType && units.length > 0 && effLen < units.length) warnings.push("eachlong");
+    return { units: units, N: N, totalW: totalW, length: effLen, noRepeat: noRepeat, eachType: eachType, count: count, warnings: warnings };
   }
 
-  // ===== 1本生成 =====
+  // ===== 1本生成（重み付き） =====
+  function weightedPick(units, totalW) {
+    var r = secureRandomInt(totalW), acc = 0;
+    for (var i = 0; i < units.length; i++) { acc += units[i].w; if (r < acc) return i; }
+    return units.length - 1;
+  }
   function generateOne(cfg) {
-    var chars = cfg.chars, N = chars.length, L = cfg.length, noRepeat = cfg.noRepeat;
-    var cats = (cfg.eachType && cfg.cats.length > 0 && L >= cfg.cats.length) ? cfg.cats : [];
+    var units = cfg.units, N = cfg.N, L = cfg.length, noRepeat = cfg.noRepeat, totalW = cfg.totalW;
+    var reserve = (cfg.eachType && L >= units.length && units.length > 0);
     var out;
     if (!noRepeat) {
       out = [];
-      for (var ci = 0; ci < cats.length; ci++) out.push(cats[ci][secureRandomInt(cats[ci].length)]);
-      while (out.length < L) out.push(chars[secureRandomInt(N)]);
+      if (reserve) for (var ci = 0; ci < units.length; ci++) out.push(units[ci].chars[secureRandomInt(units[ci].chars.length)]);
+      while (out.length < L) { var gi = weightedPick(units, totalW); out.push(units[gi].chars[secureRandomInt(units[gi].chars.length)]); }
     } else {
-      // 各カテゴリから1文字確保 → 残りを袋（swap削除）から重複なしで補充
-      var reserved = [], usedMap = Object.create(null);
-      for (var c2 = 0; c2 < cats.length; c2++) { var ch = cats[c2][secureRandomInt(cats[c2].length)]; reserved.push(ch); usedMap[ch] = 1; }
-      var bag = []; for (var b = 0; b < chars.length; b++) if (!usedMap[chars[b]]) bag.push(chars[b]);
-      out = reserved.slice();
-      var need = L - reserved.length, bagLen = bag.length;
-      for (var k = 0; k < need && bagLen > 0; k++) { var idx = secureRandomInt(bagLen); out.push(bag[idx]); bag[idx] = bag[bagLen - 1]; bagLen--; }
+      var bags = units.map(function (u) { return u.chars.slice(); });
+      var w = units.map(function (u) { return u.w; });
+      out = [];
+      if (reserve) for (var r2 = 0; r2 < units.length; r2++) if (bags[r2].length) out.push(popFrom(bags[r2]));
+      while (out.length < L) {
+        var idx = pickAvail(bags, w);
+        if (idx < 0) break;
+        out.push(popFrom(bags[idx]));
+      }
     }
     shuffle(out);
     return out.join("");
   }
+  function popFrom(bag) { var i = secureRandomInt(bag.length), ch = bag[i]; bag[i] = bag[bag.length - 1]; bag.pop(); return ch; }
+  function pickAvail(bags, w) {
+    var wsum = 0, any = -1;
+    for (var i = 0; i < bags.length; i++) if (bags[i].length > 0 && w[i] > 0) { wsum += w[i]; any = i; }
+    if (any < 0) return -1;
+    var r = secureRandomInt(wsum), acc = 0;
+    for (var j = 0; j < bags.length; j++) { if (bags[j].length > 0 && w[j] > 0) { acc += w[j]; if (r < acc) return j; } }
+    return any;
+  }
 
   // ===== エントロピー =====
-  function bitsFor(N, L, noRepeat) {
-    if (N <= 1 || L <= 0) return 0;
-    if (!noRepeat) return L * Math.log2(N);
-    var bb = 0, kk = Math.min(L, N);
-    for (var i = 0; i < kk; i++) bb += Math.log2(N - i);
-    return bb;
+  function entropyBits(cfg) {
+    var units = cfg.units, N = cfg.N, L = cfg.length, totalW = cfg.totalW;
+    if (N <= 1 || L <= 0 || units.length === 0 || totalW <= 0) return 0;
+    var H = 0;
+    units.forEach(function (u) { var p = u.w / totalW; if (p > 0) H += p * (Math.log2(u.chars.length) - Math.log2(p)); });
+    var bits = L * H;
+    if (cfg.noRepeat) { var perm = 0, k = Math.min(L, N); for (var i = 0; i < k; i++) perm += Math.log2(N - i); if (perm < bits) bits = perm; }
+    return bits;
   }
   function fmtCombos(bits) {
     if (bits <= 0) return "1";
@@ -394,14 +444,14 @@
       var key = code === "empty" ? "t.wEmpty" : code === "clamp" ? "t.wClamp" : code === "eachlong" ? "t.wEachLong" : null;
       if (key) w.push({ key: key, neg: code === "empty" });
     });
-    if (cfg.eachType && cfg.cats.length > 0 && cfg.length >= cfg.cats.length) w.push({ key: "t.wEachNote", neg: false });
+    if (cfg.eachType && cfg.units.length > 0 && cfg.length >= cfg.units.length) w.push({ key: "t.wEachNote", neg: false });
     $("warnings").innerHTML = w.map(function (o) {
       return '<span class="badge ' + (o.neg ? "badge--neg" : "badge--muted") + '"><span class="d"></span>' + escHtml(T(o.key)) + "</span>";
     }).join("");
   }
   function updateMetrics(cfg) {
     cfg = cfg || getConfig();
-    var bits = bitsFor(cfg.N, cfg.length, cfg.noRepeat);
+    var bits = entropyBits(cfg);
     $("m-bits").textContent = bits <= 0 ? "0" : (bits >= 100 ? String(Math.round(bits)) : bits.toFixed(1));
     $("m-alpha").textContent = cfg.N;
     $("m-combos").textContent = cfg.N === 0 ? "\u2014" : fmtCombos(bits);
@@ -421,7 +471,7 @@
     dirtyEl.hidden = true;
   }
 
-  // ===== チップ（ASCII の個別選択） =====
+  // ===== チップ =====
   var pickPanel = $("pick-panel"), pickToggle = $("pick-toggle");
   function renderChips() {
     var html = "";
@@ -435,9 +485,54 @@
     });
     $("chipgrids").innerHTML = html || '<div class="hint">' + escHtml(T("t.picknone")) + "</div>";
   }
+
+  // ===== 割合（mix） =====
+  var mixPanel = $("mix-panel"), mixToggle = $("mix-toggle");
+  function unitLabel(id) { return id === CUSTOM_ID ? T("t.wcustom") : T("t." + id); }
+  function renderMix() {
+    var units = buildUnits();
+    if (!units.length) { $("mix-rows").innerHTML = '<div class="hint">' + escHtml(T("t.mixnone")) + "</div>"; return; }
+    $("mix-rows").innerHTML = units.map(function (u) {
+      return '<div class="wrow"><span class="wrow__lbl">' + escHtml(unitLabel(u.id)) + "</span>" +
+        '<input type="range" class="slider" data-wid="' + escAttr(u.id) + '" min="0" max="100" value="' + getW(u.id) + '">' +
+        '<span class="wrow__pct" data-pct="' + escAttr(u.id) + '">0%</span></div>';
+    }).join("");
+    updatePercents();
+  }
+  function updatePercents() {
+    var rows = mixPanel.querySelectorAll("[data-wid]");
+    var total = 0; rows.forEach(function (r) { total += parseInt(r.value, 10) || 0; });
+    rows.forEach(function (r) {
+      var id = r.getAttribute("data-wid");
+      var pctEl = mixPanel.querySelector('[data-pct="' + cssEsc(id) + '"]');
+      if (pctEl) pctEl.textContent = total > 0 ? Math.round((parseInt(r.value, 10) || 0) / total * 100) + "%" : "0%";
+    });
+  }
+  function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
+
+  // ===== 変更ハンドリング =====
+  function coreLight() { updateMetrics(); if (hasGenerated) dirtyEl.hidden = false; }
+  function core() {
+    if (!pickPanel.hidden) renderChips();
+    if (!mixPanel.hidden) renderMix();
+    coreLight();
+  }
+
+  var lenRange = $("len-range"), lenNum = $("len-num"), countEl = $("count");
+  lenRange.addEventListener("input", function () { lenNum.value = lenRange.value; coreLight(); });
+  lenNum.addEventListener("input", function () { lenRange.value = clampInt(lenNum.value, 1, 128, 16); coreLight(); });
+  lenNum.addEventListener("blur", function () { lenNum.value = clampInt(lenNum.value, 1, 128, 16); lenRange.value = lenNum.value; coreLight(); });
+  countEl.addEventListener("input", coreLight);
+  countEl.addEventListener("blur", function () { countEl.value = clampInt(countEl.value, 1, 100, 1); coreLight(); });
+
+  GROUP_LIST.forEach(function (id) { $("g-" + id).addEventListener("change", core); });
+  ["o-exclude", "o-norepeat", "o-eachtype"].forEach(function (id) { $(id).addEventListener("change", core); });
+  $("exclude-field").addEventListener("input", core);
+  $("custom").addEventListener("input", core);
+
+  // チップ操作
   pickToggle.addEventListener("click", function () {
-    var open = pickPanel.hidden;
-    pickPanel.hidden = !open;
+    var open = pickPanel.hidden; pickPanel.hidden = !open;
     pickToggle.setAttribute("aria-expanded", String(open));
     if (open) renderChips();
   });
@@ -446,26 +541,22 @@
     var ch = b.getAttribute("data-ch");
     if (excludedChip[ch]) delete excludedChip[ch]; else excludedChip[ch] = 1;
     b.setAttribute("aria-pressed", String(!excludedChip[ch]));
-    core();
+    coreLight();
   });
-  $("pick-reset").addEventListener("click", function () { excludedChip = Object.create(null); renderChips(); core(); });
+  $("pick-reset").addEventListener("click", function () { excludedChip = Object.create(null); renderChips(); coreLight(); });
 
-  // ===== 変更ハンドリング =====
-  function core() { updateMetrics(); if (hasGenerated) dirtyEl.hidden = false; }
-
-  var lenRange = $("len-range"), lenNum = $("len-num"), countEl = $("count");
-  lenRange.addEventListener("input", function () { lenNum.value = lenRange.value; core(); });
-  lenNum.addEventListener("input", function () { lenRange.value = clampInt(lenNum.value, 1, 128, 16); core(); });
-  lenNum.addEventListener("blur", function () { lenNum.value = clampInt(lenNum.value, 1, 128, 16); lenRange.value = lenNum.value; core(); });
-  countEl.addEventListener("input", core);
-  countEl.addEventListener("blur", function () { countEl.value = clampInt(countEl.value, 1, 100, 1); core(); });
-
-  GROUP_LIST.forEach(function (id) {
-    $("g-" + id).addEventListener("change", function () { if (!pickPanel.hidden) renderChips(); core(); });
+  // 割合操作
+  mixToggle.addEventListener("click", function () {
+    var open = mixPanel.hidden; mixPanel.hidden = !open;
+    mixToggle.setAttribute("aria-expanded", String(open));
+    if (open) renderMix();
   });
-  ["o-exclude", "o-norepeat", "o-eachtype"].forEach(function (id) { $(id).addEventListener("change", core); });
-  $("exclude-field").addEventListener("input", core);
-  $("custom").addEventListener("input", core);
+  $("mix-rows").addEventListener("input", function (e) {
+    var r = e.target.closest("[data-wid]"); if (!r) return;
+    weights[r.getAttribute("data-wid")] = clampInt(r.value, 0, 100, DEFAULT_W);
+    updatePercents(); coreLight();
+  });
+  $("mix-reset").addEventListener("click", function () { weights = Object.create(null); renderMix(); coreLight(); });
 
   [lenNum, countEl, $("exclude-field"), $("custom")].forEach(function (el) {
     el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); generate(); } });
@@ -475,7 +566,7 @@
 
   // ===== 起動 =====
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
-    Shell.init({ id: "random-string", strings: STR, onSettingsChange: function () { if (!pickPanel.hidden) renderChips(); updateMetrics(); } });
+    Shell.init({ id: "random-string", strings: STR, onSettingsChange: function () { if (!pickPanel.hidden) renderChips(); if (!mixPanel.hidden) renderMix(); updateMetrics(); } });
   }
   updateMetrics();
   generate();
