@@ -32,7 +32,28 @@
   .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
   .streamstate{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3); }
 
+  /* ---- mode tabs ---- */
+  .modebar{ display:inline-flex; padding:3px; gap:2px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:var(--r-lg); margin-bottom:var(--s3); }
+  .modebar button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:36px; padding:0 18px; border:0; border-radius:var(--r); background:transparent;
+    color:var(--text-2); transition:all var(--tap); }
+  .modebar button:hover{ color:var(--text); }
+  .modebar button[aria-selected="true"]{ background:var(--accent); color:#fff; }
+  .modenote{ font-size:11.5px; color:var(--text-3); margin-bottom:var(--s5); }
+  #workgrid.mode-simple{ grid-template-columns:1fr; }
+  #col-right[hidden]{ display:none; }
+
   /* ---- preview ---- */
+  .previewcard{ padding:var(--s4) var(--s4) var(--s5); }
+  .previewbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s4); }
+  .fsbtn{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500; height:32px;
+    padding:0 12px; display:inline-flex; align-items:center; gap:7px; color:var(--text-2);
+    background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r);
+    transition:all var(--tap); }
+  .fsbtn:hover{ border-color:var(--text-3); color:var(--text); }
+  .fsbtn svg{ width:14px; height:14px; }
+
   .panes{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
   .panes--1{ grid-template-columns:1fr; }
   @media (max-width:520px){ .panes{ grid-template-columns:1fr; } }
@@ -41,6 +62,38 @@
     color:var(--text-3); margin-bottom:6px; }
   .pane canvas{ display:block; width:100%; height:auto; border:1px solid var(--border);
     border-radius:var(--r); background:var(--surface-2); }
+
+  /* 全画面（ネイティブ Fullscreen API）。対応ブラウザではプレビューの1カードだけを
+     全画面表示にする。ベンダープレフィックスごとに別ルールが必要（無効なセレクタが
+     1つでも混ざるとルール全体が無視されるブラウザがあるため、まとめて書かない）。 */
+  #previewcard:fullscreen{ display:flex; flex-direction:column; justify-content:center;
+    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
+  #previewcard:-webkit-full-screen{ display:flex; flex-direction:column; justify-content:center;
+    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
+  #previewcard:-moz-full-screen{ display:flex; flex-direction:column; justify-content:center;
+    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
+  /* Fullscreen API 非対応ブラウザ（iOS Safari 等）向けのフォールバック。挙動は同じ。 */
+  #previewcard.maximized{ position:fixed; inset:0; z-index:50; margin:0; border-radius:0; border:0;
+    display:flex; flex-direction:column; justify-content:center; overflow:auto; max-width:none; }
+
+  #previewcard:fullscreen #preview,
+  #previewcard:-webkit-full-screen #preview,
+  #previewcard:-moz-full-screen #preview,
+  #previewcard.maximized #preview{ display:flex; flex-direction:column; flex:1; min-height:0; }
+  #previewcard:fullscreen .panes,
+  #previewcard:-webkit-full-screen .panes,
+  #previewcard:-moz-full-screen .panes,
+  #previewcard.maximized .panes{ flex:1; align-items:center; min-height:0; }
+  #previewcard:fullscreen .pane,
+  #previewcard:-webkit-full-screen .pane,
+  #previewcard:-moz-full-screen .pane,
+  #previewcard.maximized .pane{ display:flex; flex-direction:column; height:100%; min-height:0; }
+  #previewcard:fullscreen .pane canvas,
+  #previewcard:-webkit-full-screen .pane canvas,
+  #previewcard:-moz-full-screen .pane canvas,
+  #previewcard.maximized .pane canvas{ width:auto; height:auto; max-width:100%; max-height:100%;
+    margin:0 auto; object-fit:contain; }
+  .fs-i-close{ display:none; }
 
   .swatches{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:var(--s2); }
   .panes:not([hidden]) ~ .swatches{ margin-top:var(--s3); }
@@ -104,9 +157,37 @@
     <p data-i18n="t.desc">Simulate P/D/T/A-type color vision on images, screens and palettes, and find the colour pairs that collapse into each other.</p>
   </div>
 
-  <div class="work work--wide">
+  <div class="modebar" id="modebar" role="tablist">
+    <button data-mode="simple" data-i18n="t.modeSimple" role="tab" aria-selected="true">Simple</button>
+    <button data-mode="detailed" data-i18n="t.modeDetailed" role="tab" aria-selected="false">Detailed</button>
+  </div>
+  <p class="modenote" data-i18n="t.modeNote">Not a medical device, and not a certified or approved tool.</p>
+
+  <div class="card previewcard" id="previewcard" style="margin-bottom:var(--s5)">
+    <div class="previewbar">
+      <span class="eyebrow" data-i18n="t.preview">Preview</span>
+      <button class="fsbtn" id="fsbtn" type="button">
+        <svg class="fs-i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        <svg class="fs-i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9 3v4a2 2 0 0 1-2 2H3M15 3v4a2 2 0 0 0 2 2h4M21 15h-4a2 2 0 0 0-2 2v4M3 15h4a2 2 0 0 1 2 2v4"/></svg>
+        <span id="fsbtn-lbl" data-i18n="t.fullscreen">Fullscreen</span>
+      </button>
+    </div>
+    <div id="preview">
+      <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
+      <div class="panes" id="panes" hidden>
+        <div class="pane" id="pane-a"><div class="pane__lbl" id="lbl-a">Original</div><canvas id="cv-a"></canvas></div>
+        <div class="pane" id="pane-b"><div class="pane__lbl" id="lbl-b">Simulated</div><canvas id="cv-b"></canvas></div>
+      </div>
+      <div class="legend" id="legend" hidden>
+        <span>0</span><span class="legend__bar" id="legend-bar"></span><span>ΔE 30+</span>
+      </div>
+      <div class="swatches" id="swatches" hidden></div>
+    </div>
+  </div>
+
+  <div class="work work--wide" id="workgrid">
     <!-- ================= 左: 入力と設定 ================= -->
-    <div>
+    <div id="col-left">
       <div class="card">
         <div class="card__title" data-i18n="t.source">Source</div>
         <div class="seg seg--4" id="seg-src" role="group">
@@ -171,7 +252,7 @@
           <button data-type="bcm" data-i18n="t.tAbcm">A (S-cone)</button>
         </div>
 
-        <div class="field" style="margin-top:var(--s4)">
+        <div class="field" id="sev-field" style="margin-top:var(--s4)">
           <label class="label" for="sev" data-i18n="t.severity">Severity</label>
           <div class="sliderrow">
             <input class="slider" id="sev" type="range" min="0" max="100" step="1" value="100">
@@ -189,7 +270,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="view-card">
         <div class="card__title" data-i18n="t.view">View</div>
         <div class="seg seg--3" id="seg-view" role="group">
           <button data-view="compare" data-i18n="t.vCompare">Side by side</button>
@@ -207,21 +288,9 @@
       </div>
     </div>
 
-    <!-- ================= 右: プレビューと判定 ================= -->
-    <div>
-      <div id="preview" style="margin-bottom:var(--s4)">
-        <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
-        <div class="panes" id="panes" hidden>
-          <div class="pane" id="pane-a"><div class="pane__lbl" id="lbl-a">Original</div><canvas id="cv-a"></canvas></div>
-          <div class="pane" id="pane-b"><div class="pane__lbl" id="lbl-b">Simulated</div><canvas id="cv-b"></canvas></div>
-        </div>
-        <div class="legend" id="legend" hidden>
-          <span>0</span><span class="legend__bar" id="legend-bar"></span><span>ΔE 30+</span>
-        </div>
-        <div class="swatches" id="swatches" hidden></div>
-      </div>
-
-      <div class="readout" style="margin-bottom:var(--s4)">
+    <!-- ================= 右: 判定 ================= -->
+    <div id="col-right">
+      <div class="readout" id="pairs-card" style="margin-bottom:var(--s4)">
         <div class="readout__head">
           <span class="eyebrow" data-i18n="t.pairs">Confusable pairs</span>
           <div class="thresh">
@@ -239,7 +308,7 @@
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
 
-      <div class="card">
+      <div class="card" id="limits-card">
         <div class="card__title" data-i18n="t.limits">What this can and cannot tell you</div>
         <p class="note" data-i18n="t.lim1">Not a medical device and not a certified or approved tool. It cannot diagnose anything, and it is not a substitute for an eye examination.</p>
         <p class="note" data-i18n="t.lim2">Read which colours collide, not the colours themselves. The residual hues come from reports by people with vision in only one eye affected, so the output colour is an estimate; the pairs that merge are the reliable part.</p>
@@ -468,6 +537,8 @@
   var $ = function(id){ return document.getElementById(id); };
 
   var st = {
+    mode: "simple",     // simple | detailed
+    savedView: null,    // 詳細モードへ戻ったとき復元する view
     src: "image",
     type: "deutan",
     sev: 1,
@@ -845,6 +916,7 @@
   }
 
   function renderPairs(){
+    if (st.mode === "simple") return;
     var S = prepSim(st.type, st.sev, st.model);
     var types = ["protan","deutan","tritan"];
     var sims = {};
@@ -943,7 +1015,9 @@
       renderPixels();
       if (!stream){ palette = extractColors(st.ncol); }
       showLegend = st.view === "diff";
-      showSw = palette.length > 0;      // 抽出された色そのものも見せる
+      // 簡易モードでは「元とシミュレーションの画像」だけに絞るので、
+      // 画像/画面/カメラ入力時の抽出スウォッチ（詳細モードの判定用補助表示）は隠す
+      showSw = st.mode === "detailed" && palette.length > 0;
       renderSwatches();
     } else {
       palette = [];
@@ -975,7 +1049,38 @@
 
     renderPairs();
     syncAvail();
+    syncPreviewBar();
+    syncMode();
   }
+
+  function syncMode(){
+    var simple = st.mode === "simple";
+    $("modebar").querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-selected", String(b.getAttribute("data-mode") === st.mode));
+    });
+    $("sev-field").hidden = simple;
+    $("view-card").hidden = simple;
+    $("pairs-card").hidden = simple;
+    $("limits-card").hidden = simple;
+    $("col-right").hidden = simple;
+    $("workgrid").classList.toggle("mode-simple", simple);
+    // model-field は色覚型の条件（syncAvail）と、簡易モードの条件を両方満たす必要がある
+    if (simple) $("model-field").hidden = true;
+  }
+
+  $("modebar").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    var v = b.getAttribute("data-mode");
+    if (v === st.mode) return;
+    if (v === "simple"){
+      st.savedView = st.view;
+      st.view = "compare";
+    } else if (st.savedView){
+      st.view = st.savedView;
+    }
+    st.mode = v;
+    render();
+  });
 
   function syncSegs(){
     setSeg("seg-src", "data-src", st.src);
@@ -996,6 +1101,11 @@
     });
   }
 
+  function syncPreviewBar(){
+    var has = st.src === "palette" ? palette.length > 0 : hasFrame;
+    fsBtn.hidden = !has;
+  }
+
   function syncAvail(){
     var mono = st.type === "rod" || st.type === "bcm";
     var none = st.type === "none";
@@ -1008,6 +1118,63 @@
     if (!SCREEN_OK) $("screen-hint").textContent = T("t.screenNo");
     $("cam-start").disabled = !CAMERA_OK;
   }
+
+  /* =====================================================================
+     7.5 全画面表示
+     ===================================================================== */
+  var previewCard = $("previewcard"), fsBtn = $("fsbtn"), fsLbl = $("fsbtn-lbl");
+  var fsOpen = fsBtn.querySelector(".fs-i-open"), fsClose = fsBtn.querySelector(".fs-i-close");
+  var FS_OK = !!(previewCard.requestFullscreen || previewCard.webkitRequestFullscreen || previewCard.mozRequestFullScreen);
+
+  function fsElement(){
+    return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || null;
+  }
+  function isMaximized(){ return fsElement() === previewCard || previewCard.classList.contains("maximized"); }
+
+  function enterFullscreen(){
+    var req = previewCard.requestFullscreen || previewCard.webkitRequestFullscreen || previewCard.mozRequestFullScreen;
+    if (req){
+      var r = req.call(previewCard);
+      if (r && r.catch) r.catch(function(){ enterMaximizedFallback(); });
+    } else enterMaximizedFallback();
+  }
+  function exitFullscreen(){
+    if (fsElement()){
+      var exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+      if (exit) exit.call(document);
+    }
+    exitMaximizedFallback();
+  }
+  function enterMaximizedFallback(){
+    previewCard.classList.add("maximized");
+    document.documentElement.style.overflow = "hidden";
+    syncFsButton();
+  }
+  function exitMaximizedFallback(){
+    previewCard.classList.remove("maximized");
+    document.documentElement.style.overflow = "";
+    syncFsButton();
+  }
+  function syncFsButton(){
+    var on = isMaximized();
+    fsOpen.hidden = on; fsClose.hidden = !on;
+    fsLbl.textContent = T(on ? "t.exitFullscreen" : "t.fullscreen");
+    fsBtn.setAttribute("aria-pressed", String(on));
+  }
+
+  fsBtn.addEventListener("click", function(){
+    if (isMaximized()) exitFullscreen(); else enterFullscreen();
+  });
+  ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange"].forEach(function(ev){
+    document.addEventListener(ev, function(){
+      // ブラウザ側（Escキー等）で閉じられた場合もボタン状態を追従させる
+      if (!fsElement()) document.documentElement.style.overflow = "";
+      syncFsButton();
+    });
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && previewCard.classList.contains("maximized")) exitMaximizedFallback();
+  });
 
   /* =====================================================================
      8. イベント
@@ -1047,6 +1214,12 @@
     en: {
       "t.title": "Color vision (CUD) simulator",
       "t.desc": "Simulate P/D/T/A-type color vision on images, screens and palettes, and find the colour pairs that collapse into each other.",
+      "t.modeSimple": "Simple",
+      "t.modeDetailed": "Detailed",
+      "t.modeNote": "Not a medical device, and not a certified or approved tool. See \u201cWhat this can and cannot tell you\u201d in Detailed mode for the full picture.",
+      "t.preview": "Preview",
+      "t.fullscreen": "Fullscreen",
+      "t.exitFullscreen": "Exit fullscreen",
       "t.source": "Source",
       "t.srcImage": "Image", "t.srcPalette": "Palette", "t.srcScreen": "Screen", "t.srcCamera": "Camera",
       "t.dropTitle": "Drop an image",
@@ -1097,6 +1270,12 @@
     ja: {
       "t.title": "色覚（CUD）シミュレーター",
       "t.desc": "画像・画面・パレットのP/D/T/A型の見え方を再現し、同じ色に潰れてしまう組み合わせを検出します。",
+      "t.modeSimple": "簡易",
+      "t.modeDetailed": "詳細",
+      "t.modeNote": "医療機器ではなく、認可・認証を受けたツールでもありません。詳細の「このツールで分かること・分からないこと」もあわせてご確認ください。",
+      "t.preview": "プレビュー",
+      "t.fullscreen": "全画面",
+      "t.exitFullscreen": "全画面を終了",
       "t.source": "入力ソース",
       "t.srcImage": "画像", "t.srcPalette": "パレット", "t.srcScreen": "画面", "t.srcCamera": "カメラ",
       "t.dropTitle": "画像をドロップ",
