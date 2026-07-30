@@ -142,7 +142,7 @@
   }
   function hex2(n) { var s = n.toString(16).toUpperCase(); return s.length < 2 ? "0" + s : s; }
   function toHex(c) { return "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); }
-  function toRGBText(c) { return "rgb(" + c.r + ", " + c.g + ", " + c.b + ")"; }
+  function toRGBText(c) { return c.r + ", " + c.g + ", " + c.b; }
   function luminance(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; }
 
   function presetName(keyOrNull) {
