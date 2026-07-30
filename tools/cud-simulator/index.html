@@ -638,6 +638,8 @@
   $("pal-clear").addEventListener("click", function(){ pal.value = ""; pal.focus(); render(); });
 
   // ---- streams ----
+  var streamPrimed = false;
+
   function stopStream(){
     if (rafId){ cancelAnimationFrame(rafId); rafId = 0; }
     if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
@@ -648,6 +650,7 @@
 
   function startStream(promise, stateEl){
     stopStream();
+    streamPrimed = false;
     promise.then(function(s){
       stream = s;
       vid.srcObject = s;
@@ -667,8 +670,16 @@
     if (srcCanvas.width !== w || srcCanvas.height !== h){ srcCanvas.width = w; srcCanvas.height = h; }
     srcCtx.drawImage(vid, 0, 0, w, h);
     hasFrame = true; frameKind = "stream";
-    renderPixels();
-    throttledExtract();
+    if (!streamPrimed){
+      // 最初のフレームだけ完全な render() を通す。#panes を表示・#empty を隠す
+      // といった表示切り替えは render() 側でしか行っていないため、これが無いと
+      // 見た目上プレビューが出ないまま（renderPixels だけがキャンバスに描き続ける）になる。
+      streamPrimed = true;
+      render();
+    } else {
+      renderPixels();
+      throttledExtract();
+    }
   }
 
   $("screen-start").addEventListener("click", function(){
