@@ -16,7 +16,7 @@
      index.html のバージョンだけでは、player.js が古いキャッシュのままでも
      気づけない（実際にレーン分離が反映されない事例が発生した）。
      レポートに出るので、どのファイルが古いのかを切り分けられる。 */
-  var PLAYER_VERSION = "1.6";
+  var PLAYER_VERSION = "1.7";
 
   var LEVEL_NONE = 0, LEVEL_CAUTION = 1, LEVEL_FAIL = 2;
 
@@ -95,6 +95,10 @@
     this.confirmed = false;
     this.hoverUs = null;
     this.seekError = null;        // コマ送りの実測誤差（秒）
+    /* スクラブ中の表示位置（µs）。シークを間引くあいだ、再生ヘッドと時刻ラベルは
+       これを優先して描く。null のときは video.currentTime に従う。§9.2.5a */
+    this.scrubUs = null;
+    this._pendingSeek = null;     // 間引いて捨てた最終シーク先（秒）。seeked 後に適用する
     this.requestedTime = null;
     this.actualTime = null;
     this._rvfc = null;
@@ -237,7 +241,8 @@
 
     this.btnPlay.addEventListener("click", function () { self.toggle(); });
     this.btnStart.addEventListener("click", function () {
-      self.video.pause(); self.video.currentTime = 0; self.draw();
+      self.video.pause(); self.scrubUs = null; self._pendingSeek = null;
+      self.video.currentTime = 0; self.draw();
     });
     this.btnStepBack.addEventListener("click", function () { self.step(-1); });
     this.btnStepFwd.addEventListener("click", function () { self.step(1); });
@@ -281,28 +286,76 @@
       var x = (ev.clientX - r.left - padL) / w;
       return Math.max(0, Math.min(1, x));
     }
-    function seekFromEvent(ev) {
+    /* スクラブのシークは間引く。§9.2.5a
+       `currentTime` への代入は「正確なシーク」で、直前キーフレームからの
+       前方デコードを伴う。pointermove ごとに代入すると、完了しないシークを
+       延々と作り直すことになり、実際に readyState=1 のまま 272 回シークが
+       1つも完了せず再生不能に陥る事例が観測された（2026-07-30）。
+       進行中のシークがあるあいだは代入せず、最後の位置だけ覚えておいて
+       seeked のときに適用する。表示位置は scrubUs で先に動かすので、
+       利用者から見た追従性は落ちない。
+       force=true（クリック・指を離した時）は必ず正確にシークする。 */
+    function seekFromEvent(ev, force) {
       var dur = self.video.duration || (self.durationUs / 1e6);
-      self.video.currentTime = fracFromEvent(ev) * dur;
+      var target = fracFromEvent(ev) * dur;
+      self.scrubUs = target * 1e6;              // 再生ヘッドは即座に動かす
+      if (force || !self.video.seeking) {
+        self._pendingSeek = null;
+        self.video.currentTime = target;
+      } else {
+        self._pendingSeek = target;             // 進行中なので今は投げない
+      }
       self.draw();
     }
+    this.video.addEventListener("seeked", function () {
+      if (self._pendingSeek != null) {
+        var t2 = self._pendingSeek;
+        self._pendingSeek = null;
+        self.video.currentTime = t2;            // 取りこぼした最終位置へ
+        return;
+      }
+      /* 追いついたので表示位置の上書きを解除し、実際の currentTime に戻す */
+      if (!dragging) self.scrubUs = null;
+      self.draw();
+    });
     this.canvas.addEventListener("pointerdown", function (ev) {
       ev.preventDefault();
       /* i マークを押した場合はシークせず解説を開く。
          シーク処理より先に判定すること。 */
       var hit = self._hitInfo(ev);
       if (hit) { var fn = infoFn(); if (fn) fn(hit.id); return; }
-      dragging = true; seekFromEvent(ev);
+      dragging = true; seekFromEvent(ev, true);
       self.canvas.setPointerCapture(ev.pointerId);
     });
     this.canvas.addEventListener("pointermove", function (ev) {
       self.canvas.style.cursor = self._hitInfo(ev) ? "help" : "pointer";
       var dur = self.video.duration || (self.durationUs / 1e6);
       self.hoverUs = fracFromEvent(ev) * dur * 1e6;
-      if (dragging) seekFromEvent(ev); else self.draw();
+      if (dragging) seekFromEvent(ev, false); else self.draw();
     });
     this.canvas.addEventListener("pointerleave", function () { self.hoverUs = null; self.draw(); });
-    this.canvas.addEventListener("pointerup", function () { dragging = false; });
+    /* 指を離した時点の位置へ、間引きを無視して1回だけ正確にシークする。
+       これをしないと、最後の pointermove が間引かれた場合に
+       表示位置（scrubUs）と実際の再生位置がずれたままになる。 */
+    this.canvas.addEventListener("pointerup", function (ev) {
+      if (!dragging) return;
+      dragging = false;
+      seekFromEvent(ev, true);
+    });
+    /* ドラッグが中断された場合（タッチの取り消し等）。
+       scrubUs を掴んだままにすると再生ヘッドが固まるため、必ず解除する。 */
+    this.canvas.addEventListener("pointercancel", function () {
+      if (!dragging) return;
+      dragging = false;
+      if (self._pendingSeek != null) {
+        var t2 = self._pendingSeek;
+        self._pendingSeek = null;
+        self.video.currentTime = t2;      // 取りこぼしがあれば最後の位置へ
+      } else if (!self.video.seeking) {
+        self.scrubUs = null;              // シークが無いなら上書きを即解除
+      }
+      self.draw();
+    });
 
     /* キーボード操作（§9.2.2） */
     this.mount.tabIndex = 0;
@@ -313,7 +366,9 @@
         case "ArrowRight": ev.preventDefault(); self.step(1); break;
         case ",": ev.preventDefault(); self.jumpHit(-1); break;
         case ".": ev.preventDefault(); self.jumpHit(1); break;
-        case "Home": ev.preventDefault(); self.video.currentTime = 0; break;
+        case "Home": ev.preventDefault();
+          self.scrubUs = null; self._pendingSeek = null;
+          self.video.currentTime = 0; break;
       }
     });
 
@@ -356,6 +411,7 @@
     if (this.stepOnly) return;
     if (!this.video.paused) { this.video.pause(); return; }
     this.seekError = null;                    // 再生を始めたら誤差表示は消す
+    this.scrubUs = null;                      // 再生位置は video.currentTime に従わせる
     if (this.hasFail && !this.confirmed) { this._askConfirm(); return; }
     this.video.play();
   };
@@ -411,6 +467,7 @@
         プレビューの表示位置は参考値であることを利用者に見せるため。 */
   Player.prototype.step = function (dir) {
     this.video.pause();
+    this.scrubUs = null; this._pendingSeek = null;   // スクラブの上書きを解除
     var d = 1 / (this.fps || 30);
     var target = Math.max(0, this.video.currentTime + dir * d);
     this.requestedTime = target;
@@ -451,6 +508,7 @@
       }
     }
     if (target != null) {
+      this.scrubUs = null; this._pendingSeek = null;   // スクラブの上書きを解除
       this.video.currentTime = target / 1e6;
       this.draw();
     }
@@ -738,7 +796,9 @@
     g.textAlign = "left";
 
     /* ================= ④ 再生ヘッド ================= */
-    var curUs = (this.video.currentTime || 0) * 1e6;
+    /* スクラブ中はシークを間引くため currentTime が追いつかない。
+       その間は scrubUs（指の位置）を優先して描く。§9.2.5a */
+    var curUs = (this.scrubUs != null) ? this.scrubUs : (this.video.currentTime || 0) * 1e6;
     var px = xOf(curUs);
     if (px >= padL - 1 && px <= padL + W + 1) {
       g.strokeStyle = cAccent; g.lineWidth = 1;
