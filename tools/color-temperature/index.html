@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color temperature comparison — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .ktrow{ display:flex; align-items:center; gap:var(--s3); }
+  .ktrow .slider{ flex:1; }
+  .ktrow .kval{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:15px;
+    color:var(--text); min-width:64px; text-align:right; }
+
+  .presets{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .presets button{ appearance:none; cursor:pointer; font:inherit; text-align:left; padding:8px 10px;
+    border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); display:flex; flex-direction:column; gap:2px; }
+  .presets button:hover{ border-color:var(--accent); color:var(--text); }
+  .presets button .pn{ font-size:12.5px; font-weight:500; color:var(--text); }
+  .presets button .pk{ font-size:11px; font-family:var(--font-mono); color:var(--text-3); }
+
+  .ctstrip{ display:flex; min-height:104px; }
+  .ctstrip .sw{ flex:1 1 0; display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:8px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:12px; font-weight:600; letter-spacing:.02em; }
+  .ctstrip .sw + .sw{ border-left:1px solid rgba(0,0,0,.08); }
+  .ctempty{ display:flex; align-items:center; justify-content:center; min-height:104px;
+    color:var(--text-3); font-size:12.5px; }
+
+  .ro-head3{ display:grid; grid-template-columns:44px 1fr 92px 92px 28px; gap:var(--s3);
+    padding:8px var(--s4) 4px; }
+  .ro-head3 span{ font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-3); }
+  .ro-head3 span.num{ text-align:right; }
+  .ctrow{ display:grid; grid-template-columns:44px 1fr 92px 92px 28px; gap:var(--s3);
+    align-items:center; padding:var(--s3) var(--s4); }
+  .ctrow + .ctrow{ border-top:1px solid var(--border); }
+  .ctchip{ width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-strong); }
+  .ctlbl{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .ctlbl .k{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px; color:var(--text); }
+  .ctlbl .n{ font-size:11px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ctv{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12.5px;
+    color:var(--text-2); text-align:right; cursor:pointer; }
+  .ctrm{ appearance:none; cursor:pointer; width:24px; height:24px; border-radius:var(--r-sm);
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--text-3);
+    display:flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .ctrm:hover{ border-color:var(--neg); color:var(--neg); }
+  .ctrm svg{ width:12px; height:12px; }
+
+  @media (max-width:480px){
+    .ro-head3, .ctrow{ grid-template-columns:36px 1fr 76px 76px 24px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Color temperature comparison</h1>
+    <p data-i18n="t.desc">Compare Kelvin color temperatures side by side, with approximate RGB / HEX values.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 温度スライダー・プリセット -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.kelvin">Color temperature</label>
+          <div class="ktrow">
+            <input type="range" class="slider" id="k-slider" min="1000" max="12000" step="50" value="5500">
+            <span class="kval" id="k-val">5500K</span>
+          </div>
+        </div>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--primary btn--block" id="add-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="t.add">Add to comparison</span>
+          </button>
+        </div>
+        <div class="field" style="margin-top:var(--s5)">
+          <label class="label" data-i18n="t.presets">Presets</label>
+          <div class="presets" id="presets" role="group"></div>
+        </div>
+        <div class="hint" data-i18n="t.hint">Move the slider or tap a preset — each adds a swatch to the comparison on the right.</div>
+      </div>
+    </div>
+
+    <!-- 右: 比較ストリップ + readout -->
+    <div>
+      <div class="preview ctstrip" id="strip" style="margin-bottom:var(--s4)"></div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Comparison</span></div>
+        <div class="ro-head3" id="ro-head3">
+          <span></span><span></span><span class="num" data-i18n="t.rgb">RGB</span><span class="num" data-i18n="t.hex">HEX</span><span></span>
+        </div>
+        <div id="rows"></div>
+        <div class="acc-note" data-i18n="t.accnote">These are approximate colors from a standard blackbody-locus formula (Tanner Helland's approximation, sRGB gamma). Actual appearance depends on your display's calibration, brightness, and surrounding light — treat this as a relative comparison, not an absolute reference.</div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any RGB or HEX value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var slider = $("k-slider"), kVal = $("k-val"), addBtn = $("add-btn");
+  var strip = $("strip"), rows = $("rows"), presetsEl = $("presets");
+
+  var PRESETS = [
+    { key: "candle",    k: 1900 },
+    { key: "tungsten",  k: 2700 },
+    { key: "studio",    k: 3200 },
+    { key: "daylight",  k: 5500 },
+    { key: "d65",       k: 6500 },
+    { key: "shade",     k: 8000 }
+  ];
+
+  var swatches = [];   // { id, k, presetKey|null }
+  var nextId = 1;
+
+  // ---- Kelvin -> RGB（Tanner Hellandの近似式。1000K–40000K前後で妥当） ----
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function kelvinToRGB(kelvin) {
+    var temp = kelvin / 100, r, g, b;
+    if (temp <= 66) { r = 255; }
+    else { r = temp - 60; r = 329.698727446 * Math.pow(r, -0.1332047592); r = clamp(r, 0, 255); }
+
+    if (temp <= 66) { g = temp; g = 99.4708025861 * Math.log(g) - 161.1195681661; }
+    else { g = temp - 60; g = 288.1221695283 * Math.pow(g, -0.0755148492); }
+    g = clamp(g, 0, 255);
+
+    if (temp >= 66) { b = 255; }
+    else if (temp <= 19) { b = 0; }
+    else { b = temp - 10; b = 138.5177312231 * Math.log(b) - 305.0447927307; b = clamp(b, 0, 255); }
+
+    return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+  }
+  function hex2(n) { var s = n.toString(16).toUpperCase(); return s.length < 2 ? "0" + s : s; }
+  function toHex(c) { return "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); }
+  function toRGBText(c) { return "rgb(" + c.r + ", " + c.g + ", " + c.b + ")"; }
+  function luminance(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; }
+
+  function presetName(keyOrNull) {
+    if (!keyOrNull) return Shell.t("t.custom");
+    return Shell.t("t.p." + keyOrNull);
+  }
+
+  function addSwatch(k, presetKey) {
+    if (swatches.length >= 8) return;
+    swatches.push({ id: nextId++, k: k, presetKey: presetKey || null });
+    render();
+  }
+  function removeSwatch(id) {
+    swatches = swatches.filter(function (s) { return s.id !== id; });
+    render();
+  }
+
+  function renderPresets() {
+    presetsEl.innerHTML = PRESETS.map(function (p) {
+      return '<button type="button" data-k="' + p.k + '" data-preset="' + p.key + '">' +
+        '<span class="pn" data-i18n="t.p.' + p.key + '">' + Shell.t("t.p." + p.key) + '</span>' +
+        '<span class="pk">' + p.k + 'K</span></button>';
+    }).join("");
+  }
+
+  function render() {
+    // slider live label
+    kVal.textContent = slider.value + "K";
+
+    // strip
+    if (!swatches.length) {
+      strip.innerHTML = '<div class="ctempty" data-i18n="t.empty">' + Shell.t("t.empty") + '</div>';
+    } else {
+      strip.innerHTML = swatches.map(function (s) {
+        var c = kelvinToRGB(s.k);
+        var textColor = luminance(c) > 150 ? "rgba(0,0,0,.72)" : "rgba(255,255,255,.92)";
+        return '<div class="sw" style="background:rgb(' + c.r + ',' + c.g + ',' + c.b + ');color:' + textColor + '">' + s.k + 'K</div>';
+      }).join("");
+    }
+
+    // readout rows
+    rows.innerHTML = swatches.map(function (s) {
+      var c = kelvinToRGB(s.k);
+      var hex = toHex(c), rgbText = toRGBText(c);
+      return '<div class="ctrow">' +
+        '<div class="ctchip" style="background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')"></div>' +
+        '<div class="ctlbl"><span class="k">' + s.k + 'K</span><span class="n">' + esc(presetName(s.presetKey)) + '</span></div>' +
+        '<span class="ctv" data-copy="' + rgbText + '">' + rgbText + '</span>' +
+        '<span class="ctv" data-copy="' + hex + '">' + hex + '</span>' +
+        '<button type="button" class="ctrm" data-rm="' + s.id + '" aria-label="' + esc(Shell.t("t.remove")) + '" title="' + esc(Shell.t("t.remove")) + '">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>' +
+        '</div>';
+    }).join("");
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  slider.addEventListener("input", function () { kVal.textContent = slider.value + "K"; });
+  addBtn.addEventListener("click", function () { addSwatch(parseInt(slider.value, 10), null); });
+  presetsEl.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    addSwatch(parseInt(b.getAttribute("data-k"), 10), b.getAttribute("data-preset"));
+  });
+  rows.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-rm]"); if (!b) return;
+    removeSwatch(parseInt(b.getAttribute("data-rm"), 10));
+  });
+
+  Shell.init({
+    id: "color-temperature",
+    strings: {
+      en: {
+        "t.title": "Color temperature comparison",
+        "t.desc": "Compare Kelvin color temperatures side by side, with approximate RGB / HEX values.",
+        "t.kelvin": "Color temperature", "t.add": "Add to comparison", "t.presets": "Presets",
+        "t.hint": "Move the slider or tap a preset — each adds a swatch to the comparison on the right.",
+        "t.output": "Comparison", "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "Remove",
+        "t.custom": "Custom", "t.empty": "Add a temperature to start comparing.",
+        "t.copyhint": "Click any RGB or HEX value to copy.",
+        "t.accnote": "These are approximate colors from a standard blackbody-locus formula (Tanner Helland's approximation, sRGB gamma). Actual appearance depends on your display's calibration, brightness, and surrounding light — treat this as a relative comparison, not an absolute reference.",
+        "t.p.candle": "Candlelight", "t.p.tungsten": "Household bulb (tungsten)",
+        "t.p.studio": "Studio tungsten", "t.p.daylight": "Daylight (noon sun)",
+        "t.p.d65": "sRGB standard (D65)", "t.p.shade": "Overcast / shade"
+      },
+      ja: {
+        "t.title": "色温度比較",
+        "t.desc": "ケルビン色温度を並べて比較。近似のRGB/HEX値つき。",
+        "t.kelvin": "色温度", "t.add": "比較に追加", "t.presets": "プリセット",
+        "t.hint": "スライダーを動かすか、プリセットをタップすると右側の比較に追加されます。",
+        "t.output": "比較", "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "削除",
+        "t.custom": "カスタム", "t.empty": "色温度を追加すると比較が始まります。",
+        "t.copyhint": "RGB・HEXの値はクリックでコピーできます。",
+        "t.accnote": "これらは標準的な黒体軌跡の近似式（Tanner Hellandの近似式、sRGBガンマ）による概算色です。実際の見え方はお使いのディスプレイのキャリブレーション・輝度・周辺の光環境に左右されます。絶対的な基準ではなく、相対的な色味の比較としてご利用ください。",
+        "t.p.candle": "ろうそくの灯り", "t.p.tungsten": "白熱電球（家庭用）",
+        "t.p.studio": "スタジオ用タングステン", "t.p.daylight": "昼光（正午の太陽）",
+        "t.p.d65": "sRGB標準（D65）", "t.p.shade": "曇天・日陰"
+      }
+    },
+    onSettingsChange: function () { renderPresets(); render(); }
+  });
+
+  renderPresets();
+  // 初期表示: 代表的な2点をあらかじめ比較状態にしておく
+  addSwatch(1900, "candle");
+  addSwatch(6500, "d65");
+})();
+</script>
+</body>
+</html>
