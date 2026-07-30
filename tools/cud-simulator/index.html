@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color vision (CUD) simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  /* ---- segmented controls (Clock ツールと同じ作法) ---- */
+  .seg{ display:grid; gap:6px; }
+  .seg--2{ grid-template-columns:repeat(2,1fr); }
+  .seg--3{ grid-template-columns:repeat(3,1fr); }
+  .seg--4{ grid-template-columns:repeat(4,1fr); }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    min-height:38px; padding:0 6px; border:1px solid var(--border-strong); border-radius:var(--r);
+    background:var(--surface); color:var(--text-2); transition:all var(--tap); line-height:1.25; }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .hint{ font-size:11.5px; color:var(--text-3); margin-top:var(--s2); line-height:1.5; }
+  .hint code{ font-family:var(--font-mono); font-size:11px; }
+
+  /* ---- source panels ---- */
+  .srcpanel{ margin-top:var(--s3); }
+  .srcpanel[hidden]{ display:none !important; }
+  .drop small{ line-height:1.5; }
+  .ta{ width:100%; min-height:96px; padding:10px 12px; font-family:var(--font-mono); font-size:13px;
+    line-height:1.7; color:var(--text); background:var(--surface); border:1px solid var(--border-strong);
+    border-radius:var(--r); resize:vertical; transition:border-color var(--tap), box-shadow var(--tap); }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .streamstate{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3); }
+
+  /* ---- preview ---- */
+  .panes{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+  .panes--1{ grid-template-columns:1fr; }
+  @media (max-width:520px){ .panes{ grid-template-columns:1fr; } }
+  .pane{ min-width:0; }
+  .pane__lbl{ font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-3); margin-bottom:6px; }
+  .pane canvas{ display:block; width:100%; height:auto; border:1px solid var(--border);
+    border-radius:var(--r); background:var(--surface-2); }
+
+  .swatches{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:var(--s2); }
+  .panes:not([hidden]) ~ .swatches{ margin-top:var(--s3); }
+  .sw{ border:1px solid var(--border); border-radius:var(--r); overflow:hidden; background:var(--surface); }
+  .sw__pair{ display:grid; grid-template-columns:1fr 1fr; height:52px; }
+  .sw__half{ position:relative; }
+  .sw__meta{ padding:5px 7px; font-family:var(--font-mono); font-size:10.5px; color:var(--text-3);
+    border-top:1px solid var(--border); text-align:center; cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sw__meta:hover{ color:var(--text); }
+
+  .legend{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3);
+    font-size:11px; color:var(--text-3); font-family:var(--font-mono); }
+  .legend__bar{ flex:1; height:8px; border-radius:100px; }
+
+  .emptybox{ border:1px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
+    padding:var(--s7) var(--s5); text-align:center; color:var(--text-3); font-size:13px; }
+
+  /* ---- readout: pair table ---- */
+  .thresh{ display:flex; align-items:center; gap:var(--s2); }
+  .thresh label{ font-size:11px; color:var(--text-3); }
+  .thresh input{ width:58px; height:26px; padding:0 8px; font:inherit; font-family:var(--font-mono);
+    font-size:12.5px; text-align:right; color:var(--text); background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); }
+  .thresh input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+
+  .pr-head{ display:grid; grid-template-columns:1fr 56px 56px 56px; gap:var(--s2);
+    padding:10px var(--s4) 4px; }
+  .pr-head span{ font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-3); text-align:right; }
+  .pr-head span:first-child{ text-align:left; }
+  .prow{ display:grid; grid-template-columns:1fr 56px 56px 56px; gap:var(--s2);
+    align-items:center; padding:var(--s3) var(--s4); }
+  .prow + .prow{ border-top:1px solid var(--border); }
+  .prow__c{ display:flex; align-items:center; gap:6px; min-width:0; }
+  .chipsw{ width:16px; height:16px; border-radius:4px; border:1px solid var(--border-strong); flex:0 0 auto; }
+  .prow__t{ font-family:var(--font-mono); font-size:11px; color:var(--text-3);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dE{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px;
+    text-align:right; color:var(--text-2); cursor:pointer; }
+  .dE--bad{ color:var(--neg); font-weight:600; }
+  .dE--ok{ color:var(--pos); }
+
+  .summary{ padding:var(--s3) var(--s4); border-bottom:1px solid var(--border); }
+  .morebtn{ appearance:none; width:100%; border:0; border-top:1px solid var(--border); background:transparent;
+    color:var(--text-3); font:inherit; font-size:12px; padding:10px; cursor:pointer; transition:color var(--tap); }
+  .morebtn:hover{ color:var(--text); }
+
+  .note{ font-size:11.5px; color:var(--text-3); line-height:1.6; }
+  .note strong{ color:var(--text-2); font-weight:600; }
+  .note + .note{ margin-top:var(--s2); }
+  .srcs{ font-size:11px; color:var(--text-3); line-height:1.7; margin-top:var(--s3); }
+  .srcs b{ color:var(--text-2); font-weight:600; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Color vision (CUD) simulator</h1>
+    <p data-i18n="t.desc">Simulate P/D/T/A-type color vision on images, screens and palettes, and find the colour pairs that collapse into each other.</p>
+  </div>
+
+  <div class="work work--wide">
+    <!-- ================= 左: 入力と設定 ================= -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.source">Source</div>
+        <div class="seg seg--4" id="seg-src" role="group">
+          <button data-src="image"  data-i18n="t.srcImage">Image</button>
+          <button data-src="palette" data-i18n="t.srcPalette">Palette</button>
+          <button data-src="screen" data-i18n="t.srcScreen">Screen</button>
+          <button data-src="camera" data-i18n="t.srcCamera">Camera</button>
+        </div>
+
+        <div class="srcpanel" id="pan-image">
+          <div class="drop" id="drop" tabindex="0" role="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg>
+            <b data-i18n="t.dropTitle">Drop an image</b>
+            <small data-i18n="t.dropSub">or click to choose a file. Everything stays in this browser.</small>
+          </div>
+          <input type="file" id="file" accept="image/*" hidden>
+        </div>
+
+        <div class="srcpanel" id="pan-palette" hidden>
+          <textarea class="ta" id="pal" spellcheck="false" data-i18n-ph="t.palPh"></textarea>
+          <div class="btnrow" style="margin-top:var(--s3)">
+            <button class="btn btn--secondary" id="pal-oi" data-i18n="t.palPreset">Load Okabe–Ito set</button>
+            <button class="btn btn--ghost" id="pal-clear" data-i18n="t.palClear">Clear</button>
+          </div>
+          <div class="hint" data-i18n="t.palHint">One colour per line, or separated by commas/spaces. <code>#RGB</code>, <code>#RRGGBB</code> and <code>rgb(r,g,b)</code> are accepted.</div>
+        </div>
+
+        <div class="srcpanel" id="pan-screen" hidden>
+          <button class="btn btn--primary btn--block" id="screen-start">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span data-i18n="t.screenStart">Choose what to share</span>
+          </button>
+          <div class="streamstate" id="screen-state" hidden>
+            <span class="badge badge--pos"><span class="d"></span><span data-i18n="t.live">Live</span></span>
+            <button class="btn btn--secondary" id="screen-stop" data-i18n="t.stop">Stop</button>
+          </div>
+          <div class="hint" id="screen-hint" data-i18n="t.screenHint">Share a window or a whole screen to check a design in another app in real time.</div>
+        </div>
+
+        <div class="srcpanel" id="pan-camera" hidden>
+          <button class="btn btn--primary btn--block" id="cam-start">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+            <span data-i18n="t.camStart">Start camera</span>
+          </button>
+          <div class="streamstate" id="cam-state" hidden>
+            <span class="badge badge--pos"><span class="d"></span><span data-i18n="t.live">Live</span></span>
+            <button class="btn btn--secondary" id="cam-flip" data-i18n="t.camFlip">Switch camera</button>
+            <button class="btn btn--secondary" id="cam-stop" data-i18n="t.stop">Stop</button>
+          </div>
+          <div class="hint" id="cam-hint" data-i18n="t.camHint">Point the camera at printed material or a second monitor.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.type">Colour vision type</div>
+        <div class="seg seg--3" id="seg-type" role="group">
+          <button data-type="none" data-i18n="t.tC">C (common)</button>
+          <button data-type="protan" data-i18n="t.tP">P-type</button>
+          <button data-type="deutan" data-i18n="t.tD">D-type</button>
+          <button data-type="tritan" data-i18n="t.tT">T-type</button>
+          <button data-type="rod" data-i18n="t.tArod">A (rod)</button>
+          <button data-type="bcm" data-i18n="t.tAbcm">A (S-cone)</button>
+        </div>
+
+        <div class="field" style="margin-top:var(--s4)">
+          <label class="label" for="sev" data-i18n="t.severity">Severity</label>
+          <div class="sliderrow">
+            <input class="slider" id="sev" type="range" min="0" max="100" step="1" value="100">
+            <span class="val" id="sev-val">100%</span>
+          </div>
+        </div>
+
+        <div class="field" id="model-field">
+          <label class="label" data-i18n="t.model">Severity model</label>
+          <div class="seg seg--2" id="seg-model" role="group">
+            <button data-model="brettel" data-i18n="t.mLerp">Interpolation</button>
+            <button data-model="machado" data-i18n="t.mMachado">Machado 2009</button>
+          </div>
+          <div class="hint" id="model-hint"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.view">View</div>
+        <div class="seg seg--3" id="seg-view" role="group">
+          <button data-view="compare" data-i18n="t.vCompare">Side by side</button>
+          <button data-view="diff" data-i18n="t.vDiff">Loss map</button>
+          <button data-view="dalton" data-i18n="t.vDalton">Daltonize</button>
+        </div>
+        <div class="field" style="margin-top:var(--s4)" id="ncol-field">
+          <label class="label" for="ncol" data-i18n="t.ncol">Colours to extract</label>
+          <div class="sliderrow">
+            <input class="slider" id="ncol" type="range" min="3" max="12" step="1" value="8">
+            <span class="val" id="ncol-val">8</span>
+          </div>
+          <div class="hint" data-i18n="t.ncolHint">Median-cut extraction of the dominant colours, used for the pair check on the right.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 右: プレビューと判定 ================= -->
+    <div>
+      <div id="preview" style="margin-bottom:var(--s4)">
+        <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
+        <div class="panes" id="panes" hidden>
+          <div class="pane" id="pane-a"><div class="pane__lbl" id="lbl-a">Original</div><canvas id="cv-a"></canvas></div>
+          <div class="pane" id="pane-b"><div class="pane__lbl" id="lbl-b">Simulated</div><canvas id="cv-b"></canvas></div>
+        </div>
+        <div class="legend" id="legend" hidden>
+          <span>0</span><span class="legend__bar" id="legend-bar"></span><span>ΔE 30+</span>
+        </div>
+        <div class="swatches" id="swatches" hidden></div>
+      </div>
+
+      <div class="readout" style="margin-bottom:var(--s4)">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.pairs">Confusable pairs</span>
+          <div class="thresh">
+            <label for="th" data-i18n="t.threshold">Flag below ΔE00</label>
+            <input id="th" type="number" min="1" max="50" step="1" value="10">
+          </div>
+        </div>
+        <div class="summary" id="summary"></div>
+        <div class="pr-head" id="pr-head" hidden>
+          <span data-i18n="t.pair">Pair</span><span data-i18n="t.tPshort">P</span><span data-i18n="t.tDshort">D</span><span data-i18n="t.tTshort">T</span>
+        </div>
+        <div id="pairs"></div>
+        <button class="morebtn" id="more" hidden></button>
+        <p class="note" style="padding:var(--s3) var(--s4) 0" data-i18n="t.pairNote">Every pair is checked at full dichromacy for all three types at once, so the severity slider on the left only affects the preview. ΔE00 under 10 is the usual convention for "most people cannot reliably tell these apart".</p>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.limits">What this can and cannot tell you</div>
+        <p class="note" data-i18n="t.lim1">Not a medical device and not a certified or approved tool. It cannot diagnose anything, and it is not a substitute for an eye examination.</p>
+        <p class="note" data-i18n="t.lim2">Read which colours collide, not the colours themselves. The residual hues come from reports by people with vision in only one eye affected, so the output colour is an estimate; the pairs that merge are the reliable part.</p>
+        <p class="note" data-i18n="t.lim3">Your display is not calibrated, and published models tend to simulate a milder loss than people actually report. Treat a passing result as a floor, not a guarantee, and check with real people where the stakes are high.</p>
+        <p class="note" data-i18n="t.lim4">Colour vision varies between individuals with the same type. P/D/T each cover a wide range.</p>
+        <div class="srcs" id="srcs"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<video id="vid" playsinline muted style="display:none"></video>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+
+  /* =====================================================================
+     1. 定数 — 変換行列
+     ===================================================================== */
+
+  /* Brettel, Viénot & Mollon (1997)。
+     libDaltonLens (Nicolas Burrus, public domain) の事前計算値。
+     linearRGB → LMS → 投影面 → linearRGB をひとつの行列に畳んだもの。
+     LMSモデルは sRGB→XYZ + Smith & Pokorny (1975)、中性点は等エネルギー白Eでなく
+     RGB白（sRGB色域外へのはみ出しを減らすため。Vischeck等と同じ選択）。
+     投影面が2枚あるので、法線 n との内積の符号で使う行列を選ぶ。 */
+  var BRETTEL = {
+    protan: {
+      m1:[ 0.14980, 1.19548,-0.34528,  0.10764, 0.84864, 0.04372,  0.00384,-0.00540, 1.00156],
+      m2:[ 0.14570, 1.16172,-0.30742,  0.10816, 0.85291, 0.03892,  0.00386,-0.00524, 1.00139],
+      n :[ 0.00048, 0.00393,-0.00441]
+    },
+    deutan: {
+      m1:[ 0.36477, 0.86381,-0.22858,  0.26294, 0.64245, 0.09462, -0.02006, 0.02728, 0.99278],
+      m2:[ 0.37298, 0.88166,-0.25464,  0.25954, 0.63506, 0.10540, -0.01980, 0.02784, 0.99196],
+      n :[-0.00281,-0.00611, 0.00892]
+    },
+    tritan: {
+      m1:[ 1.01277, 0.13548,-0.14826, -0.01243, 0.86812, 0.14431,  0.07589, 0.80500, 0.11911],
+      m2:[ 0.93678, 0.18979,-0.12657,  0.06154, 0.81526, 0.12320, -0.37562, 1.12767, 0.24796],
+      n :[ 0.03901,-0.02788,-0.01113]
+    }
+  };
+
+  /* Machado, Oliveira & Fernandes (2009) の事前計算行列（強度 0.0〜1.0 / 0.1刻み）。
+     異常三色覚（不完全型）を生理モデルとして扱う唯一の手法。中間値は隣接2行列の線形補間。 */
+  var MACHADO = {
+    protan: [
+      [1,0,0, 0,1,0, 0,0,1],
+      [0.856167,0.182038,-0.038205, 0.029342,0.955115,0.015544, -0.002880,-0.001563,1.004443],
+      [0.734766,0.334872,-0.069637, 0.051840,0.919198,0.028963, -0.004928,-0.004209,1.009137],
+      [0.630323,0.465641,-0.095964, 0.069181,0.890046,0.040773, -0.006308,-0.007724,1.014032],
+      [0.539009,0.579343,-0.118352, 0.082546,0.866121,0.051332, -0.007136,-0.011959,1.019095],
+      [0.458064,0.679578,-0.137642, 0.092785,0.846313,0.060902, -0.007494,-0.016807,1.024301],
+      [0.385450,0.769005,-0.154455, 0.100526,0.829802,0.069673, -0.007442,-0.022190,1.029632],
+      [0.319627,0.849633,-0.169261, 0.106241,0.815969,0.077790, -0.007025,-0.028051,1.035076],
+      [0.259411,0.923008,-0.182420, 0.110296,0.804340,0.085364, -0.006276,-0.034346,1.040622],
+      [0.203876,0.990338,-0.194214, 0.112975,0.794542,0.092483, -0.005222,-0.041043,1.046265],
+      [0.152286,1.052583,-0.204868, 0.114503,0.786281,0.099216, -0.003882,-0.048116,1.051998]
+    ],
+    deutan: [
+      [1,0,0, 0,1,0, 0,0,1],
+      [0.866435,0.177704,-0.044139, 0.049567,0.939063,0.011370, -0.003453,0.007233,0.996220],
+      [0.760729,0.319078,-0.079807, 0.090568,0.889315,0.020117, -0.006027,0.013325,0.992702],
+      [0.675425,0.433850,-0.109275, 0.125303,0.847755,0.026942, -0.007950,0.018572,0.989378],
+      [0.605511,0.528560,-0.134071, 0.155318,0.812366,0.032316, -0.009376,0.023176,0.986200],
+      [0.547494,0.607765,-0.155259, 0.181692,0.781742,0.036566, -0.010410,0.027275,0.983136],
+      [0.498864,0.674741,-0.173604, 0.205199,0.754872,0.039929, -0.011131,0.030969,0.980162],
+      [0.457771,0.731899,-0.189670, 0.226409,0.731012,0.042579, -0.011595,0.034333,0.977261],
+      [0.422823,0.781057,-0.203881, 0.245752,0.709602,0.044646, -0.011843,0.037423,0.974421],
+      [0.392952,0.823610,-0.216562, 0.263559,0.690210,0.046232, -0.011910,0.040281,0.971630],
+      [0.367322,0.860646,-0.227968, 0.280085,0.672501,0.047413, -0.011820,0.042940,0.968881]
+    ],
+    tritan: [
+      [1,0,0, 0,1,0, 0,0,1],
+      [0.926670,0.092514,-0.019184, 0.021191,0.964503,0.014306, 0.008437,0.054813,0.936750],
+      [0.895720,0.133330,-0.029050, 0.029997,0.945400,0.024603, 0.013027,0.104707,0.882266],
+      [0.905871,0.127791,-0.033662, 0.026856,0.941251,0.031893, 0.013410,0.148296,0.838294],
+      [0.948035,0.089490,-0.037526, 0.014364,0.946792,0.038844, 0.010853,0.193991,0.795156],
+      [1.017277,0.027029,-0.044306, -0.006113,0.958479,0.047634, 0.006379,0.248708,0.744913],
+      [1.104996,-0.046633,-0.058363, -0.032137,0.971635,0.060503, 0.001336,0.317922,0.680742],
+      [1.193214,-0.109812,-0.083402, -0.058496,0.979410,0.079086, -0.002346,0.403492,0.598854],
+      [1.257728,-0.139648,-0.118081, -0.078003,0.975409,0.102594, -0.003316,0.501214,0.502102],
+      [1.278864,-0.125333,-0.153531, -0.084748,0.957674,0.127074, -0.000989,0.601151,0.399838],
+      [1.255528,-0.076749,-0.178779, -0.078411,0.930809,0.147602, 0.004733,0.691367,0.303900]
+    ]
+  };
+
+  /* A型（1色覚）。linearRGB に対する内積でグレースケール化する。
+     rod  … 杆体1色覚。暗所視（杆体）の分光感度なので明所視の輝度係数とは別物。
+             ピークが555nm→505nmへ動く（プルキンエ現象）ため、赤が明所視のグレースケールより
+             ずっと暗く沈み、青緑が明るく出る。
+     bcm  … 青錐体1色覚。L・M錐体を欠き、S錐体成分だけが残る。 */
+  var MONO = {
+    rod: [0.007,   0.519,   0.474  ],
+    bcm: [0.01775, 0.10945, 0.87262]
+  };
+
+  /* ダルトナイズの誤差回転行列。型ごとに別の行列が必要（多くの実装が
+     P型用の行列を3型すべてに使い回しているが、それは誤り）。 */
+  var DALT = {
+    protan: [0,0,0,  0.7,1,0,  0.7,0,1],
+    deutan: [1,0.7,0, 0,0,0,   0,0.7,1],
+    tritan: [1,0,0.7, 0,1,0.7, 0,0,0  ]
+  };
+
+  var OKABE_ITO = ["#E69F00","#56B4E9","#009E73","#F0E442","#0072B2","#D55E00","#CC79A7","#000000"];
+
+  /* =====================================================================
+     2. 色変換の下回り
+     ===================================================================== */
+
+  var LIN = new Float32Array(256);
+  (function(){ for (var i=0;i<256;i++){ var v=i/255; LIN[i] = v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); } })();
+
+  var ENC_N = 8192, ENC = new Uint8Array(ENC_N+1);
+  (function(){
+    for (var i=0;i<=ENC_N;i++){
+      var v=i/ENC_N;
+      ENC[i] = Math.round(255 * (v<=0.0031308 ? v*12.92 : 1.055*Math.pow(v,1/2.4)-0.055));
+    }
+  })();
+  function enc(v){ return v<=0 ? 0 : v>=1 ? 255 : ENC[(v*ENC_N)|0]; }
+  function lin(v){ v=v/255; return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); }
+
+  function prepSim(type, sev, model){
+    if (type === "none" || sev <= 0) return { kind:"id" };
+    if (type === "rod" || type === "bcm") return { kind:"gray", v:MONO[type], sev:sev };
+    if (model === "machado"){
+      var t = sev*10, i = Math.floor(t), f = t-i;
+      if (i >= 10){ i = 9; f = 1; }
+      var A = MACHADO[type][i], B = MACHADO[type][i+1], m = new Array(9);
+      for (var k=0;k<9;k++) m[k] = A[k] + (B[k]-A[k])*f;
+      return { kind:"mat", m:m };
+    }
+    return { kind:"brettel", p:BRETTEL[type], sev:sev };
+  }
+
+  // 線形RGB in → 線形RGB out（クランプなし。表示直前に enc がクランプする）
+  function applySim(S, r, g, b, o){
+    switch (S.kind){
+      case "id": o[0]=r; o[1]=g; o[2]=b; return;
+      case "gray": {
+        var w = S.v[0]*r + S.v[1]*g + S.v[2]*b, s = S.sev;
+        o[0]=r+(w-r)*s; o[1]=g+(w-g)*s; o[2]=b+(w-b)*s; return;
+      }
+      case "mat": {
+        var m = S.m;
+        o[0]=m[0]*r+m[1]*g+m[2]*b; o[1]=m[3]*r+m[4]*g+m[5]*b; o[2]=m[6]*r+m[7]*g+m[8]*b; return;
+      }
+      case "brettel": {
+        var P = S.p, m2 = (r*P.n[0]+g*P.n[1]+b*P.n[2]) >= 0 ? P.m1 : P.m2, s2 = S.sev;
+        var R = m2[0]*r+m2[1]*g+m2[2]*b, G = m2[3]*r+m2[4]*g+m2[5]*b, B = m2[6]*r+m2[7]*g+m2[8]*b;
+        o[0]=r+(R-r)*s2; o[1]=g+(G-g)*s2; o[2]=b+(B-b)*s2; return;
+      }
+    }
+  }
+
+  var _t3 = [0,0,0];
+  function applyDalton(S, type, r, g, b, o){
+    applySim(S, r, g, b, _t3);
+    var er = r-_t3[0], eg = g-_t3[1], eb = b-_t3[2], R = DALT[type];
+    o[0] = r + (R[0]*er + R[1]*eg + R[2]*eb);
+    o[1] = g + (R[3]*er + R[4]*eg + R[5]*eb);
+    o[2] = b + (R[6]*er + R[7]*eg + R[8]*eb);
+  }
+
+  // ---- linear RGB → CIE Lab (D65) ----
+  var CBRT_N = 4096, CBRT = new Float32Array(CBRT_N+1);
+  (function(){
+    for (var i=0;i<=CBRT_N;i++){
+      var t = i/CBRT_N * 1.2;
+      CBRT[i] = t > 0.008856451679 ? Math.cbrt(t) : (7.787037*t + 16/116);
+    }
+  })();
+  function fLab(t){ if (t<=0) return 16/116; if (t>=1.2) t=1.2; return CBRT[(t/1.2*CBRT_N)|0]; }
+
+  function labOf(r, g, b, out){
+    var X = (0.4124564*r + 0.3575761*g + 0.1804375*b) / 0.95047;
+    var Y = (0.2126729*r + 0.7151522*g + 0.0721750*b);
+    var Z = (0.0193339*r + 0.1191920*g + 0.9503041*b) / 1.08883;
+    var fx = fLab(X), fy = fLab(Y), fz = fLab(Z);
+    out[0] = 116*fy - 16; out[1] = 500*(fx-fy); out[2] = 200*(fy-fz);
+  }
+
+  var RAD = Math.PI/180, POW25_7 = 6103515625;
+  function deltaE00(L1,a1,b1, L2,a2,b2){
+    var C1 = Math.sqrt(a1*a1+b1*b1), C2 = Math.sqrt(a2*a2+b2*b2), Cb = (C1+C2)/2;
+    var Cb7 = Math.pow(Cb,7);
+    var G = 0.5*(1 - Math.sqrt(Cb7/(Cb7+POW25_7)));
+    var a1p = (1+G)*a1, a2p = (1+G)*a2;
+    var C1p = Math.sqrt(a1p*a1p+b1*b1), C2p = Math.sqrt(a2p*a2p+b2*b2);
+    var h1p = C1p === 0 ? 0 : Math.atan2(b1,a1p)/RAD; if (h1p < 0) h1p += 360;
+    var h2p = C2p === 0 ? 0 : Math.atan2(b2,a2p)/RAD; if (h2p < 0) h2p += 360;
+    var dLp = L2-L1, dCp = C2p-C1p, dhp = 0;
+    if (C1p*C2p !== 0){
+      dhp = h2p-h1p;
+      if (dhp > 180) dhp -= 360; else if (dhp < -180) dhp += 360;
+    }
+    var dHp = 2*Math.sqrt(C1p*C2p)*Math.sin(dhp*RAD/2);
+    var Lbp = (L1+L2)/2, Cbp = (C1p+C2p)/2, hsum = h1p+h2p, hbp;
+    if (C1p*C2p === 0) hbp = hsum;
+    else if (Math.abs(h1p-h2p) <= 180) hbp = hsum/2;
+    else hbp = hsum < 360 ? (hsum+360)/2 : (hsum-360)/2;
+    var T = 1 - 0.17*Math.cos((hbp-30)*RAD) + 0.24*Math.cos(2*hbp*RAD)
+              + 0.32*Math.cos((3*hbp+6)*RAD) - 0.20*Math.cos((4*hbp-63)*RAD);
+    var dTh = 30*Math.exp(-Math.pow((hbp-275)/25,2));
+    var Cbp7 = Math.pow(Cbp,7);
+    var Rc = 2*Math.sqrt(Cbp7/(Cbp7+POW25_7));
+    var Sl = 1 + (0.015*Math.pow(Lbp-50,2))/Math.sqrt(20+Math.pow(Lbp-50,2));
+    var Sc = 1 + 0.045*Cbp;
+    var Sh = 1 + 0.015*Cbp*T;
+    var Rt = -Math.sin(2*dTh*RAD)*Rc;
+    var tl = dLp/Sl, tc = dCp/Sc, th = dHp/Sh;
+    return Math.sqrt(tl*tl + tc*tc + th*th + Rt*tc*th);
+  }
+
+  function relLum(r,g,b){ return 0.2126*r + 0.7152*g + 0.0722*b; }
+  function contrastRatio(l1,l2){ var a=Math.max(l1,l2), b2=Math.min(l1,l2); return (a+0.05)/(b2+0.05); }
+
+  /* =====================================================================
+     3. 状態
+     ===================================================================== */
+  var $ = function(id){ return document.getElementById(id); };
+
+  var st = {
+    src: "image",
+    type: "deutan",
+    sev: 1,
+    model: "brettel",
+    view: "compare",
+    ncol: 8,
+    th: 10,
+    showAll: false
+  };
+
+  var srcCanvas = document.createElement("canvas");   // 元画像（処理解像度）
+  var srcCtx = srcCanvas.getContext("2d", { willReadFrequently:true });
+  var hasFrame = false, frameKind = "";               // "image" | "stream"
+  var palette = [];          // {hex, r,g,b} — linear ではなく 0-255 sRGB
+  var stream = null, rafId = 0, camFacing = "environment";
+  var vid = $("vid");
+
+  var cvA = $("cv-a"), cvB = $("cv-b");
+  var ctxA = cvA.getContext("2d"), ctxB = cvB.getContext("2d");
+
+  var SCREEN_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  var CAMERA_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  /* =====================================================================
+     4. 入力
+     ===================================================================== */
+
+  function setSourceCanvasFromImage(img){
+    var maxSide = 1600;
+    var w = img.naturalWidth || img.videoWidth, h = img.naturalHeight || img.videoHeight;
+    if (!w || !h) return false;
+    var k = Math.min(1, maxSide/Math.max(w,h));
+    srcCanvas.width = Math.max(1, Math.round(w*k));
+    srcCanvas.height = Math.max(1, Math.round(h*k));
+    srcCtx.drawImage(img, 0, 0, srcCanvas.width, srcCanvas.height);
+    hasFrame = true; frameKind = "image";
+    return true;
+  }
+
+  function loadFile(file){
+    if (!file || !/^image\//.test(file.type)) return;
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      setSourceCanvasFromImage(img);
+      URL.revokeObjectURL(url);
+      render();
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); };
+    img.src = url;
+  }
+
+  var drop = $("drop"), fileInput = $("file");
+  drop.addEventListener("click", function(){ fileInput.click(); });
+  drop.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener("change", function(){ if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+  ["dragenter","dragover"].forEach(function(t){
+    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add("dragover"); });
+  });
+  ["dragleave","drop"].forEach(function(t){
+    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove("dragover"); });
+  });
+  drop.addEventListener("drop", function(e){
+    if (e.dataTransfer && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  // ---- palette ----
+  function parseColors(text){
+    var out = [], seen = {};
+    var re = /#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b|rgba?\(\s*(\d+)\s*[, ]\s*(\d+)\s*[, ]\s*(\d+)/gi;
+    var m;
+    while ((m = re.exec(text))){
+      var r, g, b;
+      if (m[1]){
+        var h = m[1];
+        if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+        r = parseInt(h.substr(0,2),16); g = parseInt(h.substr(2,2),16); b = parseInt(h.substr(4,2),16);
+      } else {
+        r = +m[2]; g = +m[3]; b = +m[4];
+      }
+      if (r>255||g>255||b>255) continue;
+      var hex = toHex(r,g,b);
+      if (seen[hex]) continue;
+      seen[hex] = 1;
+      out.push({ hex:hex, r:r, g:g, b:b });
+      if (out.length >= 24) break;
+    }
+    return out;
+  }
+  function toHex(r,g,b){
+    return "#" + [r,g,b].map(function(v){ return ("0"+(v|0).toString(16)).slice(-2); }).join("").toUpperCase();
+  }
+
+  var pal = $("pal");
+  pal.value = OKABE_ITO.join("\n");
+  pal.addEventListener("input", function(){ render(); });
+  $("pal-oi").addEventListener("click", function(){ pal.value = OKABE_ITO.join("\n"); render(); });
+  $("pal-clear").addEventListener("click", function(){ pal.value = ""; pal.focus(); render(); });
+
+  // ---- streams ----
+  function stopStream(){
+    if (rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+    if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+    vid.srcObject = null;
+    $("screen-state").hidden = true;
+    $("cam-state").hidden = true;
+  }
+
+  function startStream(promise, stateEl){
+    stopStream();
+    promise.then(function(s){
+      stream = s;
+      vid.srcObject = s;
+      vid.play().catch(function(){});
+      stateEl.hidden = false;
+      s.getVideoTracks().forEach(function(t){ t.addEventListener("ended", function(){ stopStream(); render(); }); });
+      loop();
+    }).catch(function(){ stopStream(); render(); });
+  }
+
+  function loop(){
+    rafId = requestAnimationFrame(loop);
+    if (!stream || !vid.videoWidth) return;
+    var maxSide = 960;
+    var k = Math.min(1, maxSide/Math.max(vid.videoWidth, vid.videoHeight));
+    var w = Math.round(vid.videoWidth*k), h = Math.round(vid.videoHeight*k);
+    if (srcCanvas.width !== w || srcCanvas.height !== h){ srcCanvas.width = w; srcCanvas.height = h; }
+    srcCtx.drawImage(vid, 0, 0, w, h);
+    hasFrame = true; frameKind = "stream";
+    renderPixels();
+    throttledExtract();
+  }
+
+  $("screen-start").addEventListener("click", function(){
+    if (!SCREEN_OK) return;
+    startStream(navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:30 }, audio:false }), $("screen-state"));
+  });
+  $("screen-stop").addEventListener("click", function(){ stopStream(); render(); });
+
+  function startCamera(){
+    if (!CAMERA_OK) return;
+    startStream(navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:camFacing, width:{ ideal:1280 } }, audio:false
+    }), $("cam-state"));
+  }
+  $("cam-start").addEventListener("click", startCamera);
+  $("cam-stop").addEventListener("click", function(){ stopStream(); render(); });
+  $("cam-flip").addEventListener("click", function(){
+    camFacing = camFacing === "environment" ? "user" : "environment";
+    startCamera();
+  });
+
+  /* =====================================================================
+     5. 色の抽出（median cut）
+     ===================================================================== */
+  var exCanvas = document.createElement("canvas");
+  var exCtx = exCanvas.getContext("2d", { willReadFrequently:true });
+
+  function extractColors(n){
+    if (!hasFrame) return [];
+    var sw = Math.min(srcCanvas.width, 140);
+    var sh = Math.max(1, Math.round(srcCanvas.height * sw/srcCanvas.width));
+    if (exCanvas.width !== sw || exCanvas.height !== sh){ exCanvas.width = sw; exCanvas.height = sh; }
+    exCtx.drawImage(srcCanvas, 0, 0, sw, sh);
+    var d = exCtx.getImageData(0, 0, sw, sh).data;
+
+    // 透明でない画素を平坦な Uint8Array にまとめる（毎フレーム配列を作らない）
+    var count = 0, i;
+    for (i = 3; i < d.length; i += 4) if (d[i] > 8) count++;
+    if (!count) return [];
+    var px = new Uint8Array(count*3), k = 0;
+    for (i = 0; i < d.length; i += 4){
+      if (d[i+3] <= 8) continue;
+      px[k++] = d[i]; px[k++] = d[i+1]; px[k++] = d[i+2];
+    }
+
+    // median cut。各ボックスは [lo, hi) の画素インデックス範囲。
+    // 分割対象は「色の広がり × 画素数」が最大のボックス（広がりだけで選ぶと、
+    // 少数の外れ値ばかり分割して主要色が残ってしまう）。
+    // 分割位置は中央値ではなく最大のギャップ。UIやグラフのように色が離散的に
+    // 固まっている画像で、クラスタを跨いだ分割を避けられる。
+    var boxes = [ mkBox(px, 0, count) ];
+    while (boxes.length < n){
+      var bi = -1, best = 0;
+      for (k = 0; k < boxes.length; k++){
+        if (boxes[k].n < 2 || boxes[k].span === 0) continue;
+        var score = boxes[k].span * boxes[k].n;
+        if (score > best){ best = score; bi = k; }
+      }
+      if (bi < 0) break;
+      var box = boxes[bi];
+      sortRange(px, box.lo, box.hi, box.ch);
+      var cut = splitPoint(px, box);
+      boxes.splice(bi, 1, mkBox(px, box.lo, cut), mkBox(px, cut, box.hi));
+    }
+
+    var cols = boxes.map(function(b){
+      var c = repColor(px, b);
+      return { hex:toHex(c[0],c[1],c[2]), r:c[0], g:c[1], b:c[2], weight:b.n };
+    }).sort(function(a,b){ return b.weight - a.weight; });
+
+    return dedupe(cols);
+  }
+
+  // ボックスの代表色。単純な平均だと、2つの色の塊をまたいだボックスで
+  // 「元画像に存在しない中間色」が出てしまい、配色チェックとしては有害。
+  // 粗く量子化した最頻ビンが過半数を占めるなら（＝ベタ塗りのUIやグラフ）
+  // そのビンの平均＝実在する色を返し、そうでなければ（＝写真）全体の平均に落とす。
+  function repColor(px, b){
+    var hist = {}, j, key, top = -1, topN = 0;
+    for (j = b.lo; j < b.hi; j++){
+      key = ((px[j*3]>>4)<<8) | ((px[j*3+1]>>4)<<4) | (px[j*3+2]>>4);
+      hist[key] = (hist[key] || 0) + 1;
+      if (hist[key] > topN){ topN = hist[key]; top = key; }
+    }
+    var r = 0, g = 0, bl = 0, n = 0, modal = topN / b.n >= 0.5;
+    for (j = b.lo; j < b.hi; j++){
+      if (modal){
+        key = ((px[j*3]>>4)<<8) | ((px[j*3+1]>>4)<<4) | (px[j*3+2]>>4);
+        if (key !== top) continue;
+      }
+      r += px[j*3]; g += px[j*3+1]; bl += px[j*3+2]; n++;
+    }
+    return [Math.round(r/n), Math.round(g/n), Math.round(bl/n)];
+  }
+
+  // 画像の色数が n より少ないと、ほぼ同じ色が複数返る。そのまま渡すと
+  // 「ΔE≒0 の危険なペア」という無意味な警告が出るので、近い色はまとめる。
+  function dedupe(cols){
+    var out = [], labs = [], lab = [0,0,0];
+    for (var i = 0; i < cols.length; i++){
+      labOf(lin(cols[i].r), lin(cols[i].g), lin(cols[i].b), lab);
+      var L = [lab[0], lab[1], lab[2]], dup = -1;
+      for (var j = 0; j < out.length; j++){
+        if (deltaE00(L[0],L[1],L[2], labs[j][0],labs[j][1],labs[j][2]) < 3){ dup = j; break; }
+      }
+      if (dup >= 0) out[dup].weight += cols[i].weight;
+      else { out.push(cols[i]); labs.push(L); }
+    }
+    return out;
+  }
+
+  // 指定チャンネルで並べ替え済みの範囲から、値が最も飛んでいる位置を返す
+  function splitPoint(px, b){
+    var at = -1, best = 0;
+    for (var j = b.lo + 1; j < b.hi; j++){
+      var gap = px[j*3 + b.ch] - px[(j-1)*3 + b.ch];
+      if (gap > best){ best = gap; at = j; }
+    }
+    return at > b.lo ? at : b.lo + (b.n >> 1);
+  }
+
+  function mkBox(px, lo, hi){
+    var mn = [255,255,255], mx = [0,0,0];
+    for (var j = lo; j < hi; j++){
+      for (var c = 0; c < 3; c++){
+        var v = px[j*3+c];
+        if (v < mn[c]) mn[c] = v;
+        if (v > mx[c]) mx[c] = v;
+      }
+    }
+    var ch = 0, span = -1;
+    for (var c2 = 0; c2 < 3; c2++){ var sp = mx[c2]-mn[c2]; if (sp > span){ span = sp; ch = c2; } }
+    return { lo:lo, hi:hi, n:hi-lo, ch:ch, span:span };
+  }
+
+  // 3成分1組の並びを保ったまま、指定チャンネルで昇順に並べ替える
+  function sortRange(px, lo, hi, ch){
+    var n = hi - lo, idx = new Uint32Array(n), j;
+    for (j = 0; j < n; j++) idx[j] = lo + j;
+    var arr = Array.prototype.slice.call(idx);
+    arr.sort(function(a,b){ return px[a*3+ch] - px[b*3+ch]; });
+    var buf = new Uint8Array(n*3);
+    for (j = 0; j < n; j++){
+      buf[j*3] = px[arr[j]*3]; buf[j*3+1] = px[arr[j]*3+1]; buf[j*3+2] = px[arr[j]*3+2];
+    }
+    px.set(buf, lo*3);
+  }
+
+  var lastExtract = 0;
+  function throttledExtract(){
+    var now = performance.now();
+    if (now - lastExtract < 700) return;
+    lastExtract = now;
+    palette = extractColors(st.ncol);
+    renderSwatches();
+    renderPairs();
+  }
+
+  /* =====================================================================
+     6. 描画
+     ===================================================================== */
+
+  function accentRGB(){
+    var v = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    var m = /^#([0-9a-f]{6})$/i.exec(v);
+    if (!m) return [0x54,0x57,0xE5];
+    var h = m[1];
+    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+  }
+
+  function renderPixels(){
+    if (!hasFrame) return;
+    var w = srcCanvas.width, h = srcCanvas.height;
+    [cvA, cvB].forEach(function(c){ if (c.width !== w || c.height !== h){ c.width = w; c.height = h; } });
+
+    var src = srcCtx.getImageData(0,0,w,h);
+    var s = src.data;
+    var S = prepSim(st.type, st.sev, st.model);
+    var o = [0,0,0];
+    var canDalton = st.view === "dalton" && DALT[st.type];
+
+    if (st.view === "diff"){
+      var out = ctxA.createImageData(w,h), d = out.data;
+      var acc = accentRGB();
+      var l1 = [0,0,0], l2 = [0,0,0];
+      for (var i=0;i<s.length;i+=4){
+        var r = LIN[s[i]], g = LIN[s[i+1]], b = LIN[s[i+2]];
+        applySim(S, r, g, b, o);
+        labOf(r,g,b,l1);
+        labOf(Math.min(1,Math.max(0,o[0])), Math.min(1,Math.max(0,o[1])), Math.min(1,Math.max(0,o[2])), l2);
+        var dl = l1[0]-l2[0], da = l1[1]-l2[1], db = l1[2]-l2[2];
+        var dE = Math.sqrt(dl*dl+da*da+db*db);
+        var t = Math.min(1, dE/30);
+        var c0, c1, c2;
+        if (t < 0.5){ var u = t*2; c0 = acc[0]*u; c1 = acc[1]*u; c2 = acc[2]*u; }
+        else { var u2 = (t-0.5)*2; c0 = acc[0]+(255-acc[0])*u2; c1 = acc[1]+(255-acc[1])*u2; c2 = acc[2]+(255-acc[2])*u2; }
+        d[i] = c0; d[i+1] = c1; d[i+2] = c2; d[i+3] = s[i+3];
+      }
+      ctxA.putImageData(out, 0, 0);
+      return;
+    }
+
+    var outA = ctxA.createImageData(w,h), da2 = outA.data;
+    var outB = ctxB.createImageData(w,h), db2 = outB.data;
+
+    for (var j=0;j<s.length;j+=4){
+      var r2 = LIN[s[j]], g2 = LIN[s[j+1]], b2 = LIN[s[j+2]];
+      if (canDalton){
+        applyDalton(S, st.type, r2, g2, b2, o);
+        var pr = o[0], pg = o[1], pb = o[2];
+        da2[j] = enc(pr); da2[j+1] = enc(pg); da2[j+2] = enc(pb); da2[j+3] = s[j+3];
+        applySim(S, Math.min(1,Math.max(0,pr)), Math.min(1,Math.max(0,pg)), Math.min(1,Math.max(0,pb)), o);
+        db2[j] = enc(o[0]); db2[j+1] = enc(o[1]); db2[j+2] = enc(o[2]); db2[j+3] = s[j+3];
+      } else {
+        da2[j] = s[j]; da2[j+1] = s[j+1]; da2[j+2] = s[j+2]; da2[j+3] = s[j+3];
+        applySim(S, r2, g2, b2, o);
+        db2[j] = enc(o[0]); db2[j+1] = enc(o[1]); db2[j+2] = enc(o[2]); db2[j+3] = s[j+3];
+      }
+    }
+    ctxA.putImageData(outA, 0, 0);
+    ctxB.putImageData(outB, 0, 0);
+  }
+
+  function simHex(c, S){
+    var o = [0,0,0];
+    applySim(S, lin(c.r), lin(c.g), lin(c.b), o);
+    return toHex(enc(o[0]), enc(o[1]), enc(o[2]));
+  }
+
+  var swSig = "";
+  function renderSwatches(force){
+    var box = $("swatches");
+    if (!palette.length){ box.innerHTML = ""; swSig = ""; return; }
+    var S = prepSim(st.type, st.sev, st.model);
+    var sig = palette.map(function(c){ return c.hex; }).join("") + st.type + st.sev + st.model;
+    if (!force && sig === swSig) return;
+    swSig = sig;
+    box.innerHTML = palette.map(function(c){
+      var sh = simHex(c, S);
+      return '<div class="sw"><div class="sw__pair">'+
+        '<div class="sw__half" style="background:'+c.hex+'"></div>'+
+        '<div class="sw__half" style="background:'+sh+'"></div></div>'+
+        '<div class="sw__meta" data-copy="'+c.hex+'">'+c.hex+'</div></div>';
+    }).join("");
+  }
+
+  function renderPairs(){
+    var S = prepSim(st.type, st.sev, st.model);
+    var types = ["protan","deutan","tritan"];
+    var sims = {};
+    types.forEach(function(t){ sims[t] = prepSim(t, 1, "brettel"); });
+
+    var lab = [0,0,0], o = [0,0,0];
+    function labFor(c, Sx){
+      applySim(Sx, lin(c.r), lin(c.g), lin(c.b), o);
+      labOf(Math.min(1,Math.max(0,o[0])), Math.min(1,Math.max(0,o[1])), Math.min(1,Math.max(0,o[2])), lab);
+      return [lab[0], lab[1], lab[2]];
+    }
+
+    var pairs = [];
+    for (var i=0;i<palette.length;i++){
+      for (var j=i+1;j<palette.length;j++){
+        var A = palette[i], B = palette[j], row = { a:A, b:B, d:{} };
+        types.forEach(function(t){
+          var la = labFor(A, sims[t]), lb = labFor(B, sims[t]);
+          row.d[t] = deltaE00(la[0],la[1],la[2], lb[0],lb[1],lb[2]);
+        });
+        row.min = Math.min(row.d.protan, row.d.deutan, row.d.tritan);
+        row.cr = contrastRatio(relLum(lin(A.r),lin(A.g),lin(A.b)), relLum(lin(B.r),lin(B.g),lin(B.b)));
+        pairs.push(row);
+      }
+    }
+    pairs.sort(function(x,y){ return x.min-y.min; });
+
+    var bad = pairs.filter(function(p){ return p.min < st.th; });
+    var sum = $("summary"), head = $("pr-head"), body = $("pairs"), more = $("more");
+
+    if (!palette.length){
+      sum.innerHTML = '<span class="badge badge--muted"><span class="d"></span>'+esc(T("t.noColors"))+'</span>';
+      head.hidden = true; body.innerHTML = ""; more.hidden = true; return;
+    }
+    if (pairs.length === 0){
+      sum.innerHTML = '<span class="badge badge--muted"><span class="d"></span>'+esc(T("t.needTwo"))+'</span>';
+      head.hidden = true; body.innerHTML = ""; more.hidden = true; return;
+    }
+
+    sum.innerHTML = bad.length
+      ? '<span class="badge badge--neg"><span class="d"></span>'+esc(T("t.flagged").replace("{n}", bad.length).replace("{m}", pairs.length))+'</span>'
+      : '<span class="badge badge--pos"><span class="d"></span>'+esc(T("t.allClear").replace("{m}", pairs.length))+'</span>';
+
+    var limit = st.showAll ? pairs.length : Math.min(pairs.length, Math.max(bad.length, 6));
+    var shown = pairs.slice(0, limit);
+    head.hidden = false;
+    body.innerHTML = shown.map(function(p){
+      return '<div class="prow">'+
+        '<div class="prow__c">'+
+          '<span class="chipsw" style="background:'+p.a.hex+'"></span>'+
+          '<span class="chipsw" style="background:'+p.b.hex+'"></span>'+
+          '<span class="prow__t">'+p.a.hex+' / '+p.b.hex+' · '+T("t.cr")+' '+p.cr.toFixed(1)+':1</span>'+
+        '</div>'+
+        cell(p.d.protan) + cell(p.d.deutan) + cell(p.d.tritan) +
+      '</div>';
+    }).join("");
+
+    if (pairs.length > limit || st.showAll){
+      more.hidden = false;
+      more.textContent = st.showAll
+        ? T("t.showLess")
+        : T("t.showAll").replace("{m}", pairs.length);
+    } else more.hidden = true;
+
+    function cell(v){
+      var cls = v < st.th ? "dE dE--bad" : (v > st.th*2 ? "dE dE--ok" : "dE");
+      var txt = v.toFixed(1);
+      return '<span class="'+cls+'" data-copy="'+txt+'">'+txt+'</span>';
+    }
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  $("more").addEventListener("click", function(){ st.showAll = !st.showAll; renderPairs(); });
+
+  /* =====================================================================
+     7. 全体レンダリング
+     ===================================================================== */
+  function render(){
+    // ダルトナイズが使えない型を選んだら、先に表示モードを戻してから同期する
+    if (st.view === "dalton" && !DALT[st.type]) st.view = "compare";
+    syncSegs();
+
+    var isPal = st.src === "palette";
+    var isStream = st.src === "screen" || st.src === "camera";
+    // いま srcCanvas にある絵が、選択中のソースのものかどうか
+    var frameOK = hasFrame && (isStream ? (frameKind === "stream" && !!stream) : (frameKind === "image"));
+    var showPanes = false, showSw = false, showEmpty = false, showLegend = false;
+
+    if (isPal){
+      palette = parseColors(pal.value);
+      showSw = palette.length > 0;
+      showEmpty = !showSw;
+      renderSwatches();
+    } else if (frameOK){
+      showPanes = true;
+      renderPixels();
+      if (!stream){ palette = extractColors(st.ncol); }
+      showLegend = st.view === "diff";
+      showSw = palette.length > 0;      // 抽出された色そのものも見せる
+      renderSwatches();
+    } else {
+      palette = [];
+      showEmpty = true;
+    }
+
+    $("panes").hidden = !showPanes;
+    $("swatches").hidden = !showSw;
+    $("empty").hidden = !showEmpty;
+    $("legend").hidden = !showLegend;
+
+    if (showEmpty) $("empty").textContent = T(isPal ? "t.emptyPal" : "t.empty" + (st.src === "image" ? "Img" : "Stream"));
+
+    // ペイン構成
+    var single = st.view === "diff";
+    $("panes").classList.toggle("panes--1", single);
+    $("pane-b").hidden = single;
+    if (st.view === "dalton" && DALT[st.type]){
+      $("lbl-a").textContent = T("t.paneFixed");
+      $("lbl-b").textContent = T("t.paneFixedSim");
+    } else {
+      $("lbl-a").textContent = T(single ? "t.paneLoss" : "t.paneOrig");
+      $("lbl-b").textContent = T("t.paneSim");
+    }
+    if (showLegend){
+      var a = accentRGB();
+      $("legend-bar").style.background = "linear-gradient(90deg,#000,rgb("+a[0]+","+a[1]+","+a[2]+"),#fff)";
+    }
+
+    renderPairs();
+    syncAvail();
+  }
+
+  function syncSegs(){
+    setSeg("seg-src", "data-src", st.src);
+    setSeg("seg-type", "data-type", st.type);
+    setSeg("seg-model", "data-model", st.model);
+    setSeg("seg-view", "data-view", st.view);
+    $("sev-val").textContent = Math.round(st.sev*100) + "%";
+    $("ncol-val").textContent = st.ncol;
+    $("pan-image").hidden   = st.src !== "image";
+    $("pan-palette").hidden = st.src !== "palette";
+    $("pan-screen").hidden  = st.src !== "screen";
+    $("pan-camera").hidden  = st.src !== "camera";
+    $("ncol-field").hidden  = st.src === "palette";
+  }
+  function setSeg(id, attr, val){
+    $(id).querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute(attr) === val));
+    });
+  }
+
+  function syncAvail(){
+    var mono = st.type === "rod" || st.type === "bcm";
+    var none = st.type === "none";
+    $("sev").disabled = none;
+    $("model-field").hidden = mono || none;
+    $("seg-view").querySelector('[data-view="dalton"]').disabled = mono || none;
+    $("model-hint").textContent = T(st.model === "machado" ? "t.hintMachado" : "t.hintLerp");
+
+    $("screen-start").disabled = !SCREEN_OK;
+    if (!SCREEN_OK) $("screen-hint").textContent = T("t.screenNo");
+    $("cam-start").disabled = !CAMERA_OK;
+  }
+
+  /* =====================================================================
+     8. イベント
+     ===================================================================== */
+  $("seg-src").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    var v = b.getAttribute("data-src");
+    if (v !== "screen" && v !== "camera") stopStream();
+    st.src = v; render();
+  });
+  $("seg-type").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    st.type = b.getAttribute("data-type"); render();
+  });
+  $("seg-model").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    st.model = b.getAttribute("data-model"); render();
+  });
+  $("seg-view").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b || b.disabled) return;
+    st.view = b.getAttribute("data-view"); render();
+  });
+  $("sev").addEventListener("input", function(){ st.sev = +$("sev").value/100; render(); });
+  $("ncol").addEventListener("input", function(){ st.ncol = +$("ncol").value; render(); });
+  $("th").addEventListener("input", function(){
+    var v = parseFloat($("th").value);
+    st.th = isNaN(v) ? 10 : Math.max(1, Math.min(50, v));
+    renderPairs();
+  });
+
+  /* =====================================================================
+     9. i18n と起動
+     ===================================================================== */
+  function T(k){ return (typeof Shell !== "undefined" && Shell) ? Shell.t(k) : k; }
+
+  var STRINGS = {
+    en: {
+      "t.title": "Color vision (CUD) simulator",
+      "t.desc": "Simulate P/D/T/A-type color vision on images, screens and palettes, and find the colour pairs that collapse into each other.",
+      "t.source": "Source",
+      "t.srcImage": "Image", "t.srcPalette": "Palette", "t.srcScreen": "Screen", "t.srcCamera": "Camera",
+      "t.dropTitle": "Drop an image",
+      "t.dropSub": "or click to choose a file. Everything stays in this browser.",
+      "t.palPh": "#E69F00\n#56B4E9\n#009E73",
+      "t.palPreset": "Load Okabe–Ito set", "t.palClear": "Clear",
+      "t.palHint": "One colour per line, or separated by commas or spaces. #RGB, #RRGGBB and rgb(r,g,b) are accepted. Up to 24 colours.",
+      "t.screenStart": "Choose what to share", "t.stop": "Stop", "t.live": "Live",
+      "t.screenHint": "Share a window or a whole screen to check a design in another app in real time. Nothing leaves this page.",
+      "t.screenNo": "Screen sharing is not available in this browser. It works on desktop Chrome, Edge, Firefox and Safari, but not on iOS or most mobile browsers.",
+      "t.camStart": "Start camera", "t.camFlip": "Switch camera",
+      "t.camHint": "Point the camera at printed material or a second monitor.",
+      "t.type": "Colour vision type",
+      "t.tC": "C (common)", "t.tP": "P-type", "t.tD": "D-type", "t.tT": "T-type",
+      "t.tArod": "A (rod)", "t.tAbcm": "A (S-cone)",
+      "t.tPshort": "P", "t.tDshort": "D", "t.tTshort": "T",
+      "t.severity": "Severity",
+      "t.model": "Severity model",
+      "t.mLerp": "Interpolation", "t.mMachado": "Machado 2009",
+      "t.hintLerp": "Brettel 1997 at full strength, blended with the original. Fast and standard, but partial severity here is a blend, not a model of anomalous trichromacy.",
+      "t.hintMachado": "Machado 2009 models anomalous trichromacy as a shift in cone sensitivity. The only model here that treats partial severity physiologically. Recent studies suggest it errs mild.",
+      "t.view": "View",
+      "t.vCompare": "Side by side", "t.vDiff": "Loss map", "t.vDalton": "Daltonize",
+      "t.ncol": "Colours to extract",
+      "t.ncolHint": "Median-cut extraction of the dominant colours, used for the pair check below.",
+      "t.paneOrig": "Original", "t.paneSim": "Simulated", "t.paneLoss": "Colour information lost",
+      "t.paneFixed": "Daltonized", "t.paneFixedSim": "Daltonized, then simulated",
+      "t.empty": "Choose a source to start.",
+      "t.emptyImg": "Drop an image on the left to start.",
+      "t.emptyStream": "Start the stream on the left.",
+      "t.emptyPal": "Paste some colours on the left.",
+      "t.pairs": "Confusable pairs", "t.threshold": "Flag below ΔE00", "t.pair": "Pair",
+      "t.cr": "contrast",
+      "t.pairNote": "Every pair is checked at full dichromacy for all three types at once, so the severity slider on the left only affects the preview. ΔE00 under 10 is the usual convention for \u201cmost people cannot reliably tell these apart\u201d. Contrast is the WCAG luminance ratio, which colour vision type does not change \u2014 a pair that fails on hue can still be readable if that number is high.",
+      "t.noColors": "No colours yet.",
+      "t.needTwo": "Two colours minimum.",
+      "t.flagged": "{n} of {m} pairs fall below the threshold",
+      "t.allClear": "All {m} pairs stay above the threshold",
+      "t.showAll": "Show all {m} pairs", "t.showLess": "Show fewer",
+      "t.copyhint": "Click any value to copy.",
+      "t.limits": "What this can and cannot tell you",
+      "t.lim1": "Not a medical device and not a certified or approved tool. It cannot diagnose anything and is not a substitute for an eye examination.",
+      "t.lim2": "Read which colours collide, not the colours themselves. The residual hues come from reports by people with only one eye affected, so the output colour is an estimate; the pairs that merge are the reliable part.",
+      "t.lim3": "Your display is not calibrated, and published models tend to simulate a milder loss than people actually report. Treat a pass as a floor, not a guarantee, and check with real people where the stakes are high.",
+      "t.lim4": "Colour vision varies between individuals of the same type. P, D and T each cover a wide range.",
+      "t.srcTitle": "Models used"
+    },
+    ja: {
+      "t.title": "色覚（CUD）シミュレーター",
+      "t.desc": "画像・画面・パレットのP/D/T/A型の見え方を再現し、同じ色に潰れてしまう組み合わせを検出します。",
+      "t.source": "入力ソース",
+      "t.srcImage": "画像", "t.srcPalette": "パレット", "t.srcScreen": "画面", "t.srcCamera": "カメラ",
+      "t.dropTitle": "画像をドロップ",
+      "t.dropSub": "クリックでファイル選択。処理はすべてこのブラウザ内で完結します。",
+      "t.palPh": "#E69F00\n#56B4E9\n#009E73",
+      "t.palPreset": "岡部・伊藤の8色を読み込む", "t.palClear": "クリア",
+      "t.palHint": "1行1色、またはカンマ・空白区切り。#RGB / #RRGGBB / rgb(r,g,b) に対応。最大24色。",
+      "t.screenStart": "共有する画面を選ぶ", "t.stop": "停止", "t.live": "取得中",
+      "t.screenHint": "ウィンドウや画面全体を共有すると、別アプリで制作中のデザインをそのまま検証できます。データは外部に送信されません。",
+      "t.screenNo": "このブラウザでは画面共有が使えません。デスクトップのChrome・Edge・Firefox・Safariでは動作しますが、iOSと大半のモバイルブラウザは非対応です。",
+      "t.camStart": "カメラを開始", "t.camFlip": "カメラを切り替え",
+      "t.camHint": "印刷物や別のモニターにカメラを向けて確認できます。",
+      "t.type": "色覚型",
+      "t.tC": "C型（一般）", "t.tP": "P型", "t.tD": "D型", "t.tT": "T型",
+      "t.tArod": "A型（杆体）", "t.tAbcm": "A型（青錐体）",
+      "t.tPshort": "P型", "t.tDshort": "D型", "t.tTshort": "T型",
+      "t.severity": "強度",
+      "t.model": "強度のモデル",
+      "t.mLerp": "線形補間", "t.mMachado": "Machado 2009",
+      "t.hintLerp": "Brettel 1997（強度100%）と元画像の混合。標準的で高速ですが、途中の強度は「混ぜているだけ」で不完全型を模したものではありません。",
+      "t.hintMachado": "錐体の分光感度のずれとして不完全型を扱う生理モデル。途中の強度に意味があるのはこちらだけです。近年の検証では実際よりやや弱めに出る傾向が報告されています。",
+      "t.view": "表示",
+      "t.vCompare": "並べて比較", "t.vDiff": "損失マップ", "t.vDalton": "ダルトナイズ",
+      "t.ncol": "抽出する色数",
+      "t.ncolHint": "メディアンカットで主要色を抽出し、下のペア判定に使います。",
+      "t.paneOrig": "元", "t.paneSim": "シミュレーション", "t.paneLoss": "失われる色情報",
+      "t.paneFixed": "補正後", "t.paneFixedSim": "補正後のシミュレーション",
+      "t.empty": "入力ソースを選んでください。",
+      "t.emptyImg": "左に画像をドロップしてください。",
+      "t.emptyStream": "左のボタンで取得を開始してください。",
+      "t.emptyPal": "左に色を貼り付けてください。",
+      "t.pairs": "混同しやすいペア", "t.threshold": "この ΔE00 未満を警告", "t.pair": "ペア",
+      "t.cr": "コントラスト",
+      "t.pairNote": "判定は強度100%（2色覚）で3型すべてを同時に行います。左の強度スライダーはプレビューにのみ効きます。ΔE00が10未満は「多くの人が確実には見分けられない」目安として広く使われる値です。コントラストはWCAGの輝度比で、色覚型によって変わりません。色相で潰れるペアでも、この数値が大きければ読み取れる可能性があります。",
+      "t.noColors": "色がまだありません。",
+      "t.needTwo": "2色以上必要です。",
+      "t.flagged": "{m}ペア中 {n}ペアが閾値を下回りました",
+      "t.allClear": "{m}ペアすべてが閾値を上回りました",
+      "t.showAll": "全{m}ペアを表示", "t.showLess": "表示を減らす",
+      "t.copyhint": "数値をクリックでコピー。",
+      "t.limits": "このツールで分かること・分からないこと",
+      "t.lim1": "医療機器ではなく、認可・認証を受けたツールでもありません。診断はできず、眼科の検査に代わるものでもありません。",
+      "t.lim2": "出力された色そのものではなく、どの色とどの色が潰れるかを読んでください。残る色相は片眼性の当事者の報告に基づく推定値で、信頼できるのは「混同されるペア」の部分です。",
+      "t.lim3": "閲覧環境のディスプレイは較正されておらず、既存モデルは実際の当事者の報告より弱めに出る傾向があります。合格は最低ラインであって保証ではありません。重要な場面では当事者に確認してください。",
+      "t.lim4": "同じ型でも見え方には個人差があります。P型・D型・T型はそれぞれ幅の広い分類です。",
+      "t.srcTitle": "使用しているモデル"
+    }
+  };
+
+  function fillSources(){
+    $("srcs").innerHTML =
+      '<b>'+esc(T("t.srcTitle"))+'</b><br>' +
+      'Brettel, Viénot &amp; Mollon (1997) · Viénot, Brettel &amp; Mollon (1999)<br>' +
+      'Machado, Oliveira &amp; Fernandes (2009)<br>' +
+      'Matrices: libDaltonLens (public domain) · CIEDE2000 (CIE 142-2001)';
+  }
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function"){
+    Shell.init({
+      id: "cud-simulator",
+      strings: STRINGS,
+      onSettingsChange: function(){ fillSources(); render(); }
+    });
+  }
+  fillSources();
+  render();
+})();
+</script>
+</body>
+</html>
