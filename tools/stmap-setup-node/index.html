@@ -85,22 +85,26 @@
         <ul class="feat">
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span class="tx"><b data-i18n="t.f1t">Create STMap Nodes</b><span data-i18n="t.f1d"> — builds a complete template (Input Footage, STMap chain, Map UV, Composite, and Viewer) in one click.</span></span>
+            <span class="tx"><b data-i18n="t.f1t">Create STMap Nodes</b><span data-i18n="t.f1d"> — builds the full setup: the STMap decode chain, a footage input, and either a Composite node (4.x) or Group Output (5.x) plus a Viewer, in one click. Asks first if it would clear an existing node tree.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span class="tx"><b data-i18n="t.f2t">Add STMap Warp (no output)</b><span data-i18n="t.f2d"> — drops just the STMap chain and Map UV node at your 2D cursor, safe to paste into an existing complex tree.</span></span>
+            <span class="tx"><b data-i18n="t.f2t">Add STMap Warp (no output)</b><span data-i18n="t.f2d"> — inserts just the STMap decode chain and a Map UV node at your 2D cursor, leaving its image input and output open so it drops safely into an existing tree without disturbing anything.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span class="tx"><b data-i18n="t.f3t">Load STMap (Non-Color)</b><span data-i18n="t.f3d"> — loads your STMap image and automatically forces its colorspace to Non-Color, preventing distortion from incorrect sRGB settings.</span></span>
+            <span class="tx"><b data-i18n="t.f3t">Load STMap (Non-Color)</b><span data-i18n="t.f3d"> — opens a file browser, forces the chosen image's colorspace to Non-Color, and assigns it straight into the STMap node.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span class="tx"><b data-i18n="t.f4t">Set STMap to Non-Color</b><span data-i18n="t.f4d"> — select any existing image node and force its colorspace to Non-Color in one click.</span></span>
+            <span class="tx"><b data-i18n="t.f4t">Load Footage</b><span data-i18n="t.f4d"> — opens a file browser and assigns the chosen plate into the footage node, leaving its colorspace untouched.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx"><b data-i18n="t.f5t">Live Non-Color check</b><span data-i18n="t.f5d"> — the panel watches every STMap chain and shows a one-click "Fix It" / "Fix All" button the moment an image's colorspace isn't Non-Color.</span></span>
           </li>
         </ul>
-        <p class="kicker" data-i18n="t.kicker">V-Flip (green channel inversion) and quality settings can be toggled in the F9 (Redo) panel right after clicking a creation button.</p>
+        <p class="kicker" data-i18n="t.kicker">V-Flip (green-channel inversion) and interpolation quality are adjustable in the F9 (Redo) panel right after clicking Create STMap Nodes or Add STMap Warp.</p>
       </div>
 
       <div class="card">
@@ -114,9 +118,9 @@
       <div class="card">
         <div class="card__title" data-i18n="t.install">Install</div>
         <ol class="steps">
-          <li data-i18n="t.step1">Download the .zip file on the right.</li>
+          <li data-i18n="t.step1">Download the .py file on the right.</li>
           <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
-          <li data-i18n="t.step3">Click "Install…" (or the ▾ menu ▸ "Install from Disk…"), then pick the .zip file.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .py file.</li>
           <li data-i18n="t.step4">Turn the add-on on with its checkbox. A new "STMap" tab appears in the Compositor's Sidebar (N-panel).</li>
         </ol>
       </div>
@@ -136,13 +140,13 @@
             </div>
           </div>
 
-          <a class="btn btn--primary btn--block" href="stmap_setup_node.zip" download>
+          <a class="btn btn--primary btn--block" href="STMapSetup.py" download>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
-            <span data-i18n="t.download">Download (.zip)</span>
+            <span data-i18n="t.download">Download (.py)</span>
           </a>
 
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.1.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.5 / 5.x</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
           </div>
@@ -168,23 +172,25 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.feat": "Features",
         "t.why": "Adds a dedicated panel to the Compositor's N-panel (Sidebar), so you never have to build an STMap node chain by hand again:",
         "t.f1t": "Create STMap Nodes",
-        "t.f1d": " \u2014 builds a complete template (Input Footage, STMap chain, Map UV, Composite, and Viewer) in one click.",
+        "t.f1d": " \u2014 builds the full setup: the STMap decode chain, a footage input, and either a Composite node (4.x) or Group Output (5.x) plus a Viewer, in one click. Asks first if it would clear an existing node tree.",
         "t.f2t": "Add STMap Warp (no output)",
-        "t.f2d": " \u2014 drops just the STMap chain and Map UV node at your 2D cursor, safe to paste into an existing complex tree.",
+        "t.f2d": " \u2014 inserts just the STMap decode chain and a Map UV node at your 2D cursor, leaving its image input and output open so it drops safely into an existing tree without disturbing anything.",
         "t.f3t": "Load STMap (Non-Color)",
-        "t.f3d": " \u2014 loads your STMap image and automatically forces its colorspace to Non-Color, preventing distortion from incorrect sRGB settings.",
-        "t.f4t": "Set STMap to Non-Color",
-        "t.f4d": " \u2014 select any existing image node and force its colorspace to Non-Color in one click.",
-        "t.kicker": "V-Flip (green channel inversion) and quality settings can be toggled in the F9 (Redo) panel right after clicking a creation button.",
+        "t.f3d": " \u2014 opens a file browser, forces the chosen image's colorspace to Non-Color, and assigns it straight into the STMap node.",
+        "t.f4t": "Load Footage",
+        "t.f4d": " \u2014 opens a file browser and assigns the chosen plate into the footage node, leaving its colorspace untouched.",
+        "t.f5t": "Live Non-Color check",
+        "t.f5d": " \u2014 the panel watches every STMap chain and shows a one-click \u201cFix It\u201d / \u201cFix All\u201d button the moment an image's colorspace isn't Non-Color.",
+        "t.kicker": "V-Flip (green-channel inversion) and interpolation quality are adjustable in the F9 (Redo) panel right after clicking Create STMap Nodes or Add STMap Warp.",
         "t.compat": "Compatibility",
         "t.compat1": "Blender 4.5 and 5.x.",
         "t.compat2": "Fully compatible with the new Blender 5.0 compositor system.",
         "t.install": "Install",
-        "t.step1": "Download the .zip file on the right.",
+        "t.step1": "Download the .py file on the right.",
         "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
-        "t.step3": "Click \"Install\u2026\" (or the \u25BE menu \u25B8 \"Install from Disk\u2026\"), then pick the .zip file.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .py file.",
         "t.step4": "Turn the add-on on with its checkbox. A new \"STMap\" tab appears in the Compositor's Sidebar (N-panel).",
-        "t.download": "Download (.zip)",
+        "t.download": "Download (.py)",
         "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
       },
@@ -195,23 +201,25 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.feat": "特長",
         "t.why": "コンポジターのNパネル（サイドバー）に専用パネルを追加。STMapノードチェーンを手動で組む必要がなくなります。",
         "t.f1t": "Create STMap Nodes",
-        "t.f1d": " \u2014 Input Footage・STMapチェーン・Map UV・Composite・Viewerを含む完全なテンプレートをワンクリックで生成します。",
+        "t.f1d": " \u2014 STMapのデコードチェーン・footage入力・出力（4.xはCompositeノード、5.xはGroup Output）・Viewerまで含む完全な一式をワンクリックで生成します。既存のノードツリーが消える場合は先に確認ダイアログが出ます。",
         "t.f2t": "Add STMap Warp (no output)",
-        "t.f2d": " \u2014 2Dカーソルの位置にSTMapチェーンとMap UVノードだけを挿入。既存の複雑なノードツリーにも安全に貼り付けられます。",
+        "t.f2d": " \u2014 2Dカーソルの位置にSTMapデコードチェーンとMap UVノードだけを挿入します。画像の入力・出力は未接続のまま残るので、既存の複雑なノードツリーを壊さずに組み込めます。",
         "t.f3t": "Load STMap (Non-Color)",
-        "t.f3d": " \u2014 STMap画像を読み込み、カラースペースを自動的にNon-Colorへ設定。誤ったsRGB設定による歪みを防ぎます。",
-        "t.f4t": "Set STMap to Non-Color",
-        "t.f4d": " \u2014 既存の画像ノードを選択し、カラースペースをワンクリックでNon-Colorへ強制します。",
-        "t.kicker": "生成ボタンを押した直後のF9（Redo）パネルで、V-Flip（緑チャンネルの反転）と品質設定を切り替えられます。",
+        "t.f3d": " \u2014 ファイル選択で画像を開き、カラースペースを自動的にNon-Colorへ強制したうえでSTMapノードにそのまま割り当てます。",
+        "t.f4t": "Load Footage",
+        "t.f4d": " \u2014 ファイル選択で画像を開き、footageノードに割り当てます。カラースペースには手を加えません。",
+        "t.f5t": "Non-Colorの自動チェック",
+        "t.f5d": " \u2014 パネルがすべてのSTMapチェーンを常時監視し、画像のカラースペースがNon-Colorでなくなった瞬間に「Fix It」/「Fix All」ボタン付きの警告を表示します。",
+        "t.kicker": "V-Flip（緑チャンネルの反転）と補間品質は、Create STMap Nodes または Add STMap Warp を押した直後のF9（Redo）パネルで調整できます。",
         "t.compat": "対応環境",
         "t.compat1": "Blender 4.5 および 5.x。",
         "t.compat2": "新しいBlender 5.0コンポジターシステムに完全対応。",
         "t.install": "インストール",
-        "t.step1": "右の .zip ファイルをダウンロードします。",
+        "t.step1": "右の .py ファイルをダウンロードします。",
         "t.step2": "Blenderで 編集 \u25B8 プリファレンス \u25B8 アドオン を開きます。",
-        "t.step3": "「インストール…」（または \u25BE メニュー \u25B8 「ディスクからインストール…」）から .zip ファイルを指定します。",
+        "t.step3": "右上の \u25BE メニューから「ディスクからインストール…」を選び、.py ファイルを指定します。",
         "t.step4": "チェックボックスでアドオンを有効化します。コンポジターのサイドバー（Nパネル）に「STMap」タブが追加されます。",
-        "t.download": "ダウンロード（.zip）",
+        "t.download": "ダウンロード（.py）",
         "t.version": "バージョン", "t.blender": "Blender", "t.os": "OS",
         "t.dlcap": "無料・オープン。すべてBlender内でローカルに動作し、アップロードはありません。"
       }
