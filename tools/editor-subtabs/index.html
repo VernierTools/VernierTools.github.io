@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor Subtabs — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・補足） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="t.badge">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Editor Subtabs</h1>
+    <p data-i18n="t.desc">Put your most-used editors in the header as one-click tabs, organized into named groups.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">One-click switching</b><span data-i18n="t.f1.d">Your most-used editors sit as tabs in the header, always a click away.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">Organize into groups</b><span data-i18n="t.f2.d">Build named groups (Look-Dev, Animation, Layout…) and choose which editors live in each. Reorder, hide, or remove any group.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">One editor, one group</b><span data-i18n="t.f3.d">The same editor can never sit in two groups at once. Assign it somewhere new and it's cleared from its old slot automatically, so tabs never duplicate.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f4.t">Left or right, per group</b><span data-i18n="t.f4.d">Choose Left or Right alignment for each group, so tabs sit exactly where you want them in the header.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f5.t">Three display modes</b><span data-i18n="t.f5.d">Icon only, icon + short name, or name only — set independently for each group.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f6.t">Scroll to switch (optional)</b><span data-i18n="t.f6.d">Hold Alt/Option (or Shift) and roll the wheel over an editor to cycle through its group. Full macOS trackpad two-finger support, with adjustable step size and reverse direction. Enable per group — no hotkeys required.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f7.t">Live header preview</b><span data-i18n="t.f7.d">See exactly how your tabs will look in the settings panel, before you close it.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f8.t">Export / import your setup</b><span data-i18n="t.f8.d">Save your whole configuration as a JSON file, load it back later, or reset everything to defaults in one click.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f9.t">Save-safety warning</b><span data-i18n="t.f9.d">If Blender's preference auto-save is off, the add-on tells you — so your layout is never silently lost.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Pure Python — runs on Windows, macOS, and Linux.</span></p>
+        <p class="note"><b data-i18n="t.editors">Supported editors (23)</b><br>
+          <span data-i18n="t.editorsbody">3D Viewport, Image, UV, Shader, Geometry Nodes, Compositor, Texture Nodes, Timeline, Dope Sheet, Graph Editor, Drivers, NLA, Video Sequencer, Movie Clip, Text Editor, Python Console, Info, Outliner, Properties, File Browser, Asset Browser, Preferences, and Spreadsheet.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip file on the right.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
+          <li data-i18n="t.step3">Open the ▾ menu at the top-right, choose "Install from Disk…", then pick the .zip file.</li>
+          <li data-i18n="t.step4">Turn the add-on on with its checkbox, then open its preferences panel to build your first group.</li>
+        </ol>
+        <p class="kicker" data-i18n="t.kicker">Stop hunting through editor-type menus — your favorites are always one click away.</p>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="5" rx="1.5"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Editor Subtabs</div>
+              <div class="dl-kind" data-i18n="t.badge">Blender add-on</div>
+            </div>
+          </div>
+
+          <a class="btn btn--primary btn--block" href="editor_subtabs.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">All</span></div>
+          </div>
+
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open. Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "editor-subtabs",
+    strings: {
+      en: {
+        "t.title": "Editor Subtabs",
+        "t.desc": "Put your most-used editors in the header as one-click tabs, organized into named groups.",
+        "t.badge": "Blender add-on",
+        "t.feat": "Features",
+        "t.f1.t": "One-click switching", "t.f1.d": "Your most-used editors sit as tabs in the header, always a click away.",
+        "t.f2.t": "Organize into groups", "t.f2.d": "Build named groups (Look-Dev, Animation, Layout\u2026) and choose which editors live in each. Reorder, hide, or remove any group.",
+        "t.f3.t": "One editor, one group", "t.f3.d": "The same editor can never sit in two groups at once. Assign it somewhere new and it's cleared from its old slot automatically, so tabs never duplicate.",
+        "t.f4.t": "Left or right, per group", "t.f4.d": "Choose Left or Right alignment for each group, so tabs sit exactly where you want them in the header.",
+        "t.f5.t": "Three display modes", "t.f5.d": "Icon only, icon + short name, or name only \u2014 set independently for each group.",
+        "t.f6.t": "Scroll to switch (optional)", "t.f6.d": "Hold Alt/Option (or Shift) and roll the wheel over an editor to cycle through its group. Full macOS trackpad two-finger support, with adjustable step size and reverse direction. Enable per group \u2014 no hotkeys required.",
+        "t.f7.t": "Live header preview", "t.f7.d": "See exactly how your tabs will look in the settings panel, before you close it.",
+        "t.f8.t": "Export / import your setup", "t.f8.d": "Save your whole configuration as a JSON file, load it back later, or reset everything to defaults in one click.",
+        "t.f9.t": "Save-safety warning", "t.f9.d": "If Blender's preference auto-save is off, the add-on tells you \u2014 so your layout is never silently lost.",
+        "t.about": "Requirements & notes",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 4.2 or later. Pure Python \u2014 runs on Windows, macOS, and Linux.",
+        "t.editors": "Supported editors (23)",
+        "t.editorsbody": "3D Viewport, Image, UV, Shader, Geometry Nodes, Compositor, Texture Nodes, Timeline, Dope Sheet, Graph Editor, Drivers, NLA, Video Sequencer, Movie Clip, Text Editor, Python Console, Info, Outliner, Properties, File Browser, Asset Browser, Preferences, and Spreadsheet.",
+        "t.install": "Install",
+        "t.step1": "Download the .zip file on the right.",
+        "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
+        "t.step3": "Open the \u25BE menu at the top-right, choose \"Install from Disk\u2026\", then pick the .zip file.",
+        "t.step4": "Turn the add-on on with its checkbox, then open its preferences panel to build your first group.",
+        "t.kicker": "Stop hunting through editor-type menus \u2014 your favorites are always one click away.",
+        "t.download": "Download (.zip)",
+        "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
+      },
+      ja: {
+        "t.title": "Editor Subtabs",
+        "t.desc": "\u3088\u304F\u4F7F\u3046\u30A8\u30C7\u30A3\u30BF\u3092\u30D8\u30C3\u30C0\u30FC\u306E\u30BF\u30D6\u3068\u3057\u3066\u4E26\u3079\u3001\u540D\u524D\u4ED8\u304D\u30B0\u30EB\u30FC\u30D7\u3067\u6574\u7406\u3067\u304D\u308B\u30A2\u30C9\u30AA\u30F3\u3002",
+        "t.badge": "Blender\u30A2\u30C9\u30AA\u30F3",
+        "t.feat": "\u7279\u9577",
+        "t.f1.t": "\u30EF\u30F3\u30AF\u30EA\u30C3\u30AF\u3067\u5207\u308A\u66FF\u3048", "t.f1.d": "\u3088\u304F\u4F7F\u3046\u30A8\u30C7\u30A3\u30BF\u3092\u30D8\u30C3\u30C0\u30FC\u306E\u30BF\u30D6\u3068\u3057\u3066\u914D\u7F6E\u3002\u5E38\u306B\u30EF\u30F3\u30AF\u30EA\u30C3\u30AF\u3067\u30A2\u30AF\u30BB\u30B9\u3067\u304D\u307E\u3059\u3002",
+        "t.f2.t": "\u30B0\u30EB\u30FC\u30D7\u306B\u307E\u3068\u3081\u308B", "t.f2.d": "Look-Dev\u30FBAnimation\u30FBLayout\u306A\u3069\u3001\u540D\u524D\u4ED8\u304D\u30B0\u30EB\u30FC\u30D7\u3092\u4F5C\u6210\u3057\u3001\u542B\u3081\u308B\u30A8\u30C7\u30A3\u30BF\u3092\u9078\u629E\u3002\u4E26\u3079\u66FF\u3048\u30FB\u975E\u8868\u793A\u30FB\u524A\u9664\u3082\u81EA\u7531\u3067\u3059\u3002",
+        "t.f3.t": "1\u30A8\u30C7\u30A3\u30BF\u306B\u3064\u304D1\u30B0\u30EB\u30FC\u30D7", "t.f3.d": "\u540C\u3058\u30A8\u30C7\u30A3\u30BF\u3092\u8907\u6570\u306E\u30B0\u30EB\u30FC\u30D7\u306B\u540C\u6642\u306B\u7F6E\u304F\u3053\u3068\u306F\u3067\u304D\u307E\u305B\u3093\u3002\u65E2\u306B\u4F7F\u308F\u308C\u3066\u3044\u308B\u30A8\u30C7\u30A3\u30BF\u3092\u5225\u306E\u30B0\u30EB\u30FC\u30D7\u3078\u5272\u308A\u5F53\u3066\u308B\u3068\u3001\u5143\u306E\u679A\u304B\u3089\u81EA\u52D5\u7684\u306B\u5916\u308C\u308B\u306E\u3067\u3001\u30BF\u30D6\u304C\u91CD\u8907\u3057\u307E\u305B\u3093\u3002",
+        "t.f4.t": "\u30B0\u30EB\u30FC\u30D7\u3054\u3068\u306B\u5DE6/\u53F3\u914D\u7F6E", "t.f4.d": "\u30BF\u30D6\u3092\u30D8\u30C3\u30C0\u30FC\u306E\u5DE6\u5074\u30FB\u53F3\u5074\u306E\u3069\u3061\u3089\u306B\u7F6E\u304F\u304B\u3092\u3001\u30B0\u30EB\u30FC\u30D7\u5358\u4F4D\u3067\u6307\u5B9A\u3067\u304D\u307E\u3059\u3002",
+        "t.f5.t": "\u8868\u793A\u30E2\u30FC\u30C9\u306F3\u7A2E\u985E", "t.f5.d": "\u30A2\u30A4\u30B3\u30F3\u306E\u307F\u30FB\u30A2\u30A4\u30B3\u30F3+\u77ED\u7E2E\u540D\u30FB\u540D\u524D\u306E\u307F\u304B\u3089\u3001\u30B0\u30EB\u30FC\u30D7\u3054\u3068\u306B\u9078\u3079\u307E\u3059\u3002",
+        "t.f6.t": "\u30B9\u30AF\u30ED\u30FC\u30EB\u3067\u5207\u308A\u66FF\u3048\uFF08\u4EFB\u610F\uFF09", "t.f6.d": "Alt/Option\uFF08\u307E\u305F\u306FShift\uFF09\u3092\u62BC\u3057\u306A\u304C\u3089\u30A8\u30C7\u30A3\u30BF\u4E0A\u3067\u30DB\u30A4\u30FC\u30EB\u3092\u56DE\u3059\u3068\u3001\u30B0\u30EB\u30FC\u30D7\u5185\u3092\u9806\u306B\u5207\u308A\u66FF\u3048\u307E\u3059\u3002macOS\u306E\u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C92\u672C\u6307\u64CD\u4F5C\u306B\u3082\u5BFE\u5FDC\u3057\u3001\u30B9\u30C6\u30C3\u30D7\u5E45\u30FB\u9006\u65B9\u5411\u3082\u8ABF\u6574\u53EF\u80FD\u3002\u30B0\u30EB\u30FC\u30D7\u3054\u3068\u306B\u6709\u52B9\u5316\u3067\u304D\u3001\u30DB\u30C3\u30C8\u30AD\u30FC\u8A2D\u5B9A\u306F\u4E0D\u8981\u3067\u3059\u3002",
+        "t.f7.t": "\u8A2D\u5B9A\u753B\u9762\u3067\u30E9\u30A4\u30D6\u30D7\u30EC\u30D3\u30E5\u30FC", "t.f7.d": "\u30D1\u30CD\u30EB\u3092\u9589\u3058\u308B\u524D\u306B\u3001\u30D8\u30C3\u30C0\u30FC\u306E\u898B\u305F\u76EE\u3092\u305D\u306E\u307E\u307E\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002",
+        "t.f8.t": "\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8/\u30A4\u30F3\u30DD\u30FC\u30C8\u30FB\u30EA\u30BB\u30C3\u30C8", "t.f8.d": "\u8A2D\u5B9A\u4E00\u5F0F\u3092JSON\u30D5\u30A1\u30A4\u30EB\u3068\u3057\u3066\u66F8\u304D\u51FA\u3057\u30FB\u8AAD\u307F\u8FBC\u307F\u3067\u304D\u3001\u30EF\u30F3\u30AF\u30EA\u30C3\u30AF\u3067\u521D\u671F\u72B6\u614B\u306B\u623B\u305B\u307E\u3059\u3002",
+        "t.f9.t": "\u4FDD\u5B58\u5FD8\u308C\u3092\u8B66\u544A", "t.f9.d": "Blender\u306E\u74B0\u5883\u8A2D\u5B9A\u306E\u81EA\u52D5\u4FDD\u5B58\u304C\u30AA\u30D5\u306E\u5834\u5408\u3001\u30EC\u30A4\u30A2\u30A6\u30C8\u304C\u5931\u308F\u308C\u306A\u3044\u3088\u3046\u30A2\u30C9\u30AA\u30F3\u304C\u77E5\u3089\u305B\u307E\u3059\u3002",
+        "t.about": "\u52D5\u4F5C\u74B0\u5883\u30FB\u88DC\u8DB3",
+        "t.req": "\u52D5\u4F5C\u74B0\u5883",
+        "t.reqbody": "Blender 4.2 \u4EE5\u964D\u304C\u5FC5\u8981\u3067\u3059\u3002\u7D14\u7C8B\u306APython\u306E\u307F\u3067\u3001Windows\u30FBmacOS\u30FBLinux \u3067\u52D5\u4F5C\u3057\u307E\u3059\u3002",
+        "t.editors": "\u5BFE\u5FDC\u30A8\u30C7\u30A3\u30BF\uFF0823\u7A2E\uFF09",
+        "t.editorsbody": "3D\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u3001\u753B\u50CF\u3001UV\u3001\u30B7\u30A7\u30FC\u30C0\u30FC\u3001\u30B8\u30AA\u30E1\u30C8\u30EA\u30CE\u30FC\u30C9\u3001\u30B3\u30F3\u30DD\u30B8\u30BF\u30FC\u3001\u30C6\u30AF\u30B9\u30C1\u30E3\u30CE\u30FC\u30C9\u3001\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\u3001\u30C9\u30FC\u30D7\u30B7\u30FC\u30C8\u3001\u30B0\u30E9\u30D5\u30A8\u30C7\u30A3\u30BF\u3001\u30C9\u30E9\u30A4\u30D0\u30FC\u3001NLA\u3001\u30D3\u30C7\u30AA\u30B7\u30FC\u30B1\u30F3\u30B5\u30FC\u3001\u30E0\u30FC\u30D3\u30FC\u30AF\u30EA\u30C3\u30D7\u3001\u30C6\u30AD\u30B9\u30C8\u30A8\u30C7\u30A3\u30BF\u3001Python\u30B3\u30F3\u30BD\u30FC\u30EB\u3001\u60C5\u5831\u3001\u30A2\u30A6\u30C8\u30E9\u30A4\u30CA\u30FC\u3001\u30D7\u30ED\u30D1\u30C6\u30A3\u3001\u30D5\u30A1\u30A4\u30EB\u30D6\u30E9\u30A6\u30B6\u3001\u30A2\u30BB\u30C3\u30C8\u30D6\u30E9\u30A6\u30B6\u3001\u30D7\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9\u3001\u30B9\u30D7\u30EC\u30C3\u30C9\u30B7\u30FC\u30C8\u3002",
+        "t.install": "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB",
+        "t.step1": "\u53F3\u306E .zip \u30D5\u30A1\u30A4\u30EB\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\u3002",
+        "t.step2": "Blender\u3067 \u7DE8\u96C6 \u25B8 \u30D7\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9 \u25B8 \u30A2\u30C9\u30AA\u30F3 \u3092\u958B\u304D\u307E\u3059\u3002",
+        "t.step3": "\u53F3\u4E0A\u306E \u25BE \u30E1\u30CB\u30E5\u30FC\u304B\u3089\u300C\u30C7\u30A3\u30B9\u30AF\u304B\u3089\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u2026\u300D\u3092\u9078\u3073\u3001.zip \u30D5\u30A1\u30A4\u30EB\u3092\u6307\u5B9A\u3057\u307E\u3059\u3002",
+        "t.step4": "\u30C1\u30A7\u30C3\u30AF\u30DC\u30C3\u30AF\u30B9\u3067\u30A2\u30C9\u30AA\u30F3\u3092\u6709\u52B9\u5316\u3057\u3001\u8A2D\u5B9A\u30D1\u30CD\u30EB\u304B\u3089\u6700\u521D\u306E\u30B0\u30EB\u30FC\u30D7\u3092\u4F5C\u6210\u3057\u307E\u3059\u3002",
+        "t.kicker": "\u30A8\u30C7\u30A3\u30BF\u30BF\u30A4\u30D7\u30E1\u30CB\u30E5\u30FC\u3092\u63A2\u3057\u56DE\u308B\u306E\u306F\u3082\u3046\u7D42\u308F\u308A\u3002\u304A\u6C17\u306B\u5165\u308A\u306F\u5E38\u306B\u30EF\u30F3\u30AF\u30EA\u30C3\u30AF\u5148\u306B\u3002",
+        "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.zip\uFF09",
+        "t.version": "\u30D0\u30FC\u30B8\u30E7\u30F3", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "\u7121\u6599\u30FB\u30AA\u30FC\u30D7\u30F3\u3002\u3059\u3079\u3066Blender\u5185\u3067\u30ED\u30FC\u30AB\u30EB\u306B\u52D5\u4F5C\u3057\u3001\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306F\u3042\u308A\u307E\u305B\u3093\u3002"
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
