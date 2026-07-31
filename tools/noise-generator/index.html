@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Noise generator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .seedrow{ display:flex; gap:var(--s2); }
+  .seedrow .input{ flex:1; min-width:0; }
+  .seedrow .btn{ flex:0 0 auto; width:44px; padding:0; }
+
+  input[type="color"]{ width:100%; height:38px; padding:2px; border:1px solid var(--border-strong);
+    border-radius:var(--r); background:var(--surface); cursor:pointer; }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:6px; }
+
+  .preview canvas{ background:var(--surface-2); cursor:default; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Noise generator</h1>
+    <p data-i18n="t.desc">Generate seamless Perlin, Simplex, and Worley noise textures — tileable at any size.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: パラメーター -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.type">Noise type</label>
+          <div class="seg" id="seg-type" role="group">
+            <button data-type="perlin" data-i18n="t.perlin">Perlin</button>
+            <button data-type="simplex" data-i18n="t.simplex">Simplex</button>
+            <button data-type="worley" data-i18n="t.worley">Worley</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.seed">Seed</label>
+          <div class="seedrow">
+            <input class="input" id="in-seed" type="number" step="1" inputmode="numeric" value="12345" aria-label="Seed">
+            <button type="button" class="btn btn--secondary" id="btn-randseed" title="Randomize seed" aria-label="Randomize seed">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.cells">Cells across</label>
+          <div class="sliderrow">
+            <input class="slider" id="in-cells" type="range" min="2" max="32" step="1" value="8">
+            <span class="val" id="cells-val">8</span>
+          </div>
+          <div class="hint" data-i18n="t.cellshint">Higher = smaller, more repeats. Always tiles exactly, at any value.</div>
+        </div>
+
+        <div class="field" data-group="fractal">
+          <label class="label" data-i18n="t.octaves">Octaves</label>
+          <div class="sliderrow">
+            <input class="slider" id="in-oct" type="range" min="1" max="6" step="1" value="4">
+            <span class="val" id="oct-val">4</span>
+          </div>
+        </div>
+
+        <div class="field" data-group="fractal">
+          <label class="label" data-i18n="t.persistence">Persistence</label>
+          <div class="sliderrow">
+            <input class="slider" id="in-pers" type="range" min="0.1" max="0.9" step="0.05" value="0.5">
+            <span class="val" id="pers-val">0.50</span>
+          </div>
+        </div>
+
+        <div class="field" data-group="worley" hidden>
+          <label class="label" data-i18n="t.distance">Distance metric</label>
+          <select class="select" id="in-metric">
+            <option value="euclid" data-i18n="t.euclid">Euclidean</option>
+            <option value="manhattan" data-i18n="t.manhattan">Manhattan</option>
+            <option value="chebyshev" data-i18n="t.chebyshev">Chebyshev</option>
+          </select>
+        </div>
+
+        <div class="field" data-group="worley" hidden>
+          <label class="label" data-i18n="t.result">Result</label>
+          <select class="select" id="in-mode">
+            <option value="f1" data-i18n="t.f1">F1</option>
+            <option value="f2" data-i18n="t.f2">F2</option>
+            <option value="f2f1" data-i18n="t.f2f1">F2 − F1</option>
+          </select>
+        </div>
+
+        <div class="field" data-group="worley" hidden>
+          <label class="label" data-i18n="t.jitter">Jitter</label>
+          <div class="sliderrow">
+            <input class="slider" id="in-jitter" type="range" min="0" max="1" step="0.05" value="1">
+            <span class="val" id="jitter-val">1.00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.size">Output size</label>
+          <div class="seg" id="seg-size" role="group">
+            <button data-size="256">256</button>
+            <button data-size="512">512</button>
+            <button data-size="1024">1024</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="in-colorize">
+            <span class="track"></span>
+            <span data-i18n="t.colorize">Colorize</span>
+          </label>
+        </div>
+        <div class="field" id="colorfield" hidden>
+          <div class="row2">
+            <div><label class="label" data-i18n="t.low">Low</label><input type="color" id="in-lowcolor" value="#101114"></div>
+            <div><label class="label" data-i18n="t.high">High</label><input type="color" id="in-highcolor" value="#ffffff"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="in-invert">
+            <span class="track"></span>
+            <span data-i18n="t.invert">Invert</span>
+          </label>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-reset" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            <span data-i18n="t.reset">Reset</span>
+          </button>
+          <button class="btn btn--primary" id="btn-download" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+            <span data-i18n="t.download">Download PNG</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: プレビュー + 出力情報 -->
+    <div>
+      <div class="preview" style="margin-bottom:var(--s4)">
+        <canvas id="cv" width="512" height="512" role="img" aria-label="Generated noise texture"></canvas>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--s4)">
+        <label class="toggle">
+          <input type="checkbox" id="in-tiled">
+          <span class="track"></span>
+          <span data-i18n="t.tiled">Show 2×2 tiling</span>
+        </label>
+        <div class="hint" data-i18n="t.hint">This texture always tiles seamlessly, at any output size and any seed.</div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.info">Info</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.seedlbl">Seed</span><span class="rrow__value" id="ro-seed" data-copy="">12345</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.dims">Dimensions</span><span class="rrow__value" id="ro-dims">512 × 512 px</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.gentime">Generated in</span><span class="rrow__value" id="ro-time">0 ms</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click a value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var cv = $("cv"), ctx = cv.getContext("2d");
+
+  var DEFAULTS = {
+    type: "perlin", seed: 12345, cells: 8, octaves: 4, persistence: 0.5,
+    metric: "euclid", mode: "f1", jitter: 1, size: 512,
+    colorize: false, lowColor: "#101114", highColor: "#ffffff", invert: false, tiled: false
+  };
+  var state = {
+    type: DEFAULTS.type, seed: DEFAULTS.seed, cells: DEFAULTS.cells, octaves: DEFAULTS.octaves,
+    persistence: DEFAULTS.persistence, metric: DEFAULTS.metric, mode: DEFAULTS.mode, jitter: DEFAULTS.jitter,
+    size: DEFAULTS.size, colorize: DEFAULTS.colorize, lowColor: DEFAULTS.lowColor, highColor: DEFAULTS.highColor,
+    invert: DEFAULTS.invert, tiled: DEFAULTS.tiled
+  };
+  var lastRaw = null;
+
+  /* ---- 整数ハッシュ（murmur系）: perm配列を持たず (i,j,seed) から直接決定的な値を作る ---- */
+  function hashInt(x, y, seed) {
+    var h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 2246822519);
+    h = Math.imul(h ^ (h >>> 15), 2246822519);
+    h ^= h >>> 13;
+    h = Math.imul(h, 3266489917);
+    h ^= h >>> 16;
+    return h >>> 0;
+  }
+  var GRAD2 = [[1,0],[-1,0],[0,1],[0,-1],[0.7071,0.7071],[-0.7071,0.7071],[0.7071,-0.7071],[-0.7071,-0.7071]];
+
+  /* period でラップしてからハッシュするので、格子は period 単位で厳密に繰り返す（＝継ぎ目なし） */
+  function gradAt(i, j, period, seed) {
+    var pi = ((i % period) + period) % period;
+    var pj = ((j % period) + period) % period;
+    var h = hashInt(pi, pj, seed) & 7;
+    return GRAD2[h];
+  }
+  function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function perlin2(x, y, period, seed) {
+    var xi = Math.floor(x), yi = Math.floor(y);
+    var xf = x - xi, yf = y - yi;
+    var u = fade(xf), v = fade(yf);
+    var g00 = gradAt(xi, yi, period, seed), g10 = gradAt(xi + 1, yi, period, seed);
+    var g01 = gradAt(xi, yi + 1, period, seed), g11 = gradAt(xi + 1, yi + 1, period, seed);
+    var n00 = g00[0] * xf + g00[1] * yf;
+    var n10 = g10[0] * (xf - 1) + g10[1] * yf;
+    var n01 = g01[0] * xf + g01[1] * (yf - 1);
+    var n11 = g11[0] * (xf - 1) + g11[1] * (yf - 1);
+    var nx0 = lerp(n00, n10, u), nx1 = lerp(n01, n11, u);
+    return lerp(nx0, nx1, v);
+  }
+
+  /* lacunarity は 2 に固定（各オクターブの period が整数のまま保たれ、タイル性が崩れないため） */
+  function fractal(fn, x, y, cells, octaves, persistence, seed) {
+    var total = 0, amp = 1, maxAmp = 0, freq = 1;
+    for (var o = 0; o < octaves; o++) {
+      total += fn(x * freq, y * freq, cells * freq, seed + o * 101) * amp;
+      maxAmp += amp; amp *= persistence; freq *= 2;
+    }
+    return total / maxAmp;
+  }
+
+  /* ---- Simplex: 2D格子のスキュー変換は「x を period だけ平行移動しても格子インデックスが
+     period だけシフトするとは限らない」ため、Perlinと同じ手法では厳密には継ぎ目なくならない。
+     そのため、(u,v) を 0..1 の1周期として2つの円（トーラス）へ埋め込み、4次元Simplexノイズを
+     サンプルする方式にする。cos/sinで作る座標は u=0 と u=1 で厳密に一致するため、格子のハッシュ
+     自体を周期化しなくても、生成される2Dテクスチャは常に厳密に継ぎ目なくタイル化される。 ---- */
+  function hashInt4(x, y, z, w, seed) {
+    var h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1274126177) ^
+            Math.imul(w, 2246822519) ^ Math.imul(seed, 3266489917);
+    h = Math.imul(h ^ (h >>> 15), 2246822519);
+    h ^= h >>> 13;
+    h = Math.imul(h, 3266489917);
+    h ^= h >>> 16;
+    return h >>> 0;
+  }
+  /* 32方向の4次元勾配ベクトル（4軸のうち1軸を0、残り3軸を±1の全組み合わせ = 4×8） */
+  var GRAD4 = new Float64Array(32 * 4);
+  (function () {
+    var signs = [-1, 1], p = 0;
+    for (var zero = 0; zero < 4; zero++) {
+      var axes = [0, 1, 2, 3].filter(function (ax) { return ax !== zero; });
+      for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) for (var c = 0; c < 2; c++) {
+        var v = [0, 0, 0, 0];
+        v[axes[0]] = signs[a]; v[axes[1]] = signs[b]; v[axes[2]] = signs[c];
+        GRAD4[p++] = v[0]; GRAD4[p++] = v[1]; GRAD4[p++] = v[2]; GRAD4[p++] = v[3];
+      }
+    }
+  })();
+
+  var F4 = (Math.sqrt(5) - 1) / 4, G4 = (5 - Math.sqrt(5)) / 20;
+  function simplex4(x, y, z, w, seed) {
+    var s = (x + y + z + w) * F4;
+    var i = Math.floor(x + s), j = Math.floor(y + s), k = Math.floor(z + s), l = Math.floor(w + s);
+    var t = (i + j + k + l) * G4;
+    var x0 = x - (i - t), y0 = y - (j - t), z0 = z - (k - t), w0 = w - (l - t);
+
+    /* 4軸のうち値が大きい順に1つずつ頂点を進める（＝正しい単体分割）。
+       配列やsortを使わずスカラー比較だけで順位を出し、割り当てのアロケーションを避けている。 */
+    var rankX = (x0 > y0 ? 1 : 0) + (x0 > z0 ? 1 : 0) + (x0 > w0 ? 1 : 0);
+    var rankY = (y0 >= x0 ? 1 : 0) + (y0 > z0 ? 1 : 0) + (y0 > w0 ? 1 : 0);
+    var rankZ = (z0 >= x0 ? 1 : 0) + (z0 >= y0 ? 1 : 0) + (z0 > w0 ? 1 : 0);
+    var rankW = (w0 >= x0 ? 1 : 0) + (w0 >= y0 ? 1 : 0) + (w0 >= z0 ? 1 : 0);
+
+    var i1 = rankX === 3 ? 1 : 0, j1 = rankY === 3 ? 1 : 0, k1 = rankZ === 3 ? 1 : 0, l1 = rankW === 3 ? 1 : 0;
+    var i2 = rankX >= 2 ? 1 : 0, j2 = rankY >= 2 ? 1 : 0, k2 = rankZ >= 2 ? 1 : 0, l2 = rankW >= 2 ? 1 : 0;
+    var i3 = rankX >= 1 ? 1 : 0, j3 = rankY >= 1 ? 1 : 0, k3 = rankZ >= 1 ? 1 : 0, l3 = rankW >= 1 ? 1 : 0;
+
+    var x1 = x0 - i1 + G4, y1 = y0 - j1 + G4, z1 = z0 - k1 + G4, w1 = w0 - l1 + G4;
+    var x2 = x0 - i2 + 2 * G4, y2 = y0 - j2 + 2 * G4, z2 = z0 - k2 + 2 * G4, w2 = w0 - l2 + 2 * G4;
+    var x3 = x0 - i3 + 3 * G4, y3 = y0 - j3 + 3 * G4, z3 = z0 - k3 + 3 * G4, w3 = w0 - l3 + 3 * G4;
+    var x4 = x0 - 1 + 4 * G4, y4 = y0 - 1 + 4 * G4, z4 = z0 - 1 + 4 * G4, w4 = w0 - 1 + 4 * G4;
+
+    var n = 0, tt, gi;
+    tt = 0.6 - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
+    if (tt > 0) { tt *= tt; gi = (hashInt4(i, j, k, l, seed) & 31) * 4; n += tt * tt * (GRAD4[gi] * x0 + GRAD4[gi + 1] * y0 + GRAD4[gi + 2] * z0 + GRAD4[gi + 3] * w0); }
+    tt = 0.6 - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
+    if (tt > 0) { tt *= tt; gi = (hashInt4(i + i1, j + j1, k + k1, l + l1, seed) & 31) * 4; n += tt * tt * (GRAD4[gi] * x1 + GRAD4[gi + 1] * y1 + GRAD4[gi + 2] * z1 + GRAD4[gi + 3] * w1); }
+    tt = 0.6 - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
+    if (tt > 0) { tt *= tt; gi = (hashInt4(i + i2, j + j2, k + k2, l + l2, seed) & 31) * 4; n += tt * tt * (GRAD4[gi] * x2 + GRAD4[gi + 1] * y2 + GRAD4[gi + 2] * z2 + GRAD4[gi + 3] * w2); }
+    tt = 0.6 - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
+    if (tt > 0) { tt *= tt; gi = (hashInt4(i + i3, j + j3, k + k3, l + l3, seed) & 31) * 4; n += tt * tt * (GRAD4[gi] * x3 + GRAD4[gi + 1] * y3 + GRAD4[gi + 2] * z3 + GRAD4[gi + 3] * w3); }
+    tt = 0.6 - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
+    if (tt > 0) { tt *= tt; gi = (hashInt4(i + 1, j + 1, k + 1, l + 1, seed) & 31) * 4; n += tt * tt * (GRAD4[gi] * x4 + GRAD4[gi + 1] * y4 + GRAD4[gi + 2] * z4 + GRAD4[gi + 3] * w4); }
+    return n;
+  }
+  /* u,v は 0..1（=1周期ぶんの位置）。半径 = セル数/2π にすることで、
+     円周上に「セル数」個ぶんの模様が並ぶ密度になる。オクターブごとに半径だけを2倍にする
+     （角度は常に0..2πそのままなので、u=0とu=1は全オクターブで厳密に一致し続ける）。 */
+  function simplexTile(u, v, cells, octaves, persistence, seed) {
+    var total = 0, amp = 1, maxAmp = 0, freqCells = cells;
+    var au = u * 2 * Math.PI, av = v * 2 * Math.PI;
+    var cu = Math.cos(au), su = Math.sin(au), cv = Math.cos(av), sv = Math.sin(av);
+    for (var o = 0; o < octaves; o++) {
+      var r = freqCells / (2 * Math.PI);
+      total += simplex4(cu * r, su * r, cv * r, sv * r, seed + o * 101) * amp;
+      maxAmp += amp; amp *= persistence; freqCells *= 2;
+    }
+    return total / maxAmp;
+  }
+
+  function featurePoint(cx, cy, cells, seed, jitter) {
+    cx = ((cx % cells) + cells) % cells;
+    cy = ((cy % cells) + cells) % cells;
+    var h1 = hashInt(cx, cy, seed), h2 = hashInt(cx, cy, seed + 911);
+    var fx = (h1 % 100000) / 100000, fy = (h2 % 100000) / 100000;
+    var off = 0.5 * (1 - jitter);
+    return [off + fx * jitter, off + fy * jitter];
+  }
+  function dist(dx, dy, metric) {
+    if (metric === "manhattan") return Math.abs(dx) + Math.abs(dy);
+    if (metric === "chebyshev") return Math.max(Math.abs(dx), Math.abs(dy));
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function worley(x, y, cells, seed, jitter, metric, mode) {
+    var xi = Math.floor(x), yi = Math.floor(y);
+    var b1 = Infinity, b2 = Infinity;
+    for (var dy = -1; dy <= 1; dy++) {
+      for (var dx = -1; dx <= 1; dx++) {
+        var pt = featurePoint(xi + dx, yi + dy, cells, seed, jitter);
+        var px = (xi + dx) + pt[0], py = (yi + dy) + pt[1];
+        var ddx = px - x, ddy = py - y;
+        var d = dist(ddx, ddy, metric);
+        if (d < b1) { b2 = b1; b1 = d; } else if (d < b2) { b2 = d; }
+      }
+    }
+    if (mode === "f2") return b2;
+    if (mode === "f2f1") return b2 - b1;
+    return b1;
+  }
+
+  function hexToRgb(hex) {
+    var v = parseInt(hex.slice(1), 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+
+  /* ---- 生成: 値配列 → min/max で正規化 → ピクセルへ ---- */
+  function generate() {
+    var t0 = performance.now();
+    var size = state.size, cells = state.cells, seed = state.seed;
+    var raw = new Float32Array(size * size);
+    var min = Infinity, max = -Infinity, idx = 0;
+    for (var py = 0; py < size; py++) {
+      var vy = py / size;
+      var y = vy * cells;
+      for (var px = 0; px < size; px++, idx++) {
+        var ux = px / size;
+        var x = ux * cells;
+        var val;
+        if (state.type === "perlin") val = fractal(perlin2, x, y, cells, state.octaves, state.persistence, seed);
+        else if (state.type === "simplex") val = simplexTile(ux, vy, cells, state.octaves, state.persistence, seed);
+        else val = worley(x, y, cells, seed, state.jitter, state.metric, state.mode);
+        raw[idx] = val;
+        if (val < min) min = val;
+        if (val > max) max = val;
+      }
+    }
+    var range = (max - min) || 1;
+    var img = ctx.createImageData(size, size);
+    var lo = state.colorize ? hexToRgb(state.lowColor) : [0, 0, 0];
+    var hi = state.colorize ? hexToRgb(state.highColor) : [255, 255, 255];
+    for (var i = 0, p = 0; i < raw.length; i++, p += 4) {
+      var n = (raw[i] - min) / range;
+      if (state.invert) n = 1 - n;
+      img.data[p]     = lo[0] + (hi[0] - lo[0]) * n;
+      img.data[p + 1] = lo[1] + (hi[1] - lo[1]) * n;
+      img.data[p + 2] = lo[2] + (hi[2] - lo[2]) * n;
+      img.data[p + 3] = 255;
+    }
+    lastRaw = img;
+    drawPreview();
+    updateReadout(Math.round(performance.now() - t0));
+  }
+
+  function drawPreview() {
+    if (!lastRaw) return;
+    var size = state.size;
+    cv.width = size; cv.height = size;
+    if (state.tiled) {
+      var off = document.createElement("canvas");
+      off.width = size; off.height = size;
+      off.getContext("2d").putImageData(lastRaw, 0, 0);
+      var half = size / 2;
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(off, 0, 0, size, size, 0, 0, half, half);
+      ctx.drawImage(off, 0, 0, size, size, half, 0, half, half);
+      ctx.drawImage(off, 0, 0, size, size, 0, half, half, half);
+      ctx.drawImage(off, 0, 0, size, size, half, half, half, half);
+    } else {
+      ctx.putImageData(lastRaw, 0, 0);
+    }
+  }
+
+  function updateReadout(ms) {
+    var roSeed = $("ro-seed");
+    roSeed.textContent = String(state.seed);
+    roSeed.setAttribute("data-copy", String(state.seed));
+    $("ro-dims").textContent = state.size + " \u00d7 " + state.size + " px";
+    $("ro-time").textContent = ms + " ms";
+  }
+
+  function download() {
+    if (!lastRaw) return;
+    var off = document.createElement("canvas");
+    off.width = state.size; off.height = state.size;
+    off.getContext("2d").putImageData(lastRaw, 0, 0);
+    off.toBlob(function (blob) {
+      if (!blob) return;
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "noise-" + state.type + "-" + state.size + "-" + state.seed + ".png";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
+  }
+
+  function debounce(fn, wait) {
+    var tid;
+    return function () {
+      clearTimeout(tid);
+      tid = setTimeout(fn, wait);
+    };
+  }
+  var scheduleGenerate = debounce(generate, 40);
+
+  function syncSegType() {
+    $("seg-type").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-type") === state.type));
+    });
+  }
+  function syncSegSize() {
+    $("seg-size").querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(parseInt(b.getAttribute("data-size"), 10) === state.size));
+    });
+  }
+  function updateGroups() {
+    var fractalOn = (state.type === "perlin" || state.type === "simplex");
+    document.querySelectorAll('[data-group="fractal"]').forEach(function (el) { el.hidden = !fractalOn; });
+    document.querySelectorAll('[data-group="worley"]').forEach(function (el) { el.hidden = fractalOn; });
+  }
+  function syncAllInputsFromState() {
+    $("in-seed").value = state.seed;
+    $("in-cells").value = state.cells; $("cells-val").textContent = String(state.cells);
+    $("in-oct").value = state.octaves; $("oct-val").textContent = String(state.octaves);
+    $("in-pers").value = state.persistence; $("pers-val").textContent = state.persistence.toFixed(2);
+    $("in-jitter").value = state.jitter; $("jitter-val").textContent = state.jitter.toFixed(2);
+    $("in-metric").value = state.metric;
+    $("in-mode").value = state.mode;
+    $("in-colorize").checked = state.colorize;
+    $("colorfield").hidden = !state.colorize;
+    $("in-lowcolor").value = state.lowColor;
+    $("in-highcolor").value = state.highColor;
+    $("in-invert").checked = state.invert;
+    $("in-tiled").checked = state.tiled;
+  }
+
+  /* ---- bindings ---- */
+  $("seg-type").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.type = b.getAttribute("data-type");
+    syncSegType(); updateGroups(); scheduleGenerate();
+  });
+  $("seg-size").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.size = parseInt(b.getAttribute("data-size"), 10);
+    syncSegSize(); scheduleGenerate();
+  });
+  $("in-seed").addEventListener("input", function () {
+    var v = parseInt($("in-seed").value, 10);
+    if (isNaN(v)) return;
+    state.seed = v; scheduleGenerate();
+  });
+  $("btn-randseed").addEventListener("click", function () {
+    var arr = new Uint32Array(1);
+    (window.crypto || window.msCrypto).getRandomValues(arr);
+    state.seed = arr[0];
+    $("in-seed").value = state.seed;
+    generate();
+  });
+  function bindSlider(id, valId, key, decimals) {
+    var el = $(id);
+    el.addEventListener("input", function () {
+      var v = parseFloat(el.value);
+      state[key] = v;
+      $(valId).textContent = decimals ? v.toFixed(decimals) : String(v);
+      scheduleGenerate();
+    });
+  }
+  bindSlider("in-cells", "cells-val", "cells", 0);
+  bindSlider("in-oct", "oct-val", "octaves", 0);
+  bindSlider("in-pers", "pers-val", "persistence", 2);
+  bindSlider("in-jitter", "jitter-val", "jitter", 2);
+
+  $("in-metric").addEventListener("change", function () { state.metric = $("in-metric").value; scheduleGenerate(); });
+  $("in-mode").addEventListener("change", function () { state.mode = $("in-mode").value; scheduleGenerate(); });
+
+  $("in-colorize").addEventListener("change", function () {
+    state.colorize = $("in-colorize").checked;
+    $("colorfield").hidden = !state.colorize;
+    scheduleGenerate();
+  });
+  $("in-lowcolor").addEventListener("input", function () { state.lowColor = $("in-lowcolor").value; scheduleGenerate(); });
+  $("in-highcolor").addEventListener("input", function () { state.highColor = $("in-highcolor").value; scheduleGenerate(); });
+  $("in-invert").addEventListener("change", function () { state.invert = $("in-invert").checked; scheduleGenerate(); });
+  $("in-tiled").addEventListener("change", function () { state.tiled = $("in-tiled").checked; drawPreview(); });
+
+  $("btn-reset").addEventListener("click", function () {
+    state.type = DEFAULTS.type; state.seed = DEFAULTS.seed; state.cells = DEFAULTS.cells;
+    state.octaves = DEFAULTS.octaves; state.persistence = DEFAULTS.persistence;
+    state.metric = DEFAULTS.metric; state.mode = DEFAULTS.mode; state.jitter = DEFAULTS.jitter;
+    state.size = DEFAULTS.size; state.colorize = DEFAULTS.colorize; state.lowColor = DEFAULTS.lowColor;
+    state.highColor = DEFAULTS.highColor; state.invert = DEFAULTS.invert; state.tiled = DEFAULTS.tiled;
+    syncAllInputsFromState(); syncSegType(); syncSegSize(); updateGroups();
+    generate();
+  });
+  $("btn-download").addEventListener("click", download);
+
+  function localizeTitles() {
+    if (typeof Shell === "undefined" || !Shell) return;
+    var b = $("btn-randseed");
+    b.title = Shell.t("t.randseed"); b.setAttribute("aria-label", Shell.t("t.randseed"));
+  }
+
+  /* ---- 起動 ---- */
+  syncAllInputsFromState(); syncSegType(); syncSegSize(); updateGroups();
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "noise-generator",
+      strings: {
+        en: {
+          "t.title": "Noise generator",
+          "t.desc": "Generate seamless Perlin, Simplex, and Worley noise textures — tileable at any size.",
+          "t.type": "Noise type", "t.perlin": "Perlin", "t.simplex": "Simplex", "t.worley": "Worley",
+          "t.seed": "Seed", "t.randseed": "Randomize seed",
+          "t.cells": "Cells across", "t.cellshint": "Higher = smaller, more repeats. Always tiles exactly, at any value.",
+          "t.octaves": "Octaves", "t.persistence": "Persistence",
+          "t.distance": "Distance metric", "t.euclid": "Euclidean", "t.manhattan": "Manhattan", "t.chebyshev": "Chebyshev",
+          "t.result": "Result", "t.f1": "F1", "t.f2": "F2", "t.f2f1": "F2 \u2212 F1",
+          "t.jitter": "Jitter",
+          "t.size": "Output size",
+          "t.colorize": "Colorize", "t.low": "Low", "t.high": "High", "t.invert": "Invert",
+          "t.tiled": "Show 2\u00d72 tiling",
+          "t.hint": "This texture always tiles seamlessly, at any output size and any seed.",
+          "t.reset": "Reset", "t.download": "Download PNG",
+          "t.info": "Info", "t.seedlbl": "Seed", "t.dims": "Dimensions", "t.gentime": "Generated in",
+          "t.copyhint": "Click a value to copy."
+        },
+        ja: {
+          "t.title": "ノイズジェネレーター",
+          "t.desc": "Perlin・Simplex・Worley等のシームレスノイズを生成。どのサイズでも継ぎ目なくタイル化されます。",
+          "t.type": "ノイズの種類", "t.perlin": "Perlin", "t.simplex": "Simplex", "t.worley": "Worley",
+          "t.seed": "シード", "t.randseed": "シードをランダム化",
+          "t.cells": "セル数（1辺あたり）", "t.cellshint": "大きいほど模様が細かく・繰り返しが増えます。値に関わらず必ず継ぎ目なく繋がります。",
+          "t.octaves": "オクターブ数", "t.persistence": "パーシステンス",
+          "t.distance": "距離の計算方法", "t.euclid": "ユークリッド", "t.manhattan": "マンハッタン", "t.chebyshev": "チェビシェフ",
+          "t.result": "出力", "t.f1": "F1", "t.f2": "F2", "t.f2f1": "F2 \u2212 F1",
+          "t.jitter": "ジッター",
+          "t.size": "出力サイズ",
+          "t.colorize": "カラー化", "t.low": "低い値", "t.high": "高い値", "t.invert": "反転",
+          "t.tiled": "2\u00d72タイル表示",
+          "t.hint": "出力サイズやシードに関わらず、このテクスチャは常に継ぎ目なくタイル化されます。",
+          "t.reset": "リセット", "t.download": "PNGをダウンロード",
+          "t.info": "情報", "t.seedlbl": "シード", "t.dims": "出力サイズ", "t.gentime": "生成時間",
+          "t.copyhint": "数値をクリックでコピー。"
+        }
+      },
+      onSettingsChange: function () { localizeTitles(); }
+    });
+  }
+  localizeTitles();
+  generate();
+})();
+</script>
+</body>
+</html>
