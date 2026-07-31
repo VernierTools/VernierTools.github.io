@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STMap Setup Node — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* デモGIF（1点のみ） */
+  .demo{ margin-bottom:var(--s5); }
+  .demo img{ display:block; width:100%; height:auto; }
+
+  /* リード文（特長の前の導入） */
+  .lead{ font-size:13px; color:var(--text-2); line-height:1.55; margin:0 0 var(--s4); }
+
+  /* 特長リスト（チェック付き1行） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s3); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:22px; height:22px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:14px; height:14px; }
+  .feat .tx{ font-size:13px; color:var(--text-2); line-height:1.5; }
+  .feat .tx b{ color:var(--text); font-weight:600; }
+
+  /* 対応環境リスト（中黒ドット） */
+  .speclist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s2); }
+  .speclist li{ display:flex; gap:var(--s2); align-items:flex-start; font-size:13px; color:var(--text-2); line-height:1.55; }
+  .speclist li::before{ content:""; flex:0 0 auto; width:5px; height:5px; border-radius:50%;
+    background:var(--text-3); margin-top:8px; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="t.badge">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">STMap Setup Node</h1>
+    <p data-i18n="t.desc">Instantly apply STMaps in Blender's Compositor with a single click — no more manually linking Separate, Combine, and Map UV nodes by hand.</p>
+  </div>
+
+  <!-- デモGIF -->
+  <div class="preview demo">
+    <img src="docs/demo.gif" alt="Generating a complete STMap node setup from the Compositor sidebar panel in one click" loading="lazy">
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <p class="lead" data-i18n="t.why">Adds a dedicated panel to the Compositor's N-panel (Sidebar), so you never have to build an STMap node chain by hand again:</p>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx" data-i18n="t.f1"><b>Create STMap Nodes</b> — builds a complete template (Input Footage, STMap chain, Map UV, Composite, and Viewer) in one click.</span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx" data-i18n="t.f2"><b>Add STMap Warp (no output)</b> — drops just the STMap chain and Map UV node at your 2D cursor, safe to paste into an existing complex tree.</span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx" data-i18n="t.f3"><b>Load STMap (Non-Color)</b> — loads your STMap image and automatically forces its colorspace to Non-Color, preventing distortion from incorrect sRGB settings.</span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span class="tx" data-i18n="t.f4"><b>Set STMap to Non-Color</b> — select any existing image node and force its colorspace to Non-Color in one click.</span>
+          </li>
+        </ul>
+        <p class="kicker" data-i18n="t.kicker">V-Flip (green channel inversion) and quality settings can be toggled in the F9 (Redo) panel right after clicking a creation button.</p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.compat">Compatibility</div>
+        <ul class="speclist">
+          <li data-i18n="t.compat1">Blender 4.5 and 5.x.</li>
+          <li data-i18n="t.compat2">Fully compatible with the new Blender 5.0 compositor system.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip file on the right.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Add-ons.</li>
+          <li data-i18n="t.step3">Click "Install…" (or the ▾ menu ▸ "Install from Disk…"), then pick the .zip file.</li>
+          <li data-i18n="t.step4">Turn the add-on on with its checkbox. A new "STMap" tab appears in the Compositor's Sidebar (N-panel).</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">STMap Setup Node</div>
+              <div class="dl-kind" data-i18n="t.badge">Blender add-on</div>
+            </div>
+          </div>
+
+          <a class="btn btn--primary btn--block" href="stmap_setup_node.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.5 / 5.x</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
+          </div>
+
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open. Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "stmap-setup-node",
+    strings: {
+      en: {
+        "t.badge": "Blender add-on",
+        "t.title": "STMap Setup Node",
+        "t.desc": "Instantly apply STMaps in Blender's Compositor with a single click \u2014 no more manually linking Separate, Combine, and Map UV nodes by hand.",
+        "t.feat": "Features",
+        "t.why": "Adds a dedicated panel to the Compositor's N-panel (Sidebar), so you never have to build an STMap node chain by hand again:",
+        "t.f1": "<b>Create STMap Nodes</b> \u2014 builds a complete template (Input Footage, STMap chain, Map UV, Composite, and Viewer) in one click.",
+        "t.f2": "<b>Add STMap Warp (no output)</b> \u2014 drops just the STMap chain and Map UV node at your 2D cursor, safe to paste into an existing complex tree.",
+        "t.f3": "<b>Load STMap (Non-Color)</b> \u2014 loads your STMap image and automatically forces its colorspace to Non-Color, preventing distortion from incorrect sRGB settings.",
+        "t.f4": "<b>Set STMap to Non-Color</b> \u2014 select any existing image node and force its colorspace to Non-Color in one click.",
+        "t.kicker": "V-Flip (green channel inversion) and quality settings can be toggled in the F9 (Redo) panel right after clicking a creation button.",
+        "t.compat": "Compatibility",
+        "t.compat1": "Blender 4.5 and 5.x.",
+        "t.compat2": "Fully compatible with the new Blender 5.0 compositor system.",
+        "t.install": "Install",
+        "t.step1": "Download the .zip file on the right.",
+        "t.step2": "In Blender, open Edit \u25B8 Preferences \u25B8 Add-ons.",
+        "t.step3": "Click \"Install\u2026\" (or the \u25BE menu \u25B8 \"Install from Disk\u2026\"), then pick the .zip file.",
+        "t.step4": "Turn the add-on on with its checkbox. A new \"STMap\" tab appears in the Compositor's Sidebar (N-panel).",
+        "t.download": "Download (.zip)",
+        "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "Free and open. Everything runs locally in Blender \u2014 nothing is uploaded."
+      },
+      ja: {
+        "t.badge": "Blenderアドオン",
+        "t.title": "STMap Setup Node",
+        "t.desc": "Blenderのコンポジターで、ワンクリックでSTMapを適用できます。Separate・Combine・Map UVノードを手作業でつなぐ必要はもうありません。",
+        "t.feat": "特長",
+        "t.why": "コンポジターのNパネル（サイドバー）に専用パネルを追加。STMapノードチェーンを手動で組む必要がなくなります。",
+        "t.f1": "<b>Create STMap Nodes</b> \u2014 Input Footage・STMapチェーン・Map UV・Composite・Viewerを含む完全なテンプレートをワンクリックで生成します。",
+        "t.f2": "<b>Add STMap Warp (no output)</b> \u2014 2Dカーソルの位置にSTMapチェーンとMap UVノードだけを挿入。既存の複雑なノードツリーにも安全に貼り付けられます。",
+        "t.f3": "<b>Load STMap (Non-Color)</b> \u2014 STMap画像を読み込み、カラースペースを自動的にNon-Colorへ設定。誤ったsRGB設定による歪みを防ぎます。",
+        "t.f4": "<b>Set STMap to Non-Color</b> \u2014 既存の画像ノードを選択し、カラースペースをワンクリックでNon-Colorへ強制します。",
+        "t.kicker": "生成ボタンを押した直後のF9（Redo）パネルで、V-Flip（緑チャンネルの反転）と品質設定を切り替えられます。",
+        "t.compat": "対応環境",
+        "t.compat1": "Blender 4.5 および 5.x。",
+        "t.compat2": "新しいBlender 5.0コンポジターシステムに完全対応。",
+        "t.install": "インストール",
+        "t.step1": "右の .zip ファイルをダウンロードします。",
+        "t.step2": "Blenderで 編集 \u25B8 プリファレンス \u25B8 アドオン を開きます。",
+        "t.step3": "「インストール…」（または \u25BE メニュー \u25B8 「ディスクからインストール…」）から .zip ファイルを指定します。",
+        "t.step4": "チェックボックスでアドオンを有効化します。コンポジターのサイドバー（Nパネル）に「STMap」タブが追加されます。",
+        "t.download": "ダウンロード（.zip）",
+        "t.version": "バージョン", "t.blender": "Blender", "t.os": "OS",
+        "t.dlcap": "無料・オープン。すべてBlender内でローカルに動作し、アップロードはありません。"
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
