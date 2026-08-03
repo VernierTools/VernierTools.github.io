@@ -54,7 +54,7 @@
       "hub.empty":"No tools found.","badge.addonSuffix":" add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied",
-      "sub.audio.midi":"MIDI","sub.audio.instrument":"Instruments","sub.audio.chordscale":"Chords & Scales","sub.audio.audiofile":"Audio Files","sub.audio.production":"Music Production","sub.other":"Other"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"Performance","sub.audio.chordscale":"Chords & Scales","sub.audio.audiofile":"Audio Files","sub.audio.production":"Music Production","sub.other":"Other"
     },
     ja: {
       "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"拡張機能","cat.audio":"音声",
@@ -62,7 +62,7 @@
       "hub.empty":"該当するツールがありません。","badge.addonSuffix":"アドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
       "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました",
-      "sub.audio.midi":"MIDI","sub.audio.instrument":"楽器系","sub.audio.chordscale":"コード/スケール系","sub.audio.audiofile":"音声ファイル系","sub.audio.production":"音楽制作系","sub.other":"その他"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"演奏","sub.audio.chordscale":"コード/スケール","sub.audio.audiofile":"音声ファイル","sub.audio.production":"音楽制作","sub.other":"その他"
     }
   };
 
