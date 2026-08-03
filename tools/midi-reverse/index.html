@@ -25,6 +25,10 @@
   .icobtn:disabled{ opacity:.45; cursor:not-allowed; }
   .icobtn svg{ width:16px; height:16px; }
   .rollpos{ font-size:12.5px; color:var(--text-2); min-width:66px; }
+  .rollmode{ display:inline-flex; padding:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); margin-left:auto; }
+  .rollmode button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:500; color:var(--text-2); padding:5px 11px; border-radius:4px; transition:all var(--tap); }
+  .rollmode button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
   #cv-ruler{ display:block; width:100%; height:26px; cursor:pointer; touch-action:none; }
   .rollstack{ position:relative; height:220px; border-top:1px solid var(--border); touch-action:none; cursor:grab; }
   .rollstack.dragging{ cursor:grabbing; }
@@ -56,6 +60,10 @@
       <button class="icobtn" id="btn-zoomin" data-i18n-title="t.zoomin" title="Zoom in">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       </button>
+      <div class="rollmode" id="roll-mode" role="group">
+        <button data-mode="original" data-i18n="t.modeorig">Original</button>
+        <button data-mode="reversed" data-i18n="t.moderev" aria-pressed="true">Reversed</button>
+      </div>
     </div>
     <div class="rollwrap" id="rollwrap">
       <canvas id="cv-ruler"></canvas>
@@ -621,9 +629,26 @@
   var drop = $("drop"), fileIn = $("file-in"), statusEl = $("status");
   var cardDrop = $("card-drop"), cardLoaded = $("card-loaded"), fname = $("fname");
   var readout = $("readout"), btnDownload = $("btn-download"), cardRoll = $("card-roll"), rollHint = $("roll-hint");
-  var reversed = null, importedName = null;
+  var original = null, reversed = null, importedName = null;
+  var rollMode = "reversed"; // "original" | "reversed" — which one the preview/playback shows
+  var rollModeEl = $("roll-mode");
 
   function setStatus(msg, neg) { statusEl.textContent = msg || ""; statusEl.classList.toggle("neg", !!neg); }
+
+  function applyRollMode() {
+    if (!original || !reversed) return;
+    displayNotes = rollMode === "original" ? original.notes : reversed.notes;
+    if (trans.playing) stopPlay();
+    redrawNotes();
+    rollModeEl.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === rollMode));
+    });
+  }
+  rollModeEl.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    rollMode = b.getAttribute("data-mode");
+    applyRollMode();
+  });
 
   function handleFile(f) {
     if (!f) return;
@@ -631,8 +656,8 @@
     rd.onload = function () {
       try {
         stopPlay();
-        var parsed = parseMIDI(rd.result);
-        reversed = reverseDoc(parsed);
+        original = parseMIDI(rd.result);
+        reversed = reverseDoc(original);
         importedName = baseName(f.name);
         fname.textContent = f.name;
         cardLoaded.hidden = false;
@@ -643,16 +668,17 @@
         btnDownload.disabled = false;
         setStatus(Shell.t("io.ok"));
 
+        rollMode = "reversed";
         displayNotes = reversed.notes;
         curTimesig = reversed.timesig;
         buildTempoSegs(reversed.tempo);
-        computePitchRange(displayNotes);
+        computePitchRange(original.notes.concat(reversed.notes));
         playhead = 0;
         loaded = true;
         cardRoll.hidden = false; rollHint.hidden = false;
-        requestAnimationFrame(function () { resizeRoll(); fitRollView(); drawAll(); updateRollPos(); });
+        requestAnimationFrame(function () { resizeRoll(); fitRollView(); drawAll(); updateRollPos(); applyRollMode(); });
       } catch (err) {
-        reversed = null; btnDownload.disabled = true; readout.hidden = true;
+        original = null; reversed = null; btnDownload.disabled = true; readout.hidden = true;
         loaded = false; cardRoll.hidden = true; rollHint.hidden = true;
         setStatus(err.message || Shell.t("io.badfile"), true);
       }
@@ -696,7 +722,8 @@
         "t.download": "Download reversed file",
         "t.note": "Tempo and time-signature markers are kept as-is; only note timing and controller data (sustain, mod wheel, pitch bend…) are mirrored.",
         "t.play": "Play / pause", "t.stop": "Stop", "t.zoomin": "Zoom in", "t.zoomout": "Zoom out",
-        "t.rollhint": "Drag the roll or click the ruler to move around. The preview plays the reversed result.",
+        "t.modeorig": "Original", "t.moderev": "Reversed",
+        "t.rollhint": "Drag the roll or click the ruler to move around. Switch Original / Reversed above the roll to compare — the download is always the reversed file.",
         "io.badfile": "Couldn't read this as a Standard MIDI File.",
         "io.smpte": "SMPTE time division isn't supported.",
         "io.ok": "Reversed and ready to download."
@@ -710,7 +737,8 @@
         "t.download": "リバースしたファイルをダウンロード",
         "t.note": "テンポ・拍子記号はそのまま維持されます。反転されるのはノートのタイミングとコントローラーデータ（サステイン・モジュレーション・ピッチベンドなど）のみです。",
         "t.play": "再生 / 一時停止", "t.stop": "停止", "t.zoomin": "拡大", "t.zoomout": "縮小",
-        "t.rollhint": "ロールをドラッグするか定規をクリックして移動できます。プレビューはリバース後の結果を再生します。",
+        "t.modeorig": "標準", "t.moderev": "リバース",
+        "t.rollhint": "ロールをドラッグするか定規をクリックして移動できます。ロール上部の「標準／リバース」で聴き比べできます（ダウンロードは常にリバース後のファイルです）。",
         "io.badfile": "標準MIDIファイルとして読み取れませんでした。",
         "io.smpte": "SMPTEタイム分解能には対応していません。",
         "io.ok": "リバースが完了しました。ダウンロードできます。"
