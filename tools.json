@@ -34,6 +34,7 @@
         "general",
         "image"
       ],
+      "sub": "size",
       "name": {
         "en": "Platform sizes",
         "ja": "プラットフォーム寸法辞典"
@@ -185,6 +186,7 @@
       "categories": [
         "image"
       ],
+      "sub": "edit",
       "name": {
         "en": "Value / saturation crop",
         "ja": "明度・彩度で切り抜き"
@@ -211,6 +213,7 @@
       "categories": [
         "image"
       ],
+      "sub": "color",
       "name": {
         "en": "Advanced color picker",
         "ja": "アドバンスド・カラーピッカー"
@@ -236,6 +239,7 @@
       "categories": [
         "image"
       ],
+      "sub": "edit",
       "name": {
         "en": "Clipping highlighter",
         "ja": "白飛び・黒つぶれ表示"
@@ -260,6 +264,7 @@
       "categories": [
         "image"
       ],
+      "sub": "photo",
       "name": {
         "en": "Motion auto-shutter",
         "ja": "モーション検知オートシャッター"
@@ -567,6 +572,7 @@
       "categories": [
         "image"
       ],
+      "sub": "color",
       "name": {
         "en": "Color format converter",
         "ja": "色フォーマット変換"
@@ -594,6 +600,7 @@
       "categories": [
         "image"
       ],
+      "sub": "color",
       "name": {
         "en": "Color-blindness (CUD) simulator",
         "ja": "色覚（CUD）シミュレーター"
@@ -620,6 +627,7 @@
       "categories": [
         "image"
       ],
+      "sub": "color",
       "name": {
         "en": "Color temperature comparison",
         "ja": "色温度比較"
@@ -645,6 +653,7 @@
       "categories": [
         "image"
       ],
+      "sub": "generate",
       "name": {
         "en": "Noise generator",
         "ja": "ノイズジェネレーター"
@@ -671,6 +680,7 @@
       "categories": [
         "image"
       ],
+      "sub": "size",
       "name": {
         "en": "Aspect ratio calculator",
         "ja": "アスペクト比計算機"
@@ -696,6 +706,7 @@
       "categories": [
         "image"
       ],
+      "sub": "size",
       "name": {
         "en": "px to mm / inch",
         "ja": "px ↔ mm / inch 変換"
@@ -723,6 +734,7 @@
       "categories": [
         "image"
       ],
+      "sub": "photo",
       "name": {
         "en": "Depth of field calculator",
         "ja": "被写界深度計算機"
