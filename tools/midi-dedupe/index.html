@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duplicate note removal — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<style>
+  .filerow{ display:flex; align-items:center; gap:var(--s3); }
+  .filerow .name{ font-size:13px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .filerow .change{ flex:0 0 auto; }
+  .statusline{ font-size:12.5px; color:var(--text-3); margin-top:var(--s3); min-height:16px; }
+  .statusline.neg{ color:var(--neg); }
+  .rrow__value.mono{ font-family:var(--font-mono); }
+  .rrow__value.neg{ color:var(--neg); }
+  .rrow__value.pos{ color:var(--pos); }
+
+  /* ---- preview piano roll ---- */
+  .card--roll{ padding:0; overflow:hidden; margin-bottom:var(--s4); }
+  .rolltoolbar{ display:flex; align-items:center; gap:8px; padding:var(--s3) var(--s4); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .rolltoolbar .sep{ width:1px; height:22px; background:var(--border); }
+  .icobtn{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; flex:0 0 auto;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .icobtn:hover{ background:var(--surface-2); border-color:var(--text-3); }
+  .icobtn:disabled{ opacity:.45; cursor:not-allowed; }
+  .icobtn svg{ width:16px; height:16px; }
+  .rollpos{ font-size:12.5px; color:var(--text-2); min-width:66px; }
+  .rolllegend{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-3); margin-left:auto; }
+  .rolllegend .sw{ width:9px; height:9px; border-radius:2px; border:1.5px solid var(--neg); background:color-mix(in srgb, var(--neg) 22%, transparent); flex:0 0 auto; }
+  #cv-ruler{ display:block; width:100%; height:26px; cursor:pointer; touch-action:none; }
+  .rollstack{ position:relative; height:220px; border-top:1px solid var(--border); touch-action:none; cursor:grab; }
+  .rollstack.dragging{ cursor:grabbing; }
+  .rollstack canvas{ position:absolute; left:0; top:0; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Duplicate note removal</h1>
+    <p data-i18n="t.desc">Load a .mid file and remove notes that overlap or start together at the same pitch — a common leftover from merges and re-recordings.</p>
+  </div>
+
+  <div class="card card--roll" id="card-roll" hidden>
+    <div class="rolltoolbar">
+      <button class="icobtn" id="btn-play" aria-pressed="false" data-i18n-title="t.play" title="Play / pause">
+        <svg id="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5v13l11-6.5z"/></svg>
+        <svg id="ic-pause" viewBox="0 0 24 24" fill="currentColor" hidden><rect x="6.5" y="5.5" width="4" height="13" rx="1"/><rect x="13.5" y="5.5" width="4" height="13" rx="1"/></svg>
+      </button>
+      <button class="icobtn" id="btn-stop" data-i18n-title="t.stop" title="Stop">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg>
+      </button>
+      <span class="rollpos mono" id="roll-pos">1.1.000</span>
+      <div class="sep"></div>
+      <button class="icobtn" id="btn-zoomout" data-i18n-title="t.zoomout" title="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button class="icobtn" id="btn-zoomin" data-i18n-title="t.zoomin" title="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <span class="rolllegend"><span class="sw"></span><span data-i18n="t.legend">Duplicate</span></span>
+    </div>
+    <div class="rollwrap" id="rollwrap">
+      <canvas id="cv-ruler"></canvas>
+      <div class="rollstack" id="rollstack">
+        <canvas id="cv-bg"></canvas>
+        <canvas id="cv-notes"></canvas>
+        <canvas id="cv-ov"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card" id="card-drop">
+        <label class="label" data-i18n="t.file">MIDI file</label>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Load a MIDI file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <div><b data-i18n="t.dropb">Click or drop a MIDI file</b></div>
+          <small data-i18n="t.dropsmall">.mid / .midi — processed locally, never uploaded</small>
+        </div>
+        <input type="file" id="file-in" accept=".mid,.midi,audio/midi" hidden>
+        <div class="statusline" id="status"></div>
+      </div>
+      <div class="card" id="card-loaded" hidden>
+        <label class="label" data-i18n="t.loaded">Loaded file</label>
+        <div class="filerow">
+          <span class="name" id="fname">—</span>
+          <button class="btn btn--ghost change" id="btn-change" data-i18n="t.change">Load another</button>
+        </div>
+      </div>
+      <div class="card" id="card-settings" hidden>
+        <div class="field">
+          <label class="label" data-i18n="t.tol">Tolerance</label>
+          <div class="sliderrow">
+            <input class="slider" id="d-tol" type="range" min="0" max="480" value="0" step="1">
+            <span class="val mono" id="d-tol-val">0</span>
+          </div>
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--text-3)" data-i18n="t.tolnote">Same pitch and channel, start times within this many ticks (960 = quarter note) — or simply overlapping — count as duplicates. 0 keeps only exact-time overlaps.</div>
+      </div>
+      <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:var(--s3)" id="roll-hint" data-i18n="t.rollhint" hidden>Drag the roll or click the ruler to move around. Notes outlined in red are duplicates.</div>
+    </div>
+
+    <div>
+      <div class="readout" id="readout" hidden>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Result</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.total">Notes in file</span><span class="rrow__value mono" id="ro-total">0</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.dups">Duplicates found</span><span class="rrow__value mono neg" id="ro-dups">0</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.remain">Notes after removal</span><span class="rrow__value mono pos" id="ro-remain">0</span></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="btn-download" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M12 16l-4-4M12 16l4-4"/><path d="M4 18v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <span data-i18n="t.download">Download cleaned file</span>
+        </button>
+      </div>
+      <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:var(--s3)" data-i18n="t.note">Within a duplicate group the earliest note is kept; the rest are removed. Everything else in the file is untouched.</div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var PPQ = 960;
+  var seq = 0;
+  function nid() { return "n" + (seq++); }
+  function cid() { return "c" + (seq++); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function mod(v, n) { return ((v % n) + n) % n; }
+
+  /* ---- SMF parse ---- */
+  function parseMIDI(buf) {
+    var u = new Uint8Array(buf), p = 0;
+    function u32() { var v = (u[p] << 24 | u[p + 1] << 16 | u[p + 2] << 8 | u[p + 3]) >>> 0; p += 4; return v; }
+    function u16() { var v = u[p] << 8 | u[p + 1]; p += 2; return v; }
+    function str4() { var s = String.fromCharCode(u[p], u[p + 1], u[p + 2], u[p + 3]); p += 4; return s; }
+    function vlen() { var v = 0, b; do { b = u[p++]; v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; }
+    if (str4() !== "MThd") throw new Error(Shell.t("io.badfile"));
+    var hlen = u32();
+    var fmt = u16(), ntr = u16(), div = u16();
+    p += hlen - 6;
+    if (div & 0x8000) throw new Error(Shell.t("io.smpte"));
+    var scale = PPQ / div;
+    var out = { notes: [], cc: [], pass: [], tempo: [], timesig: null };
+    for (var tr = 0; tr < ntr; tr++) {
+      if (p >= u.length) break;
+      if (str4() !== "MTrk") throw new Error(Shell.t("io.badfile"));
+      var tlen = u32(), tend = p + tlen, tick = 0, run = 0;
+      var open = {};
+      while (p < tend) {
+        tick += vlen();
+        var st = u[p];
+        if (st & 0x80) { p++; if (st < 0xF0) run = st; } else { st = run; }
+        var T = Math.round(tick * scale);
+        if (st === 0xFF) {
+          var mt = u[p++], mlen = vlen(), data = [];
+          for (var i = 0; i < mlen; i++) data.push(u[p++]);
+          if (mt === 0x51) out.tempo.push({ tick: T, uspq: (data[0] << 16 | data[1] << 8 | data[2]) });
+          else if (mt === 0x2F) { /* end of track */ }
+          else {
+            if (mt === 0x58 && !out.timesig) out.timesig = { num: data[0], den: Math.pow(2, data[1]) };
+            out.pass.push({ tick: T, kind: "meta", mt: mt, data: data });
+          }
+        } else if (st === 0xF0 || st === 0xF7) {
+          var slen = vlen(); p += slen;
+        } else {
+          var type = st & 0xF0, ch = st & 0x0F;
+          var d1 = u[p++], d2 = (type === 0xC0 || type === 0xD0) ? null : u[p++];
+          if (type === 0x90 && d2 > 0) {
+            var k = ch + ":" + d1;
+            (open[k] || (open[k] = [])).push({ tick: T, vel: d2 });
+          } else if (type === 0x80 || (type === 0x90 && d2 === 0)) {
+            var k2 = ch + ":" + d1, stk = open[k2];
+            if (stk && stk.length) {
+              var on = stk.pop();
+              var dur = Math.max(1, T - on.tick);
+              out.notes.push({ id: nid(), start: on.tick, duration: dur, pitch: d1, velocity: clamp(on.vel, 1, 127), channel: ch });
+            }
+          } else if (type === 0xB0) {
+            out.cc.push({ id: cid(), tick: T, ctrl: d1, value: d2, channel: ch });
+          } else if (type === 0xE0) {
+            var val14 = (d2 << 7) | d1;
+            out.cc.push({ id: cid(), tick: T, ctrl: "bend", value: val14 - 8192, channel: ch });
+          } else {
+            var db = (d2 === null) ? [d1] : [d1, d2];
+            out.pass.push({ tick: T, kind: "ch", status: st, data: db });
+          }
+        }
+      }
+      var endT = Math.round(tick * scale);
+      Object.keys(open).forEach(function (k) {
+        open[k].forEach(function (on) {
+          var parts = k.split(":");
+          out.notes.push({ id: nid(), start: on.tick, duration: Math.max(1, endT - on.tick), pitch: +parts[1], velocity: clamp(on.vel, 1, 127), channel: +parts[0] });
+        });
+      });
+      p = tend;
+    }
+    out.tempo.sort(function (a, b) { return a.tick - b.tick; });
+    var tmap = [];
+    out.tempo.forEach(function (tt) {
+      if (tmap.length && tmap[tmap.length - 1].tick === tt.tick) tmap[tmap.length - 1] = tt;
+      else tmap.push(tt);
+    });
+    out.tempo = tmap;
+    if (!out.timesig) out.timesig = { num: 4, den: 4 };
+    return out;
+  }
+
+  function vlq(n, arr) {
+    n = Math.max(0, Math.round(n));
+    var b = [n & 0x7f]; n = Math.floor(n / 128);
+    while (n > 0) { b.unshift((n & 0x7f) | 0x80); n = Math.floor(n / 128); }
+    for (var i = 0; i < b.length; i++) arr.push(b[i]);
+  }
+  function buildSMF(doc) {
+    var ev = [];
+    var tl = doc.tempo.length ? doc.tempo : [{ tick: 0, uspq: 500000 }];
+    tl.forEach(function (t) { ev.push({ t: t.tick, o: 0, meta: 0x51, data: [(t.uspq >> 16) & 255, (t.uspq >> 8) & 255, t.uspq & 255] }); });
+    ev.push({ t: 0, o: 0, meta: 0x58, data: [doc.timesig.num & 255, Math.round(Math.log2(doc.timesig.den)) & 255, 24, 8] });
+    doc.pass.forEach(function (pp) {
+      if (pp.kind === "meta" && pp.mt === 0x58) return;
+      if (pp.kind === "meta") ev.push({ t: pp.tick, o: 0, meta: pp.mt, data: pp.data });
+      else ev.push({ t: pp.tick, o: (pp.status & 0xF0) === 0xC0 ? 1 : 3, s: [pp.status].concat(pp.data) });
+    });
+    doc.cc.forEach(function (c) {
+      if (c.ctrl === "bend") {
+        var v14 = clamp(Math.round(c.value) + 8192, 0, 16383);
+        ev.push({ t: c.tick, o: 2, s: [0xE0 | c.channel, v14 & 0x7f, (v14 >> 7) & 0x7f] });
+      } else {
+        ev.push({ t: c.tick, o: 2, s: [0xB0 | c.channel, c.ctrl & 127, clamp(c.value, 0, 127)] });
+      }
+    });
+    doc.notes.forEach(function (n) {
+      ev.push({ t: n.start, o: 5, s: [0x90 | n.channel, n.pitch & 127, clamp(n.velocity, 1, 127)] });
+      ev.push({ t: n.start + n.duration, o: 4, s: [0x80 | n.channel, n.pitch & 127, 64] });
+    });
+    ev.sort(function (a, b) { return a.t - b.t || a.o - b.o; });
+    var body = [], last = 0;
+    ev.forEach(function (e) {
+      vlq(e.t - last, body); last = e.t;
+      if (e.meta != null) { body.push(0xFF, e.meta); vlq(e.data.length, body); e.data.forEach(function (x) { body.push(x & 255); }); }
+      else e.s.forEach(function (x) { body.push(x & 255); });
+    });
+    vlq(0, body); body.push(0xFF, 0x2F, 0x00);
+    var head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (PPQ >> 8) & 255, PPQ & 255,
+                0x4D, 0x54, 0x72, 0x6B, (body.length >>> 24) & 255, (body.length >>> 16) & 255, (body.length >>> 8) & 255, body.length & 255];
+    return new Uint8Array(head.concat(body));
+  }
+
+  /* ---- dedupe scan: bucket by pitch+channel, chain of near/overlapping notes.
+     Returns the notes to keep (earliest per cluster) and the set of ids that
+     took part in a duplicate relationship (for the red highlight — both the
+     kept anchor and the dropped notes). ---- */
+  function scanDuplicates(notes, tol) {
+    var groups = {};
+    notes.forEach(function (n) {
+      var k = n.pitch + ":" + n.channel;
+      (groups[k] || (groups[k] = [])).push(n);
+    });
+    var dupIds = new Set(), keep = [];
+    Object.keys(groups).forEach(function (k) {
+      var arr = groups[k].slice().sort(function (a, b) { return a.start - b.start; });
+      var last = null;
+      arr.forEach(function (n) {
+        if (last) {
+          var overlap = last.start + last.duration > n.start;
+          if (Math.abs(n.start - last.start) <= tol || overlap) {
+            dupIds.add(last.id); dupIds.add(n.id);
+            return; // duplicate: drop, keep 'last' as the anchor
+          }
+        }
+        keep.push(n); last = n;
+      });
+    });
+    keep.sort(function (a, b) { return a.start - b.start; });
+    return { keep: keep, dupIds: dupIds };
+  }
+
+  function baseName(filename) { return String(filename || "").replace(/\.[Mm][Ii][Dd][Ii]?$/, ""); }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* =====================================================================
+     preview piano roll (read-only) + playback
+     ===================================================================== */
+  var KEYW = 42, ROLLH = 220, PPT_MIN = 0.006, PPT_MAX = 0.6;
+  var cvBg = $("cv-bg"), cvNotes = $("cv-notes"), cvOv = $("cv-ov"), cvRul = $("cv-ruler");
+  var xBg = cvBg.getContext("2d"), xNotes = cvNotes.getContext("2d"), xOv = cvOv.getContext("2d"), xRul = cvRul.getContext("2d");
+  var rollWrapEl = $("rollwrap"), rollstackEl = $("rollstack");
+  var cw = 600;
+  var view = { ppt: 0.05, sx: 0 };
+  var pitchTop = 83, pitchSpan = 24, pps = 10;
+  var curTimesig = { num: 4, den: 4 };
+  var playhead = 0, loaded = false, dupIds = null;
+  var displayNotes = [];
+  function currentNotes() { return displayNotes; }
+
+  var C = {};
+  function refreshColors() {
+    var cs = getComputedStyle(document.documentElement);
+    ["bg", "surface", "surface-2", "border", "border-strong", "text", "text-2", "text-3", "accent", "accent-tint", "neg"].forEach(function (k) {
+      C[k] = cs.getPropertyValue("--" + k).trim();
+    });
+    C.dark = document.documentElement.getAttribute("data-theme") === "dark";
+  }
+  function colA(c, a) {
+    if (c[0] === "#") {
+      var r = parseInt(c.substr(1, 2), 16), g = parseInt(c.substr(3, 2), 16), b = parseInt(c.substr(5, 2), 16);
+      return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+    }
+    var m = c.match(/[\d.]+/g);
+    if (m && m.length >= 3) return "rgba(" + m[0] + "," + m[1] + "," + m[2] + "," + a + ")";
+    return c;
+  }
+  var CH_HUES = [230, 12, 145, 45, 190, 275, 82, 322, 205, 25, 160, 60, 255, 300, 110, 0];
+  function chColor(ch, a) {
+    var h = CH_HUES[ch & 15], l = C.dark ? 62 : 46;
+    return a == null ? ("hsl(" + h + " 58% " + l + "%)") : ("hsla(" + h + " 58% " + l + "% / " + a + ")");
+  }
+  var BLACK = { 1: 1, 3: 1, 6: 1, 8: 1, 10: 1 };
+
+  function barTicksOf(ts) { return Math.round(PPQ * 4 * ts.num / ts.den); }
+  function beatTicksOf(ts) { return Math.round(PPQ * 4 / ts.den); }
+  function tick2x(t) { return KEYW + t * view.ppt - view.sx; }
+  function x2tick(x) { return (x - KEYW + view.sx) / view.ppt; }
+  function pitch2y(p) { return (pitchTop - p) * pps; }
+
+  function setupCanvas(cv, w, h) {
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function resizeRoll() {
+    if (!loaded) return;
+    cw = rollWrapEl.clientWidth || 600;
+    setupCanvas(cvBg, cw, ROLLH); setupCanvas(cvNotes, cw, ROLLH); setupCanvas(cvOv, cw, ROLLH); setupCanvas(cvRul, cw, 26);
+    drawAll();
+  }
+  window.addEventListener("resize", resizeRoll);
+
+  function computePitchRange(notes) {
+    if (!notes.length) { pitchTop = 83; pitchSpan = 24; }
+    else {
+      var lo = 127, hi = 0;
+      notes.forEach(function (n) { lo = Math.min(lo, n.pitch); hi = Math.max(hi, n.pitch); });
+      lo = Math.max(0, lo - 2); hi = Math.min(127, hi + 2);
+      pitchTop = hi; pitchSpan = Math.max(12, hi - lo + 1);
+    }
+    pps = clamp(ROLLH / pitchSpan, 4, 22);
+  }
+  function fitRollView() {
+    var end = Math.max(barTicksOf(curTimesig), songEndTicks());
+    var avail = Math.max(50, cw - KEYW);
+    view.ppt = clamp(avail / Math.max(end, 1), PPT_MIN, PPT_MAX);
+    view.sx = 0;
+  }
+
+  function drawBg() {
+    var ctx = xBg; ctx.clearRect(0, 0, cw, ROLLH);
+    var pLo = pitchTop - pitchSpan + 1;
+    for (var p = pLo; p <= pitchTop; p++) {
+      var y = pitch2y(p);
+      ctx.fillStyle = BLACK[mod(p, 12)] ? C["surface-2"] : C.surface;
+      ctx.fillRect(KEYW, y, cw - KEYW, pps);
+      ctx.fillStyle = colA(C.border, 0.5);
+      ctx.fillRect(KEYW, y + pps - 0.5, cw - KEYW, 0.5);
+    }
+    var bar = barTicksOf(curTimesig), bt = beatTicksOf(curTimesig);
+    var t0v = Math.max(0, x2tick(KEYW)), t1v = x2tick(cw);
+    if (bt * view.ppt > 6) {
+      ctx.fillStyle = colA(C.border, 0.6);
+      for (var t = Math.ceil(t0v / bt) * bt; t < t1v; t += bt) { if (t % bar === 0) continue; ctx.fillRect(tick2x(t), 0, 1, ROLLH); }
+    }
+    ctx.fillStyle = C["border-strong"];
+    for (var tb = Math.ceil(t0v / bar) * bar; tb < t1v; tb += bar) ctx.fillRect(tick2x(tb), 0, 1.5, ROLLH);
+    ctx.fillStyle = C.surface; ctx.fillRect(0, 0, KEYW, ROLLH);
+    for (var kp = pLo; kp <= pitchTop; kp++) {
+      var ky = pitch2y(kp);
+      if (BLACK[mod(kp, 12)]) { ctx.fillStyle = C.dark ? "#0c0d10" : "#2a2c33"; ctx.fillRect(0, ky, KEYW - 9, pps); }
+      ctx.fillStyle = colA(C.border, 0.8); ctx.fillRect(0, ky + pps - 0.5, KEYW, 0.5);
+      if (mod(kp, 12) === 0 && pps >= 7) {
+        ctx.fillStyle = C["text-3"];
+        ctx.font = "9px " + getComputedStyle(document.body).getPropertyValue("--font-mono");
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText("C" + (Math.floor(kp / 12) - 1), KEYW - 4, ky + pps / 2 + 0.5);
+      }
+    }
+    ctx.fillStyle = C["border-strong"]; ctx.fillRect(KEYW - 1, 0, 1, ROLLH);
+  }
+  function drawRuler() {
+    var ctx = xRul, H = 26;
+    ctx.clearRect(0, 0, cw, H);
+    ctx.fillStyle = C["surface-2"]; ctx.fillRect(0, 0, cw, H);
+    var bar = barTicksOf(curTimesig);
+    var t0v = Math.max(0, x2tick(KEYW)), t1v = x2tick(cw);
+    var barPx = bar * view.ppt;
+    var lab = Math.max(1, Math.pow(2, Math.ceil(Math.log(34 / Math.max(barPx, 1)) / Math.LN2)));
+    ctx.font = "10px " + getComputedStyle(document.body).getPropertyValue("--font-mono");
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    for (var t = Math.floor(t0v / bar) * bar; t < t1v; t += bar) {
+      if (t < 0) continue;
+      var x = tick2x(t), bnum = Math.round(t / bar);
+      ctx.fillStyle = C["border-strong"]; ctx.fillRect(x, H - 8, 1, 8);
+      if (bnum % lab === 0) { ctx.fillStyle = C["text-2"]; ctx.fillText(String(bnum + 1), x + 3, H - 10); }
+    }
+    var px = tick2x(playhead);
+    if (px >= KEYW - 5 && px <= cw + 5) {
+      ctx.fillStyle = C.accent;
+      ctx.beginPath(); ctx.moveTo(px - 5, H - 8); ctx.lineTo(px + 5, H - 8); ctx.lineTo(px, H); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = C.border; ctx.fillRect(0, H - 1, cw, 1);
+  }
+  function redrawNotes() {
+    var ctx = xNotes; ctx.clearRect(0, 0, cw, ROLLH);
+    ctx.save(); ctx.beginPath(); ctx.rect(KEYW, 0, Math.max(0, cw - KEYW), ROLLH); ctx.clip();
+    var t0v = x2tick(KEYW), t1v = x2tick(cw);
+    var ns = currentNotes();
+    for (var i = 0; i < ns.length; i++) {
+      var n = ns[i];
+      if (n.start > t1v) continue;
+      if (n.start + n.duration < t0v) continue;
+      var y = pitch2y(n.pitch);
+      if (y > ROLLH || y + pps < 0) continue;
+      var x = tick2x(n.start), w = Math.max(2, n.duration * view.ppt), h = Math.max(2, pps - 1.5);
+      ctx.fillStyle = chColor(n.channel, 0.4 + 0.55 * (n.velocity / 127));
+      ctx.fillRect(x, y + 0.75, w, h);
+      ctx.strokeStyle = chColor(n.channel); ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 1.25, Math.max(1, w - 1), h - 1);
+      if (dupIds && dupIds.has(n.id)) {
+        ctx.strokeStyle = C.neg; ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 0.75, y + 1.5, Math.max(1, w - 1.5), h - 1.5);
+        ctx.save(); ctx.beginPath(); ctx.rect(x, y + 0.75, w, h); ctx.clip();
+        ctx.strokeStyle = colA(C.neg, 0.7); ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (var hx = x - h; hx < x + w; hx += 5) { ctx.moveTo(hx, y + h + 1); ctx.lineTo(hx + h, y + 1); }
+        ctx.stroke(); ctx.restore();
+      }
+    }
+    ctx.restore();
+    drawOverlay();
+  }
+  function drawOverlay() {
+    var ctx = xOv; ctx.clearRect(0, 0, cw, ROLLH);
+    ctx.save(); ctx.beginPath(); ctx.rect(KEYW, 0, Math.max(0, cw - KEYW), ROLLH); ctx.clip();
+    var px = tick2x(playhead);
+    if (px >= KEYW && px <= cw) { ctx.fillStyle = C.accent; ctx.fillRect(px - 0.75, 0, 1.5, ROLLH); }
+    ctx.restore();
+  }
+  function drawAll() { drawBg(); drawRuler(); redrawNotes(); }
+
+  var ZOOM_FACTOR = 1.35;
+  function zoomBy(f) {
+    var cx = KEYW + (cw - KEYW) / 2, t = x2tick(cx);
+    view.ppt = clamp(view.ppt * f, PPT_MIN, PPT_MAX);
+    view.sx = Math.max(0, t * view.ppt - (cx - KEYW));
+    drawAll();
+  }
+  $("btn-zoomin").addEventListener("click", function () { zoomBy(ZOOM_FACTOR); });
+  $("btn-zoomout").addEventListener("click", function () { zoomBy(1 / ZOOM_FACTOR); });
+
+  var panning = false, panStartX = 0, panStartSx = 0;
+  rollstackEl.addEventListener("pointerdown", function (e) {
+    panning = true; panStartX = e.clientX; panStartSx = view.sx;
+    rollstackEl.classList.add("dragging");
+    try { rollstackEl.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  rollstackEl.addEventListener("pointermove", function (e) {
+    if (!panning) return;
+    view.sx = Math.max(0, panStartSx - (e.clientX - panStartX));
+    drawBg(); drawRuler(); redrawNotes();
+  });
+  function endPan() { panning = false; rollstackEl.classList.remove("dragging"); }
+  rollstackEl.addEventListener("pointerup", endPan);
+  rollstackEl.addEventListener("pointercancel", endPan);
+  rollstackEl.addEventListener("wheel", function (e) {
+    if (!loaded) return;
+    e.preventDefault();
+    var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    view.sx = Math.max(0, view.sx + d);
+    drawBg(); drawRuler(); redrawNotes();
+  }, { passive: false });
+  cvRul.addEventListener("pointerdown", function (e) {
+    if (!loaded) return;
+    var r = cvRul.getBoundingClientRect(), x = e.clientX - r.left;
+    setPlayhead(Math.max(0, x2tick(x)));
+  });
+
+  /* ---- playback ---- */
+  var audioCtx = null, master = null;
+  function ac() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      master = audioCtx.createGain(); master.gain.value = 0.3; master.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  var tempoSegsCache = null;
+  function buildTempoSegs(tempo) {
+    var t = (tempo && tempo.length) ? tempo.slice().sort(function (a, b) { return a.tick - b.tick; }) : [{ tick: 0, uspq: 500000 }];
+    if (t[0].tick > 0) t = [{ tick: 0, uspq: t[0].uspq }].concat(t);
+    var segs = [], sec = 0;
+    for (var i = 0; i < t.length; i++) {
+      if (i > 0) sec += (t[i].tick - t[i - 1].tick) * t[i - 1].uspq / 1e6 / PPQ;
+      segs.push({ tick: t[i].tick, sec: sec, uspq: t[i].uspq });
+    }
+    tempoSegsCache = segs;
+  }
+  function tickToSec(tick) {
+    var s = tempoSegsCache, i = s.length - 1;
+    while (i > 0 && s[i].tick > tick) i--;
+    return s[i].sec + (tick - s[i].tick) * s[i].uspq / 1e6 / PPQ;
+  }
+  function secToTick(sec) {
+    var s = tempoSegsCache, i = s.length - 1;
+    while (i > 0 && s[i].sec > sec) i--;
+    return s[i].tick + (sec - s[i].sec) * 1e6 * PPQ / s[i].uspq;
+  }
+  var trans = { playing: false, startTime: 0, baseSec: 0, ptr: 0, timer: null };
+  var voices = [], sortedCache = [];
+  function voice(pitch, vel, when, durSec) {
+    var a = ac();
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = "triangle"; o.frequency.value = 440 * Math.pow(2, (pitch - 69) / 12);
+    var peak = 0.03 + 0.16 * (vel / 127), end = when + Math.max(0.04, durSec);
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + Math.min(0.008, durSec / 4));
+    g.gain.setValueAtTime(peak, Math.max(when, end - 0.02));
+    g.gain.linearRampToValueAtTime(0, end + 0.02);
+    o.connect(g); g.connect(master);
+    o.start(when); o.stop(end + 0.03);
+    var rec = { o: o }; voices.push(rec);
+    o.onended = function () { var i = voices.indexOf(rec); if (i >= 0) voices.splice(i, 1); };
+  }
+  function killVoices() { voices.slice().forEach(function (v) { try { v.o.stop(); } catch (e) {} }); voices.length = 0; }
+  function songEndTicks() { var e = 0; currentNotes().forEach(function (n) { e = Math.max(e, n.start + n.duration); }); return e; }
+  function schedule() {
+    if (!trans.playing) return;
+    var a = ac(), horizon = a.currentTime + 0.15;
+    while (trans.ptr < sortedCache.length) {
+      var n = sortedCache[trans.ptr];
+      var when = trans.startTime + (tickToSec(n.start) - trans.baseSec);
+      if (when > horizon) break;
+      if (when >= a.currentTime - 0.02) {
+        var at = Math.max(a.currentTime, when);
+        var durSec = Math.max(0.03, tickToSec(n.start + n.duration) - tickToSec(n.start));
+        voice(n.pitch, n.velocity, at, durSec);
+      }
+      trans.ptr++;
+    }
+    var endSec = trans.startTime + (tickToSec(songEndTicks()) - trans.baseSec);
+    if (a.currentTime > endSec + 0.15 && trans.ptr >= sortedCache.length) { stopPlay(); setPlayhead(0); return; }
+    trans.timer = setTimeout(schedule, 25);
+  }
+  function startPlay(fromTick) {
+    ac();
+    sortedCache = currentNotes().slice().sort(function (x, y) { return x.start - y.start; });
+    trans.playing = true;
+    trans.baseSec = tickToSec(fromTick);
+    trans.startTime = ac().currentTime + 0.06;
+    trans.ptr = 0;
+    while (trans.ptr < sortedCache.length && sortedCache[trans.ptr].start < fromTick) trans.ptr++;
+    setPlayIcon(true);
+    clearTimeout(trans.timer); schedule();
+  }
+  function stopPlay() { trans.playing = false; clearTimeout(trans.timer); killVoices(); setPlayIcon(false); }
+  function setPlayhead(t) {
+    playhead = Math.max(0, t);
+    if (trans.playing) { stopPlay(); startPlay(playhead); }
+    drawRuler(); drawOverlay(); updateRollPos();
+  }
+  function togglePlay() { if (trans.playing) stopPlay(); else startPlay(playhead); }
+  function setPlayIcon(playing) {
+    $("ic-play").hidden = playing; $("ic-pause").hidden = !playing;
+    $("btn-play").setAttribute("aria-pressed", String(playing));
+  }
+  function updateRollPos() {
+    var bar = barTicksOf(curTimesig), bt = beatTicksOf(curTimesig);
+    var b = Math.floor(playhead / bar), within = playhead - b * bar, beat = Math.floor(within / bt), tickIn = Math.round(within - beat * bt);
+    $("roll-pos").textContent = (b + 1) + "." + (beat + 1) + "." + String(tickIn).padStart(3, "0");
+  }
+  function frame() {
+    if (trans.playing) {
+      var a = ac(), el = a.currentTime - trans.startTime;
+      if (el >= 0) { playhead = Math.max(0, secToTick(trans.baseSec + el)); updateRollPos(); }
+      drawRuler(); drawOverlay();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  $("btn-play").addEventListener("click", togglePlay);
+  $("btn-stop").addEventListener("click", function () { stopPlay(); setPlayhead(0); });
+
+  /* =====================================================================
+     wiring
+     ===================================================================== */
+  var drop = $("drop"), fileIn = $("file-in"), statusEl = $("status");
+  var cardLoaded = $("card-loaded"), cardSettings = $("card-settings"), fname = $("fname");
+  var readout = $("readout"), btnDownload = $("btn-download"), cardRoll = $("card-roll"), rollHint = $("roll-hint");
+  var tolSlider = $("d-tol"), tolVal = $("d-tol-val");
+  var original = null, importedName = null, lastKept = null;
+
+  function setStatus(msg, neg) { statusEl.textContent = msg || ""; statusEl.classList.toggle("neg", !!neg); }
+
+  function recompute() {
+    if (!original) return;
+    var tol = +tolSlider.value || 0;
+    tolVal.textContent = tol;
+    var res = scanDuplicates(original.notes, tol);
+    lastKept = res.keep;
+    $("ro-total").textContent = original.notes.length;
+    $("ro-dups").textContent = original.notes.length - res.keep.length;
+    $("ro-remain").textContent = res.keep.length;
+    btnDownload.disabled = false;
+
+    dupIds = res.dupIds;
+    if (loaded) redrawNotes();
+  }
+
+  function handleFile(f) {
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        stopPlay();
+        original = parseMIDI(rd.result);
+        importedName = baseName(f.name);
+        fname.textContent = f.name;
+        cardLoaded.hidden = false; cardSettings.hidden = false; readout.hidden = false;
+        recompute();
+        setStatus(Shell.t("io.ok"));
+
+        displayNotes = original.notes; // preview shows the original set, with duplicates outlined red
+        curTimesig = original.timesig;
+        buildTempoSegs(original.tempo);
+        computePitchRange(original.notes);
+        playhead = 0;
+        loaded = true;
+        cardRoll.hidden = false; rollHint.hidden = false;
+        requestAnimationFrame(function () { resizeRoll(); fitRollView(); drawAll(); updateRollPos(); });
+      } catch (err) {
+        original = null; btnDownload.disabled = true; readout.hidden = true; cardSettings.hidden = true;
+        loaded = false; cardRoll.hidden = true; rollHint.hidden = true;
+        setStatus(err.message || Shell.t("io.badfile"), true);
+      }
+    };
+    rd.onerror = function () { setStatus(Shell.t("io.badfile"), true); };
+    rd.readAsArrayBuffer(f);
+  }
+
+  drop.addEventListener("click", function () { fileIn.click(); });
+  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileIn.click(); } });
+  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+  drop.addEventListener("dragleave", function () { drop.classList.remove("dragover"); });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault(); drop.classList.remove("dragover");
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    handleFile(f);
+  });
+  fileIn.addEventListener("change", function () { handleFile(this.files[0]); this.value = ""; });
+  $("btn-change").addEventListener("click", function () { fileIn.click(); });
+
+  tolSlider.addEventListener("input", recompute);
+
+  btnDownload.addEventListener("click", function () {
+    if (!original || !lastKept) return;
+    var doc = { notes: lastKept, cc: original.cc, pass: original.pass, tempo: original.tempo, timesig: original.timesig };
+    var data = buildSMF(doc);
+    var blob = new Blob([data], { type: "audio/midi" });
+    var url = URL.createObjectURL(blob);
+    var name = (importedName ? importedName : "output") + " deduped.mid";
+    var a = document.createElement("a"); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  Shell.init({
+    id: "midi-dedupe",
+    strings: {
+      en: {
+        "t.title": "Duplicate note removal",
+        "t.desc": "Load a .mid file and remove notes that overlap or start together at the same pitch — a common leftover from merges and re-recordings.",
+        "t.file": "MIDI file", "t.dropb": "Click or drop a MIDI file", "t.dropsmall": ".mid / .midi — processed locally, never uploaded",
+        "t.loaded": "Loaded file", "t.change": "Load another",
+        "t.tol": "Tolerance",
+        "t.tolnote": "Same pitch and channel, start times within this many ticks (960 = quarter note) — or simply overlapping — count as duplicates. 0 keeps only exact-time overlaps.",
+        "t.output": "Result", "t.total": "Notes in file", "t.dups": "Duplicates found", "t.remain": "Notes after removal",
+        "t.download": "Download cleaned file",
+        "t.note": "Within a duplicate group the earliest note is kept; the rest are removed. Everything else in the file is untouched.",
+        "t.play": "Play / pause", "t.stop": "Stop", "t.zoomin": "Zoom in", "t.zoomout": "Zoom out", "t.legend": "Duplicate",
+        "t.rollhint": "Drag the roll or click the ruler to move around. Notes outlined in red are duplicates.",
+        "io.badfile": "Couldn't read this as a Standard MIDI File.",
+        "io.smpte": "SMPTE time division isn't supported.",
+        "io.ok": "Loaded. Adjust the tolerance and download when ready."
+      },
+      ja: {
+        "t.title": "重複ノート除去",
+        "t.desc": ".midファイルを読み込み、同じ音高で重なった・同時に始まる重複ノートを除去します。マージや録り直しでよく残るゴミの掃除に。",
+        "t.file": "MIDIファイル", "t.dropb": "クリックまたはドラッグ&ドロップ", "t.dropsmall": ".mid / .midi — ローカルで処理（アップロードなし）",
+        "t.loaded": "読み込んだファイル", "t.change": "別のファイルを読み込む",
+        "t.tol": "許容範囲",
+        "t.tolnote": "同じ音高・チャンネルで、開始時刻の差がこのtick数以内（960=4分音符）、または重なっている場合に重複とみなします。0なら完全同時のみ対象。",
+        "t.output": "結果", "t.total": "ファイル内のノート数", "t.dups": "検出した重複数", "t.remain": "除去後のノート数",
+        "t.download": "クリーンにしたファイルをダウンロード",
+        "t.note": "重複グループのうち最も早いノートが残され、残りは除去されます。それ以外の内容は変更されません。",
+        "t.play": "再生 / 一時停止", "t.stop": "停止", "t.zoomin": "拡大", "t.zoomout": "縮小", "t.legend": "重複",
+        "t.rollhint": "ロールをドラッグするか定規をクリックして移動できます。赤い枠のノートが重複です。",
+        "io.badfile": "標準MIDIファイルとして読み取れませんでした。",
+        "io.smpte": "SMPTEタイム分解能には対応していません。",
+        "io.ok": "読み込みました。許容範囲を調整してダウンロードしてください。"
+      }
+    },
+    onSettingsChange: function () {
+      refreshColors();
+      if (loaded) drawAll();
+    }
+  });
+  refreshColors();
+})();
+</script>
+</body>
+</html>
