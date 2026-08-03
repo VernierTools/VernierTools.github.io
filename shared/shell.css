@@ -247,6 +247,11 @@ button{ font-family:inherit; }
 .hub-sections .section:first-child{ padding-top:0; }
 .section__head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:var(--s5); }
 .section__head h2{ font-size:16px; font-weight:600; letter-spacing:-.01em; }
+/* カテゴリー内サブグループ（例: 音声→MIDI）。.section(主カテゴリー見出し)より一段控えめに、
+   .eyebrow の書式（11px・大文字・text-3）をそのまま流用して主従を視覚的に区別する。 */
+.subsection{ margin-top:var(--s5); }
+.subsection:first-child{ margin-top:0; }
+.subsection__head{ margin-bottom:var(--s3); }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:var(--s3); }
 .toolcard{ display:block; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--s4); position:relative; transition:border-color var(--tap), box-shadow var(--tap), transform var(--tap); }
