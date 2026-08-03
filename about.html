@@ -9,18 +9,49 @@
 </head>
 <body>
 <main class="shell">
-  <div class="toolhead"><h1>About</h1></div>
+  <div class="toolhead"><h1 data-i18n="t.title">About</h1></div>
   <div class="prose">
-    <p>Vernier is a growing collection of small tools for people who make things — designers, musicians, editors, and 3D artists. Each one does a single job well.</p>
-    <h2>Everything runs locally</h2>
-    <p>Your files never leave your device. Images, audio, and everything else are processed in the browser. There's no account and no upload.</p>
-    <h2>Free and open</h2>
-    <p>The site is static and hosted on GitHub Pages. Tools are added continuously — if something's missing, it may already be on the way.</p>
-    <h2>Languages &amp; units</h2>
-    <p>The interface follows your browser's language where a translation exists, and falls back to English otherwise. Units switch between metric and imperial from the header.</p>
+    <p data-i18n="t.intro">Vernier is a growing collection of small tools for people who make things — designers, musicians, editors, and 3D artists. Each one does a single job well.</p>
+    <h2 data-i18n="t.local.h">Everything runs locally</h2>
+    <p data-i18n="t.local.p">Your files never leave your device. Images, audio, and everything else are processed in the browser. There's no account and no upload.</p>
+    <h2 data-i18n="t.free.h">Free and open</h2>
+    <p data-i18n="t.free.p">The site is static and hosted on GitHub Pages. Tools are added continuously — if something's missing, it may already be on the way.</p>
+    <h2 data-i18n="t.lang.h">Languages &amp; units</h2>
+    <p data-i18n="t.lang.p">The interface follows your browser's language where a translation exists, and falls back to English otherwise. Units switch between metric and imperial from the header.</p>
   </div>
 </main>
 <div class="shell"><div class="foot">Vernier</div></div>
 <script src="shared/shell.js?v=3"></script>
+<script>
+(function () {
+  "use strict";
+  if (typeof Shell === "undefined" || !Shell || typeof Shell.init !== "function") return;
+  Shell.init({
+    id: "about",
+    strings: {
+      en: {
+        "t.title": "About",
+        "t.intro": "Vernier is a growing collection of small tools for people who make things — designers, musicians, editors, and 3D artists. Each one does a single job well.",
+        "t.local.h": "Everything runs locally",
+        "t.local.p": "Your files never leave your device. Images, audio, and everything else are processed in the browser. There's no account and no upload.",
+        "t.free.h": "Free and open",
+        "t.free.p": "The site is static and hosted on GitHub Pages. Tools are added continuously — if something's missing, it may already be on the way.",
+        "t.lang.h": "Languages & units",
+        "t.lang.p": "The interface follows your browser's language where a translation exists, and falls back to English otherwise. Units switch between metric and imperial from the header."
+      },
+      ja: {
+        "t.title": "About",
+        "t.intro": "Vernierは、ものづくりをする人たち——デザイナー、音楽家、編集者、3Dアーティスト——のための小さなツールを少しずつ増やしているコレクションです。各ツールは一つの作業に徹しています。",
+        "t.local.h": "すべてローカルで完結",
+        "t.local.p": "ファイルが端末の外に出ることはありません。画像も音声もその他のデータも、すべてブラウザ内で処理されます。アカウントもアップロードも不要です。",
+        "t.free.h": "無料・オープン",
+        "t.free.p": "このサイトは静的サイトとしてGitHub Pagesでホストしています。ツールは継続的に追加していますので、欲しいものがまだ無ければ、近いうちに追加されるかもしれません。",
+        "t.lang.h": "言語と単位",
+        "t.lang.p": "対応する翻訳があればブラウザの言語設定に従い、無ければ英語で表示します。単位はヘッダーからメートル法とヤード・ポンド法を切り替えられます。"
+      }
+    }
+  });
+})();
+</script>
 </body>
 </html>
