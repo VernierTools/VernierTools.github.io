@@ -38,7 +38,10 @@
      第一号: audio → midi（2026-08-03、試験導入）。 */
   var SUBCATS = {
     audio: [
-      { id:"midi", key:"sub.audio.midi" }
+      { id:"midi",       key:"sub.audio.midi" },
+      { id:"instrument", key:"sub.audio.instrument" },
+      { id:"audiofile",  key:"sub.audio.audiofile" },
+      { id:"production", key:"sub.audio.production" }
     ]
   };
 
@@ -50,7 +53,7 @@
       "hub.empty":"No tools found.","badge.addonSuffix":" add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied",
-      "sub.audio.midi":"MIDI","sub.other":"Other"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"Instruments","sub.audio.audiofile":"Audio Files","sub.audio.production":"Music Production","sub.other":"Other"
     },
     ja: {
       "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"拡張機能","cat.audio":"音声",
@@ -58,7 +61,7 @@
       "hub.empty":"該当するツールがありません。","badge.addonSuffix":"アドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
       "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました",
-      "sub.audio.midi":"MIDI","sub.other":"その他"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"楽器系","sub.audio.audiofile":"音声ファイル系","sub.audio.production":"音楽制作系","sub.other":"その他"
     }
   };
 
