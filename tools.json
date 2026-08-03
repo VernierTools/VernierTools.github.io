@@ -1170,6 +1170,86 @@
         "加速度"
       ],
       "added": "2026-07-22"
+    },
+    {
+      "id": "midi-reverse",
+      "type": "web",
+      "path": "tools/midi-reverse/",
+      "categories": [
+        "audio"
+      ],
+      "name": {
+        "en": "MIDI reverse",
+        "ja": "MIDIリバース"
+      },
+      "description": {
+        "en": "Reverse a MIDI file in time — notes and CC.",
+        "ja": "MIDIファイルを時間軸で反転（ノート・CC対応）。"
+      },
+      "keywords": [
+        "midi",
+        "reverse",
+        "mirror",
+        "time",
+        "MIDI",
+        "リバース",
+        "反転"
+      ],
+      "added": "2026-08-03"
+    },
+    {
+      "id": "midi-quantize",
+      "type": "web",
+      "path": "tools/midi-quantize/",
+      "categories": [
+        "audio"
+      ],
+      "name": {
+        "en": "MIDI quantize",
+        "ja": "MIDIクオンタイズ"
+      },
+      "description": {
+        "en": "Snap MIDI note timing to a grid, with adjustable strength.",
+        "ja": "MIDIノートのタイミングをグリッドへ吸着。強さも調整可能。"
+      },
+      "keywords": [
+        "midi",
+        "quantize",
+        "grid",
+        "snap",
+        "timing",
+        "MIDI",
+        "クオンタイズ",
+        "グリッド"
+      ],
+      "added": "2026-08-03"
+    },
+    {
+      "id": "midi-dedupe",
+      "type": "web",
+      "path": "tools/midi-dedupe/",
+      "categories": [
+        "audio"
+      ],
+      "name": {
+        "en": "Duplicate note removal",
+        "ja": "重複ノート除去"
+      },
+      "description": {
+        "en": "Detect and remove overlapping duplicate notes in a MIDI file.",
+        "ja": "MIDIファイル内の重なった重複ノートを検出して除去。"
+      },
+      "keywords": [
+        "midi",
+        "duplicate",
+        "dedupe",
+        "overlap",
+        "cleanup",
+        "MIDI",
+        "重複",
+        "除去"
+      ],
+      "added": "2026-08-03"
     }
   ]
 }
