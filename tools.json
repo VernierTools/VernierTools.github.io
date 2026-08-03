@@ -437,7 +437,7 @@
       "categories": [
         "audio"
       ],
-      "sub": "production",
+      "sub": "instrument",
       "name": {
         "en": "Metronome",
         "ja": "メトロノーム"
@@ -463,14 +463,14 @@
       "categories": [
         "audio"
       ],
-      "sub": "instrument",
+      "sub": "chordscale",
       "name": {
         "en": "Chord analyzer",
         "ja": "コード解析"
       },
       "description": {
-        "en": "Name a chord, find its function, and suggest the next one.",
-        "ja": "コード名と役割を判定し、次のコードを提案。"
+        "en": "Name a chord and find its function.",
+        "ja": "コード名と役割を判定。"
       },
       "keywords": [
         "chord",
@@ -996,7 +996,7 @@
       "categories": [
         "audio"
       ],
-      "sub": "instrument",
+      "sub": "chordscale",
       "name": {
         "en": "Scale finder",
         "ja": "スケール検索"
