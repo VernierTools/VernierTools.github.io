@@ -43,6 +43,13 @@
       { id:"chordscale", key:"sub.audio.chordscale" },
       { id:"audiofile",  key:"sub.audio.audiofile" },
       { id:"production", key:"sub.audio.production" }
+    ],
+    image: [
+      { id:"color",    key:"sub.image.color" },
+      { id:"photo",    key:"sub.image.photo" },
+      { id:"size",     key:"sub.image.size" },
+      { id:"edit",     key:"sub.image.edit" },
+      { id:"generate", key:"sub.image.generate" }
     ]
   };
 
@@ -54,7 +61,9 @@
       "hub.empty":"No tools found.","badge.addonSuffix":" add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
       "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied",
-      "sub.audio.midi":"MIDI","sub.audio.instrument":"Performance","sub.audio.chordscale":"Chords & Scales","sub.audio.audiofile":"Audio Files","sub.audio.production":"Music Production","sub.other":"Other"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"Performance","sub.audio.chordscale":"Chords & Scales","sub.audio.audiofile":"Audio Files","sub.audio.production":"Music Production",
+      "sub.image.color":"Color","sub.image.photo":"Photography","sub.image.size":"Size & Dimensions","sub.image.edit":"Editing","sub.image.generate":"Generation",
+      "sub.other":"Other"
     },
     ja: {
       "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"拡張機能","cat.audio":"音声",
@@ -62,7 +71,9 @@
       "hub.empty":"該当するツールがありません。","badge.addonSuffix":"アドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
       "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました",
-      "sub.audio.midi":"MIDI","sub.audio.instrument":"演奏","sub.audio.chordscale":"コード/スケール","sub.audio.audiofile":"音声ファイル","sub.audio.production":"音楽制作","sub.other":"その他"
+      "sub.audio.midi":"MIDI","sub.audio.instrument":"演奏","sub.audio.chordscale":"コード/スケール","sub.audio.audiofile":"音声ファイル","sub.audio.production":"音楽制作",
+      "sub.image.color":"色","sub.image.photo":"撮影","sub.image.size":"サイズ/寸法","sub.image.edit":"編集","sub.image.generate":"生成",
+      "sub.other":"その他"
     }
   };
 
