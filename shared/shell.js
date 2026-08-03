@@ -38,17 +38,17 @@
      第一号: audio → midi（2026-08-03、試験導入）。 */
   var SUBCATS = {
     audio: [
-      { id:"midi",       key:"sub.audio.midi" },
+      { id:"audiofile",  key:"sub.audio.audiofile" },
       { id:"instrument", key:"sub.audio.instrument" },
       { id:"chordscale", key:"sub.audio.chordscale" },
-      { id:"audiofile",  key:"sub.audio.audiofile" },
-      { id:"production", key:"sub.audio.production" }
+      { id:"production", key:"sub.audio.production" },
+      { id:"midi",       key:"sub.audio.midi" }
     ],
     image: [
       { id:"color",    key:"sub.image.color" },
       { id:"photo",    key:"sub.image.photo" },
-      { id:"size",     key:"sub.image.size" },
       { id:"edit",     key:"sub.image.edit" },
+      { id:"size",     key:"sub.image.size" },
       { id:"generate", key:"sub.image.generate" }
     ]
   };
