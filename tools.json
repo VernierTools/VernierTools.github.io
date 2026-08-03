@@ -385,6 +385,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "audiofile",
       "name": {
         "en": "Spectrum & stereo",
         "ja": "周波数・ステレオ解析"
@@ -436,6 +437,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "production",
       "name": {
         "en": "Metronome",
         "ja": "メトロノーム"
@@ -461,6 +463,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "instrument",
       "name": {
         "en": "Chord analyzer",
         "ja": "コード解析"
@@ -486,6 +489,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "audiofile",
       "name": {
         "en": "Audio silence cutter",
         "ja": "音声の無音カット"
@@ -992,6 +996,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "instrument",
       "name": {
         "en": "Scale finder",
         "ja": "スケール検索"
@@ -1018,6 +1023,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "instrument",
       "name": {
         "en": "Advanced tuner",
         "ja": "高精度チューナー"
@@ -1044,6 +1050,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "production",
       "name": {
         "en": "BPM delay / LFO calculator",
         "ja": "BPMディレイ/LFO計算機"
@@ -1071,6 +1078,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "audiofile",
       "name": {
         "en": "Audio file info",
         "ja": "音声ファイル情報ビューア"
@@ -1154,6 +1162,7 @@
       "categories": [
         "audio"
       ],
+      "sub": "instrument",
       "name": {
         "en": "Shaker simulator",
         "ja": "シェイカーシミュレーター"
