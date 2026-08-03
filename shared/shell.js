@@ -29,6 +29,19 @@
     { id:"blender", key:"cat.blender" }
   ];
 
+  /* ---- カテゴリー内サブグループ定義（試験導入）----
+     カテゴリーページ内で、ホームの「チップ=すべて」時と同じ見出し+グリッド形式を
+     使って束ねたいとき、対象カテゴリーの id をキーに [{id, key}] を並べる。
+     tools.json 側は各エントリに任意フィールド "sub":"<このidと同じ文字列>" を付ける。
+     未定義のカテゴリーは従来どおり見出し無しの単一グリッドのまま（挙動据え置き）。
+     "sub" を持たない/このリストに無い値を持つツールは自動的に「その他」束へ入る。
+     第一号: audio → midi（2026-08-03、試験導入）。 */
+  var SUBCATS = {
+    audio: [
+      { id:"midi", key:"sub.audio.midi" }
+    ]
+  };
+
   /* ---- 共通辞書（cat.* とヘッダー/一覧の文言） ---- */
   var COMMON = {
     en: {
@@ -36,14 +49,16 @@
       "nav.home":"Home","nav.about":"About","hub.search":"Search tools…","hub.all":"All",
       "hub.empty":"No tools found.","badge.addonSuffix":" add-on",
       "theme.auto":"Theme: auto","theme.light":"Theme: light","theme.dark":"Theme: dark",
-      "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied"
+      "units.metric":"Metric","units.imperial":"Imperial","copied":"Copied",
+      "sub.audio.midi":"MIDI","sub.other":"Other"
     },
     ja: {
       "cat.general":"ジェネラル","cat.text":"文章","cat.image":"画像","cat.video":"映像","cat.3dcg":"3DCG","cat.blender":"拡張機能","cat.audio":"音声",
       "nav.home":"ホーム","nav.about":"About","hub.search":"ツールを検索…","hub.all":"すべて",
       "hub.empty":"該当するツールがありません。","badge.addonSuffix":"アドオン",
       "theme.auto":"テーマ: 自動","theme.light":"テーマ: ライト","theme.dark":"テーマ: ダーク",
-      "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました"
+      "units.metric":"メートル法","units.imperial":"ヤード・ポンド法","copied":"コピーしました",
+      "sub.audio.midi":"MIDI","sub.other":"その他"
     }
   };
 
@@ -367,14 +382,40 @@
   }
 
   function renderCategory(mount, catId){
-    var grid = document.createElement("div"); grid.className = "grid";
-    var empty = document.createElement("div"); empty.className = "empty"; empty.setAttribute("data-i18n","hub.empty");
-    empty.textContent = t("hub.empty"); empty.hidden = true;
-    mount.appendChild(grid); mount.appendChild(empty);
+    // SUBCATS[catId] が無いカテゴリーは従来どおり見出し無しの単一グリッド。
+    // 定義があるカテゴリーは、ホームの「チップ=すべて」時と同じ見出し+グリッド形式で束ねる
+    // （コンテナに .hub-sections を流用し、shell.css の1つ目セクションpadding-top:0を再利用）。
+    mount.innerHTML =
+      '<div class="hub-sections"></div>'+
+      '<div class="empty" data-i18n="hub.empty" hidden>'+t("hub.empty")+'</div>';
+    var sections = mount.querySelector(".hub-sections");
+    var empty = mount.querySelector(".empty");
+    var subcats = SUBCATS[catId];
     var _list = [];
     function draw(){
       var shown = _list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0 && matchesLang(tl); });
-      grid.innerHTML = shown.map(cardHTML).join(""); empty.hidden = shown.length > 0;
+      var html = "";
+      if (subcats && subcats.length){
+        var used = {};
+        subcats.forEach(function(sc){
+          var group = shown.filter(function(tl){ return tl.sub === sc.id; });
+          if (!group.length) return;
+          group.forEach(function(tl){ used[tl.id] = true; });
+          html += '<div class="section">'+
+            '<div class="section__head"><h2 data-i18n="'+sc.key+'">'+t(sc.key)+'</h2></div>'+
+            '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
+        });
+        var rest = shown.filter(function(tl){ return !used[tl.id]; });
+        if (rest.length){
+          html += '<div class="section">'+
+            '<div class="section__head"><h2 data-i18n="sub.other">'+t("sub.other")+'</h2></div>'+
+            '<div class="grid">'+rest.map(cardHTML).join("")+'</div></div>';
+        }
+      } else if (shown.length){
+        html = '<div class="grid">'+shown.map(cardHTML).join("")+'</div>';
+      }
+      sections.innerHTML = html;
+      empty.hidden = shown.length > 0;
     }
     redrawers.push(draw);   // 言語/単位変更時に再描画
     fetchTools(function(list){ _list = list; draw(); });
