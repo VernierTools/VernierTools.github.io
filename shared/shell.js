@@ -309,6 +309,31 @@
     return parts.join(" ").toLowerCase();
   }
 
+  // カテゴリー内のツール一覧を、SUBCATS[catId] があれば控えめな小見出し(.subsection)で束ねて返す。
+  // 無ければ従来どおり見出し無しの単一 .grid を返す（ホーム／カテゴリー単独ページ共通で使用）。
+  function subGroupedHTML(catId, list){
+    var subcats = SUBCATS[catId];
+    if (!subcats || !subcats.length){
+      return list.length ? '<div class="grid">'+list.map(cardHTML).join("")+'</div>' : "";
+    }
+    var used = {}, html = "";
+    subcats.forEach(function(sc){
+      var group = list.filter(function(tl){ return tl.sub === sc.id; });
+      if (!group.length) return;
+      group.forEach(function(tl){ used[tl.id] = true; });
+      html += '<div class="subsection">'+
+        '<div class="subsection__head eyebrow" data-i18n="'+sc.key+'">'+t(sc.key)+'</div>'+
+        '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
+    });
+    var rest = list.filter(function(tl){ return !used[tl.id]; });
+    if (rest.length){
+      html += '<div class="subsection">'+
+        '<div class="subsection__head eyebrow" data-i18n="sub.other">'+t("sub.other")+'</div>'+
+        '<div class="grid">'+rest.map(cardHTML).join("")+'</div></div>';
+    }
+    return html;
+  }
+
   function renderHub(mount){
     var tools = [];
     var state = { q:"", cat:"all" };
@@ -337,20 +362,21 @@
 
       if (state.cat === "all"){
         // カテゴリー順（CATEGORIES配列の並び = ジェネラル→…→拡張機能）に、
-        // 見出し + そのカテゴリーのグリッドを並べる。該当0件のカテゴリーは丸ごと省く。
+        // 見出し + そのカテゴリーの中身を並べる。該当0件のカテゴリーは丸ごと省く。
+        // SUBCATS が定義されたカテゴリーは、中身をさらに控えめな小見出しで束ねる（例: 音声→MIDI等）。
         CATEGORIES.forEach(function(c){
           var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(c.id) >= 0 && matchesLang(tl) && matches(tl); });
           if (!shown.length) return;
           anyShown = true;
           html += '<div class="section">'+
             '<div class="section__head"><h2 data-i18n="'+c.key+'">'+t(c.key)+'</h2></div>'+
-            '<div class="grid">'+shown.map(cardHTML).join("")+'</div></div>';
+            subGroupedHTML(c.id, shown) + '</div>';
         });
       } else {
-        // 特定カテゴリーで絞り込み中は、見出し無しの単一グリッド
+        // 特定カテゴリーで絞り込み中も、SUBCATS があれば控えめな小見出しで束ねる
         var shown = tools.filter(function(tl){ return (tl.categories||[]).indexOf(state.cat) >= 0 && matchesLang(tl) && matches(tl); });
         anyShown = shown.length > 0;
-        if (anyShown) html = '<div class="grid">'+shown.map(cardHTML).join("")+'</div>';
+        if (anyShown) html = subGroupedHTML(state.cat, shown);
       }
       sections.innerHTML = html;
       empty.hidden = anyShown;
@@ -387,38 +413,16 @@
 
   function renderCategory(mount, catId){
     // SUBCATS[catId] が無いカテゴリーは従来どおり見出し無しの単一グリッド。
-    // 定義があるカテゴリーは、ホームの「チップ=すべて」時と同じ見出し+グリッド形式で束ねる
-    // （コンテナに .hub-sections を流用し、shell.css の1つ目セクションpadding-top:0を再利用）。
+    // 定義があるカテゴリーは、控えめな小見出し(.subsection)で束ねる（subGroupedHTML、ホームと共通ロジック）。
     mount.innerHTML =
       '<div class="hub-sections"></div>'+
       '<div class="empty" data-i18n="hub.empty" hidden>'+t("hub.empty")+'</div>';
     var sections = mount.querySelector(".hub-sections");
     var empty = mount.querySelector(".empty");
-    var subcats = SUBCATS[catId];
     var _list = [];
     function draw(){
       var shown = _list.filter(function(tl){ return (tl.categories||[]).indexOf(catId) >= 0 && matchesLang(tl); });
-      var html = "";
-      if (subcats && subcats.length){
-        var used = {};
-        subcats.forEach(function(sc){
-          var group = shown.filter(function(tl){ return tl.sub === sc.id; });
-          if (!group.length) return;
-          group.forEach(function(tl){ used[tl.id] = true; });
-          html += '<div class="section">'+
-            '<div class="section__head"><h2 data-i18n="'+sc.key+'">'+t(sc.key)+'</h2></div>'+
-            '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
-        });
-        var rest = shown.filter(function(tl){ return !used[tl.id]; });
-        if (rest.length){
-          html += '<div class="section">'+
-            '<div class="section__head"><h2 data-i18n="sub.other">'+t("sub.other")+'</h2></div>'+
-            '<div class="grid">'+rest.map(cardHTML).join("")+'</div></div>';
-        }
-      } else if (shown.length){
-        html = '<div class="grid">'+shown.map(cardHTML).join("")+'</div>';
-      }
-      sections.innerHTML = html;
+      sections.innerHTML = subGroupedHTML(catId, shown);
       empty.hidden = shown.length > 0;
     }
     redrawers.push(draw);   // 言語/単位変更時に再描画
