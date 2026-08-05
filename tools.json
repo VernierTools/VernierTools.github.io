@@ -1276,6 +1276,312 @@
         "除去"
       ],
       "added": "2026-08-03"
+    },
+    {
+      "id": "poly-oscillator",
+      "type": "web",
+      "path": "tools/poly-oscillator/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "instrument",
+      "name": {
+        "en": "Polyphonic oscillator",
+        "ja": "複数発声オシレーター"
+      },
+      "description": {
+        "en": "Layer multiple oscillators with independent pitch, waveform, and detune.",
+        "ja": "複数のオシレーターを重ね、音高・波形・デチューンを個別に調整。"
+      },
+      "keywords": [
+        "oscillator",
+        "polyphony",
+        "detune",
+        "waveform",
+        "synth",
+        "オシレーター",
+        "デチューン",
+        "波形"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "circle-of-fifths",
+      "type": "web",
+      "path": "tools/circle-of-fifths/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "chordscale",
+      "name": {
+        "en": "Circle of fifths",
+        "ja": "五度圏"
+      },
+      "description": {
+        "en": "Explore keys, diatonic chords, and related keys around the circle of fifths.",
+        "ja": "五度圏上でキーとダイアトニックコード、近親調を一覧表示。"
+      },
+      "keywords": [
+        "circle of fifths",
+        "key",
+        "diatonic",
+        "relative key",
+        "五度圏",
+        "近親調",
+        "ダイアトニック"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "color-wheel-compare",
+      "type": "web",
+      "path": "tools/color-wheel-compare/",
+      "categories": [
+        "image"
+      ],
+      "sub": "color",
+      "name": {
+        "en": "Color wheel comparison",
+        "ja": "色相環比較"
+      },
+      "description": {
+        "en": "Compare the RYB (traditional) and RGB/HSV color wheels side by side.",
+        "ja": "RYB（伝統的）とRGB/HSVの色相環を並べて比較。"
+      },
+      "keywords": [
+        "color wheel",
+        "ryb",
+        "hsv",
+        "complementary",
+        "色相環",
+        "補色"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "keybind-notes",
+      "type": "web",
+      "path": "tools/keybind-notes/",
+      "categories": [
+        "general"
+      ],
+      "name": {
+        "en": "Keybind & shortcut notes",
+        "ja": "キー配列・ショートカットメモ"
+      },
+      "description": {
+        "en": "Save your custom keybindings and shortcuts locally, with export/import backup.",
+        "ja": "自分用のキー配列やショートカットを保存。書き出し/読み込みでバックアップ可能。"
+      },
+      "keywords": [
+        "keybind",
+        "shortcut",
+        "hotkey",
+        "backup",
+        "export",
+        "import",
+        "ショートカット",
+        "キー配列",
+        "バックアップ"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "stmap-generator",
+      "type": "web",
+      "path": "tools/stmap-generator/",
+      "categories": [
+        "image"
+      ],
+      "sub": "generate",
+      "name": {
+        "en": "STMap generator",
+        "ja": "STMapジェネレーター"
+      },
+      "description": {
+        "en": "Generate an STMap image from lens distortion coefficients (k1, k2, k3).",
+        "ja": "レンズ歪み係数(k1・k2・k3)からSTMap画像を生成。"
+      },
+      "keywords": [
+        "stmap",
+        "lens distortion",
+        "k1",
+        "k2",
+        "undistort",
+        "uv",
+        "STMap",
+        "レンズ歪み",
+        "歪み係数"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "random-word",
+      "type": "web",
+      "path": "tools/random-word/",
+      "categories": [
+        "general",
+        "text"
+      ],
+      "name": {
+        "en": "Random word",
+        "ja": "ランダム単語"
+      },
+      "description": {
+        "en": "Keep showing random words in Japanese or English, for a spark of inspiration.",
+        "ja": "日本語・英語のランダムな単語を表示し続け、発想のきっかけに。"
+      },
+      "keywords": [
+        "random word",
+        "inspiration",
+        "brainstorm",
+        "prompt",
+        "ランダム単語",
+        "インスピレーション",
+        "発想"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "audio-degrade",
+      "type": "web",
+      "path": "tools/audio-degrade/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "audiofile",
+      "name": {
+        "en": "Audio degradation simulator",
+        "ja": "音声劣化シミュレーター"
+      },
+      "description": {
+        "en": "Simulate tape, vinyl, and VHS audio degradation with physically-based models.",
+        "ja": "テープ・レコード・VHS等の音声劣化を原理ベースでシミュレート。"
+      },
+      "keywords": [
+        "tape",
+        "vinyl",
+        "vhs",
+        "degrade",
+        "wow flutter",
+        "hiss",
+        "crackle",
+        "劣化",
+        "テープ",
+        "レコード"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "average-color",
+      "type": "web",
+      "path": "tools/average-color/",
+      "categories": [
+        "image"
+      ],
+      "sub": "color",
+      "name": {
+        "en": "Average color extractor",
+        "ja": "平均色抽出"
+      },
+      "description": {
+        "en": "Get the single average color of every pixel in a photo.",
+        "ja": "写真の全ピクセルを平均した1色を抽出。"
+      },
+      "keywords": [
+        "average color",
+        "dominant color",
+        "palette",
+        "平均色",
+        "代表色",
+        "パレット"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "fullwidth-to-halfwidth",
+      "type": "web",
+      "path": "tools/fullwidth-to-halfwidth/",
+      "categories": [
+        "text"
+      ],
+      "langs": [
+        "ja"
+      ],
+      "name": {
+        "en": "Full-width to half-width converter",
+        "ja": "全角→半角コンバーター"
+      },
+      "description": {
+        "en": "Convert full-width digits and spaces to half-width in one click.",
+        "ja": "全角数字・スペースを一括で半角に変換。"
+      },
+      "keywords": [
+        "fullwidth",
+        "halfwidth",
+        "digits",
+        "space",
+        "全角",
+        "半角",
+        "スペース"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "punctuation-dedupe",
+      "type": "web",
+      "path": "tools/punctuation-dedupe/",
+      "categories": [
+        "text"
+      ],
+      "langs": [
+        "ja"
+      ],
+      "name": {
+        "en": "Punctuation duplication fixer",
+        "ja": "句読点の重複修正"
+      },
+      "description": {
+        "en": "Detect and fix repeated or doubled punctuation marks.",
+        "ja": "句読点の重複を検出してその場で修正。"
+      },
+      "keywords": [
+        "punctuation",
+        "duplicate",
+        "comma",
+        "period",
+        "句読点",
+        "重複",
+        "校正"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "kanji-arabic-numeral",
+      "type": "web",
+      "path": "tools/kanji-arabic-numeral/",
+      "categories": [
+        "text"
+      ],
+      "langs": [
+        "ja"
+      ],
+      "name": {
+        "en": "Kanji / Arabic numeral unifier",
+        "ja": "漢数字⇔算用数字統一"
+      },
+      "description": {
+        "en": "Unify kanji and Arabic numerals in text, in either direction.",
+        "ja": "文章中の漢数字と算用数字を、どちらかに統一。"
+      },
+      "keywords": [
+        "kanji numeral",
+        "arabic numeral",
+        "漢数字",
+        "算用数字",
+        "数字統一"
+      ],
+      "added": "2026-08-05"
     }
   ]
 }
