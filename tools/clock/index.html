@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clock hand angles — Vernier</title>
 <script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
-<link rel="stylesheet" href="../../shared/shell.css?v=3">
+<link rel="stylesheet" href="../../shared/shell.css">
 <style>
   .clockface{ background:var(--surface); }
   .clockface svg{ display:block; width:100%; height:auto; }
   .grab{ cursor:grab; touch-action:none; }
   .grab:active{ cursor:grabbing; }
   #knob:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .handpick{ cursor:pointer; touch-action:none; }
+  #arc-label{ cursor:pointer; }
 
   .timein{ display:flex; align-items:flex-start; gap:var(--s2); }
   .timein .input{ width:100%; text-align:center; font-family:var(--font-mono);
@@ -146,11 +148,15 @@
           <line id="h-second" x1="100" y1="100" x2="100" y2="32" stroke-width="2"   stroke-linecap="round"></line>
           <line id="h-hour-hit" class="grab" x1="100" y1="100" x2="100" y2="56" stroke="rgba(0,0,0,0)"
                 stroke-width="18" stroke-linecap="round" pointer-events="stroke"></line>
+          <line id="h-minute-hit" class="handpick" x1="100" y1="100" x2="100" y2="38" stroke="rgba(0,0,0,0)"
+                stroke-width="16" stroke-linecap="round" pointer-events="stroke"></line>
+          <line id="h-second-hit" class="handpick" x1="100" y1="100" x2="100" y2="32" stroke="rgba(0,0,0,0)"
+                stroke-width="14" stroke-linecap="round" pointer-events="stroke"></line>
           <circle cx="100" cy="100" r="4.5" fill="var(--accent)"></circle>
           <circle id="knob" class="grab" cx="100" cy="8" r="6.5" fill="var(--accent)" stroke="var(--surface)"
                   stroke-width="2" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="360"></circle>
           <text id="arc-label" text-anchor="middle" font-family="var(--font-mono)" font-size="13"
-                font-weight="600" fill="var(--accent)"></text>
+                font-weight="600" fill="var(--accent)" data-copy=""></text>
         </svg>
       </div>
 
@@ -196,7 +202,7 @@
   </div>
 </main>
 
-<script src="../../shared/shell.js?v=3"></script>
+<script src="../../shared/shell.js"></script>
 <script>
 "use strict";
 (function () {
@@ -210,6 +216,7 @@
   var inH = $("in-h"), inM = $("in-m"), inS = $("in-s");
   var arc = $("arc"), arcLabel = $("arc-label"), ringProg = $("ring-prog"), knob = $("knob");
   var hHour = $("h-hour"), hMin = $("h-minute"), hSec = $("h-second"), hHourHit = $("h-hour-hit");
+  var hMinHit = $("h-minute-hit"), hSecHit = $("h-second-hit");
   var svg = document.querySelector(".clockface svg");
 
   (function ticks() {
@@ -309,7 +316,9 @@
     setHand(hHour, a.hour, sel === "hour", "var(--text)");
     hHourHit.setAttribute("transform", "rotate(" + f(a.hour) + " 100 100)");
     setHand(hMin, a.minute, sel === "minute", "var(--text)");
+    hMinHit.setAttribute("transform", "rotate(" + f(a.minute) + " 100 100)");
     setHand(hSec, a.second, sel === "second", "var(--text-3)");
+    hSecHit.setAttribute("transform", "rotate(" + f(a.second) + " 100 100)");
 
     ringProg.setAttribute("d", strokeArc(a.hour, 92));
     var kp = pt(a.hour, 92);
@@ -324,7 +333,9 @@
     arc.setAttribute("d", arcD);
     var lp = pt(labelMid, 30);
     arcLabel.setAttribute("x", f(lp[0])); arcLabel.setAttribute("y", f(lp[1]) + 4);
-    arcLabel.textContent = fmt(labelVal) + "°";
+    var labelText = fmt(labelVal) + "°";
+    arcLabel.textContent = labelText;
+    arcLabel.setAttribute("data-copy", labelText);
 
     // output: both sides for every hand
     if (mode === "accurate") {
@@ -446,6 +457,12 @@
   }
   [$("ring-hit"), knob, hHourHit].forEach(function (el) { el.addEventListener("pointerdown", onDown); });
 
+  // ---- 針のクリックで「角度を表示する針」を切り替える ----
+  function selectHand(hand) { sel = hand; syncSeg(); render(); }
+  hHourHit.addEventListener("click", function () { selectHand("hour"); });
+  hMinHit.addEventListener("click", function () { selectHand("minute"); });
+  hSecHit.addEventListener("click", function () { selectHand("second"); });
+
   knob.addEventListener("keydown", function (e) {
     var step = 0;
     if (e.key === "ArrowRight" || e.key === "ArrowUp") step = 60;
@@ -464,7 +481,7 @@
         "t.title": "Clock hand angles",
         "t.desc": "Set a time and see how far the selected hand has rotated from the 12 o'clock position.",
         "t.time": "Time", "t.hand": "Angle for", "t.side": "Side shown on clock", "t.adjust": "Adjust", "t.now": "Set to now", "t.reset": "Reset to 00:00:00",
-        "t.ringhint": "Drag the outer ring or the hour hand — one full turn is 12 hours.",
+        "t.ringhint": "Drag the outer ring or the hour hand — one full turn is 12 hours. Click any hand to show its angle, or click the angle in the clock to copy it.",
         "t.hour": "Hour hand", "t.minute": "Minute hand", "t.second": "Second hand",
         "t.right": "Right", "t.left": "Left",
         "t.rhour": "Reset hours to 0", "t.rmin": "Reset minutes to 0", "t.rsec": "Reset seconds to 0",
@@ -478,7 +495,7 @@
         "t.title": "時計の針の角度",
         "t.desc": "時刻を設定すると、選択した針が12時方向から何度回転しているかを表示します。",
         "t.time": "時刻", "t.hand": "角度を表示する針", "t.side": "時計に表示する側", "t.adjust": "時刻調整", "t.now": "現在時刻にする", "t.reset": "00:00:00に戻す",
-        "t.ringhint": "外周リングか時針をドラッグ。1周で12時間ぶんです。",
+        "t.ringhint": "外周リングか時針をドラッグ。1周で12時間ぶんです。針をクリックするとその針の角度を表示し、時計内の角度の数字をクリックするとコピーできます。",
         "t.hour": "時針", "t.minute": "分針", "t.second": "秒針",
         "t.right": "右側", "t.left": "左側",
         "t.rhour": "時を0にリセット", "t.rmin": "分を0にリセット", "t.rsec": "秒を0にリセット",
