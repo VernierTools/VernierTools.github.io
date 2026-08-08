@@ -1,0 +1,16 @@
+{
+  "name": "Vernier",
+  "short_name": "Vernier",
+  "description": "A collection of small, focused calculator and utility tools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101114",
+  "theme_color": "#7B7EF0",
+  "icons": [
+    { "src": "/shared/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/shared/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/shared/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/shared/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
