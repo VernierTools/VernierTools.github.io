@@ -1582,6 +1582,89 @@
         "数字統一"
       ],
       "added": "2026-08-05"
+    },
+    {
+      "id": "protractor",
+      "type": "web",
+      "path": "tools/protractor/",
+      "categories": [
+        "image"
+      ],
+      "sub": "edit",
+      "name": {
+        "en": "Protractor",
+        "ja": "分度器"
+      },
+      "description": {
+        "en": "Draw a line, then rotate a second hand from a point on it to measure the angle between them.",
+        "ja": "線を引き、その上の点を中心にもう1本の線を時計の針のように回転させて角度を測定。"
+      },
+      "keywords": [
+        "protractor",
+        "angle",
+        "line",
+        "rotate",
+        "measure",
+        "分度器",
+        "角度",
+        "回転"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "protractor-camera",
+      "type": "web",
+      "path": "tools/protractor-camera/",
+      "categories": [
+        "general"
+      ],
+      "name": {
+        "en": "Camera protractor overlay",
+        "ja": "カメラ分度器オーバーレイ"
+      },
+      "description": {
+        "en": "Access the camera and keep a translucent protractor overlaid on the live view.",
+        "ja": "カメラにアクセスし、半透明の分度器を常時映像に重ねて表示。"
+      },
+      "keywords": [
+        "camera",
+        "overlay",
+        "protractor",
+        "angle",
+        "ar",
+        "カメラ",
+        "オーバーレイ",
+        "分度器"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "mp4-to-gif",
+      "type": "web",
+      "path": "tools/mp4-to-gif/",
+      "categories": [
+        "video"
+      ],
+      "name": {
+        "en": "MP4 to GIF",
+        "ja": "MP4→GIF変換"
+      },
+      "description": {
+        "en": "Convert a short MP4 clip into an animated GIF, entirely in the browser.",
+        "ja": "短いMP4クリップをブラウザ内だけでアニメーションGIFに変換。"
+      },
+      "keywords": [
+        "mp4",
+        "gif",
+        "convert",
+        "animated",
+        "video to gif",
+        "MP4",
+        "GIF",
+        "変換",
+        "アニメーション"
+      ],
+      "added": "2026-08-05"
     }
   ]
 }
