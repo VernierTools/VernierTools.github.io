@@ -37,6 +37,18 @@
     background:var(--surface-2); color:var(--text); font:inherit; font-size:14px; font-weight:600; }
   .cam-fsexit:hover{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
   .cam-fsexit svg{ width:16px; height:16px; }
+  /* フルスクリーン時のみ現れる下部バー。カメラアプリのシャッターボタン風の丸い一時停止ボタン。 */
+  .fs-bottom{ display:none; }
+  .camwrap.fs-fallback .fs-bottom{ display:flex; flex:0 0 auto; align-items:center; justify-content:center;
+    background:var(--surface); border-top:1px solid var(--border);
+    padding:var(--s4) var(--s4) max(var(--s4), env(safe-area-inset-bottom)); }
+  .cam-fspause{ appearance:none; cursor:pointer; width:64px; height:64px; border-radius:50%;
+    border:2px solid var(--border-strong); background:var(--surface-2); color:var(--text);
+    display:flex; align-items:center; justify-content:center; transition:background var(--tap), border-color var(--tap), color var(--tap); }
+  .cam-fspause:hover{ border-color:var(--accent); }
+  .cam-fspause:disabled{ opacity:.4; cursor:not-allowed; }
+  .cam-fspause svg{ width:24px; height:24px; }
+  .cam-fspause.is-paused{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .camrow{ display:flex; gap:var(--s2); }
   .camrow .btn{ flex:1; }
   .sliderrow .val{ min-width:44px; }
@@ -136,6 +148,12 @@
             <p data-i18n="t.placeholder">Start the camera to see the protractor overlaid on the live view.</p>
           </div>
         </div>
+        <div class="fs-bottom">
+          <button type="button" class="cam-fspause" id="cam-fspause" disabled>
+            <svg class="fsp-ico-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <svg class="fsp-ico-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="readout" style="margin-top:var(--s4)">
@@ -160,7 +178,7 @@
 
   var video = $("cam-video"), camwrap = $("camwrap"), placeholder = $("cam-placeholder"),
       btnCam = $("btn-cam"), btnSwitch = $("btn-switch"), btnFs = $("btn-fs"), btnPause = $("btn-pause"),
-      camFsExit = $("cam-fsexit"), errBox = $("cam-err"),
+      camFsExit = $("cam-fsexit"), camFsPause = $("cam-fspause"), errBox = $("cam-err"),
       angleSlider = $("angle-slider"), angleVal = $("angle-val"),
       sizeSlider = $("size-slider"), sizeVal = $("size-val"),
       ov = $("ov"), disc = $("ov-disc"), ticksG = $("ov-ticks"), baseline = $("ov-baseline"),
@@ -257,6 +275,11 @@
     btnPause.querySelector(".lbl-resume").hidden = !state.paused;
     btnPause.querySelector(".ico-pause").hidden = state.paused;
     btnPause.querySelector(".ico-resume").hidden = !state.paused;
+    camFsPause.disabled = !state.active;
+    camFsPause.classList.toggle("is-paused", state.paused);
+    camFsPause.querySelector(".fsp-ico-pause").hidden = state.paused;
+    camFsPause.querySelector(".fsp-ico-resume").hidden = !state.paused;
+    camFsPause.setAttribute("aria-label", Shell.t(state.paused ? "t.resume" : "t.pause"));
     placeholder.hidden = state.active;
     var liveKey = !state.active ? "t.stopped" : (state.paused ? "t.paused" : "t.live");
     liveText.textContent = Shell.t(liveKey);
@@ -265,6 +288,7 @@
   function pauseCamera() { if (!state.active || state.paused) return; video.pause(); state.paused = true; syncCamUI(); }
   function resumeCamera() { if (!state.active || !state.paused) return; video.play(); state.paused = false; syncCamUI(); }
   btnPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
+  camFsPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
 
   async function startCamera() {
     hideError();
