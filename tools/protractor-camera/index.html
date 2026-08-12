@@ -299,7 +299,12 @@
     btnFs.querySelector(".lbl-fs").hidden = fs;
     btnFs.querySelector(".lbl-exitfs").hidden = !fs;
   }
+  var camHome = { parent: null, next: null };
   function enterFs() {
+    camHome.parent = camwrap.parentNode;
+    camHome.next = camwrap.nextSibling;
+    document.body.appendChild(camwrap); // .shell は z-index:0 でヘッダー(z-index:20)配下に固定されているため、
+                                         // fixed化しても内側にいる限りヘッダーを越えられない。一旦bodyへ退避する。
     camwrap.classList.add("fs-fallback");
     document.body.style.overflow = "hidden";
     syncFsUI();
@@ -307,6 +312,10 @@
   function exitFs() {
     camwrap.classList.remove("fs-fallback");
     document.body.style.overflow = "";
+    if (camHome.parent) {
+      if (camHome.next && camHome.next.parentNode === camHome.parent) camHome.parent.insertBefore(camwrap, camHome.next);
+      else camHome.parent.appendChild(camwrap);
+    }
     syncFsUI();
   }
   function toggleFs() { isFs() ? exitFs() : enterFs(); }
