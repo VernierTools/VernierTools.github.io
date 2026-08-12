@@ -901,31 +901,6 @@
       "added": "2026-07-11"
     },
     {
-      "id": "vroid-to-blender",
-      "type": "blender",
-      "platform": "Blender",
-      "path": "tools/vroid-to-blender/",
-      "categories": [
-        "blender"
-      ],
-      "name": {
-        "en": "VRoid to Blender",
-        "ja": "VRoid to Blender"
-      },
-      "description": {
-        "en": "Import VRoid models cleaned up for Blender. add-on.",
-        "ja": "VRoidモデルをBlender向けに整えてインポートするアドオン（英語UI）。"
-      },
-      "keywords": [
-        "blender",
-        "vroid",
-        "vrm",
-        "import",
-        "アドオン"
-      ],
-      "added": "2026-07-11"
-    },
-    {
       "id": "stmap-setup-node",
       "type": "blender",
       "platform": "Blender",
@@ -1663,6 +1638,169 @@
         "GIF",
         "変換",
         "アニメーション"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "fictional-currency",
+      "type": "web",
+      "path": "tools/fictional-currency/",
+      "categories": [
+        "general"
+      ],
+      "name": {
+        "en": "Fictional currency converter",
+        "ja": "架空通貨コンバーター"
+      },
+      "description": {
+        "en": "Convert between fictional currencies using rates you define yourself.",
+        "ja": "自分で設定したレートで、架空通貨同士や現実通貨との双方向換算。"
+      },
+      "keywords": [
+        "fictional currency",
+        "exchange rate",
+        "worldbuilding",
+        "fantasy",
+        "架空通貨",
+        "為替",
+        "創作"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "video-fps-measure",
+      "type": "web",
+      "path": "tools/video-fps-measure/",
+      "categories": [
+        "video"
+      ],
+      "name": {
+        "en": "Actual frame rate measurer",
+        "ja": "実測フレームレート測定"
+      },
+      "description": {
+        "en": "Measure a video's real playback frame rate by sampling, not just its declared metadata.",
+        "ja": "動画の申告fpsに頼らず、冒頭・中間・末尾のサンプリングで実測fpsを測定。"
+      },
+      "keywords": [
+        "frame rate",
+        "fps",
+        "vfr",
+        "pulldown",
+        "telecine",
+        "フレームレート",
+        "実測",
+        "プルダウン"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "color-mixer",
+      "type": "web",
+      "path": "tools/color-mixer/",
+      "categories": [
+        "image"
+      ],
+      "sub": "color",
+      "name": {
+        "en": "Color mixer",
+        "ja": "色の混合"
+      },
+      "description": {
+        "en": "Mix multiple colors by weight, switching between additive (light) and subtractive (paint) models.",
+        "ja": "複数の色を比率指定で混合。光の混色（加法）と絵の具の混色（減法近似）を切り替え可能。"
+      },
+      "keywords": [
+        "color mixing",
+        "additive",
+        "subtractive",
+        "paint",
+        "pigment",
+        "混色",
+        "加法混色",
+        "減法混色"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "sound-propagation",
+      "type": "web",
+      "path": "tools/sound-propagation/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "production",
+      "name": {
+        "en": "Sound propagation calculator",
+        "ja": "音の伝搬計算"
+      },
+      "description": {
+        "en": "Calculate sound level drop-off and arrival delay by distance from a source (no wind).",
+        "ja": "音源からの距離による音量減衰と到達までの遅延時間を計算（無風想定）。"
+      },
+      "keywords": [
+        "sound level",
+        "decibel",
+        "inverse square law",
+        "propagation delay",
+        "speed of sound",
+        "音量減衰",
+        "伝搬遅延",
+        "音速"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "book-spine",
+      "type": "web",
+      "path": "tools/book-spine/",
+      "categories": [
+        "general"
+      ],
+      "name": {
+        "en": "Book spine width calculator",
+        "ja": "本の背幅計算"
+      },
+      "description": {
+        "en": "Estimate a book's spine width from page count and paper/cover choice.",
+        "ja": "ページ数と本文用紙・表紙の種類から、本の背幅を概算。"
+      },
+      "keywords": [
+        "spine width",
+        "book binding",
+        "paper thickness",
+        "doujinshi",
+        "printing",
+        "背幅",
+        "製本",
+        "用紙厚"
+      ],
+      "added": "2026-08-05"
+    },
+    {
+      "id": "stair-calculator",
+      "type": "web",
+      "path": "tools/stair-calculator/",
+      "categories": [
+        "general"
+      ],
+      "name": {
+        "en": "Stair riser & step calculator",
+        "ja": "階段の蹴上げ・段数計算"
+      },
+      "description": {
+        "en": "Calculate step count and riser height from total height, with a comfort-rule check.",
+        "ja": "全体の高さから段数・蹴上げ寸法を計算。快適性の目安（ブロンデルの法則）も判定。"
+      },
+      "keywords": [
+        "stairs",
+        "riser",
+        "tread",
+        "blondel",
+        "step count",
+        "階段",
+        "蹴上げ",
+        "踏面"
       ],
       "added": "2026-08-05"
     }
