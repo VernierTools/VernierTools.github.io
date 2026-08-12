@@ -19,18 +19,17 @@
   .camwrap .ov{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
   .camwrap.fs-fallback{ position:fixed; inset:0; z-index:999; max-width:none; width:100vw; height:100vh;
     aspect-ratio:auto; border-radius:0; border:0; }
-  .camwrap:fullscreen{ max-width:none; width:100vw; height:100vh; aspect-ratio:auto; border-radius:0; border:0; }
-  .camwrap:-webkit-full-screen{ max-width:none; width:100vw; height:100vh; border-radius:0; border:0; }
   .grab{ cursor:grab; } .grab:active{ cursor:grabbing; }
   .cam-placeholder{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:var(--s3); color:var(--text-3); text-align:center; padding:var(--s5); }
   .cam-placeholder svg{ width:30px; height:30px; }
   .cam-placeholder p{ font-size:12.5px; max-width:26ch; }
-  .cam-fsexit{ position:absolute; top:var(--s3); right:var(--s3); z-index:2; width:32px; height:32px;
-    border-radius:50%; border:1px solid var(--border-strong); background:color-mix(in srgb, var(--surface) 78%, transparent);
-    color:var(--text); display:none; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(4px); }
-  .cam-fsexit svg{ width:16px; height:16px; }
-  .camwrap.fs-fallback .cam-fsexit,.camwrap:fullscreen .cam-fsexit,.camwrap:-webkit-full-screen .cam-fsexit{ display:flex; }
+  .cam-fsexit{ position:absolute; top:var(--s3); right:var(--s3); z-index:5; height:36px; padding:0 var(--s3);
+    border-radius:100px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
+    display:none; align-items:center; justify-content:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600;
+    box-shadow:var(--shadow-md); }
+  .cam-fsexit svg{ width:15px; height:15px; }
+  .camwrap.fs-fallback .cam-fsexit{ display:inline-flex; }
   .camrow{ display:flex; gap:var(--s2); }
   .camrow .btn{ flex:1; }
   .sliderrow .val{ min-width:44px; }
@@ -87,16 +86,19 @@
         <p class="hint" data-i18n="t.draghint">Drag anywhere on the camera view to rotate the arm, or use the slider. The dashed line is the fixed 0° reference — line it up with an edge first, then rotate the arm to the second edge.</p>
 
         <div class="btnrow">
+          <button type="button" class="btn btn--primary" id="btn-pause" disabled>
+            <svg class="ico-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <svg class="ico-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            <span class="lbl-pause" data-i18n="t.pause">Pause camera</span>
+            <span class="lbl-resume" data-i18n="t.resume" hidden>Resume</span>
+          </button>
           <button type="button" class="btn btn--secondary" id="btn-fs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
             <span class="lbl-fs" data-i18n="t.fullscreen">Fullscreen</span>
             <span class="lbl-exitfs" data-i18n="t.exitFullscreen" hidden>Exit fullscreen</span>
           </button>
-          <button type="button" class="btn btn--primary" id="btn-snap" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <span data-i18n="t.snapshot">Save snapshot</span>
-          </button>
         </div>
+        <p class="hint" data-i18n="t.pausehint">Pausing freezes the picture (the camera stays on) so you can line up the protractor without the view moving.</p>
       </div>
     </div>
 
@@ -119,8 +121,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
           <p data-i18n="t.placeholder">Start the camera to see the protractor overlaid on the live view.</p>
         </div>
-        <button type="button" class="cam-fsexit" id="cam-fsexit" aria-label="Exit fullscreen">
+        <button type="button" class="cam-fsexit" id="cam-fsexit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <span data-i18n="t.exit">Exit</span>
         </button>
       </div>
 
@@ -145,7 +148,7 @@
   function $(id) { return document.getElementById(id); }
 
   var video = $("cam-video"), camwrap = $("camwrap"), placeholder = $("cam-placeholder"),
-      btnCam = $("btn-cam"), btnSwitch = $("btn-switch"), btnFs = $("btn-fs"), btnSnap = $("btn-snap"),
+      btnCam = $("btn-cam"), btnSwitch = $("btn-switch"), btnFs = $("btn-fs"), btnPause = $("btn-pause"),
       camFsExit = $("cam-fsexit"), errBox = $("cam-err"),
       angleSlider = $("angle-slider"), angleVal = $("angle-val"),
       sizeSlider = $("size-slider"), sizeVal = $("size-val"),
@@ -153,7 +156,7 @@
       armLine = $("ov-arm-line"), armTip = $("ov-arm-tip"), armG = $("ov-arm"), hit = $("ov-hit"),
       liveText = $("live-text"), liveBadge = $("live-badge"), readoutAngle = $("readout-angle");
 
-  var state = { angle: 0, sizePct: 60, stream: null, facing: "environment", active: false, dragging: false };
+  var state = { angle: 0, sizePct: 60, stream: null, facing: "environment", active: false, paused: false, dragging: false };
 
   /* ---- 幾何: 分度器の描画 ---- */
   function buildTicks(R) {
@@ -238,11 +241,19 @@
     btnCam.classList.toggle("btn--secondary", state.active);
     btnCam.classList.toggle("btn--primary", !state.active);
     btnSwitch.disabled = !state.active;
-    btnSnap.disabled = !state.active;
+    btnPause.disabled = !state.active;
+    btnPause.querySelector(".lbl-pause").hidden = state.paused;
+    btnPause.querySelector(".lbl-resume").hidden = !state.paused;
+    btnPause.querySelector(".ico-pause").hidden = state.paused;
+    btnPause.querySelector(".ico-resume").hidden = !state.paused;
     placeholder.hidden = state.active;
-    liveText.textContent = Shell.t(state.active ? "t.live" : "t.stopped");
-    liveBadge.querySelector(".dot").style.background = state.active ? "var(--pos)" : "var(--text-3)";
+    var liveKey = !state.active ? "t.stopped" : (state.paused ? "t.paused" : "t.live");
+    liveText.textContent = Shell.t(liveKey);
+    liveBadge.querySelector(".dot").style.background = state.active ? (state.paused ? "var(--accent)" : "var(--pos)") : "var(--text-3)";
   }
+  function pauseCamera() { if (!state.active || state.paused) return; video.pause(); state.paused = true; syncCamUI(); }
+  function resumeCamera() { if (!state.active || !state.paused) return; video.play(); state.paused = false; syncCamUI(); }
+  btnPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
 
   async function startCamera() {
     hideError();
@@ -252,12 +263,12 @@
       });
       state.stream = stream; video.srcObject = stream;
       await video.play();
-      state.active = true; syncCamUI();
-    } catch (err) { showError(err); state.active = false; syncCamUI(); }
+      state.active = true; state.paused = false; syncCamUI();
+    } catch (err) { showError(err); state.active = false; state.paused = false; syncCamUI(); }
   }
   function stopCamera() {
     if (state.stream) { state.stream.getTracks().forEach(function (t) { t.stop(); }); state.stream = null; }
-    video.srcObject = null; state.active = false; syncCamUI();
+    video.srcObject = null; state.active = false; state.paused = false; syncCamUI();
   }
   btnCam.addEventListener("click", function () { state.active ? stopCamera() : startCamera(); });
   btnSwitch.addEventListener("click", function () {
@@ -267,131 +278,30 @@
   });
   window.addEventListener("pagehide", stopCamera);
 
-  /* ---- フルスクリーン ---- */
-  function isFs() {
-    return !!(document.fullscreenElement || document.webkitFullscreenElement) || camwrap.classList.contains("fs-fallback");
-  }
+  /* ---- フルスクリーン（表示を最大化するだけの独自実装。
+     ブラウザ純正のFullscreen APIは要素単位の対応がブラウザ間で不安定
+     （特にiOS Safariでdiv等は非対応）なため使わず、常にこの方式に統一する。
+     終了手段を必ず自前で持てるので「戻れなくなる」事故が起きない。 ---- */
+  function isFs() { return camwrap.classList.contains("fs-fallback"); }
   function syncFsUI() {
     var fs = isFs();
     btnFs.querySelector(".lbl-fs").hidden = fs;
     btnFs.querySelector(".lbl-exitfs").hidden = !fs;
   }
-  function fallbackFs(on) {
-    camwrap.classList.toggle("fs-fallback", on);
-    document.body.style.overflow = on ? "hidden" : "";
+  function enterFs() {
+    camwrap.classList.add("fs-fallback");
+    document.body.style.overflow = "hidden";
     syncFsUI();
   }
-  function enterFs() {
-    var req = camwrap.requestFullscreen || camwrap.webkitRequestFullscreen;
-    if (req) {
-      var r = req.call(camwrap);
-      if (r && typeof r.catch === "function") r.catch(function () { fallbackFs(true); });
-    } else { fallbackFs(true); }
-  }
   function exitFs() {
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    }
-    fallbackFs(false);
+    camwrap.classList.remove("fs-fallback");
+    document.body.style.overflow = "";
+    syncFsUI();
   }
   function toggleFs() { isFs() ? exitFs() : enterFs(); }
   btnFs.addEventListener("click", toggleFs);
-  camFsExit.addEventListener("click", toggleFs);
-  document.addEventListener("fullscreenchange", syncFsUI);
-  document.addEventListener("webkitfullscreenchange", syncFsUI);
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && camwrap.classList.contains("fs-fallback")) exitFs();
-  });
-
-  /* ---- スナップショット ---- */
-  function hexToRgba(hex, alpha) {
-    hex = (hex || "").trim();
-    var m = /^#([0-9a-f]{6})$/i.exec(hex);
-    if (!m) return "rgba(84,87,229," + alpha + ")";
-    var n = parseInt(m[1], 16);
-    return "rgba(" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(",") + "," + alpha + ")";
-  }
-  function drawOverlayOnCanvas(ctx, W, angleDeg, sizePct) {
-    var cx = W / 2, cy = W / 2;
-    var R = (sizePct * 0.5) / 100 * W; // R: viewBox(0-100)上の半径(%) → px換算
-    var css = getComputedStyle(document.documentElement);
-    var accent = css.getPropertyValue("--accent").trim() || "#5457E5";
-    var textc = css.getPropertyValue("--text").trim() || "#16181D";
-    var text3 = css.getPropertyValue("--text-3").trim() || "#8A919B";
-
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = hexToRgba(accent, 0.22); ctx.fill();
-    ctx.lineWidth = Math.max(1, W * 0.003); ctx.strokeStyle = hexToRgba(accent, 0.6); ctx.stroke();
-    ctx.restore();
-
-    ctx.save();
-    for (var d = 0; d < 360; d += 5) {
-      var major = d % 30 === 0, rad = d * Math.PI / 180;
-      var innerLen = (major ? 0.14 : 0.07) * R;
-      var ox = cx + R * Math.cos(rad), oy = cy + R * Math.sin(rad);
-      var ix = cx + (R - innerLen) * Math.cos(rad), iy = cy + (R - innerLen) * Math.sin(rad);
-      ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ox, oy);
-      ctx.strokeStyle = hexToRgba(text3.charAt(0) === "#" ? text3 : "#8A919B", major ? 0.85 : 0.5);
-      ctx.lineWidth = Math.max(0.6, W * (major ? 0.0018 : 0.001));
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = text3.charAt(0) === "#" ? text3 : "#8A919B";
-    ctx.setLineDash([W * 0.012, W * 0.012]);
-    ctx.lineWidth = Math.max(1, W * 0.0025);
-    ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
-    ctx.restore();
-
-    var arad = angleDeg * Math.PI / 180;
-    ctx.save();
-    ctx.strokeStyle = accent; ctx.lineWidth = Math.max(1.5, W * 0.004);
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * Math.cos(arad), cy + R * Math.sin(arad)); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx + R * Math.cos(arad), cy + R * Math.sin(arad), W * 0.014, 0, Math.PI * 2);
-    ctx.fillStyle = accent; ctx.fill();
-    ctx.restore();
-
-    ctx.beginPath(); ctx.arc(cx, cy, W * 0.009, 0, Math.PI * 2);
-    ctx.fillStyle = textc.charAt(0) === "#" ? textc : "#16181D"; ctx.fill();
-
-    ctx.save();
-    ctx.fillStyle = textc.charAt(0) === "#" ? textc : "#16181D";
-    ctx.font = Math.max(10, Math.round(W * 0.03)) + "px ui-monospace,Menlo,Consolas,monospace";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    for (d = 0; d < 360; d += 30) {
-      rad = d * Math.PI / 180;
-      var lr = R + W * 0.055, lx = cx + lr * Math.cos(rad), ly = cy + lr * Math.sin(rad);
-      ctx.fillText(String(d), lx, ly);
-    }
-    ctx.restore();
-  }
-  function pad2(n) { return n < 10 ? "0" + n : "" + n; }
-  function timestamp() {
-    var d = new Date();
-    return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + "-" + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
-  }
-  function takeSnapshot() {
-    if (!state.active) return;
-    var vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw || !vh) return;
-    var side = Math.min(vw, vh), sx = (vw - side) / 2, sy = (vh - side) / 2;
-    var canvas = document.createElement("canvas");
-    canvas.width = side; canvas.height = side;
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side);
-    drawOverlayOnCanvas(ctx, side, state.angle, state.sizePct);
-    canvas.toBlob(function (blob) {
-      if (!blob) return;
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = "protractor-" + timestamp() + ".png";
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    }, "image/png");
-  }
-  btnSnap.addEventListener("click", takeSnapshot);
+  camFsExit.addEventListener("click", exitFs);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && isFs()) exitFs(); });
 
   /* ---- 起動 ---- */
   updateGeometry(); setAngle(0); syncCamUI(); syncFsUI();
@@ -407,11 +317,12 @@
           "t.startCamera": "Start camera", "t.stopCamera": "Stop camera", "t.switchCamera": "Switch",
           "t.angle": "Angle", "t.size": "Protractor size",
           "t.draghint": "Drag anywhere on the camera view to rotate the arm, or use the slider. The dashed line is the fixed 0° reference — line it up with an edge first, then rotate the arm to the second edge.",
-          "t.fullscreen": "Fullscreen", "t.exitFullscreen": "Exit fullscreen",
-          "t.snapshot": "Save snapshot",
+          "t.fullscreen": "Fullscreen", "t.exitFullscreen": "Exit fullscreen", "t.exit": "Exit",
+          "t.pause": "Pause camera", "t.resume": "Resume",
+          "t.pausehint": "Pausing freezes the picture (the camera stays on) so you can line up the protractor without the view moving.",
           "t.placeholder": "Start the camera to see the protractor overlaid on the live view.",
           "t.readoutLabel": "Angle", "t.readoutAngle": "From 0° reference",
-          "t.live": "Camera on", "t.stopped": "Camera off",
+          "t.live": "Camera on", "t.paused": "Paused", "t.stopped": "Camera off",
           "t.copyhint": "Click a value to copy it.",
           "t.errDenied": "Camera access was denied. Allow camera access in your browser settings and try again.",
           "t.errNoCamera": "No camera was found on this device.",
@@ -424,11 +335,12 @@
           "t.startCamera": "カメラを開始", "t.stopCamera": "カメラを停止", "t.switchCamera": "切り替え",
           "t.angle": "角度", "t.size": "分度器のサイズ",
           "t.draghint": "カメラ映像上をドラッグするとアームが回転します（スライダーでも操作可）。破線は固定された基準線（0°）です。まず基準線を測りたい辺の一方に合わせ、アームをもう一方の辺に合わせて角度を読み取ります。",
-          "t.fullscreen": "フルスクリーン", "t.exitFullscreen": "フルスクリーン終了",
-          "t.snapshot": "スナップショット保存",
+          "t.fullscreen": "フルスクリーン", "t.exitFullscreen": "フルスクリーン終了", "t.exit": "終了",
+          "t.pause": "一時停止", "t.resume": "再開",
+          "t.pausehint": "一時停止すると映像が静止します（カメラ自体は起動したまま）。落ち着いて分度器を合わせられます。",
           "t.placeholder": "カメラを開始すると、映像に分度器が重ねて表示されます。",
           "t.readoutLabel": "角度", "t.readoutAngle": "基準線（0°）からの角度",
-          "t.live": "カメラ起動中", "t.stopped": "カメラ停止中",
+          "t.live": "カメラ起動中", "t.paused": "一時停止中", "t.stopped": "カメラ停止中",
           "t.copyhint": "数値をクリックでコピー。",
           "t.errDenied": "カメラへのアクセスが拒否されました。ブラウザの設定でカメラへのアクセスを許可してから再度お試しください。",
           "t.errNoCamera": "このデバイスにカメラが見つかりませんでした。",
