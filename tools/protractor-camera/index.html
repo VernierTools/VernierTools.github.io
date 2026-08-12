@@ -17,9 +17,9 @@
     border-radius:var(--r-lg); overflow:hidden; background:var(--surface-2); border:1px solid var(--border); }
   .camwrap video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; background:#000; }
   .camwrap .ov{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  .camwrap:fullscreen{ width:100vw; height:100vh; max-width:none; border-radius:0; border:0; aspect-ratio:auto; }
-  .camwrap:-webkit-full-screen{ width:100vw; height:100vh; max-width:none; border-radius:0; border:0; }
-  .camwrap.fs-fallback{ position:fixed; inset:0; z-index:999; width:100vw; height:100vh; max-width:none;
+  .camwrap:fullscreen{ width:100vw; height:100vh; height:100dvh; max-width:none; border-radius:0; border:0; aspect-ratio:auto; }
+  .camwrap:-webkit-full-screen{ width:100vw; height:100vh; height:100dvh; max-width:none; border-radius:0; border:0; }
+  .camwrap.fs-fallback{ position:fixed; inset:0; z-index:999; width:100vw; height:100vh; height:100dvh; max-width:none;
     aspect-ratio:auto; border-radius:0; border:0; }
   .grab{ cursor:grab; } .grab:active{ cursor:grabbing; }
   .cam-placeholder{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
@@ -27,10 +27,12 @@
   .cam-placeholder svg{ width:30px; height:30px; }
   .cam-placeholder p{ font-size:12.5px; max-width:26ch; }
 
-  /* 純正Fullscreen APIが使えないブラウザ向けの自前フルスクリーンでのみ必要な終了バー。
-     映像に重ねず実レイアウトで確保するので、ヘッダーのz-indexにも隠れないし判定も食われない。 */
+  /* フルスクリーン中（自前実装かブラウザ純正かを問わず）は常にこの終了バーを出す。
+     Safari純正のフルスクリーンは終了UIが分かりづらい/出ないことがあるため、native/fallback
+     どちらでも .is-fs を見て表示する。映像に重ねず実レイアウトで確保するので、
+     ヘッダーのz-indexにも隠れないし、映像側のドラッグ判定に食われることもない。 */
   .fs-bar{ display:none; }
-  .camwrap.fs-fallback .fs-bar{ display:flex; align-items:center; justify-content:flex-end;
+  .camwrap.is-fs .fs-bar{ display:flex; align-items:center; justify-content:flex-end;
     background:var(--surface); border-bottom:1px solid var(--border);
     padding:max(var(--s3), env(safe-area-inset-top)) max(var(--s3), env(safe-area-inset-right)) var(--s3) var(--s4); }
   .cam-fsexit{ appearance:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
@@ -39,9 +41,10 @@
   .cam-fsexit:hover{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
   .cam-fsexit svg{ width:16px; height:16px; }
 
-  /* 一時停止（丸ボタン）はフルスクリーン中のみ表示。通常表示は左カードのボタンを使う。 */
-  .cam-pausebtn{ display:none; position:absolute; left:50%; bottom:var(--s4); transform:translateX(-50%);
-    width:60px; height:60px; border-radius:50%; border:2px solid var(--border-strong);
+  /* 一時停止（丸ボタン）はフルスクリーン中のみ表示。通常表示は左カードのボタンを使う。
+     Safariのタブ/ツールバー分だけ底が隠れないよう safe-area 分の余白を確保する。 */
+  .cam-pausebtn{ display:none; position:absolute; left:50%; bottom:max(var(--s4), env(safe-area-inset-bottom));
+    transform:translateX(-50%); width:60px; height:60px; border-radius:50%; border:2px solid var(--border-strong);
     background:var(--surface-2); color:var(--text); align-items:center; justify-content:center; cursor:pointer; }
   .camwrap.is-fs .cam-pausebtn{ display:flex; }
   .cam-pausebtn:disabled{ opacity:.35; cursor:not-allowed; }
@@ -265,6 +268,7 @@
     btnCam.classList.toggle("btn--secondary", state.active);
     btnCam.classList.toggle("btn--primary", !state.active);
     btnSwitch.disabled = !state.active;
+    btnFs.disabled = !state.active;
 
     btnPause.disabled = !state.active;
     btnPause.querySelector(".lbl-pause").hidden = state.paused;
@@ -302,6 +306,7 @@
   function stopCamera() {
     if (state.stream) { state.stream.getTracks().forEach(function (t) { t.stop(); }); state.stream = null; }
     video.srcObject = null; state.active = false; state.paused = false; syncCamUI();
+    if (isFs()) exitFs();
   }
   btnCam.addEventListener("click", function () { state.active ? stopCamera() : startCamera(); });
   btnSwitch.addEventListener("click", function () {
@@ -356,7 +361,7 @@
     if (isNativeFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
     if (isFallbackFs()) { exitFallback(); }
   }
-  function toggleFs() { isFs() ? exitFs() : enterFs(); }
+  function toggleFs() { if (!state.active) return; isFs() ? exitFs() : enterFs(); }
   btnFs.addEventListener("click", toggleFs);
   camFsExit.addEventListener("click", exitFs);
   document.addEventListener("fullscreenchange", syncFsUI);
