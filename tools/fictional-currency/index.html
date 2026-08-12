@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fictional currency converter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.5; margin-top:var(--s2); }
+  .hint:first-child{ margin-top:0; }
+
+  /* ---- 通貨リスト ---- */
+  .curlist{ display:flex; flex-direction:column; }
+  .currow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); padding:var(--s4); }
+  .currow + .currow{ border-top:1px solid var(--border); }
+
+  .currow__info{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+  .currow__name{ appearance:none; border:0; background:transparent; font:inherit; font-size:14px; font-weight:600;
+    color:var(--text); padding:3px 4px; margin:0 0 0 -4px; border-radius:var(--r-sm); width:calc(100% + 4px);
+    min-width:0; transition:background var(--tap), box-shadow var(--tap); }
+  .currow__name:hover{ background:var(--surface-2); }
+  .currow__name:focus{ outline:none; background:var(--surface-2); box-shadow:0 0 0 3px var(--accent-ring); }
+  .currow__ratewrap{ display:flex; align-items:center; gap:6px; }
+  .currow__ratelabel{ font-size:11px; color:var(--text-3); white-space:nowrap; }
+  .currow__rate{ width:88px; height:26px; padding:0 8px; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:12.5px; text-align:right; color:var(--text-2); background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); }
+  .currow__rate:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+
+  .currow__right{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .currow__amount{ width:150px; height:40px; padding:0 12px; text-align:right; font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums; font-size:19px; font-weight:500; color:var(--text); background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:var(--r); transition:border-color var(--tap), box-shadow var(--tap); }
+  .currow__amount:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .currow__del{ appearance:none; border:0; background:transparent; cursor:pointer; color:var(--text-3);
+    width:30px; height:30px; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:var(--r-sm); transition:all var(--tap); }
+  .currow__del:hover{ background:var(--neg-tint); color:var(--neg); }
+  .currow__del svg{ width:15px; height:15px; }
+
+  .curempty{ padding:var(--s7) var(--s5); text-align:center; color:var(--text-3); font-size:13px; }
+
+  @media (max-width:480px){
+    .currow{ flex-wrap:wrap; }
+    .currow__right{ width:100%; }
+    .currow__amount{ flex:1; width:auto; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
+    <h1 data-i18n="t.title">Fictional currency converter</h1>
+    <p data-i18n="t.desc">Add as many fictional currencies as you like, set their relative value, and convert between them instantly.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 通貨の追加・その他の操作 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.addtitle">Add a currency</div>
+        <div class="field">
+          <label class="label" for="add-name" data-i18n="t.name">Name</label>
+          <input class="input" id="add-name" type="text" maxlength="40" data-i18n-ph="t.nameph" placeholder="e.g. Gold coin" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" for="add-rate" data-i18n="t.rate">Value</label>
+          <input class="input" id="add-rate" type="text" inputmode="decimal" data-i18n-ph="t.rateph" placeholder="1" autocomplete="off">
+        </div>
+        <button class="btn btn--primary btn--block" id="add-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="t.add">Add</span>
+        </button>
+        <p class="hint" data-i18n="t.ratehint">Higher value means the currency is worth more. e.g. Gold 100, Silver 10, Copper 1 → 1 Gold = 10 Silver = 100 Copper.</p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.otherops">Other actions</div>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn btn--secondary" id="reset-btn" type="button" data-i18n="t.reset">Reset to sample</button>
+          <button class="btn btn--secondary" id="clear-btn" type="button" data-i18n="t.clear">Delete all</button>
+        </div>
+        <p class="hint" data-i18n="t.savenote">Currencies are saved in this browser and will still be here next time. There's no real-world exchange-rate data — set the values yourself.</p>
+      </div>
+    </div>
+
+    <!-- 右: 通貨リスト（編集可能な換算結果） -->
+    <div>
+      <div class="readout">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.output">Amounts</span>
+          <span class="live"><span class="dot"></span><span data-i18n="t.live">Live</span></span>
+        </div>
+        <div class="curlist" id="curlist"></div>
+      </div>
+      <p class="hint" style="padding:0 var(--s2); margin-top:var(--s3)" data-i18n="t.edithint">Type an amount in any currency — every other currency updates instantly.</p>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var STORAGE_KEY = "fc.currencies.v1";
+  var $ = function (id) { return document.getElementById(id); };
+
+  var curlist = $("curlist");
+  var addName = $("add-name"), addRate = $("add-rate"), addBtn = $("add-btn");
+  var resetBtn = $("reset-btn"), clearBtn = $("clear-btn");
+
+  var currencies = [];   // [{id, name, rate}]
+  var refValue = 0;      // 現在の共通価値（すべての金額欄はここから逆算して表示される）
+
+  /* ---- ユーティリティ ---- */
+  function uid() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  function parseNum(s) {
+    if (s === null || s === undefined) return null;
+    s = String(s).trim();
+    if (s === "") return null;
+    var n = Number(s);
+    return isFinite(n) ? n : null;
+  }
+
+  function fmt(n) {
+    if (n === null || n === undefined || !isFinite(n)) return "";
+    if (Math.abs(n) < 1e-9) n = 0;
+    var s = (Math.round(n * 1e6) / 1e6).toFixed(6);
+    s = s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    return s === "-0" ? "0" : s;
+  }
+
+  function amountFor(rate) {
+    if (!(rate > 0)) return NaN;
+    return refValue / rate;
+  }
+
+  /* ---- 既定の通貨セット（言語に応じて名前だけ切替） ---- */
+  function defaultCurrencies() {
+    var ja = (typeof Shell !== "undefined" && Shell && Shell.lang === "ja");
+    return [
+      { id: uid(), name: ja ? "金貨" : "Gold", rate: 100 },
+      { id: uid(), name: ja ? "銀貨" : "Silver", rate: 10 },
+      { id: uid(), name: ja ? "銅貨" : "Copper", rate: 1 }
+    ];
+  }
+
+  /* ---- 永続化 ---- */
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return null;
+      var out = [];
+      for (var i = 0; i < arr.length; i++) {
+        var c = arr[i];
+        if (!c || typeof c.name !== "string") continue;
+        var rate = Number(c.rate);
+        if (!isFinite(rate) || rate <= 0) rate = 1;
+        out.push({ id: (typeof c.id === "string" && c.id) ? c.id : uid(), name: c.name, rate: rate });
+      }
+      return out;
+    } catch (e) { return null; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currencies.map(function (c) {
+        return { id: c.id, name: c.name, rate: c.rate };
+      })));
+    } catch (e) {}
+  }
+
+  /* ---- 描画 ---- */
+  function svgTrash() {
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none");
+    s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "2");
+    s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+    s.innerHTML = '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/>';
+    return s;
+  }
+
+  function buildRow(c) {
+    var row = document.createElement("div");
+    row.className = "currow"; row.setAttribute("data-id", c.id);
+
+    var info = document.createElement("div"); info.className = "currow__info";
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.className = "currow__name"; nameInput.value = c.name;
+    nameInput.maxLength = 40; nameInput.setAttribute("aria-label", Shell.t("t.name"));
+    info.appendChild(nameInput);
+
+    var rateWrap = document.createElement("div"); rateWrap.className = "currow__ratewrap";
+    var rateLabel = document.createElement("span");
+    rateLabel.className = "currow__ratelabel"; rateLabel.setAttribute("data-i18n", "t.rate");
+    rateLabel.textContent = Shell.t("t.rate");
+    var rateInput = document.createElement("input");
+    rateInput.type = "text"; rateInput.inputMode = "decimal"; rateInput.className = "currow__rate";
+    rateInput.value = fmt(c.rate); rateInput.setAttribute("aria-label", Shell.t("t.rate"));
+    rateWrap.appendChild(rateLabel); rateWrap.appendChild(rateInput);
+    info.appendChild(rateWrap);
+
+    var right = document.createElement("div"); right.className = "currow__right";
+    var amountInput = document.createElement("input");
+    amountInput.type = "text"; amountInput.inputMode = "decimal"; amountInput.className = "currow__amount";
+    amountInput.value = fmt(amountFor(c.rate)); amountInput.setAttribute("aria-label", Shell.t("t.amount"));
+    var delBtn = document.createElement("button");
+    delBtn.type = "button"; delBtn.className = "currow__del";
+    delBtn.title = Shell.t("t.del"); delBtn.setAttribute("aria-label", Shell.t("t.del"));
+    delBtn.appendChild(svgTrash());
+
+    right.appendChild(amountInput); right.appendChild(delBtn);
+    row.appendChild(info); row.appendChild(right);
+    return row;
+  }
+
+  function render() {
+    curlist.innerHTML = "";
+    if (currencies.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "curempty"; empty.setAttribute("data-i18n", "t.empty");
+      empty.textContent = Shell.t("t.empty");
+      curlist.appendChild(empty);
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    currencies.forEach(function (c) { frag.appendChild(buildRow(c)); });
+    curlist.appendChild(frag);
+  }
+
+  function rowEl(id, selector) {
+    var row = curlist.querySelector('.currow[data-id="' + id + '"]');
+    return row ? row.querySelector(selector) : null;
+  }
+
+  function refreshOtherAmounts(exceptId) {
+    currencies.forEach(function (c) {
+      if (c.id === exceptId) return;
+      var el = rowEl(c.id, ".currow__amount");
+      if (el) el.value = fmt(amountFor(c.rate));
+    });
+  }
+  function refreshAmount(id) {
+    var c = currencies.filter(function (x) { return x.id === id; })[0];
+    var el = rowEl(id, ".currow__amount");
+    if (c && el) el.value = fmt(amountFor(c.rate));
+  }
+
+  /* ---- イベント（委譲） ---- */
+  curlist.addEventListener("input", function (e) {
+    var row = e.target.closest(".currow"); if (!row) return;
+    var id = row.getAttribute("data-id");
+    var c = currencies.filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+
+    if (e.target.classList.contains("currow__amount")) {
+      var v = parseNum(e.target.value);
+      if (v === null || !(c.rate > 0)) return;
+      refValue = v * c.rate;
+      refreshOtherAmounts(id);
+    } else if (e.target.classList.contains("currow__rate")) {
+      var r = parseNum(e.target.value);
+      if (r === null || r <= 0) return;
+      c.rate = r; save();
+      refreshAmount(id);
+    } else if (e.target.classList.contains("currow__name")) {
+      c.name = e.target.value; save();
+    }
+  });
+
+  curlist.addEventListener("blur", function (e) {
+    if (e.target.classList.contains("currow__amount") || e.target.classList.contains("currow__rate")) {
+      // 未確定の途中入力（"1." や空欄など）をきれいな表記に整える
+      var row = e.target.closest(".currow"); if (!row) return;
+      var id = row.getAttribute("data-id");
+      var c = currencies.filter(function (x) { return x.id === id; })[0];
+      if (!c) return;
+      if (e.target.classList.contains("currow__amount")) e.target.value = fmt(amountFor(c.rate));
+      else e.target.value = fmt(c.rate);
+    }
+  }, true);
+
+  curlist.addEventListener("click", function (e) {
+    var b = e.target.closest(".currow__del"); if (!b) return;
+    var row = b.closest(".currow"); var id = row.getAttribute("data-id");
+    currencies = currencies.filter(function (x) { return x.id !== id; });
+    save(); render();
+  });
+
+  function addCurrency() {
+    var name = addName.value.trim();
+    if (!name) name = Shell.t("t.defaultname");
+    var rate = parseNum(addRate.value);
+    if (rate === null || rate <= 0) rate = 1;
+    var c = { id: uid(), name: name, rate: rate };
+    var wasEmpty = currencies.length === 0;
+    currencies.push(c);
+    if (wasEmpty) refValue = rate; // 最初の1件は「1単位」を基準に開始
+    save();
+    addName.value = ""; addRate.value = "";
+    render();
+    var el = rowEl(c.id, ".currow__amount"); if (el) el.focus();
+  }
+  addBtn.addEventListener("click", addCurrency);
+  [addName, addRate].forEach(function (el) {
+    el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addCurrency(); } });
+  });
+
+  resetBtn.addEventListener("click", function () {
+    if (!window.confirm(Shell.t("t.confirmreset"))) return;
+    currencies = defaultCurrencies();
+    refValue = currencies[0].rate;
+    save(); render();
+  });
+  clearBtn.addEventListener("click", function () {
+    if (currencies.length === 0) return;
+    if (!window.confirm(Shell.t("t.confirmclear"))) return;
+    currencies = []; refValue = 0;
+    save(); render();
+  });
+
+  /* ---- 起動 ---- */
+  Shell.init({
+    id: "fictional-currency",
+    strings: {
+      en: {
+        "t.title": "Fictional currency converter",
+        "t.desc": "Add as many fictional currencies as you like, set their relative value, and convert between them instantly.",
+        "t.addtitle": "Add a currency",
+        "t.name": "Name", "t.nameph": "e.g. Gold coin",
+        "t.rate": "Value", "t.rateph": "1",
+        "t.ratehint": "Higher value means the currency is worth more. e.g. Gold 100, Silver 10, Copper 1 → 1 Gold = 10 Silver = 100 Copper.",
+        "t.add": "Add",
+        "t.otherops": "Other actions",
+        "t.reset": "Reset to sample", "t.clear": "Delete all",
+        "t.confirmreset": "Replace the current currencies with the sample set?",
+        "t.confirmclear": "Delete all currencies?",
+        "t.savenote": "Currencies are saved in this browser and will still be here next time. There's no real-world exchange-rate data — set the values yourself.",
+        "t.output": "Amounts", "t.live": "Live",
+        "t.empty": "No currencies yet. Add one on the left.",
+        "t.edithint": "Type an amount in any currency — every other currency updates instantly.",
+        "t.del": "Delete", "t.amount": "Amount",
+        "t.defaultname": "New currency"
+      },
+      ja: {
+        "t.title": "架空通貨コンバーター",
+        "t.desc": "架空の通貨をいくつでも追加し、価値を自由に設定して、瞬時に一括換算できます。",
+        "t.addtitle": "通貨を追加",
+        "t.name": "通貨名", "t.nameph": "例: 金貨",
+        "t.rate": "レート（価値）", "t.rateph": "1",
+        "t.ratehint": "数値が大きいほど価値の高い通貨として扱われます。例: 金貨100・銀貨10・銅貨1 → 金貨1枚＝銀貨10枚＝銅貨100枚。",
+        "t.add": "追加",
+        "t.otherops": "その他の操作",
+        "t.reset": "サンプルに戻す", "t.clear": "すべて削除",
+        "t.confirmreset": "現在の通貨をサンプルの内容に置き換えますか？",
+        "t.confirmclear": "すべての通貨を削除しますか？",
+        "t.savenote": "通貨の設定はこのブラウザに保存され、次回も引き継がれます。実在通貨のレート取得機能はありません。自由に設定してください。",
+        "t.output": "換算結果", "t.live": "リアルタイム",
+        "t.empty": "通貨がまだありません。左のフォームから追加してください。",
+        "t.edithint": "どの通貨の金額欄に入力しても、他のすべての通貨が瞬時に更新されます。",
+        "t.del": "削除", "t.amount": "金額",
+        "t.defaultname": "新しい通貨"
+      }
+    },
+    onSettingsChange: function () { render(); }
+  });
+
+  var loaded = load();
+  currencies = (loaded && loaded.length) ? loaded : defaultCurrencies();
+  refValue = currencies.length ? currencies[0].rate : 0;
+  if (!loaded) save();
+  render();
+})();
+</script>
+</body>
+</html>
