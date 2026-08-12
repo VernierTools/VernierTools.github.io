@@ -14,41 +14,24 @@
 <meta name="theme-color" content="#5457E5">
 <style>
   .camwrap{ position:relative; width:100%; max-width:480px; margin:0 auto; aspect-ratio:1/1;
-    border-radius:var(--r-lg); overflow:hidden; background:var(--surface-2); border:1px solid var(--border);
-    display:flex; flex-direction:column; }
-  .cam-stage{ position:relative; flex:1 1 auto; min-height:0; }
-  .cam-stage video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; background:#000; }
-  .cam-stage .ov{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  .camwrap.fs-fallback{ position:fixed; inset:0; z-index:999; max-width:none; width:100vw; height:100vh;
-    aspect-ratio:auto; border-radius:0; border:0; }
+    border-radius:var(--r-lg); overflow:hidden; background:var(--surface-2); border:1px solid var(--border); }
+  .camwrap video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+  .camwrap .ov{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  .camwrap:fullscreen{ width:100vw; height:100vh; max-width:none; border-radius:0; border:0; aspect-ratio:auto; }
+  .camwrap:-webkit-full-screen{ width:100vw; height:100vh; max-width:none; border-radius:0; border:0; }
   .grab{ cursor:grab; } .grab:active{ cursor:grabbing; }
   .cam-placeholder{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:var(--s3); color:var(--text-3); text-align:center; padding:var(--s5); }
   .cam-placeholder svg{ width:30px; height:30px; }
   .cam-placeholder p{ font-size:12.5px; max-width:26ch; }
-  /* フルスクリーン時のみ現れる上部バー。映像に重ねず実レイアウトで確保するので、
-     ノッチ等に隠れたり、映像側のドラッグ判定に食われたりしない。 */
-  .fs-bar{ display:none; }
-  .camwrap.fs-fallback .fs-bar{ display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end;
-    gap:var(--s2); background:var(--surface); border-bottom:1px solid var(--border);
-    padding:max(var(--s3), env(safe-area-inset-top)) max(var(--s3), env(safe-area-inset-right)) var(--s3) var(--s4); }
-  .cam-fsexit{ appearance:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
-    gap:8px; height:44px; padding:0 var(--s4); border-radius:100px; border:1px solid var(--border-strong);
-    background:var(--surface-2); color:var(--text); font:inherit; font-size:14px; font-weight:600; }
-  .cam-fsexit:hover{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
-  .cam-fsexit svg{ width:16px; height:16px; }
-  /* フルスクリーン時のみ現れる下部バー。カメラアプリのシャッターボタン風の丸い一時停止ボタン。 */
-  .fs-bottom{ display:none; }
-  .camwrap.fs-fallback .fs-bottom{ display:flex; flex:0 0 auto; align-items:center; justify-content:center;
-    background:var(--surface); border-top:1px solid var(--border);
-    padding:var(--s4) var(--s4) max(var(--s4), env(safe-area-inset-bottom)); }
-  .cam-fspause{ appearance:none; cursor:pointer; width:64px; height:64px; border-radius:50%;
-    border:2px solid var(--border-strong); background:var(--surface-2); color:var(--text);
-    display:flex; align-items:center; justify-content:center; transition:background var(--tap), border-color var(--tap), color var(--tap); }
-  .cam-fspause:hover{ border-color:var(--accent); }
-  .cam-fspause:disabled{ opacity:.4; cursor:not-allowed; }
-  .cam-fspause svg{ width:24px; height:24px; }
-  .cam-fspause.is-paused{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  /* カメラアプリ風の丸い一時停止ボタン。映像の上に常時置く（通常表示・フルスクリーン共通の1つの仕組み）。 */
+  .cam-pausebtn{ position:absolute; left:50%; bottom:var(--s4); transform:translateX(-50%);
+    width:60px; height:60px; border-radius:50%; border:2px solid var(--border-strong);
+    background:var(--surface-2); color:var(--text); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; }
+  .cam-pausebtn:disabled{ opacity:.35; cursor:not-allowed; }
+  .cam-pausebtn.is-paused{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .cam-pausebtn svg{ width:22px; height:22px; }
   .camrow{ display:flex; gap:var(--s2); }
   .camrow .btn{ flex:1; }
   .sliderrow .val{ min-width:44px; }
@@ -104,56 +87,40 @@
 
         <p class="hint" data-i18n="t.draghint">Drag anywhere on the camera view to rotate the arm, or use the slider. The dashed line is the fixed 0° reference — line it up with an edge first, then rotate the arm to the second edge.</p>
 
-        <div class="btnrow">
-          <button type="button" class="btn btn--primary" id="btn-pause" disabled>
-            <svg class="ico-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            <svg class="ico-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="6 3 20 12 6 21 6 3"/></svg>
-            <span class="lbl-pause" data-i18n="t.pause">Pause camera</span>
-            <span class="lbl-resume" data-i18n="t.resume" hidden>Resume</span>
-          </button>
-          <button type="button" class="btn btn--secondary" id="btn-fs">
+        <div class="btnrow" id="fs-row">
+          <button type="button" class="btn btn--secondary btn--block" id="btn-fs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
             <span class="lbl-fs" data-i18n="t.fullscreen">Fullscreen</span>
             <span class="lbl-exitfs" data-i18n="t.exitFullscreen" hidden>Exit fullscreen</span>
           </button>
         </div>
-        <p class="hint" data-i18n="t.pausehint">Pausing freezes the picture (the camera stays on) so you can line up the protractor without the view moving.</p>
+        <p class="hint" data-i18n="t.pausehint">The round button on the video pauses the picture (the camera stays on) so you can line up the protractor without the view moving.</p>
       </div>
     </div>
 
     <!-- 右: カメラ映像 + オーバーレイ + readout -->
     <div>
       <div class="camwrap" id="camwrap">
-        <div class="fs-bar">
-          <button type="button" class="cam-fsexit" id="cam-fsexit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            <span data-i18n="t.exit">Exit fullscreen</span>
-          </button>
+        <video id="cam-video" playsinline muted autoplay></video>
+        <svg class="ov grab" id="ov" viewBox="0 0 100 100" role="img" aria-label="Protractor overlay">
+          <circle id="ov-disc" cx="50" cy="50" r="30" fill="var(--accent-tint)" fill-opacity=".45" stroke="var(--accent)" stroke-opacity=".55" stroke-width=".6"></circle>
+          <g id="ov-ticks"></g>
+          <line id="ov-baseline" x1="20" y1="50" x2="80" y2="50" stroke="var(--text-3)" stroke-width=".6" stroke-dasharray="1.6,1.6"></line>
+          <g id="ov-arm">
+            <line id="ov-arm-line" x1="50" y1="50" x2="80" y2="50" stroke="var(--accent)" stroke-width="1.1"></line>
+            <circle id="ov-arm-tip" cx="80" cy="50" r="1.6" fill="var(--accent)"></circle>
+          </g>
+          <circle cx="50" cy="50" r="1.3" fill="var(--text)"></circle>
+          <rect id="ov-hit" x="0" y="0" width="100" height="100" fill="transparent" tabindex="0" aria-label="Rotate angle"></rect>
+        </svg>
+        <div class="cam-placeholder" id="cam-placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          <p data-i18n="t.placeholder">Start the camera to see the protractor overlaid on the live view.</p>
         </div>
-        <div class="cam-stage">
-          <video id="cam-video" playsinline muted autoplay></video>
-          <svg class="ov grab" id="ov" viewBox="0 0 100 100" role="img" aria-label="Protractor overlay">
-            <circle id="ov-disc" cx="50" cy="50" r="30" fill="var(--accent-tint)" fill-opacity=".45" stroke="var(--accent)" stroke-opacity=".55" stroke-width=".6"></circle>
-            <g id="ov-ticks"></g>
-            <line id="ov-baseline" x1="20" y1="50" x2="80" y2="50" stroke="var(--text-3)" stroke-width=".6" stroke-dasharray="1.6,1.6"></line>
-            <g id="ov-arm">
-              <line id="ov-arm-line" x1="50" y1="50" x2="80" y2="50" stroke="var(--accent)" stroke-width="1.1"></line>
-              <circle id="ov-arm-tip" cx="80" cy="50" r="1.6" fill="var(--accent)"></circle>
-            </g>
-            <circle cx="50" cy="50" r="1.3" fill="var(--text)"></circle>
-            <rect id="ov-hit" x="0" y="0" width="100" height="100" fill="transparent" tabindex="0" aria-label="Rotate angle"></rect>
-          </svg>
-          <div class="cam-placeholder" id="cam-placeholder">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            <p data-i18n="t.placeholder">Start the camera to see the protractor overlaid on the live view.</p>
-          </div>
-        </div>
-        <div class="fs-bottom">
-          <button type="button" class="cam-fspause" id="cam-fspause" disabled>
-            <svg class="fsp-ico-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            <svg class="fsp-ico-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          </button>
-        </div>
+        <button type="button" class="cam-pausebtn" id="cam-pausebtn" disabled>
+          <svg class="ico-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <svg class="ico-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        </button>
       </div>
 
       <div class="readout" style="margin-top:var(--s4)">
@@ -177,8 +144,8 @@
   function $(id) { return document.getElementById(id); }
 
   var video = $("cam-video"), camwrap = $("camwrap"), placeholder = $("cam-placeholder"),
-      btnCam = $("btn-cam"), btnSwitch = $("btn-switch"), btnFs = $("btn-fs"), btnPause = $("btn-pause"),
-      camFsExit = $("cam-fsexit"), camFsPause = $("cam-fspause"), errBox = $("cam-err"),
+      btnCam = $("btn-cam"), btnSwitch = $("btn-switch"), btnFs = $("btn-fs"), fsRow = $("fs-row"),
+      camPause = $("cam-pausebtn"), errBox = $("cam-err"),
       angleSlider = $("angle-slider"), angleVal = $("angle-val"),
       sizeSlider = $("size-slider"), sizeVal = $("size-val"),
       ov = $("ov"), disc = $("ov-disc"), ticksG = $("ov-ticks"), baseline = $("ov-baseline"),
@@ -270,16 +237,11 @@
     btnCam.classList.toggle("btn--secondary", state.active);
     btnCam.classList.toggle("btn--primary", !state.active);
     btnSwitch.disabled = !state.active;
-    btnPause.disabled = !state.active;
-    btnPause.querySelector(".lbl-pause").hidden = state.paused;
-    btnPause.querySelector(".lbl-resume").hidden = !state.paused;
-    btnPause.querySelector(".ico-pause").hidden = state.paused;
-    btnPause.querySelector(".ico-resume").hidden = !state.paused;
-    camFsPause.disabled = !state.active;
-    camFsPause.classList.toggle("is-paused", state.paused);
-    camFsPause.querySelector(".fsp-ico-pause").hidden = state.paused;
-    camFsPause.querySelector(".fsp-ico-resume").hidden = !state.paused;
-    camFsPause.setAttribute("aria-label", Shell.t(state.paused ? "t.resume" : "t.pause"));
+    camPause.disabled = !state.active;
+    camPause.classList.toggle("is-paused", state.paused);
+    camPause.querySelector(".ico-pause").hidden = state.paused;
+    camPause.querySelector(".ico-resume").hidden = !state.paused;
+    camPause.setAttribute("aria-label", Shell.t(state.paused ? "t.resume" : "t.pause"));
     placeholder.hidden = state.active;
     var liveKey = !state.active ? "t.stopped" : (state.paused ? "t.paused" : "t.live");
     liveText.textContent = Shell.t(liveKey);
@@ -287,8 +249,7 @@
   }
   function pauseCamera() { if (!state.active || state.paused) return; video.pause(); state.paused = true; syncCamUI(); }
   function resumeCamera() { if (!state.active || !state.paused) return; video.play(); state.paused = false; syncCamUI(); }
-  btnPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
-  camFsPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
+  camPause.addEventListener("click", function () { state.paused ? resumeCamera() : pauseCamera(); });
 
   async function startCamera() {
     hideError();
@@ -313,39 +274,35 @@
   });
   window.addEventListener("pagehide", stopCamera);
 
-  /* ---- フルスクリーン（表示を最大化するだけの独自実装。
-     ブラウザ純正のFullscreen APIは要素単位の対応がブラウザ間で不安定
-     （特にiOS Safariでdiv等は非対応）なため使わず、常にこの方式に統一する。
-     終了手段を必ず自前で持てるので「戻れなくなる」事故が起きない。 ---- */
-  function isFs() { return camwrap.classList.contains("fs-fallback"); }
+  /* ---- フルスクリーン（ブラウザ純正のFullscreen APIのみを使う。
+     独自のCSS/DOM操作は行わない — ネイティブAPIはブラウザのトップレイヤーに
+     描画されるため、サイト側のヘッダー等のスタッキング事情に一切左右されず、
+     ESCキーやOS側のジェスチャーでも常に抜けられる。
+     div等の任意要素に非対応なブラウザ（主にiOS Safari）では、ボタン自体を隠す。 ---- */
+  var fsSupported = !!(camwrap.requestFullscreen || camwrap.webkitRequestFullscreen);
+  if (!fsSupported) { fsRow.hidden = true; }
+  function isFs() {
+    return document.fullscreenElement === camwrap || document.webkitFullscreenElement === camwrap;
+  }
   function syncFsUI() {
     var fs = isFs();
     btnFs.querySelector(".lbl-fs").hidden = fs;
     btnFs.querySelector(".lbl-exitfs").hidden = !fs;
   }
-  var camHome = { parent: null, next: null };
-  function enterFs() {
-    camHome.parent = camwrap.parentNode;
-    camHome.next = camwrap.nextSibling;
-    document.body.appendChild(camwrap); // .shell は z-index:0 でヘッダー(z-index:20)配下に固定されているため、
-                                         // fixed化しても内側にいる限りヘッダーを越えられない。一旦bodyへ退避する。
-    camwrap.classList.add("fs-fallback");
-    document.body.style.overflow = "hidden";
-    syncFsUI();
-  }
-  function exitFs() {
-    camwrap.classList.remove("fs-fallback");
-    document.body.style.overflow = "";
-    if (camHome.parent) {
-      if (camHome.next && camHome.next.parentNode === camHome.parent) camHome.parent.insertBefore(camwrap, camHome.next);
-      else camHome.parent.appendChild(camwrap);
+  function toggleFs() {
+    if (isFs()) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      var req = camwrap.requestFullscreen || camwrap.webkitRequestFullscreen;
+      var r = req.call(camwrap);
+      if (r && typeof r.catch === "function") r.catch(function () {});
     }
-    syncFsUI();
   }
-  function toggleFs() { isFs() ? exitFs() : enterFs(); }
-  btnFs.addEventListener("click", toggleFs);
-  camFsExit.addEventListener("click", exitFs);
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && isFs()) exitFs(); });
+  if (fsSupported) {
+    btnFs.addEventListener("click", toggleFs);
+    document.addEventListener("fullscreenchange", syncFsUI);
+    document.addEventListener("webkitfullscreenchange", syncFsUI);
+  }
 
   /* ---- 起動 ---- */
   updateGeometry(); setAngle(0); syncCamUI(); syncFsUI();
@@ -361,9 +318,9 @@
           "t.startCamera": "Start camera", "t.stopCamera": "Stop camera", "t.switchCamera": "Switch",
           "t.angle": "Angle", "t.size": "Protractor size",
           "t.draghint": "Drag anywhere on the camera view to rotate the arm, or use the slider. The dashed line is the fixed 0° reference — line it up with an edge first, then rotate the arm to the second edge.",
-          "t.fullscreen": "Fullscreen", "t.exitFullscreen": "Exit fullscreen", "t.exit": "Exit fullscreen",
-          "t.pause": "Pause camera", "t.resume": "Resume",
-          "t.pausehint": "Pausing freezes the picture (the camera stays on) so you can line up the protractor without the view moving.",
+          "t.fullscreen": "Fullscreen", "t.exitFullscreen": "Exit fullscreen",
+          "t.pause": "Pause", "t.resume": "Resume",
+          "t.pausehint": "The round button on the video pauses the picture (the camera stays on) so you can line up the protractor without the view moving.",
           "t.placeholder": "Start the camera to see the protractor overlaid on the live view.",
           "t.readoutLabel": "Angle", "t.readoutAngle": "From 0° reference",
           "t.live": "Camera on", "t.paused": "Paused", "t.stopped": "Camera off",
@@ -379,9 +336,9 @@
           "t.startCamera": "カメラを開始", "t.stopCamera": "カメラを停止", "t.switchCamera": "切り替え",
           "t.angle": "角度", "t.size": "分度器のサイズ",
           "t.draghint": "カメラ映像上をドラッグするとアームが回転します（スライダーでも操作可）。破線は固定された基準線（0°）です。まず基準線を測りたい辺の一方に合わせ、アームをもう一方の辺に合わせて角度を読み取ります。",
-          "t.fullscreen": "フルスクリーン", "t.exitFullscreen": "フルスクリーン終了", "t.exit": "フルスクリーンを終了",
+          "t.fullscreen": "フルスクリーン", "t.exitFullscreen": "フルスクリーン終了",
           "t.pause": "一時停止", "t.resume": "再開",
-          "t.pausehint": "一時停止すると映像が静止します（カメラ自体は起動したまま）。落ち着いて分度器を合わせられます。",
+          "t.pausehint": "映像上の丸いボタンで一時停止できます（カメラ自体は起動したまま静止します）。落ち着いて分度器を合わせられます。",
           "t.placeholder": "カメラを開始すると、映像に分度器が重ねて表示されます。",
           "t.readoutLabel": "角度", "t.readoutAngle": "基準線（0°）からの角度",
           "t.live": "カメラ起動中", "t.paused": "一時停止中", "t.stopped": "カメラ停止中",
