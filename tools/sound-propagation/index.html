@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sound propagation calculator — Vernier</title>
+
+<script>
+(function(){
+  try{
+    var m=localStorage.getItem("tb.theme");
+    var d=m ? m==="dark" : matchMedia("(prefers-color-scheme:dark)").matches;
+    document.documentElement.setAttribute("data-theme",d?"dark":"light");
+  }catch(e){}
+})();
+</script>
+
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+
+<style>
+  .inputgroup .input{ min-width:0; }
+  .unit{ width:74px; flex:0 0 74px; border-left:0; border-top-left-radius:0; border-bottom-left-radius:0; }
+  .inputgroup .input:first-child{ border-top-right-radius:0; border-bottom-right-radius:0; }
+  .fieldnote{ margin-top:6px; font-size:11.5px; color:var(--text-3); line-height:1.5; }
+  .formula{ font-family:var(--font-mono); font-size:12.5px; line-height:1.8; color:var(--text-2);
+    padding:var(--s3) var(--s4); border:1px solid var(--border); border-radius:var(--r);
+    background:var(--surface-2); overflow:auto; white-space:nowrap; }
+  .formula + .formula{ margin-top:6px; }
+  .assumptions{ display:flex; flex-direction:column; gap:8px; }
+  .assumption{ display:flex; gap:9px; align-items:flex-start; color:var(--text-2); font-size:12px; line-height:1.5; }
+  .assumption::before{ content:""; width:5px; height:5px; flex:0 0 5px; margin-top:7px; border-radius:50%; background:var(--text-3); }
+  .warning{ margin-top:var(--s4); padding:var(--s3) var(--s4); border:1px solid var(--border);
+    border-radius:var(--r); background:var(--surface-2); color:var(--text-2); font-size:12px; line-height:1.55; }
+  .warning strong{ color:var(--text); font-weight:600; }
+  .invalid{ border-color:var(--neg) !important; box-shadow:0 0 0 3px var(--neg-tint) !important; }
+  .readout .rrow--hero .rrow__value{ min-width:0; }
+  .subreadout{ margin-top:var(--s4); }
+  .sourcebadge{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--text-3); }
+  .sourcebadge .dot{ width:6px; height:6px; border-radius:50%; background:var(--pos); }
+  .mini-grid{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+  @media (max-width:520px){
+    .mini-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip" data-i18n="cat.audio">Audio</span>
+      <span class="chip chip--bl" data-i18n="t.chip">Free field</span>
+    </div>
+    <h1 data-i18n="t.title">Sound propagation calculator</h1>
+    <p data-i18n="t.desc">Estimate distance attenuation and acoustic arrival delay from a point source in still air.</p>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.inputTitle">Source & observation</div>
+
+        <div class="field">
+          <label class="label" for="level" data-i18n="t.level">Sound pressure level at reference distance</label>
+          <div class="inputgroup">
+            <input class="input" id="level" type="number" inputmode="decimal" step="0.1" value="80" aria-describedby="level-note">
+            <span class="input unit">dB SPL</span>
+          </div>
+          <div class="fieldnote" id="level-note" data-i18n="t.levelNote">This is SPL, not perceived loudness. It is defined at the reference distance below.</div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="ref" data-i18n="t.ref">Reference distance</label>
+          <div class="inputgroup">
+            <input class="input" id="ref" type="number" inputmode="decimal" min="0.001" step="0.1" value="1">
+            <span class="input unit">m</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="distance" data-i18n="t.distance">Observation distance</label>
+          <div class="inputgroup">
+            <input class="input" id="distance" type="number" inputmode="decimal" min="0.001" step="0.1" value="10">
+            <span class="input unit">m</span>
+          </div>
+          <div class="fieldnote" data-i18n="t.distanceNote">For the usual outward-propagation use, keep this distance at or above the reference distance.</div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="temp" data-i18n="t.temp">Air temperature</label>
+          <div class="inputgroup">
+            <input class="input" id="temp" type="number" inputmode="decimal" step="0.1" value="20">
+            <span class="input unit">°C</span>
+          </div>
+          <div class="fieldnote" data-i18n="t.tempNote">Dry-air approximation for sound speed. Humidity and pressure effects are not modeled.</div>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="reset" type="button" data-i18n="t.reset">Reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.modelTitle">Model</div>
+        <div class="formula">L(r) = L₀ − 20 log₁₀(r / r₀)</div>
+        <div class="formula">ΔL = 20 log₁₀(r / r₀)</div>
+        <div class="formula">t = r / c</div>
+        <div class="formula">c ≈ 331.3 + 0.606T&nbsp;&nbsp;[m/s]</div>
+        <div class="fieldnote" data-i18n="t.modelNote">Geometric spreading only. Atmospheric absorption, reflections, barriers, ground effect, source directivity, and wind are excluded.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout">
+        <div class="readout__head">
+          <span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="sourcebadge"><span class="dot"></span><span data-i18n="t.live">Live</span></span>
+        </div>
+
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.levelAtPoint">Level at observation point</span>
+          <span class="rrow__value" id="outLevel" data-copy="">— <span class="u">dB SPL</span></span>
+        </div>
+
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.attenuation">Geometric attenuation</span>
+          <span class="rrow__value" id="outAtten" data-copy="">— <span class="u">dB</span></span>
+        </div>
+
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.delay">Arrival delay</span>
+          <span class="rrow__value" id="outDelay" data-copy="">— <span class="u">ms</span></span>
+        </div>
+
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.speed">Speed of sound</span>
+          <span class="rrow__value" id="outSpeed" data-copy="">— <span class="u">m/s</span></span>
+        </div>
+
+        <div class="copyhint" data-i18n="t.copyhint">Click a value to copy it.</div>
+      </div>
+
+      <div class="card subreadout">
+        <div class="card__title" data-i18n="t.interpretTitle">Interpretation</div>
+        <div class="mini-grid">
+          <div>
+            <div class="label" data-i18n="t.ratio">Distance ratio</div>
+            <div class="mono" id="outRatio">—</div>
+          </div>
+          <div>
+            <div class="label" data-i18n="t.double">Change per distance doubling</div>
+            <div class="mono">−6.02 dB</div>
+          </div>
+        </div>
+        <div class="warning">
+          <strong data-i18n="t.pointSource">Point-source condition.</strong>
+          <span data-i18n="t.pointSourceNote"> The inverse-distance rule is a free-field geometric model. It is most appropriate when the observation distance is sufficiently large compared with the source dimensions and reflections are negligible.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.assumptionTitle">Assumptions</div>
+        <div class="assumptions">
+          <div class="assumption" data-i18n="t.a1">Air is stationary: no wind or flow.</div>
+          <div class="assumption" data-i18n="t.a2">The source is treated as an ideal point source with spherical spreading.</div>
+          <div class="assumption" data-i18n="t.a3">The input level is SPL measured at the reference distance.</div>
+          <div class="assumption" data-i18n="t.a4">No atmospheric absorption is included because frequency and humidity are not specified.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  var level = $("level");
+  var ref = $("ref");
+  var distance = $("distance");
+  var temp = $("temp");
+  var outLevel = $("outLevel");
+  var outAtten = $("outAtten");
+  var outDelay = $("outDelay");
+  var outSpeed = $("outSpeed");
+  var outRatio = $("outRatio");
+
+  var defaults = { level:80, ref:1, distance:10, temp:20 };
+
+  function num(el){
+    var v = Number(el.value);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  function clean(n, digits){
+    return Number(n.toFixed(digits)).toString();
+  }
+
+  function setValue(el, value, unit){
+    var text = value + " " + unit;
+    el.firstChild.nodeValue = text;
+    el.setAttribute("data-copy", text);
+  }
+
+  function invalidate(el, bad){
+    el.classList.toggle("invalid", bad);
+  }
+
+  function render(){
+    var L0 = num(level);
+    var r0 = num(ref);
+    var r = num(distance);
+    var T = num(temp);
+
+    var validLevel = Number.isFinite(L0);
+    var validRef = Number.isFinite(r0) && r0 > 0;
+    var validDistance = Number.isFinite(r) && r > 0;
+    var validTemp = Number.isFinite(T);
+
+    invalidate(level, !validLevel);
+    invalidate(ref, !validRef);
+    invalidate(distance, !validDistance);
+    invalidate(temp, !validTemp);
+
+    if(!validLevel || !validRef || !validDistance || !validTemp){
+      outLevel.firstChild.nodeValue = "— ";
+      outAtten.firstChild.nodeValue = "— ";
+      outDelay.firstChild.nodeValue = "— ";
+      outSpeed.firstChild.nodeValue = "— ";
+      outRatio.textContent = "—";
+      return;
+    }
+
+    /*
+      Free-field spherical spreading:
+      intensity ∝ 1/r², while SPL is logarithmic in pressure.
+      Therefore the SPL change is 20 log10(r/r0).
+    */
+    var attenuation = 20 * Math.log10(r / r0);
+    var Lr = L0 - attenuation;
+
+    /*
+      Linear dry-air approximation used by the tool:
+      c ≈ 331.3 + 0.606 T [m/s].
+      Propagation delay is distance divided by sound speed.
+    */
+    var c = 331.3 + 0.606 * T;
+    var delayMs = r / c * 1000;
+    var ratio = r / r0;
+
+    setValue(outLevel, clean(Lr, 2), "dB SPL");
+    setValue(outAtten, (attenuation >= 0 ? "" : "−") + clean(Math.abs(attenuation), 2), "dB");
+    setValue(outDelay, clean(delayMs, 3), "ms");
+    setValue(outSpeed, clean(c, 2), "m/s");
+    outRatio.textContent = clean(ratio, 3) + " ×";
+  }
+
+  function bind(el){
+    el.addEventListener("input", render);
+    el.addEventListener("change", render);
+  }
+
+  [level, ref, distance, temp].forEach(bind);
+
+  $("reset").addEventListener("click", function(){
+    level.value = defaults.level;
+    ref.value = defaults.ref;
+    distance.value = defaults.distance;
+    temp.value = defaults.temp;
+    render();
+  });
+
+  Shell.init({
+    id:"sound-propagation",
+    strings:{
+      en:{
+        "t.chip":"Free field",
+        "t.title":"Sound propagation calculator",
+        "t.desc":"Estimate distance attenuation and acoustic arrival delay from a point source in still air.",
+        "t.inputTitle":"Source & observation",
+        "t.level":"Sound pressure level at reference distance",
+        "t.levelNote":"This is SPL, not perceived loudness. It is defined at the reference distance below.",
+        "t.ref":"Reference distance",
+        "t.distance":"Observation distance",
+        "t.distanceNote":"For the usual outward-propagation use, keep this distance at or above the reference distance.",
+        "t.temp":"Air temperature",
+        "t.tempNote":"Dry-air approximation for sound speed. Humidity and pressure effects are not modeled.",
+        "t.reset":"Reset",
+        "t.modelTitle":"Model",
+        "t.modelNote":"Geometric spreading only. Atmospheric absorption, reflections, barriers, ground effect, source directivity, and wind are excluded.",
+        "t.output":"Output",
+        "t.live":"Live",
+        "t.levelAtPoint":"Level at observation point",
+        "t.attenuation":"Geometric attenuation",
+        "t.delay":"Arrival delay",
+        "t.speed":"Speed of sound",
+        "t.copyhint":"Click a value to copy it.",
+        "t.interpretTitle":"Interpretation",
+        "t.ratio":"Distance ratio",
+        "t.double":"Change per distance doubling",
+        "t.pointSource":"Point-source condition.",
+        "t.pointSourceNote":" The inverse-distance rule is a free-field geometric model. It is most appropriate when the observation distance is sufficiently large compared with the source dimensions and reflections are negligible.",
+        "t.assumptionTitle":"Assumptions",
+        "t.a1":"Air is stationary: no wind or flow.",
+        "t.a2":"The source is treated as an ideal point source with spherical spreading.",
+        "t.a3":"The input level is SPL measured at the reference distance.",
+        "t.a4":"No atmospheric absorption is included because frequency and humidity are not specified."
+      },
+      ja:{
+        "t.chip":"自由音場",
+        "t.title":"音の伝搬計算",
+        "t.desc":"無風の自由音場で、点音源からの距離による音圧レベルの減衰と到達遅延を計算します。",
+        "t.inputTitle":"音源・観測点",
+        "t.level":"基準距離での音圧レベル",
+        "t.levelNote":"ここで指定するのは聴感上の「音量」ではなくSPLです。下の基準距離における値として扱います。",
+        "t.ref":"基準距離",
+        "t.distance":"観測距離",
+        "t.distanceNote":"通常の遠方への伝搬を計算する場合は、観測距離を基準距離以上にしてください。",
+        "t.temp":"気温",
+        "t.tempNote":"音速には乾燥空気の近似式を使用します。湿度・気圧による補正は含めません。",
+        "t.reset":"リセット",
+        "t.modelTitle":"計算モデル",
+        "t.modelNote":"幾何学的な拡散のみを計算します。空気吸収、反射、遮蔽物、地面効果、音源指向性、風は考慮しません。",
+        "t.output":"計算結果",
+        "t.live":"ライブ",
+        "t.levelAtPoint":"観測点の音圧レベル",
+        "t.attenuation":"幾何学的減衰",
+        "t.delay":"到達遅延",
+        "t.speed":"音速",
+        "t.copyhint":"数値をクリックするとコピーできます。",
+        "t.interpretTitle":"読み方",
+        "t.ratio":"距離比",
+        "t.double":"距離が2倍になったときの変化",
+        "t.pointSource":"点音源の条件。",
+        "t.pointSourceNote":" 逆距離則は自由音場における幾何学的モデルです。観測距離が音源の大きさに対して十分大きく、反射の影響が無視できる場合に適しています。",
+        "t.assumptionTitle":"前提条件",
+        "t.a1":"空気は静止しているものとし、風や気流はありません。",
+        "t.a2":"音源を理想的な点音源とみなし、球面状に拡散すると仮定します。",
+        "t.a3":"入力値は基準距離で測定したSPLです。",
+        "t.a4":"周波数と湿度が指定されていないため、大気による吸収減衰は含めません。"
+      }
+    },
+    onSettingsChange:function(){ render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
