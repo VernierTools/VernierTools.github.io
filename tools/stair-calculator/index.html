@@ -24,10 +24,11 @@
   .stairprev svg{ display:block; width:100%; height:auto; }
   .diagram-note{ font-size:11px; color:var(--text-3); text-align:center; margin-top:2px; }
 
-  .badges{ padding:0 var(--s4) var(--s3); margin-top:0; }
+  .badges{ padding:0 var(--s4) var(--s2); margin-top:0; }
   .readout__head + .badges{ padding-top:var(--s3); }
 
   .handrail-card p{ font-size:12.5px; color:var(--text-2); line-height:1.55; margin-top:6px; }
+  .hintnote{ font-size:11.5px; color:var(--text-3); line-height:1.5; padding:0 var(--s4) var(--s3); margin:0; }
 </style>
 </head>
 <body>
@@ -35,13 +36,14 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
     <h1 data-i18n="t.title">Stair riser &amp; step calculator</h1>
-    <p data-i18n="t.desc">Calculate step count and riser height from total height, with a comfort-rule check.</p>
+    <p data-i18n="t.desc">A calculator for modeling realistic stairs in 3D. Enter the height you want the staircase to cover, and get a step count and per-step dimensions that don't look off.</p>
   </div>
 
   <div class="work">
     <!-- 左: 入力 -->
     <div>
       <div class="card">
+        <div class="card__title" data-i18n="t.step1">1. Enter the height and tread depth</div>
         <div class="field">
           <label class="label" data-i18n="t.height">Total height (floor to floor)</label>
           <div class="inputgroup">
@@ -50,7 +52,7 @@
           </div>
         </div>
         <div class="field">
-          <label class="label" data-i18n="t.tread">Tread depth (going)</label>
+          <label class="label" data-i18n="t.tread">Tread depth (front-to-back size of one step)</label>
           <div class="inputgroup">
             <input class="input" id="in-tread" type="number" min="150" max="400" step="1" value="250" inputmode="decimal">
             <span class="unit">mm</span>
@@ -59,10 +61,10 @@
       </div>
 
       <div class="card">
-        <label class="label" data-i18n="t.mode">Calculation method</label>
+        <div class="card__title" data-i18n="t.step2">2. Choose how to decide the step count</div>
         <div class="seg--2" id="seg-mode" role="group">
-          <button type="button" data-mode="riser" data-i18n="t.byRiser" aria-pressed="true">From target riser</button>
-          <button type="button" data-mode="steps" data-i18n="t.bySteps">From step count</button>
+          <button type="button" data-mode="riser" data-i18n="t.byRiser" aria-pressed="true">Auto (from a target riser height)</button>
+          <button type="button" data-mode="steps" data-i18n="t.bySteps">I'll set the step count myself</button>
         </div>
 
         <div class="field" id="field-riser" style="margin-top:var(--s4)">
@@ -82,28 +84,30 @@
 
     <!-- 右: 断面図 + 出力 -->
     <div>
+      <div class="card__title" data-i18n="t.step3" style="margin-bottom:var(--s3)">3. Use these numbers when modeling</div>
+
       <div class="preview stairprev" style="margin-bottom:var(--s2)">
         <svg id="stair-svg" viewBox="0 0 320 200" role="img" aria-label="Stair profile diagram"></svg>
       </div>
-      <div class="diagram-note" data-i18n="t.diagramNote" style="margin-bottom:var(--s4)">Schematic profile — slope is accurate, step count is simplified for clarity.</div>
+      <div class="diagram-note" data-i18n="t.diagramNote" style="margin-bottom:var(--s4)">Shape of one step, for reference — the slope is exact, but only a few steps are drawn to keep it readable.</div>
 
       <div class="readout">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">This staircase</span></div>
 
         <div class="rrow rrow--hero">
-          <span class="rrow__label" data-i18n="t.steps">Number of risers</span>
+          <span class="rrow__label" data-i18n="t.steps">Step count</span>
           <span class="rrow__value" id="ro-steps" data-copy="0">0</span>
         </div>
         <div class="rrow">
-          <span class="rrow__label" data-i18n="t.actualRiser">Actual riser height</span>
+          <span class="rrow__label" data-i18n="t.actualRiser">Height of one step</span>
           <span class="rrow__value" id="ro-riser" data-copy="0">0<span class="u">mm</span></span>
         </div>
         <div class="rrow">
-          <span class="rrow__label" data-i18n="t.tread2">Tread depth</span>
+          <span class="rrow__label" data-i18n="t.tread2">Depth of one step</span>
           <span class="rrow__value" id="ro-tread" data-copy="0">0<span class="u">mm</span></span>
         </div>
         <div class="rrow">
-          <span class="rrow__label" data-i18n="t.run">Total run (horizontal)</span>
+          <span class="rrow__label" data-i18n="t.run">Total horizontal length</span>
           <span class="rrow__value" id="ro-run" data-copy="0">0<span class="u">mm</span></span>
         </div>
         <div class="rrow">
@@ -111,17 +115,18 @@
           <span class="rrow__value" id="ro-angle" data-copy="0">0<span class="u">°</span></span>
         </div>
         <div class="rrow">
-          <span class="rrow__label" data-i18n="t.stringer">Stringer length (diagonal)</span>
+          <span class="rrow__label" data-i18n="t.stringer">Diagonal length, floor to floor</span>
           <span class="rrow__value" id="ro-stringer" data-copy="0">0<span class="u">mm</span></span>
         </div>
 
         <div class="badges" id="badges-blondel"></div>
+        <p class="hintnote" data-i18n="t.blondelNote">A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.</p>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
 
       <div class="card handrail-card" style="margin-top:var(--s4)">
-        <div class="eyebrow" data-i18n="t.handrailEyebrow">Handrail height guide</div>
-        <p data-i18n="t.handrailNote">A common reference for handrail height, measured vertically above the nosing line (the line connecting the front edges of the treads), is about 800–900&nbsp;mm. Always check the applicable building code for real construction.</p>
+        <div class="eyebrow" data-i18n="t.handrailEyebrow">If you're adding a handrail</div>
+        <p data-i18n="t.handrailNote">Placed roughly 800–900&nbsp;mm above the sloped line that connects the front edge of each step. A reasonable default for a 3D model — for a real build, check local building code.</p>
       </div>
     </div>
   </div>
@@ -185,8 +190,7 @@
     if (v >= 600 && v <= 660) { cls = "pos"; key = "t.blondelPos"; }
     else if ((v >= 580 && v < 600) || (v > 660 && v <= 680)) { cls = "muted"; key = "t.blondelWarn"; }
     else { cls = "neg"; key = "t.blondelNeg"; }
-    return '<span class="badge badge--' + cls + '"><span class="d"></span>' +
-      Shell.t(key) + ' — 2R+T = ' + fmt(v, 0) + ' mm</span>';
+    return '<span class="badge badge--' + cls + '"><span class="d"></span>' + Shell.t(key) + '</span>';
   }
 
   function render() {
@@ -305,53 +309,59 @@
       strings: {
         en: {
           "t.title": "Stair riser & step calculator",
-          "t.desc": "Calculate step count and riser height from total height, with a comfort-rule check.",
+          "t.desc": "A calculator for modeling realistic stairs in 3D. Enter the height you want the staircase to cover, and get a step count and per-step dimensions that don't look off.",
+          "t.step1": "1. Enter the height and tread depth",
+          "t.step2": "2. Choose how to decide the step count",
+          "t.step3": "3. Use these numbers when modeling",
           "t.height": "Total height (floor to floor)",
-          "t.tread": "Tread depth (going)",
-          "t.mode": "Calculation method",
-          "t.byRiser": "From target riser",
-          "t.bySteps": "From step count",
-          "t.targetRiser": "Target riser height",
-          "t.stepCount": "Number of risers",
-          "t.output": "Output",
-          "t.steps": "Number of risers",
-          "t.actualRiser": "Actual riser height",
-          "t.tread2": "Tread depth",
-          "t.run": "Total run (horizontal)",
+          "t.tread": "Tread depth (front-to-back size of one step)",
+          "t.byRiser": "Auto (from a target riser height)",
+          "t.bySteps": "I'll set the step count myself",
+          "t.targetRiser": "Target height for one step (riser)",
+          "t.stepCount": "Step count",
+          "t.output": "This staircase",
+          "t.steps": "Step count",
+          "t.actualRiser": "Height of one step",
+          "t.tread2": "Depth of one step",
+          "t.run": "Total horizontal length",
           "t.angle": "Slope angle",
-          "t.stringer": "Stringer length (diagonal)",
+          "t.stringer": "Diagonal length, floor to floor",
           "t.copyhint": "Click any value to copy.",
-          "t.diagramNote": "Schematic profile — slope is accurate, step count is simplified for clarity.",
-          "t.blondelPos": "Comfortable (Blondel's rule)",
-          "t.blondelWarn": "Borderline",
-          "t.blondelNeg": "Outside comfort range",
-          "t.handrailEyebrow": "Handrail height guide",
-          "t.handrailNote": "A common reference for handrail height, measured vertically above the nosing line (the line connecting the front edges of the treads), is about 800\u2013900 mm. Always check the applicable building code for real construction."
+          "t.diagramNote": "Shape of one step, for reference — the slope is exact, but only a few steps are drawn to keep it readable.",
+          "t.blondelPos": "Feels like a normal, walkable staircase",
+          "t.blondelWarn": "A bit steep or a bit shallow — still usable",
+          "t.blondelNeg": "Likely to feel awkward to walk (very steep or very shallow)",
+          "t.blondelNote": "A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.",
+          "t.handrailEyebrow": "If you're adding a handrail",
+          "t.handrailNote": "Placed roughly 800\u2013900 mm above the sloped line that connects the front edge of each step. A reasonable default for a 3D model \u2014 for a real build, check local building code."
         },
         ja: {
           "t.title": "階段の蹴上げ・段数計算",
-          "t.desc": "全体の高さから段数・蹴上げ寸法を計算。快適性の目安（ブロンデルの法則）も判定。",
+          "t.desc": "3DCGで階段を作るときに使う計算機です。作りたい高さを入れると、不自然にならない段数と、1段ごとの寸法が分かります。",
+          "t.step1": "1. 高さと踏面を入力",
+          "t.step2": "2. 段数の決め方を選ぶ",
+          "t.step3": "3. モデリングにはこの数値を使う",
           "t.height": "全体の高さ（床から床まで）",
-          "t.tread": "踏面（トレッド）",
-          "t.mode": "計算方法",
-          "t.byRiser": "目安の蹴上げから",
-          "t.bySteps": "段数から",
-          "t.targetRiser": "目安の蹴上げ寸法",
-          "t.stepCount": "段数（蹴上げの数）",
-          "t.output": "出力",
+          "t.tread": "踏面（1段あたりの奥行き）",
+          "t.byRiser": "自動（目安の蹴上げ高さから）",
+          "t.bySteps": "段数を自分で指定する",
+          "t.targetRiser": "1段の高さの目安（蹴上げ）",
+          "t.stepCount": "段数",
+          "t.output": "この階段の数値",
           "t.steps": "段数",
-          "t.actualRiser": "実際の蹴上げ寸法",
-          "t.tread2": "踏面",
-          "t.run": "総奥行き（水平距離）",
-          "t.angle": "勾配角度",
-          "t.stringer": "ストリンガー長（斜辺）",
+          "t.actualRiser": "1段の高さ",
+          "t.tread2": "1段の奥行き",
+          "t.run": "水平方向の合計の長さ",
+          "t.angle": "傾斜角度",
+          "t.stringer": "床から床までの斜めの長さ",
           "t.copyhint": "数値をクリックでコピー。",
-          "t.diagramNote": "断面の模式図（勾配は正確、段数は見やすさのため簡略化）",
-          "t.blondelPos": "快適（ブロンデルの法則）",
-          "t.blondelWarn": "やや外れる",
-          "t.blondelNeg": "快適範囲外",
-          "t.handrailEyebrow": "手すり高さの目安",
-          "t.handrailNote": "手すりの高さは、踏面の先端を結ぶ斜めのライン（歩行線）から垂直に800〜900mm程度が一般的な目安です。実際の施工では該当する建築基準への確認が必要です。"
+          "t.diagramNote": "1段の形の参考図（勾配は正確。見やすさのため段数は数段だけ描いています）",
+          "t.blondelPos": "違和感のない、歩きやすい階段の比率です",
+          "t.blondelWarn": "やや急、または緩やか。歩けなくはない範囲です",
+          "t.blondelNeg": "急すぎる／緩やかすぎて、歩きにくく見える可能性があります",
+          "t.blondelNote": "実際の建物での目安です。見た目だけでなく「歩けそうな階段」にしたいときの参考にどうぞ。",
+          "t.handrailEyebrow": "手すりを付ける場合",
+          "t.handrailNote": "各段の先端を結んだ斜めのラインから、垂直に800〜900mmくらいが目安です。3Dモデルとしてはこれで十分ですが、実際の建築では建築基準の確認が必要です。"
         }
       },
       onSettingsChange: render
