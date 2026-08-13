@@ -297,10 +297,17 @@
       return Math.round(v).toString(16).padStart(2,"0");
     }).join("").toUpperCase();
   }
-  function rgbText(c){ return "rgb("+[c.r,c.g,c.b].map(Math.round).join(", ")+")"; }
+  // 画面表示用（rgb(...) / hsv(...) の慣用表記）とコピー用（数値だけ）を分けて返す。
+  // コピー値は他ソフトの入力欄にそのまま貼り付けて使えることを優先し、
+  // 関数名・かっこ・単位記号（% や °）を含めない（vernier-spec.md §5.7）。
+  function rgbText(c){
+    var vals=[c.r,c.g,c.b].map(Math.round);
+    return { display:"rgb("+vals.join(", ")+")", copy:vals.join(", ") };
+  }
   function hsvText(c){
     var v=rgbToHsv(c.r,c.g,c.b);
-    return "hsv("+v.h.toFixed(1)+"°, "+v.s.toFixed(1)+"%, "+v.v.toFixed(1)+"%)";
+    var vals=[v.h.toFixed(1), v.s.toFixed(1), v.v.toFixed(1)];
+    return { display:"hsv("+vals[0]+"°, "+vals[1]+"%, "+vals[2]+"%)", copy:vals.join(", ") };
   }
   // スウォッチ上の文字色。背景の相対輝度で白/黒を切り替える（薄い色でも読める）。
   function inkFor(c){
@@ -309,22 +316,24 @@
     return L>0.36 ? "#16181D" : "#FFFFFF";
   }
 
-  function setValue(id, text){
+  // 画面には display（rgb(...) 等の読みやすい表記）を出し、コピーには copy（数値だけ）を使う。
+  // HEXは値自体が短い慣用表記で貼り付け先もそのまま受け付けるため、display と copy は同じにする。
+  function setValue(id, display, copy){
     var el=$(id);
-    el.textContent=text;
-    el.setAttribute("data-copy",text);
+    el.textContent=display;
+    el.setAttribute("data-copy", copy);
   }
   function setColor(prefix,c){
-    var hex=toHex(c);
+    var hex=toHex(c), rgb=rgbText(c), hsv=hsvText(c);
     var swatch=$(prefix+"-swatch");
     swatch.style.backgroundColor=hex;
     swatch.style.setProperty("--swatch-ink", inkFor(c));
     swatch.classList.add("is-set");
     swatch.setAttribute("data-copy",hex);
     $(prefix+"-hex-large").textContent=hex;
-    setValue(prefix+"-hex",hex);
-    setValue(prefix+"-rgb",rgbText(c));
-    setValue(prefix+"-hsv",hsvText(c));
+    setValue(prefix+"-hex", hex, hex);
+    setValue(prefix+"-rgb", rgb.display, rgb.copy);
+    setValue(prefix+"-hsv", hsv.display, hsv.copy);
   }
 
   /* ---------- 読み込み ---------- */
@@ -432,7 +441,8 @@
   document.querySelectorAll(".copy-btn").forEach(function(btn){
     btn.addEventListener("click",function(){
       var target=$(btn.getAttribute("data-copy-target"));
-      if(target && target.textContent.trim()!=="—") Shell.copy(target.textContent.trim(),btn);
+      var v=target && target.getAttribute("data-copy");
+      if(v) Shell.copy(v,btn);
     });
   });
 
