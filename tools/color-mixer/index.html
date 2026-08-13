@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color mixer — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- 色の行（スウォッチ + HEX + 比率スライダー + 削除） ---- */
+  .mixrow{ padding:var(--s4) 0; }
+  .mixrow:first-child{ padding-top:0; }
+  .mixrow + .mixrow{ border-top:1px solid var(--border); }
+  .mixrow__top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .mixrow__label{ font-size:12.5px; font-weight:500; color:var(--text-2); }
+  .mixrow__del{ appearance:none; border:0; background:transparent; cursor:pointer; color:var(--text-3);
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:var(--r-sm);
+    transition:background var(--tap), color var(--tap); }
+  .mixrow__del:hover{ background:var(--neg-tint); color:var(--neg); }
+  .mixrow__del:disabled{ opacity:.35; cursor:not-allowed; }
+  .mixrow__del:disabled:hover{ background:transparent; color:var(--text-3); }
+  .mixrow__del svg{ width:14px; height:14px; }
+  .mixrow__inputs{ display:flex; gap:var(--s2); margin-bottom:var(--s3); }
+  .mixrow__swatch{ -webkit-appearance:none; appearance:none; width:38px; height:38px; padding:0; flex:0 0 auto;
+    border:1px solid var(--border-strong); border-radius:var(--r); background:none; cursor:pointer; }
+  .mixrow__swatch::-webkit-color-swatch-wrapper{ padding:3px; }
+  .mixrow__swatch::-webkit-color-swatch{ border:none; border-radius:4px; }
+  .mixrow__swatch::-moz-color-swatch{ border:none; border-radius:4px; }
+  .mixrow__hex{ flex:1; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.03em; }
+  .mixrow .sliderrow{ margin:0; }
+
+  /* ---- 比率バー ---- */
+  .ratiobar{ display:flex; height:10px; border-radius:100px; overflow:hidden; background:var(--border); }
+  .ratiobar__seg{ height:100%; transition:width var(--tap); }
+  .ratiobar__seg:not(:last-child){ border-right:1.5px solid var(--surface); }
+
+  /* ---- クイック追加パレット ---- */
+  .palette{ display:flex; gap:8px; flex-wrap:wrap; }
+  .palette__sw{ appearance:none; width:26px; height:26px; border-radius:50%; padding:0; cursor:pointer;
+    border:1px solid var(--border-strong); box-shadow:var(--shadow-sm); transition:transform var(--tap), box-shadow var(--tap); }
+  .palette__sw:hover{ transform:scale(1.12); box-shadow:var(--shadow-md); }
+  .palette:has(+ [disabled]){ opacity:.5; }
+
+  /* ---- 結果スウォッチ ---- */
+  .swatchbox{ height:172px; border-radius:var(--r-lg); border:1px solid var(--border); box-shadow:var(--shadow-sm);
+    background:#EE3B3B; transition:background var(--tap); }
+
+  /* ---- 出力（HEX/RGB/HSL は長めの文字列なので既定より小さく） ---- */
+  .mixreadout .rrow__value{ font-size:14.5px; font-weight:500; }
+
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+  .cardhead{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:var(--s4); }
+  .cardhead .card__title{ margin-bottom:0; }
+  .count{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Color mixer</h1>
+    <p data-i18n="t.desc">Mix multiple colors by ratio and see the result. Switch between additive (light) and subtractive (paint/pigment, approximate) mixing.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: モード選択・色と比率の入力 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.mode">Mixing mode</div>
+        <div class="seg seg--2" id="seg-mode" role="group">
+          <button type="button" data-mode="additive" aria-pressed="true" data-i18n="t.additive">Additive (light)</button>
+          <button type="button" data-mode="subtractive" data-i18n="t.subtractive">Subtractive (paint)</button>
+        </div>
+        <div class="hint" id="modehint" data-i18n="t.hintadd">Calculates the color when light sources overlap, as a weighted average in linear light space.</div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="cardhead">
+          <div class="card__title" data-i18n="t.colors">Colors &amp; ratio</div>
+          <span class="count" id="colorcount">2 / 6</span>
+        </div>
+
+        <div id="colorlist"><!-- JSが色の行を生成 --></div>
+
+        <div class="field" style="margin-top:var(--s2)">
+          <label class="label" data-i18n="t.ratio">Proportion</label>
+          <div class="ratiobar" id="ratiobar"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.presets">Quick add</label>
+          <div class="palette" id="palette"></div>
+        </div>
+
+        <div class="btnrow" style="margin-top:var(--s3)">
+          <button type="button" class="btn btn--secondary btn--block" id="addcolor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="t.addcolor">Add color</span>
+          </button>
+        </div>
+        <div class="btnrow" style="margin-top:var(--s2)">
+          <button type="button" class="btn btn--ghost btn--block" id="resetbtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            <span data-i18n="t.reset">Reset</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 結果プレビュー + 出力 -->
+    <div>
+      <div class="swatchbox" id="swatchbox" style="margin-bottom:var(--s4)"></div>
+
+      <div class="readout mixreadout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.result">Result</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.hex">HEX</span><span class="rrow__value mono" id="out-hex" data-copy="">#EE3B3B</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.rgb">RGB</span><span class="rrow__value mono" id="out-rgb" data-copy="">rgb(238, 59, 59)</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.hsl">HSL</span><span class="rrow__value mono" id="out-hsl" data-copy="">hsl(0, 79.9%, 58.2%)</span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var MIN = 2, MAX = 6;
+  var PALETTE = ["#EE3B3B","#F2994A","#F2C230","#2FB350","#17A398","#2F6FED","#9B51E0","#F2799A","#FFFFFF","#1A1A1A"];
+
+  var state = {
+    mode: "additive", // additive | subtractive
+    colors: [ { hex: "#EE3B3B", w: 50 }, { hex: "#2FB350", w: 50 } ]
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var colorlist = $("colorlist"), ratiobar = $("ratiobar"), paletteEl = $("palette");
+  var addBtn = $("addcolor"), resetBtn = $("resetbtn"), countEl = $("colorcount");
+  var segMode = $("seg-mode"), modeHint = $("modehint");
+  var swatchbox = $("swatchbox");
+  var outHex = $("out-hex"), outRgb = $("out-rgb"), outHsl = $("out-hsl");
+
+  // ---- Shell 有無に関わらず動く最小限の文言フォールバック ----
+  var FALLBACK = {
+    "t.color":"Color", "t.removecolor":"Remove color", "t.needmin":"At least 2 colors are needed",
+    "t.maxcolors":"Up to 6 colors", "t.weight":"weight",
+    "t.hintadd":"Calculates the color when light sources overlap, as a weighted average in linear light space.",
+    "t.hintsub":"Approximates the color when paints or pigments are mixed, as a weighted average in CMY."
+  };
+  function t(key) {
+    if (typeof Shell !== "undefined" && Shell) return Shell.t(key);
+    return FALLBACK[key] || key;
+  }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+  // ---- 色変換ユーティリティ ----
+  function clamp(n, lo, hi) { return n < lo ? lo : n > hi ? hi : n; }
+  function clamp255(n) { return clamp(Math.round(n), 0, 255); }
+  function normalizeHex(s) {
+    s = (s || "").trim().replace(/^#/, "");
+    if (/^[0-9a-fA-F]{3}$/.test(s)) s = s.split("").map(function (c) { return c + c; }).join("");
+    if (!/^[0-9a-fA-F]{6}$/.test(s)) return null;
+    return "#" + s.toUpperCase();
+  }
+  function hexToRgb(hex) {
+    var s = hex.replace("#", "");
+    return { r: parseInt(s.substr(0, 2), 16), g: parseInt(s.substr(2, 2), 16), b: parseInt(s.substr(4, 2), 16) };
+  }
+  function rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map(function (v) {
+      var h = clamp255(v).toString(16).toUpperCase();
+      return h.length < 2 ? "0" + h : h;
+    }).join("");
+  }
+  function srgbToLinear(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  function linearToSrgb(v) { var s = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return clamp(s, 0, 1) * 255; }
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h, s, l = (max + min) / 2;
+    if (max === min) { h = 0; s = 0; }
+    else {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h /= 6;
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 1000) / 10, l: Math.round(l * 1000) / 10 };
+  }
+
+  // ---- 比率の正規化（合計0のときは等分にフォールバック） ----
+  function effWeights() {
+    var sum = 0;
+    state.colors.forEach(function (c) { sum += Math.max(0, c.w); });
+    if (sum <= 0) return state.colors.map(function () { return 1 / state.colors.length; });
+    return state.colors.map(function (c) { return Math.max(0, c.w) / sum; });
+  }
+
+  // ---- 混色計算 ----
+  function mixColors() {
+    var ws = effWeights();
+    var rgbs = state.colors.map(function (c) { return hexToRgb(c.hex); });
+    if (state.mode === "additive") {
+      var rl = 0, gl = 0, bl = 0;
+      rgbs.forEach(function (c, i) {
+        rl += srgbToLinear(c.r) * ws[i]; gl += srgbToLinear(c.g) * ws[i]; bl += srgbToLinear(c.b) * ws[i];
+      });
+      return { r: clamp255(linearToSrgb(rl)), g: clamp255(linearToSrgb(gl)), b: clamp255(linearToSrgb(bl)) };
+    }
+    var c1 = 0, m1 = 0, y1 = 0;
+    rgbs.forEach(function (col, i) {
+      c1 += (1 - col.r / 255) * ws[i]; m1 += (1 - col.g / 255) * ws[i]; y1 += (1 - col.b / 255) * ws[i];
+    });
+    return { r: clamp255((1 - c1) * 255), g: clamp255((1 - m1) * 255), b: clamp255((1 - y1) * 255) };
+  }
+
+  // ---- 出力・比率バー・％表示の更新（行のDOMは作り直さない = スライダー操作中も安定） ----
+  function updateOutputs() {
+    var ws = effWeights();
+    var pctEls = colorlist.querySelectorAll('[data-act="pct"]');
+    var segEls = ratiobar.querySelectorAll(".ratiobar__seg");
+    state.colors.forEach(function (c, i) {
+      var pct = Math.round(ws[i] * 1000) / 10;
+      if (pctEls[i]) pctEls[i].textContent = pct + "%";
+      if (segEls[i]) { segEls[i].style.width = (ws[i] * 100) + "%"; segEls[i].style.background = c.hex; }
+    });
+
+    var mixed = mixColors();
+    var hex = rgbToHex(mixed.r, mixed.g, mixed.b);
+    var hsl = rgbToHsl(mixed.r, mixed.g, mixed.b);
+
+    swatchbox.style.background = hex;
+
+    outHex.textContent = hex; outHex.setAttribute("data-copy", hex);
+    var rgbDisplay = "rgb(" + mixed.r + ", " + mixed.g + ", " + mixed.b + ")";
+    outRgb.textContent = rgbDisplay; outRgb.setAttribute("data-copy", mixed.r + ", " + mixed.g + ", " + mixed.b);
+    var hslDisplay = "hsl(" + hsl.h + "\u00B0, " + hsl.s.toFixed(1) + "%, " + hsl.l.toFixed(1) + "%)";
+    outHsl.textContent = hslDisplay; outHsl.setAttribute("data-copy", hsl.h + ", " + hsl.s.toFixed(1) + ", " + hsl.l.toFixed(1));
+  }
+
+  // ---- 行・比率バーの再構築（色の追加/削除・言語切替のときだけ呼ぶ） ----
+  var svgX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  function renderRows() {
+    var atMin = state.colors.length <= MIN;
+    colorlist.innerHTML = state.colors.map(function (c, i) {
+      var delAttrs = atMin
+        ? 'disabled title="' + esc(t("t.needmin")) + '"'
+        : 'title="' + esc(t("t.removecolor")) + '"';
+      var label = esc(t("t.color")) + " " + (i + 1);
+      return (
+        '<div class="mixrow" data-idx="' + i + '">' +
+          '<div class="mixrow__top">' +
+            '<span class="mixrow__label">' + label + '</span>' +
+            '<button type="button" class="mixrow__del" data-act="del" ' + delAttrs + ' aria-label="' + esc(t("t.removecolor")) + ' ' + (i + 1) + '">' + svgX + '</button>' +
+          '</div>' +
+          '<div class="mixrow__inputs">' +
+            '<input type="color" class="mixrow__swatch" data-act="picker" value="' + c.hex + '" aria-label="' + label + '">' +
+            '<input type="text" class="input mono mixrow__hex" data-act="hex" value="' + c.hex + '" maxlength="7" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="' + label + ' HEX">' +
+          '</div>' +
+          '<div class="sliderrow">' +
+            '<input type="range" class="slider" data-act="weight" min="0" max="100" step="1" value="' + c.w + '" aria-label="' + label + ' ' + esc(t("t.weight")) + '">' +
+            '<span class="val" data-act="pct">0%</span>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+
+    ratiobar.innerHTML = state.colors.map(function (c) {
+      return '<div class="ratiobar__seg" style="background:' + c.hex + '"></div>';
+    }).join("");
+
+    addBtn.disabled = state.colors.length >= MAX;
+    addBtn.title = addBtn.disabled ? t("t.maxcolors") : "";
+    countEl.textContent = state.colors.length + " / " + MAX;
+
+    updateOutputs();
+  }
+
+  // ---- 色の追加/削除 ----
+  function addColor(hex) {
+    if (state.colors.length >= MAX) return;
+    if (!hex) {
+      var used = state.colors.map(function (c) { return c.hex; });
+      hex = PALETTE.filter(function (p) { return used.indexOf(p) < 0; })[0] || PALETTE[state.colors.length % PALETTE.length];
+    }
+    state.colors.push({ hex: normalizeHex(hex) || hex, w: 50 });
+    renderRows();
+  }
+  function removeColor(idx) {
+    if (state.colors.length <= MIN) return;
+    state.colors.splice(idx, 1);
+    renderRows();
+  }
+  function resetAll() {
+    state.mode = "additive";
+    state.colors = [ { hex: "#EE3B3B", w: 50 }, { hex: "#2FB350", w: 50 } ];
+    syncMode(); updateModeHint(); renderRows();
+  }
+
+  // ---- モード切替 ----
+  function syncMode() {
+    segMode.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === state.mode));
+    });
+  }
+  function updateModeHint() {
+    modeHint.textContent = t(state.mode === "additive" ? "t.hintadd" : "t.hintsub");
+  }
+  segMode.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.mode = b.getAttribute("data-mode");
+    syncMode(); updateModeHint(); updateOutputs();
+  });
+
+  // ---- 色の行内の操作（イベント委譲。行を作り直さないのでスライダー操作が途切れない） ----
+  colorlist.addEventListener("input", function (e) {
+    var row = e.target.closest(".mixrow"); if (!row) return;
+    var idx = parseInt(row.getAttribute("data-idx"), 10);
+    var act = e.target.getAttribute("data-act");
+    if (act === "weight") {
+      state.colors[idx].w = parseInt(e.target.value, 10) || 0;
+      updateOutputs();
+    } else if (act === "picker") {
+      var hex = e.target.value.toUpperCase();
+      state.colors[idx].hex = hex;
+      var hexInput = row.querySelector('[data-act="hex"]');
+      if (hexInput) hexInput.value = hex;
+      updateOutputs();
+    } else if (act === "hex") {
+      var norm = normalizeHex(e.target.value);
+      if (norm) {
+        state.colors[idx].hex = norm;
+        var picker = row.querySelector('[data-act="picker"]');
+        if (picker) picker.value = norm;
+        updateOutputs();
+      }
+    }
+  });
+  colorlist.addEventListener("focusout", function (e) {
+    if (e.target.getAttribute("data-act") !== "hex") return;
+    var row = e.target.closest(".mixrow"); if (!row) return;
+    var idx = parseInt(row.getAttribute("data-idx"), 10);
+    e.target.value = state.colors[idx].hex; // 不正入力・大小混在を正規化済みの値へ揃える
+  });
+  colorlist.addEventListener("click", function (e) {
+    var b = e.target.closest('[data-act="del"]'); if (!b || b.disabled) return;
+    var row = e.target.closest(".mixrow"); if (!row) return;
+    removeColor(parseInt(row.getAttribute("data-idx"), 10));
+  });
+
+  // ---- クイック追加パレット ----
+  paletteEl.innerHTML = PALETTE.map(function (hex) {
+    return '<button type="button" class="palette__sw" data-hex="' + hex + '" style="background:' + hex + '" title="' + hex + '"></button>';
+  }).join("");
+  paletteEl.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    addColor(b.getAttribute("data-hex"));
+  });
+
+  addBtn.addEventListener("click", function () { addColor(); });
+  resetBtn.addEventListener("click", resetAll);
+
+  // ---- 起動 ----
+  syncMode();
+  updateModeHint();
+  renderRows();
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "color-mixer",
+      strings: {
+        en: {
+          "t.title": "Color mixer",
+          "t.desc": "Mix multiple colors by ratio and see the result. Switch between additive (light) and subtractive (paint/pigment, approximate) mixing.",
+          "t.mode": "Mixing mode",
+          "t.additive": "Additive (light)",
+          "t.subtractive": "Subtractive (paint)",
+          "t.hintadd": "Calculates the color when light sources overlap, as a weighted average in linear light space. E.g. red light + green light \u2192 yellowish light.",
+          "t.hintsub": "Approximates the color when paints or pigments are mixed, as a weighted average in CMY. Real pigments vary, so treat this as a rough guide.",
+          "t.colors": "Colors & ratio",
+          "t.color": "Color",
+          "t.weight": "weight",
+          "t.removecolor": "Remove color",
+          "t.needmin": "At least 2 colors are needed",
+          "t.addcolor": "Add color",
+          "t.maxcolors": "Up to 6 colors",
+          "t.presets": "Quick add",
+          "t.reset": "Reset",
+          "t.result": "Result",
+          "t.hex": "HEX",
+          "t.rgb": "RGB",
+          "t.hsl": "HSL",
+          "t.copyhint": "Click any value to copy.",
+          "t.ratio": "Proportion"
+        },
+        ja: {
+          "t.title": "色の混合",
+          "t.desc": "複数の色を比率で混ぜたときの結果を計算します。光の混色（加法）と、絵の具・顔料の混色（減法・近似）を切り替えられます。",
+          "t.mode": "混色モード",
+          "t.additive": "加法混色（光）",
+          "t.subtractive": "減法混色（絵の具）",
+          "t.hintadd": "複数の光を重ねたときの色を、線形光空間での加重平均として計算します。例：赤い光＋緑の光→黄色っぽい光。",
+          "t.hintsub": "絵の具や顔料を混ぜたときの色を、CMYでの加重平均として簡易的に近似します。実際の顔料特性により結果は変わるため、目安としてご利用ください。",
+          "t.colors": "色と比率",
+          "t.color": "色",
+          "t.weight": "重み",
+          "t.removecolor": "この色を削除",
+          "t.needmin": "最低2色は必要です",
+          "t.addcolor": "色を追加",
+          "t.maxcolors": "最大6色までです",
+          "t.presets": "クイック追加",
+          "t.reset": "リセット",
+          "t.result": "結果",
+          "t.hex": "HEX",
+          "t.rgb": "RGB",
+          "t.hsl": "HSL",
+          "t.copyhint": "数値をクリックでコピー。",
+          "t.ratio": "割合"
+        }
+      },
+      onSettingsChange: function () { updateModeHint(); renderRows(); }
+    });
+  }
+})();
+</script>
+</body>
+</html>
