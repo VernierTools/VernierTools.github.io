@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stair riser &amp; step calculator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .seg--2{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .seg--2 button{ appearance:none; cursor:pointer; font:inherit; font-size:12.5px; font-weight:500;
+    height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); padding:0 6px; }
+  .seg--2 button:hover{ border-color:var(--text-3); }
+  .seg--2 button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .stairprev{ background:var(--surface); padding:var(--s4) var(--s4) var(--s3); }
+  .stairprev svg{ display:block; width:100%; height:auto; }
+  .diagram-note{ font-size:11px; color:var(--text-3); text-align:center; margin-top:2px; }
+
+  .badges{ padding:0 var(--s4) var(--s3); margin-top:0; }
+  .readout__head + .badges{ padding-top:var(--s3); }
+
+  .handrail-card p{ font-size:12.5px; color:var(--text-2); line-height:1.55; margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
+    <h1 data-i18n="t.title">Stair riser &amp; step calculator</h1>
+    <p data-i18n="t.desc">Calculate step count and riser height from total height, with a comfort-rule check.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.height">Total height (floor to floor)</label>
+          <div class="inputgroup">
+            <input class="input" id="in-height" type="number" min="100" max="12000" step="1" value="2400" inputmode="decimal">
+            <span class="unit">mm</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.tread">Tread depth (going)</label>
+          <div class="inputgroup">
+            <input class="input" id="in-tread" type="number" min="150" max="400" step="1" value="250" inputmode="decimal">
+            <span class="unit">mm</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label" data-i18n="t.mode">Calculation method</label>
+        <div class="seg--2" id="seg-mode" role="group">
+          <button type="button" data-mode="riser" data-i18n="t.byRiser" aria-pressed="true">From target riser</button>
+          <button type="button" data-mode="steps" data-i18n="t.bySteps">From step count</button>
+        </div>
+
+        <div class="field" id="field-riser" style="margin-top:var(--s4)">
+          <label class="label" data-i18n="t.targetRiser">Target riser height</label>
+          <div class="sliderrow">
+            <input class="slider" id="in-target-riser" type="range" min="120" max="230" step="1" value="180">
+            <span class="val mono" id="val-target-riser">180 mm</span>
+          </div>
+        </div>
+
+        <div class="field" id="field-steps" style="margin-top:var(--s4)" hidden>
+          <label class="label" data-i18n="t.stepCount">Number of risers</label>
+          <input class="input" id="in-steps" type="number" min="1" max="80" step="1" value="13" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 断面図 + 出力 -->
+    <div>
+      <div class="preview stairprev" style="margin-bottom:var(--s2)">
+        <svg id="stair-svg" viewBox="0 0 320 200" role="img" aria-label="Stair profile diagram"></svg>
+      </div>
+      <div class="diagram-note" data-i18n="t.diagramNote" style="margin-bottom:var(--s4)">Schematic profile — slope is accurate, step count is simplified for clarity.</div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span></div>
+
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.steps">Number of risers</span>
+          <span class="rrow__value" id="ro-steps" data-copy="0">0</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.actualRiser">Actual riser height</span>
+          <span class="rrow__value" id="ro-riser" data-copy="0">0<span class="u">mm</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.tread2">Tread depth</span>
+          <span class="rrow__value" id="ro-tread" data-copy="0">0<span class="u">mm</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.run">Total run (horizontal)</span>
+          <span class="rrow__value" id="ro-run" data-copy="0">0<span class="u">mm</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.angle">Slope angle</span>
+          <span class="rrow__value" id="ro-angle" data-copy="0">0<span class="u">°</span></span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.stringer">Stringer length (diagonal)</span>
+          <span class="rrow__value" id="ro-stringer" data-copy="0">0<span class="u">mm</span></span>
+        </div>
+
+        <div class="badges" id="badges-blondel"></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+
+      <div class="card handrail-card" style="margin-top:var(--s4)">
+        <div class="eyebrow" data-i18n="t.handrailEyebrow">Handrail height guide</div>
+        <p data-i18n="t.handrailNote">A common reference for handrail height, measured vertically above the nosing line (the line connecting the front edges of the treads), is about 800–900&nbsp;mm. Always check the applicable building code for real construction.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var inHeight = $("in-height"), inTread = $("in-tread");
+  var segMode = $("seg-mode"), fieldRiser = $("field-riser"), fieldSteps = $("field-steps");
+  var inTargetRiser = $("in-target-riser"), valTargetRiser = $("val-target-riser");
+  var inSteps = $("in-steps");
+  var svg = $("stair-svg");
+  var badgesBox = $("badges-blondel");
+
+  var roSteps = $("ro-steps"), roRiser = $("ro-riser"), roTread = $("ro-tread"),
+      roRun = $("ro-run"), roAngle = $("ro-angle"), roStringer = $("ro-stringer");
+
+  var mode = "riser"; // riser | steps
+
+  function num(el, dflt) { var v = parseFloat(el.value); return isFinite(v) ? v : dflt; }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function round(v, dp) { var m = Math.pow(10, dp); return Math.round(v * m) / m; }
+  function fmt(v, dp) { return round(v, dp).toFixed(dp); }
+
+  function setValue(el, text, unitHtml, copyVal) {
+    el.innerHTML = text + (unitHtml ? '<span class="u">' + unitHtml + '</span>' : "");
+    el.setAttribute("data-copy", copyVal);
+  }
+
+  function calc() {
+    var height = Math.max(0, num(inHeight, 0));
+    var tread = Math.max(1, num(inTread, 250));
+
+    var steps;
+    if (mode === "riser") {
+      var target = Math.max(1, num(inTargetRiser, 180));
+      steps = Math.max(1, Math.round(height / target));
+    } else {
+      steps = Math.max(1, Math.round(num(inSteps, 13)));
+    }
+
+    var actualRiser = steps > 0 ? height / steps : 0;
+    var treads = Math.max(0, steps - 1);
+    var run = tread * treads;
+    var angleDeg = (Math.atan2(actualRiser, tread) * 180) / Math.PI;
+    var stringer = Math.sqrt(height * height + run * run);
+    var blondel = 2 * actualRiser + tread;
+
+    return {
+      height: height, tread: tread, steps: steps, actualRiser: actualRiser,
+      treads: treads, run: run, angleDeg: angleDeg, stringer: stringer, blondel: blondel
+    };
+  }
+
+  function blondelBadge(v) {
+    var cls, key;
+    if (v >= 600 && v <= 660) { cls = "pos"; key = "t.blondelPos"; }
+    else if ((v >= 580 && v < 600) || (v > 660 && v <= 680)) { cls = "muted"; key = "t.blondelWarn"; }
+    else { cls = "neg"; key = "t.blondelNeg"; }
+    return '<span class="badge badge--' + cls + '"><span class="d"></span>' +
+      Shell.t(key) + ' — 2R+T = ' + fmt(v, 0) + ' mm</span>';
+  }
+
+  function render() {
+    var r = calc();
+
+    roSteps.textContent = r.steps;
+    roSteps.setAttribute("data-copy", String(r.steps));
+
+    setValue(roRiser, fmt(r.actualRiser, 1), "mm", fmt(r.actualRiser, 1));
+    setValue(roTread, fmt(r.tread, 0), "mm", fmt(r.tread, 0));
+    setValue(roRun, fmt(r.run, 0), "mm", fmt(r.run, 0));
+    setValue(roAngle, fmt(r.angleDeg, 1), "°", fmt(r.angleDeg, 1));
+    setValue(roStringer, fmt(r.stringer, 0), "mm", fmt(r.stringer, 0));
+
+    badgesBox.innerHTML = blondelBadge(r.blondel);
+
+    drawDiagram(r);
+  }
+
+  function drawDiagram(r) {
+    var vbW = 320, vbH = 200;
+    var maxW = 250, maxH = 108;
+    var baseX = 35, baseY = 168;
+
+    var displaySteps = clamp(Math.round(r.steps), 2, 6);
+    var riserMM = Math.max(1, r.actualRiser), treadMM = Math.max(1, r.tread);
+    var ratio = riserMM / treadMM;
+
+    var pxRiser = maxH / displaySteps;
+    var pxTread = pxRiser / ratio;
+    var totalW = pxTread * displaySteps;
+    if (totalW > maxW) {
+      var s = maxW / totalW;
+      pxRiser *= s; pxTread *= s; totalW = maxW;
+    }
+    var totalH = pxRiser * displaySteps;
+
+    var x0 = baseX, y0 = baseY;
+    var pts = [[x0, y0]];
+    var cx = x0, cy = y0;
+    for (var i = 0; i < displaySteps; i++) {
+      cx += pxTread; pts.push([cx, cy]);
+      cy -= pxRiser; pts.push([cx, cy]);
+    }
+    var topX = cx, topY = cy;
+
+    var outline = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var fillPts = outline + " " + topX.toFixed(1) + "," + y0.toFixed(1);
+
+    // 1段目の寸法線用座標
+    var t0x1 = x0, t0y = y0, t0x2 = x0 + pxTread;
+    var r0x = t0x2, r0y1 = y0, r0y2 = y0 - pxRiser;
+
+    var angle = r.angleDeg;
+
+    var html = "";
+    // 塗り
+    html += '<polygon points="' + fillPts + '" fill="var(--accent-tint)" stroke="none"></polygon>';
+    // 輪郭
+    html += '<polyline points="' + outline + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>';
+    // ベースライン
+    html += '<line x1="' + (x0 - 14) + '" y1="' + y0 + '" x2="' + (topX + 6) + '" y2="' + y0 + '" stroke="var(--border-strong)" stroke-width="1.5"></line>';
+
+    // 斜辺（勾配の目安線）
+    html += '<line x1="' + x0 + '" y1="' + y0 + '" x2="' + topX.toFixed(1) + '" y2="' + topY.toFixed(1) + '" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3 3"></line>';
+
+    // 1段目 蹴上げ寸法線
+    html += '<line x1="' + (r0x + 8) + '" y1="' + r0y1 + '" x2="' + (r0x + 8) + '" y2="' + r0y2 + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<line x1="' + r0x + '" y1="' + r0y1 + '" x2="' + (r0x + 12) + '" y2="' + r0y1 + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<line x1="' + r0x + '" y1="' + r0y2 + '" x2="' + (r0x + 12) + '" y2="' + r0y2 + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<text x="' + (r0x + 16) + '" y="' + ((r0y1 + r0y2) / 2 + 3) + '" font-family="var(--font-mono)" font-size="10.5" fill="var(--text-2)">' +
+      fmt(r.actualRiser, 0) + 'mm</text>';
+
+    // 1段目 踏面寸法線
+    html += '<line x1="' + t0x1 + '" y1="' + (t0y + 10) + '" x2="' + t0x2 + '" y2="' + (t0y + 10) + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<line x1="' + t0x1 + '" y1="' + t0y + '" x2="' + t0x1 + '" y2="' + (t0y + 14) + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<line x1="' + t0x2 + '" y1="' + t0y + '" x2="' + t0x2 + '" y2="' + (t0y + 14) + '" stroke="var(--text-3)" stroke-width="1"></line>';
+    html += '<text x="' + ((t0x1 + t0x2) / 2 - 14) + '" y="' + (t0y + 26) + '" font-family="var(--font-mono)" font-size="10.5" fill="var(--text-2)">' +
+      fmt(r.tread, 0) + 'mm</text>';
+
+    // 角度ラベル
+    html += '<text x="' + (x0 + 26) + '" y="' + (y0 - 8) + '" font-family="var(--font-mono)" font-size="12" font-weight="600" fill="var(--accent)">' +
+      fmt(angle, 1) + '\u00B0</text>';
+
+    svg.innerHTML = html;
+  }
+
+  segMode.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var next = b.getAttribute("data-mode");
+    if (next === mode) return;
+
+    var r = calc();
+    if (next === "steps") { inSteps.value = r.steps; }
+    else { inTargetRiser.value = clamp(Math.round(r.actualRiser), 120, 230); valTargetRiser.textContent = inTargetRiser.value + " mm"; }
+
+    mode = next;
+    segMode.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    fieldRiser.hidden = mode !== "riser";
+    fieldSteps.hidden = mode !== "steps";
+    render();
+  });
+
+  inTargetRiser.addEventListener("input", function () {
+    valTargetRiser.textContent = inTargetRiser.value + " mm";
+    render();
+  });
+  [inHeight, inTread, inSteps].forEach(function (el) {
+    el.addEventListener("input", render);
+    el.addEventListener("blur", function () { if (el.value === "") { el.value = el.defaultValue; render(); } });
+  });
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "stair-calculator",
+      strings: {
+        en: {
+          "t.title": "Stair riser & step calculator",
+          "t.desc": "Calculate step count and riser height from total height, with a comfort-rule check.",
+          "t.height": "Total height (floor to floor)",
+          "t.tread": "Tread depth (going)",
+          "t.mode": "Calculation method",
+          "t.byRiser": "From target riser",
+          "t.bySteps": "From step count",
+          "t.targetRiser": "Target riser height",
+          "t.stepCount": "Number of risers",
+          "t.output": "Output",
+          "t.steps": "Number of risers",
+          "t.actualRiser": "Actual riser height",
+          "t.tread2": "Tread depth",
+          "t.run": "Total run (horizontal)",
+          "t.angle": "Slope angle",
+          "t.stringer": "Stringer length (diagonal)",
+          "t.copyhint": "Click any value to copy.",
+          "t.diagramNote": "Schematic profile — slope is accurate, step count is simplified for clarity.",
+          "t.blondelPos": "Comfortable (Blondel's rule)",
+          "t.blondelWarn": "Borderline",
+          "t.blondelNeg": "Outside comfort range",
+          "t.handrailEyebrow": "Handrail height guide",
+          "t.handrailNote": "A common reference for handrail height, measured vertically above the nosing line (the line connecting the front edges of the treads), is about 800\u2013900 mm. Always check the applicable building code for real construction."
+        },
+        ja: {
+          "t.title": "階段の蹴上げ・段数計算",
+          "t.desc": "全体の高さから段数・蹴上げ寸法を計算。快適性の目安（ブロンデルの法則）も判定。",
+          "t.height": "全体の高さ（床から床まで）",
+          "t.tread": "踏面（トレッド）",
+          "t.mode": "計算方法",
+          "t.byRiser": "目安の蹴上げから",
+          "t.bySteps": "段数から",
+          "t.targetRiser": "目安の蹴上げ寸法",
+          "t.stepCount": "段数（蹴上げの数）",
+          "t.output": "出力",
+          "t.steps": "段数",
+          "t.actualRiser": "実際の蹴上げ寸法",
+          "t.tread2": "踏面",
+          "t.run": "総奥行き（水平距離）",
+          "t.angle": "勾配角度",
+          "t.stringer": "ストリンガー長（斜辺）",
+          "t.copyhint": "数値をクリックでコピー。",
+          "t.diagramNote": "断面の模式図（勾配は正確、段数は見やすさのため簡略化）",
+          "t.blondelPos": "快適（ブロンデルの法則）",
+          "t.blondelWarn": "やや外れる",
+          "t.blondelNeg": "快適範囲外",
+          "t.handrailEyebrow": "手すり高さの目安",
+          "t.handrailNote": "手すりの高さは、踏面の先端を結ぶ斜めのライン（歩行線）から垂直に800〜900mm程度が一般的な目安です。実際の施工では該当する建築基準への確認が必要です。"
+        }
+      },
+      onSettingsChange: render
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
