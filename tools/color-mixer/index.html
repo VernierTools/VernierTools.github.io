@@ -41,12 +41,24 @@
   .ratiobar__seg{ height:100%; transition:width var(--tap); }
   .ratiobar__seg:not(:last-child){ border-right:1.5px solid var(--surface); }
 
-  /* ---- クイック追加パレット ---- */
-  .palette{ display:flex; gap:8px; flex-wrap:wrap; }
-  .palette__sw{ appearance:none; width:26px; height:26px; border-radius:50%; padding:0; cursor:pointer;
-    border:1px solid var(--border-strong); box-shadow:var(--shadow-sm); transition:transform var(--tap), box-shadow var(--tap); }
-  .palette__sw:hover{ transform:scale(1.12); box-shadow:var(--shadow-md); }
-  .palette:has(+ [disabled]){ opacity:.5; }
+  /* ---- 混色モードの選択（アイコン付きカード型トグル） ---- */
+  .modesel{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+  @media (max-width:480px){ .modesel{ grid-template-columns:1fr; } }
+  .modesel__opt{ appearance:none; cursor:pointer; text-align:left; font:inherit; width:100%;
+    display:flex; align-items:flex-start; gap:var(--s3); padding:var(--s4);
+    border:1.5px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface);
+    transition:border-color var(--tap), background var(--tap), box-shadow var(--tap); }
+  .modesel__opt:hover{ border-color:var(--text-3); }
+  .modesel__opt[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent-tint); box-shadow:0 0 0 1px var(--accent) inset; }
+  .modesel__icon{ flex:0 0 auto; width:36px; height:36px; border-radius:var(--r); background:var(--surface-2);
+    color:var(--text-2); display:flex; align-items:center; justify-content:center; transition:all var(--tap); }
+  .modesel__icon svg{ width:19px; height:19px; }
+  .modesel__opt[aria-pressed="true"] .modesel__icon{ background:var(--accent); color:#fff; }
+  .modesel__body{ min-width:0; flex:1 1 auto; }
+  .modesel__title{ display:flex; align-items:center; gap:6px; font-size:13.5px; font-weight:600; color:var(--text); }
+  .modesel__desc{ display:block; font-size:11.5px; color:var(--text-2); line-height:1.45; margin-top:2px; }
+  .modesel__check{ flex:0 0 auto; width:16px; height:16px; color:var(--accent); opacity:0; transform:scale(.7); transition:all var(--tap); }
+  .modesel__opt[aria-pressed="true"] .modesel__check{ opacity:1; transform:scale(1); }
 
   /* ---- 結果スウォッチ ---- */
   .swatchbox{ height:172px; border-radius:var(--r-lg); border:1px solid var(--border); box-shadow:var(--shadow-sm);
@@ -74,9 +86,23 @@
     <div>
       <div class="card">
         <div class="card__title" data-i18n="t.mode">Mixing mode</div>
-        <div class="seg seg--2" id="seg-mode" role="group">
-          <button type="button" data-mode="additive" aria-pressed="true" data-i18n="t.additive">Additive (light)</button>
-          <button type="button" data-mode="subtractive" data-i18n="t.subtractive">Subtractive (paint)</button>
+        <div class="modesel" id="seg-mode" role="group">
+          <button type="button" class="modesel__opt" data-mode="additive" aria-pressed="true">
+            <span class="modesel__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.45 1.1 1.2 1.1 2.2h5a2.6 2.6 0 0 1 1.1-2.2A6 6 0 0 0 12 3z"/></svg></span>
+            <span class="modesel__body">
+              <span class="modesel__title" data-i18n="t.additive">Additive (light)</span>
+              <span class="modesel__desc" data-i18n="t.additivedesc">Overlapping light sources</span>
+            </span>
+            <svg class="modesel__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button type="button" class="modesel__opt" data-mode="subtractive">
+            <span class="modesel__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s7 8.5 7 13a7 7 0 1 1-14 0c0-4.5 7-13 7-13z"/></svg></span>
+            <span class="modesel__body">
+              <span class="modesel__title" data-i18n="t.subtractive">Subtractive (paint)</span>
+              <span class="modesel__desc" data-i18n="t.subtractivedesc">Mixing paints or pigments</span>
+            </span>
+            <svg class="modesel__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
         </div>
         <div class="hint" id="modehint" data-i18n="t.hintadd">Calculates the color when light sources overlap, as a weighted average in linear light space.</div>
       </div>
@@ -92,11 +118,6 @@
         <div class="field" style="margin-top:var(--s2)">
           <label class="label" data-i18n="t.ratio">Proportion</label>
           <div class="ratiobar" id="ratiobar"></div>
-        </div>
-
-        <div class="field">
-          <label class="label" data-i18n="t.presets">Quick add</label>
-          <div class="palette" id="palette"></div>
         </div>
 
         <div class="btnrow" style="margin-top:var(--s3)">
@@ -142,7 +163,7 @@
   };
 
   var $ = function (id) { return document.getElementById(id); };
-  var colorlist = $("colorlist"), ratiobar = $("ratiobar"), paletteEl = $("palette");
+  var colorlist = $("colorlist"), ratiobar = $("ratiobar");
   var addBtn = $("addcolor"), resetBtn = $("resetbtn"), countEl = $("colorcount");
   var segMode = $("seg-mode"), modeHint = $("modehint");
   var swatchbox = $("swatchbox");
@@ -308,7 +329,7 @@
 
   // ---- モード切替 ----
   function syncMode() {
-    segMode.querySelectorAll("button").forEach(function (b) {
+    segMode.querySelectorAll(".modesel__opt").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === state.mode));
     });
   }
@@ -357,15 +378,6 @@
     removeColor(parseInt(row.getAttribute("data-idx"), 10));
   });
 
-  // ---- クイック追加パレット ----
-  paletteEl.innerHTML = PALETTE.map(function (hex) {
-    return '<button type="button" class="palette__sw" data-hex="' + hex + '" style="background:' + hex + '" title="' + hex + '"></button>';
-  }).join("");
-  paletteEl.addEventListener("click", function (e) {
-    var b = e.target.closest("button"); if (!b) return;
-    addColor(b.getAttribute("data-hex"));
-  });
-
   addBtn.addEventListener("click", function () { addColor(); });
   resetBtn.addEventListener("click", resetAll);
 
@@ -383,7 +395,9 @@
           "t.desc": "Mix multiple colors by ratio and see the result. Switch between additive (light) and subtractive (paint/pigment, approximate) mixing.",
           "t.mode": "Mixing mode",
           "t.additive": "Additive (light)",
+          "t.additivedesc": "Overlapping light sources",
           "t.subtractive": "Subtractive (paint)",
+          "t.subtractivedesc": "Mixing paints or pigments",
           "t.hintadd": "Calculates the color when light sources overlap, as a weighted average in linear light space. E.g. red light + green light \u2192 yellowish light.",
           "t.hintsub": "Approximates the color when paints or pigments are mixed, as a weighted average in CMY. Real pigments vary, so treat this as a rough guide.",
           "t.colors": "Colors & ratio",
@@ -393,7 +407,6 @@
           "t.needmin": "At least 2 colors are needed",
           "t.addcolor": "Add color",
           "t.maxcolors": "Up to 6 colors",
-          "t.presets": "Quick add",
           "t.reset": "Reset",
           "t.result": "Result",
           "t.hex": "HEX",
@@ -407,7 +420,9 @@
           "t.desc": "複数の色を比率で混ぜたときの結果を計算します。光の混色（加法）と、絵の具・顔料の混色（減法・近似）を切り替えられます。",
           "t.mode": "混色モード",
           "t.additive": "加法混色（光）",
+          "t.additivedesc": "複数の光を重ねる",
           "t.subtractive": "減法混色（絵の具）",
+          "t.subtractivedesc": "絵の具・顔料を混ぜる",
           "t.hintadd": "複数の光を重ねたときの色を、線形光空間での加重平均として計算します。例：赤い光＋緑の光→黄色っぽい光。",
           "t.hintsub": "絵の具や顔料を混ぜたときの色を、CMYでの加重平均として簡易的に近似します。実際の顔料特性により結果は変わるため、目安としてご利用ください。",
           "t.colors": "色と比率",
@@ -417,7 +432,6 @@
           "t.needmin": "最低2色は必要です",
           "t.addcolor": "色を追加",
           "t.maxcolors": "最大6色までです",
-          "t.presets": "クイック追加",
           "t.reset": "リセット",
           "t.result": "結果",
           "t.hex": "HEX",
