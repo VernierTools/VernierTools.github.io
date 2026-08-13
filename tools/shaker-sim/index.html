@@ -307,6 +307,7 @@
   // ---------- audio ----------
   var ctx = null, noiseBuffer = null, masterGain = null, dynamicGain = null;
   var bedGain = null; // shared envelope gain for the continuous shaker "sizzle" bed
+  var bedSrc = null;  // the looping source behind it, so the bed can be torn down on switch
 
   function createNoiseBuffer(context, seconds) {
     var length = Math.floor(context.sampleRate * seconds);
@@ -320,11 +321,20 @@
   // (a body + a bright "shimmer" layer, as in PhISEM's multi-resonance filter bank).
   // This is what carries the shaker's signature continuous hiss between grains —
   // without it, discrete grains alone read as "clicky" rather than "shaken".
+  function stopBed() {
+    if (bedSrc) { try { bedSrc.stop(); } catch (e) {} bedSrc = null; }
+    if (bedGain) { try { bedGain.disconnect(); } catch (e) {} bedGain = null; }
+  }
+
+  // No longer hardcoded to the shaker profile: it builds the bed for whichever
+  // instrument is passed in, and is torn down / rebuilt when the instrument changes.
   function startBed(cfg) {
+    stopBed();
     if (!ctx || !cfg.bed) return;
     var src = ctx.createBufferSource();
     src.buffer = noiseBuffer;
     src.loop = true;
+    bedSrc = src;
     bedGain = ctx.createGain();
     bedGain.gain.value = 0;
     for (var i = 0; i < cfg.bedFreq.length; i++) {
@@ -364,7 +374,10 @@
 
       var g = ctx.createGain();
       var mix = L === 0 ? 1 : cfg.shimmerMix;
-      var peak = Math.min(0.9, 0.12 + level * 0.55) * masterVolume * mix;
+      // masterVolume is applied once, at masterGain — applying it here too made grains
+      // scale as volume² while the bed scaled linearly, so lowering the volume left the
+      // shaker as bare hiss and made the (bed-less) maraca disproportionately quiet.
+      var peak = Math.min(0.9, 0.12 + level * 0.55) * mix;
       g.gain.setValueAtTime(0, time);
       g.gain.linearRampToValueAtTime(peak, time + 0.0008);
       g.gain.exponentialRampToValueAtTime(0.0006, time + dur);
@@ -384,12 +397,14 @@
     osc.frequency.exponentialRampToValueAtTime(65, t + 0.08);
 
     var g = ctx.createGain();
-    var peak = Math.min(0.5, 0.14 + strength * 0.36) * masterVolume;
+    var peak = Math.min(0.5, 0.14 + strength * 0.36);
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(peak, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
 
-    osc.connect(g); g.connect(masterGain);
+    // Routed through dynamicGain like every other source: previously this went straight
+    // to masterGain, so the maraca's thump ignored the motion-following gain entirely.
+    osc.connect(g); g.connect(dynamicGain);
     osc.start(t); osc.stop(t + 0.12);
   }
 
@@ -420,7 +435,10 @@
     var absJerk = Math.abs(jerk);
     liveJerkSmoothed += (absJerk - liveJerkSmoothed) * 0.35;
 
-    var raw = (absJerk - noiseFloor) / fullScale;
+    // Span, not raw fullScale: subtracting the floor from the numerator only meant that
+    // jerk exactly at "Full volume at" mapped to ~0.91, so 100% was never reachable.
+    // Math.max guards against the user dragging noiseFloor above fullScale.
+    var raw = (absJerk - noiseFloor) / Math.max(1, fullScale - noiseFloor);
     raw = Math.max(0, Math.min(1, raw));
     var cfg = INSTRUMENTS[instrument];
     var tau = raw > motionLevel ? ATTACK_TAU : cfg.releaseTau;
@@ -441,7 +459,11 @@
     lastTick = now;
     var cfg = INSTRUMENTS[instrument];
 
-    motionLevel *= Math.exp(-dt / 0.6); // safety net only; normal decay happens per-sample above
+    // Safety net *only*. This used to run unconditionally, so it stacked with the
+    // per-sample release and made the real time constant 1/(1/tau + 1/0.6) — the maraca's
+    // "180 ms" release actually behaved like ~138 ms. Now it engages only if devicemotion
+    // has genuinely stopped firing (backgrounded tab, sensor dropped).
+    if (now - lastMotionT > 300) motionLevel *= Math.exp(-dt / 0.6);
 
     if (audioReady && ctx && motionLevel > 0.008) {
       var rate = motionLevel * cfg.rateK;
@@ -548,8 +570,8 @@
     dynamicGain = ctx.createGain();
     dynamicGain.gain.value = 0.28;
     dynamicGain.connect(masterGain);
-    bedGain = null;
-    startBed(INSTRUMENTS.shaker); // bed is only defined on the shaker profile; gain is silent until shaken
+    bedGain = null; bedSrc = null;
+    startBed(INSTRUMENTS[instrument]); // no-op for profiles without a bed; silent until shaken
   }
 
   btnAudio.addEventListener("click", function () {
@@ -561,6 +583,11 @@
         btnAudio.disabled = true;
         playGrain(ctx.currentTime + 0.02, 0.35);
         requestWakeLock();
+        updateReadyState();
+      }).catch(function () {
+        // try/catch only covers synchronous throws — without this, a rejected resume()
+        // left the page looking un-enabled with no explanation.
+        setAudioStatus("error");
         updateReadyState();
       });
     } catch (err) {
@@ -612,7 +639,9 @@
   volSlider.addEventListener("input", function () {
     masterVolume = (+volSlider.value) / 100;
     volReadout.textContent = volSlider.value + "%";
-    if (masterGain) masterGain.gain.value = masterVolume * 0.9;
+    // Ramped rather than assigned, so dragging the slider doesn't produce zipper noise.
+    if (masterGain && ctx) masterGain.gain.setTargetAtTime(masterVolume * 0.9, ctx.currentTime, 0.02);
+    else if (masterGain) masterGain.gain.value = masterVolume * 0.9;
   });
 
   // ---------- instrument switch ----------
@@ -624,6 +653,7 @@
     syncSeg();
     syncAdvancedUI();
     motionLevel = 0;
+    if (ctx) startBed(INSTRUMENTS[instrument]); // tear down / rebuild for the new profile
   });
   function syncSeg() {
     segEl.querySelectorAll("button").forEach(function (b) {
@@ -647,11 +677,11 @@
     advRelease.value = relMs;
     advReleaseVal.textContent = relMs + " ms";
     advBedRow.hidden = !cfg.bed;
-    if (cfg.bed) {
-      var bedPct = Math.round((cfg.bedAmount != null ? cfg.bedAmount : 1) * 100);
-      advBed.value = bedPct;
-      advBedVal.textContent = bedPct + "%";
-    }
+    // Synced unconditionally: only updating it for bed-having profiles meant the slider
+    // kept the previous instrument's position and could snap back on the next switch.
+    var bedPct = Math.round((cfg.bedAmount != null ? cfg.bedAmount : 1) * 100);
+    advBed.value = bedPct;
+    advBedVal.textContent = bedPct + "%";
   }
   advPitch.addEventListener("input", function () {
     INSTRUMENTS[instrument].grainBase = +advPitch.value;
