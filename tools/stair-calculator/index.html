@@ -196,7 +196,11 @@
 
   // 踏面(tread)は入力値そのままなので、2R+T が基準レンジからどちら向きにずれているかは
   // そのまま「蹴上げが大きすぎる(急)／小さすぎる(緩やか)」に対応する。
-  function blondelBadge(v) {
+  // 角度が70度を超えたら、もはや階段というより壁に近いので専用メッセージにする。
+  function blondelBadge(v, angleDeg) {
+    if (angleDeg > 70) {
+      return '<span class="badge badge--neg"><span class="d"></span>' + Shell.t("t.blondelWall") + '</span>';
+    }
     var cls, key;
     if (v >= 600 && v <= 660) { cls = "pos"; key = "t.blondelPos"; }
     else if (v > 660 && v <= 680) { cls = "muted"; key = "t.blondelWarnSteep"; }
@@ -218,7 +222,7 @@
     setValue(roAngle, fmt(r.angleDeg, 1), "°", fmt(r.angleDeg, 1));
     setValue(roStringer, fmt(r.stringer, 0), "mm", fmt(r.stringer, 0));
 
-    badgesBox.innerHTML = blondelBadge(r.blondel);
+    badgesBox.innerHTML = blondelBadge(r.blondel, r.angleDeg);
 
     drawDiagram(r);
   }
@@ -348,6 +352,7 @@
           "t.blondelWarnShallow": "A bit shallow — still usable, but on the gentle side",
           "t.blondelNegSteep": "Too steep — likely to feel hard to walk up",
           "t.blondelNegShallow": "Too shallow — closer to a ramp than a staircase",
+          "t.blondelWall": "Past 70° it's basically a wall, not stairs",
           "t.blondelNote": "A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.",
           "t.handrailEyebrow": "If you're adding a handrail",
           "t.handrailNote": "Placed roughly 800\u2013900 mm above the sloped line that connects the front edge of each step. A reasonable default for a 3D model \u2014 for a real build, check local building code."
@@ -378,6 +383,7 @@
           "t.blondelWarnShallow": "やや緩やかですが、歩けなくはない範囲です",
           "t.blondelNegSteep": "急すぎて、登りにくく見える可能性があります",
           "t.blondelNegShallow": "緩やかすぎて、階段というよりスロープに近く見える可能性があります",
+          "t.blondelWall": "70度を超えたらほぼ壁です",
           "t.blondelNote": "実際の建物での目安です。見た目だけでなく「歩けそうな階段」にしたいときの参考にどうぞ。",
           "t.handrailEyebrow": "手すりを付ける場合",
           "t.handrailNote": "各段の先端を結んだ斜めのラインから、垂直に800〜900mmくらいが目安です。3Dモデルとしてはこれで十分ですが、実際の建築では建築基準の確認が必要です。"
