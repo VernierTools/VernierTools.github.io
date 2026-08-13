@@ -160,19 +160,28 @@
     el.setAttribute("data-copy", copyVal);
   }
 
+  // 入力欄の min/max はキーボード直接入力では強制されないため、計算前に必ずここで有効範囲へ丸める。
+  // （例: 蹴上げの目安に 0 や極端に小さい値を打ち込むと段数が天文学的な数になり、SVG描画が固まる恐れがある）
+  var LIMITS = {
+    height: [0, 20000],       // mm
+    tread: [50, 1000],        // mm
+    targetRiser: [50, 500],   // mm
+    steps: [1, 500]
+  };
+
   function calc() {
-    var height = Math.max(0, num(inHeight, 0));
-    var tread = Math.max(1, num(inTread, 250));
+    var height = clamp(num(inHeight, 2400), LIMITS.height[0], LIMITS.height[1]);
+    var tread = clamp(num(inTread, 250), LIMITS.tread[0], LIMITS.tread[1]);
 
     var steps;
     if (mode === "riser") {
-      var target = Math.max(1, num(inTargetRiser, 180));
-      steps = Math.max(1, Math.round(height / target));
+      var target = clamp(num(inTargetRiser, 180), LIMITS.targetRiser[0], LIMITS.targetRiser[1]);
+      steps = clamp(Math.round(height / target), LIMITS.steps[0], LIMITS.steps[1]);
     } else {
-      steps = Math.max(1, Math.round(num(inSteps, 13)));
+      steps = clamp(Math.round(num(inSteps, 13)), LIMITS.steps[0], LIMITS.steps[1]);
     }
 
-    var actualRiser = steps > 0 ? height / steps : 0;
+    var actualRiser = height / steps;
     var treads = Math.max(0, steps - 1);
     var run = tread * treads;
     var angleDeg = (Math.atan2(actualRiser, tread) * 180) / Math.PI;
@@ -185,11 +194,15 @@
     };
   }
 
+  // 踏面(tread)は入力値そのままなので、2R+T が基準レンジからどちら向きにずれているかは
+  // そのまま「蹴上げが大きすぎる(急)／小さすぎる(緩やか)」に対応する。
   function blondelBadge(v) {
     var cls, key;
     if (v >= 600 && v <= 660) { cls = "pos"; key = "t.blondelPos"; }
-    else if ((v >= 580 && v < 600) || (v > 660 && v <= 680)) { cls = "muted"; key = "t.blondelWarn"; }
-    else { cls = "neg"; key = "t.blondelNeg"; }
+    else if (v > 660 && v <= 680) { cls = "muted"; key = "t.blondelWarnSteep"; }
+    else if (v >= 580 && v < 600) { cls = "muted"; key = "t.blondelWarnShallow"; }
+    else if (v > 680) { cls = "neg"; key = "t.blondelNegSteep"; }
+    else { cls = "neg"; key = "t.blondelNegShallow"; }
     return '<span class="badge badge--' + cls + '"><span class="d"></span>' + Shell.t(key) + '</span>';
   }
 
@@ -270,10 +283,12 @@
         fmt(r.tread, 0) + 'mm</text>';
     }
 
-    html += '<text x="' + (x0 + 24) + '" y="' + (y0 - 8) + '" font-family="var(--font-mono)" font-size="12" font-weight="600" fill="var(--accent)">' +
-      fmt(r.angleDeg, 1) + '\u00B0</text>';
-    html += '<text x="' + (topX) + '" y="' + (topY - 8) + '" text-anchor="end" font-family="var(--font-mono)" font-size="11" fill="var(--text-3)">' +
-      steps + (Shell.lang === "ja" ? '\u6bb5' : ' steps') + '</text>';
+    // 角度・段数のラベルは階段の輪郭に重ねない: pxHeightTotal は必ず availH 以下になるよう
+    // スケーリングしているため、topY（輪郭の最上点）は常に margin.top 以上。
+    // つまり margin.top より上（この余白部分）に置けば、どんな勾配でも輪郭と重ならない。
+    html += '<text x="' + margin.left + '" y="' + (margin.top - 10) + '" font-family="var(--font-mono)" font-size="12" font-weight="600" fill="var(--accent)">' +
+      steps + (Shell.lang === "ja" ? '\u6bb5' : (steps === 1 ? ' step' : ' steps')) +
+      '<tspan fill="var(--text-3)" font-weight="400"> \u30fb ' + fmt(r.angleDeg, 1) + '\u00B0</tspan></text>';
 
     svg.innerHTML = html;
   }
@@ -329,8 +344,10 @@
           "t.copyhint": "Click any value to copy.",
           "t.diagramNote": "Full-height profile, drawn to scale \u2014 every step is shown, and height/depth use the same scale so proportions are accurate.",
           "t.blondelPos": "Feels like a normal, walkable staircase",
-          "t.blondelWarn": "A bit steep or a bit shallow — still usable",
-          "t.blondelNeg": "Likely to feel awkward to walk (very steep or very shallow)",
+          "t.blondelWarnSteep": "A bit steep — still usable, but on the steep side",
+          "t.blondelWarnShallow": "A bit shallow — still usable, but on the gentle side",
+          "t.blondelNegSteep": "Too steep — likely to feel hard to walk up",
+          "t.blondelNegShallow": "Too shallow — closer to a ramp than a staircase",
           "t.blondelNote": "A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.",
           "t.handrailEyebrow": "If you're adding a handrail",
           "t.handrailNote": "Placed roughly 800\u2013900 mm above the sloped line that connects the front edge of each step. A reasonable default for a 3D model \u2014 for a real build, check local building code."
@@ -357,8 +374,10 @@
           "t.copyhint": "数値をクリックでコピー。",
           "t.diagramNote": "実寸の縮尺で描いた全段の断面図です（段数を省略せず、高さと奥行きを同じ縮尺で表示）",
           "t.blondelPos": "違和感のない、歩きやすい階段の比率です",
-          "t.blondelWarn": "やや急、または緩やか。歩けなくはない範囲です",
-          "t.blondelNeg": "急すぎる／緩やかすぎて、歩きにくく見える可能性があります",
+          "t.blondelWarnSteep": "やや急ですが、歩けなくはない範囲です",
+          "t.blondelWarnShallow": "やや緩やかですが、歩けなくはない範囲です",
+          "t.blondelNegSteep": "急すぎて、登りにくく見える可能性があります",
+          "t.blondelNegShallow": "緩やかすぎて、階段というよりスロープに近く見える可能性があります",
           "t.blondelNote": "実際の建物での目安です。見た目だけでなく「歩けそうな階段」にしたいときの参考にどうぞ。",
           "t.handrailEyebrow": "手すりを付ける場合",
           "t.handrailNote": "各段の先端を結んだ斜めのラインから、垂直に800〜900mmくらいが目安です。3Dモデルとしてはこれで十分ですが、実際の建築では建築基準の確認が必要です。"
