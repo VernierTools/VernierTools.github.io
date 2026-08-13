@@ -53,7 +53,10 @@
     .preview-wrap img{ max-height:420px; }
   }
 </style>
-</head>
+<style id="average-color-v2-layout">
+.color-results,.results-grid,.result-grid{align-items:stretch;}
+.color-results > *, .results-grid > *, .result-grid > *{align-self:stretch;}
+</style></head>
 <body>
 <main class="shell">
   <div class="toolhead">
@@ -281,5 +284,18 @@
   }});
 })();
 </script>
-</body>
+<script id="average-color-v2-replace">
+(function(){
+  const input=document.getElementById('file-input');
+  if(!input)return;
+  input.addEventListener('click',function(){this.value='';});
+  const host=input.parentElement;
+  if(host && !document.getElementById('v2-change-image')){
+    const b=document.createElement('button');
+    b.type='button'; b.id='v2-change-image'; b.className='btn btn--secondary';
+    b.textContent='Change image'; b.addEventListener('click',()=>input.click());
+    host.appendChild(b);
+  }
+})();
+</script></body>
 </html>
