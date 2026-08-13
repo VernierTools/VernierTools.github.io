@@ -13,117 +13,150 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  .work--single{ display:block; }
-  .dropzone{ position:relative; min-height:420px; border:1px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
-    display:flex; align-items:center; justify-content:center; overflow:hidden; transition:border-color var(--tap),background var(--tap); }
-  .dropzone:hover,.dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
-  .dropzone.has-image{ border-style:solid; background:var(--surface); min-height:0; }
-  .dropzone__empty{ padding:var(--s7); text-align:center; max-width:520px; }
-  .dropzone__icon{ width:52px; height:52px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
-    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-2); }
-  .dropzone__icon svg{ width:26px; height:26px; }
-  .dropzone__title{ font-size:17px; font-weight:600; }
-  .dropzone__hint{ color:var(--text-2); margin-top:var(--s2); }
-  .dropzone__actions{ display:flex; justify-content:center; gap:var(--s2); margin-top:var(--s5); flex-wrap:wrap; }
+  /* ---- 入力（ドロップ領域 / プレビュー） ---- */
+  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
+    display:flex; align-items:center; justify-content:center; min-height:280px; padding:var(--s5);
+    transition:border-color var(--tap), background var(--tap); }
+  .dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
+  .dropzone.has-image{ border-style:solid; border-color:var(--border); background:var(--surface);
+    min-height:0; padding:var(--s3); }
+  .dropzone__empty{ text-align:center; max-width:36ch; }
+  .dropzone__icon{ width:48px; height:48px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-3); }
+  .dropzone__icon svg{ width:24px; height:24px; }
+  .dropzone__title{ font-size:15px; font-weight:600; }
+  .dropzone__hint{ color:var(--text-3); font-size:12.5px; margin-top:6px; }
+  .dropzone__actions{ display:flex; justify-content:center; margin-top:var(--s4); }
   #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
-  .preview-wrap{ width:100%; padding:var(--s4); display:flex; align-items:center; justify-content:center; min-height:420px; }
-  .preview-wrap img{ display:block; max-width:100%; max-height:620px; width:auto; height:auto; object-fit:contain; border-radius:var(--r); box-shadow:var(--shadow-sm); }
-  .preview-meta{ display:flex; justify-content:space-between; gap:var(--s3); margin-top:var(--s3); color:var(--text-3); font-size:12px; flex-wrap:wrap; }
-  .results{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); margin-top:var(--s5); }
-  .color-card{ overflow:hidden; }
-  .swatch{ height:150px; border-radius:var(--r); border:1px solid var(--border); background:#808080; position:relative; display:flex; align-items:flex-end; }
-  .swatch__label{ width:100%; padding:var(--s3); color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.45); font-family:var(--font-mono); font-size:15px; font-weight:600; }
-  .color-card__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s4); }
-  .color-card__title{ font-size:15px; font-weight:600; }
-  .color-card__note{ color:var(--text-3); font-size:11px; }
-  .color-values{ margin-top:var(--s4); }
-  .value-row{ display:grid; grid-template-columns:52px 1fr auto; gap:var(--s3); align-items:center; padding:var(--s3) 0; }
+  .preview-wrap{ width:100%; display:flex; align-items:center; justify-content:center; }
+  .preview-wrap img{ display:block; max-width:100%; max-height:380px; width:auto; height:auto;
+    border-radius:var(--r); }
+
+  .meta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s4); }
+  .meta .chip{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .meta .chip .mono{ color:var(--text); }
+
+  /* ---- 結果 ---- */
+  .swatch{ height:104px; border-radius:var(--r); border:1px solid var(--border); background:var(--surface-2);
+    display:flex; align-items:flex-end; cursor:pointer; }
+  .swatch__label{ width:100%; padding:var(--s3); font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:15px; font-weight:600; color:var(--text-3); }
+  .swatch.is-set .swatch__label{ color:var(--swatch-ink,#fff); }
+  .card__head{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s3); }
+  .card__head h2{ font-size:13px; font-weight:600; }
+  .card__head .note{ color:var(--text-3); font-size:11px; }
+  .value-row{ display:grid; grid-template-columns:38px minmax(0,1fr) auto; gap:var(--s3);
+    align-items:center; padding:var(--s3) 0; }
   .value-row + .value-row{ border-top:1px solid var(--border); }
-  .value-label{ font-size:12px; color:var(--text-2); font-weight:600; }
-  .value-code{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:14px; color:var(--text); }
-  .copy-btn{ appearance:none; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-2); border-radius:var(--r-sm); height:28px; padding:0 9px; font:inherit; font-size:11px; cursor:pointer; }
+  .value-rows{ margin-top:var(--s2); }
+  .value-label{ font-size:11px; font-weight:600; letter-spacing:.05em; color:var(--text-3); }
+  .value-code{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px;
+    color:var(--text); overflow-wrap:anywhere; cursor:pointer; }
+  .copy-btn{ appearance:none; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-2);
+    border-radius:var(--r-sm); height:26px; padding:0 9px; font:inherit; font-size:11px; font-weight:500;
+    cursor:pointer; transition:all var(--tap); }
   .copy-btn:hover{ background:var(--surface-2); border-color:var(--text-3); color:var(--text); }
-  .empty-results{ margin-top:var(--s5); }
-  .stats{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s4); }
-  .stats .chip{ font-variant-numeric:tabular-nums; }
-  .note{ color:var(--text-3); font-size:12px; margin-top:var(--s3); }
+  .placeholder{ color:var(--text-3); text-align:center; padding:var(--s7) var(--s4); font-size:13px; }
+  .note{ color:var(--text-3); font-size:12px; line-height:1.55; }
+
   @media (max-width:760px){
-    .dropzone,.preview-wrap{ min-height:300px; }
-    .results{ grid-template-columns:1fr; }
-    .preview-wrap img{ max-height:420px; }
+    .dropzone{ min-height:220px; }
+    .preview-wrap img{ max-height:300px; }
   }
 </style>
-<style id="average-color-v2-layout">
-.color-results,.results-grid,.result-grid{align-items:stretch;}
-.color-results > *, .results-grid > *, .result-grid > *{align-self:stretch;}
-</style></head>
+</head>
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span><span class="chip" data-i18n="t.sub">Color</span></div>
+    <div class="chips">
+      <span class="chip" data-i18n="cat.image">Image</span>
+      <span class="chip" data-i18n="sub.image.color">Color</span>
+    </div>
     <h1 data-i18n="t.title">Average color extractor</h1>
-    <p data-i18n="t.desc">Extract the average and median colors from an image.</p>
+    <p data-i18n="t.desc">Extract the average and median colors from an image. Everything runs in your browser — nothing is uploaded.</p>
   </div>
 
-  <div class="work work--single">
-    <section class="card">
-      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-describedby="drop-hint">
-        <input id="file-input" type="file" accept="image/*">
-        <div class="dropzone__empty" id="drop-empty">
-          <div class="dropzone__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m3 16 5-5 4 4 2.5-2.5L21 19"/>
-            </svg>
+  <div class="work">
+    <!-- 左: 画像の入力とプレビュー -->
+    <div>
+      <section class="card">
+        <div class="dropzone" id="dropzone">
+          <input id="file-input" type="file" accept="image/*">
+          <div class="dropzone__empty" id="drop-empty">
+            <div class="dropzone__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m3 16 5-5 4 4 2.5-2.5L21 19"/>
+              </svg>
+            </div>
+            <div class="dropzone__title" data-i18n="t.dropTitle">Drop an image here</div>
+            <div class="dropzone__hint" data-i18n="t.dropHint">or paste from the clipboard, or choose a file</div>
+            <div class="dropzone__actions">
+              <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose image</button>
+            </div>
           </div>
-          <div class="dropzone__title" data-i18n="t.dropTitle">Drop an image here</div>
-          <div class="dropzone__hint" id="drop-hint" data-i18n="t.dropHint">or choose an image from your device</div>
-          <div class="dropzone__actions">
-            <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose image</button>
+          <div class="preview-wrap" id="preview-wrap" hidden>
+            <img id="preview" alt="">
           </div>
         </div>
-        <div class="preview-wrap" id="preview-wrap" hidden>
-          <img id="preview" alt="">
-        </div>
-      </div>
-      <div class="preview-meta" id="preview-meta" hidden>
-        <span id="file-name"></span><span id="image-size"></span>
-      </div>
-      <div class="stats" id="stats" hidden>
-        <span class="chip"><span data-i18n="t.pixels">Pixels</span>: <span class="mono" id="pixel-count">—</span></span>
-        <span class="chip"><span data-i18n="t.transparent">Transparent pixels ignored</span></span>
-      </div>
-      <div class="note" data-i18n="t.note">Median is calculated independently for R, G, and B, then converted to HSV. Fully transparent pixels are ignored.</div>
-    </section>
 
-    <div class="results" id="results" hidden>
-      <section class="card color-card">
-        <div class="color-card__head">
-          <div class="color-card__title" data-i18n="t.mean">Average color</div>
-          <div class="color-card__note" data-i18n="t.meanNote">Arithmetic mean</div>
+        <div class="meta" id="meta" hidden>
+          <span class="chip" id="file-name"></span>
+          <span class="chip" id="image-size"></span>
+          <span class="chip"><span data-i18n="t.pixels">Pixels</span>: <span class="mono" id="pixel-count">—</span></span>
+          <span class="chip" id="approx-chip" hidden data-i18n="t.approx">Sampled (large image)</span>
         </div>
-        <div class="swatch" id="mean-swatch"><div class="swatch__label" id="mean-hex-large">#000000</div></div>
-        <div class="color-values">
-          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="mean-rgb">—</span><button class="copy-btn" data-copy-target="mean-rgb" type="button" data-i18n="t.copy">Copy</button></div>
-          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="mean-hsv">—</span><button class="copy-btn" data-copy-target="mean-hsv" type="button" data-i18n="t.copy">Copy</button></div>
-          <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="mean-hex">—</span><button class="copy-btn" data-copy-target="mean-hex" type="button" data-i18n="t.copy">Copy</button></div>
-        </div>
-      </section>
 
-      <section class="card color-card">
-        <div class="color-card__head">
-          <div class="color-card__title" data-i18n="t.median">Median color</div>
-          <div class="color-card__note" data-i18n="t.medianNote">Channel median</div>
+        <div class="btnrow" id="actions" hidden>
+          <button class="btn btn--secondary" id="change" type="button" data-i18n="t.change">Change image</button>
+          <button class="btn btn--ghost" id="clear" type="button" data-i18n="t.clear">Clear</button>
         </div>
-        <div class="swatch" id="median-swatch"><div class="swatch__label" id="median-hex-large">#000000</div></div>
-        <div class="color-values">
-          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="median-rgb">—</span><button class="copy-btn" data-copy-target="median-rgb" type="button" data-i18n="t.copy">Copy</button></div>
-          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="median-hsv">—</span><button class="copy-btn" data-copy-target="median-hsv" type="button" data-i18n="t.copy">Copy</button></div>
-          <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="median-hex">—</span><button class="copy-btn" data-copy-target="median-hex" type="button" data-i18n="t.copy">Copy</button></div>
+
+        <div class="badges" id="error" hidden>
+          <span class="badge badge--neg"><span class="d"></span><span id="error-text"></span></span>
         </div>
       </section>
     </div>
 
-    <div class="empty-results" id="error" hidden></div>
+    <!-- 右: 抽出結果 -->
+    <div>
+      <section class="card" id="placeholder">
+        <div class="placeholder" data-i18n="t.empty">Load an image to see its average and median color.</div>
+      </section>
+
+      <section class="card" id="card-mean" hidden>
+        <div class="card__head">
+          <h2 data-i18n="t.mean">Average color</h2>
+          <span class="note" data-i18n="t.meanNote">Arithmetic mean</span>
+        </div>
+        <div class="swatch" id="mean-swatch" role="button" tabindex="0">
+          <div class="swatch__label" id="mean-hex-large">—</div>
+        </div>
+        <div class="value-rows">
+          <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="mean-hex">—</span><button class="copy-btn" data-copy-target="mean-hex" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="mean-rgb">—</span><button class="copy-btn" data-copy-target="mean-rgb" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="mean-hsv">—</span><button class="copy-btn" data-copy-target="mean-hsv" type="button" data-i18n="t.copy">Copy</button></div>
+        </div>
+      </section>
+
+      <section class="card" id="card-median" hidden>
+        <div class="card__head">
+          <h2 data-i18n="t.median">Median color</h2>
+          <span class="note" data-i18n="t.medianNote">Per-channel median</span>
+        </div>
+        <div class="swatch" id="median-swatch" role="button" tabindex="0">
+          <div class="swatch__label" id="median-hex-large">—</div>
+        </div>
+        <div class="value-rows">
+          <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="median-hex">—</span><button class="copy-btn" data-copy-target="median-hex" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="median-rgb">—</span><button class="copy-btn" data-copy-target="median-rgb" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="median-hsv">—</span><button class="copy-btn" data-copy-target="median-hsv" type="button" data-i18n="t.copy">Copy</button></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="note" data-i18n="t.note">The median is taken independently for R, G and B, then converted to HEX and HSV. Fully transparent pixels are ignored.</div>
+      </section>
+    </div>
   </div>
 </main>
 
@@ -134,57 +167,88 @@
 
   var STRINGS = {
     en: {
-      "t.sub":"Color",
       "t.title":"Average color extractor",
-      "t.desc":"Extract the average and median colors from an image.",
+      "t.desc":"Extract the average and median colors from an image. Everything runs in your browser — nothing is uploaded.",
       "t.dropTitle":"Drop an image here",
-      "t.dropHint":"or choose an image from your device",
+      "t.dropHint":"or paste from the clipboard, or choose a file",
       "t.choose":"Choose image",
+      "t.change":"Change image",
+      "t.clear":"Clear",
       "t.pixels":"Pixels",
-      "t.transparent":"Transparent pixels ignored",
-      "t.note":"Median is calculated independently for R, G, and B, then converted to HSV. Fully transparent pixels are ignored.",
+      "t.approx":"Sampled (large image)",
+      "t.empty":"Load an image to see its average and median color.",
+      "t.note":"The median is taken independently for R, G and B, then converted to HEX and HSV. Fully transparent pixels are ignored. Click a value to copy it.",
       "t.mean":"Average color",
       "t.meanNote":"Arithmetic mean",
       "t.median":"Median color",
-      "t.medianNote":"Channel median",
+      "t.medianNote":"Per-channel median",
       "t.copy":"Copy",
-      "t.copied":"Copied",
       "t.invalid":"Please choose a supported image file.",
-      "t.failed":"The image could not be analyzed. Please try another image."
+      "t.failed":"The image could not be analyzed. Please try another image.",
+      "t.allTransparent":"Every pixel in this image is fully transparent."
     },
     ja: {
-      "t.sub":"色",
-      "t.title":"平均色抽出ツール",
-      "t.desc":"画像から平均色と中央値の色を抽出します。",
+      "t.title":"平均色抽出",
+      "t.desc":"画像から平均色と中央値の色を抽出します。処理はすべてブラウザ内で完結し、画像は送信されません。",
       "t.dropTitle":"ここに画像をドロップ",
-      "t.dropHint":"またはデバイスから画像を選択",
+      "t.dropHint":"クリップボードから貼り付け、またはファイルを選択",
       "t.choose":"画像を選択",
+      "t.change":"画像を変更",
+      "t.clear":"クリア",
       "t.pixels":"ピクセル数",
-      "t.transparent":"透明ピクセルは除外",
-      "t.note":"中央値はR・G・Bをそれぞれ個別に求め、そのRGB値をHSVへ変換します。完全に透明なピクセルは除外します。",
+      "t.approx":"間引き解析（大きい画像）",
+      "t.empty":"画像を読み込むと、平均色と中央値の色を表示します。",
+      "t.note":"中央値はR・G・Bをそれぞれ個別に求め、そのRGB値をHEX／HSVへ変換します。完全に透明なピクセルは除外します。値をクリックするとコピーできます。",
       "t.mean":"平均色",
       "t.meanNote":"算術平均",
       "t.median":"中央値の色",
-      "t.medianNote":"チャンネル中央値",
+      "t.medianNote":"チャンネル別の中央値",
       "t.copy":"コピー",
-      "t.copied":"コピーしました",
       "t.invalid":"対応している画像ファイルを選択してください。",
-      "t.failed":"画像を解析できませんでした。別の画像を試してください。"
+      "t.failed":"画像を解析できませんでした。別の画像を試してください。",
+      "t.allTransparent":"この画像はすべてのピクセルが完全に透明です。"
     }
   };
 
+  var $ = function(id){ return document.getElementById(id); };
   var els = {
-    dropzone:document.getElementById("dropzone"), input:document.getElementById("file-input"), choose:document.getElementById("choose"),
-    empty:document.getElementById("drop-empty"), previewWrap:document.getElementById("preview-wrap"), preview:document.getElementById("preview"),
-    meta:document.getElementById("preview-meta"), name:document.getElementById("file-name"), size:document.getElementById("image-size"),
-    stats:document.getElementById("stats"), pixels:document.getElementById("pixel-count"), results:document.getElementById("results"), error:document.getElementById("error")
+    dropzone:$("dropzone"), input:$("file-input"), choose:$("choose"), change:$("change"), clear:$("clear"),
+    empty:$("drop-empty"), previewWrap:$("preview-wrap"), preview:$("preview"),
+    meta:$("meta"), name:$("file-name"), size:$("image-size"), pixels:$("pixel-count"), approx:$("approx-chip"),
+    actions:$("actions"), placeholder:$("placeholder"), cardMean:$("card-mean"), cardMedian:$("card-median"),
+    error:$("error"), errorText:$("error-text")
   };
 
-  function escText(v){ return String(v).replace(/[&<>"']/g,function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
-  function setError(key){ els.error.textContent = Shell.t(key); els.error.className = "card"; els.error.hidden = false; }
-  function clearError(){ els.error.hidden = true; els.error.textContent = ""; }
-  function fmtInt(n){ return Number(n).toLocaleString(Shell.lang === "ja" ? "ja-JP" : "en-US"); }
+  // 解析に使う最大ピクセル数。これを超える画像は等比で縮小してから解析する
+  // （モバイル Safari の canvas 面積上限を踏まえた安全側の値）。
+  var MAX_PIXELS = 16777216; // 4096 × 4096
 
+  var state = { url:null, result:null, fileName:"", w:0, h:0, sampled:false };
+
+  /* ---------- 表示ヘルパー ---------- */
+  function fmtInt(n){ return Number(n).toLocaleString(Shell.lang === "ja" ? "ja-JP" : "en-US"); }
+  function setError(key){
+    els.errorText.textContent = Shell.t(key);
+    els.error.hidden = false;
+  }
+  function clearError(){ els.error.hidden = true; els.errorText.textContent = ""; }
+
+  function revokeUrl(){
+    if(state.url){ URL.revokeObjectURL(state.url); state.url = null; }
+  }
+
+  function resetView(){
+    clearError();
+    revokeUrl();
+    state.result = null; state.fileName = ""; state.w = 0; state.h = 0; state.sampled = false;
+    els.preview.removeAttribute("src"); els.preview.alt = "";
+    els.previewWrap.hidden = true; els.empty.hidden = false;
+    els.dropzone.classList.remove("has-image");
+    els.meta.hidden = true; els.actions.hidden = true; els.approx.hidden = true;
+    els.cardMean.hidden = true; els.cardMedian.hidden = true; els.placeholder.hidden = false;
+  }
+
+  /* ---------- 色計算 ---------- */
   function rgbToHsv(r,g,b){
     r/=255; g/=255; b/=255;
     var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min, h=0;
@@ -194,108 +258,193 @@
       else h=(r-g)/d+4;
       h*=60; if(h<0) h+=360;
     }
-    var s=max===0?0:d/max, v=max;
-    return {h:h,s:s*100,v:v*100};
+    return { h:h, s:(max===0?0:d/max)*100, v:max*100 };
   }
 
   function medianFromHistogram(hist,total){
     var target=(total-1)/2, acc=0;
-    for(var i=0;i<256;i++){
-      acc+=hist[i];
-      if(acc>target) return i;
-    }
+    for(var i=0;i<256;i++){ acc+=hist[i]; if(acc>target) return i; }
     return 255;
   }
 
+  // 巨大画像でも一度に全ピクセルを取り出さないよう、横帯（バンド）単位で走査する。
   function analyzeCanvas(canvas){
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
-    var data=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    var w=canvas.width, h=canvas.height;
+    var band=Math.max(1, Math.min(h, Math.floor(4194304 / Math.max(1,w)))); // 約4Mピクセルずつ
     var sumR=0,sumG=0,sumB=0,count=0;
     var hr=new Uint32Array(256), hg=new Uint32Array(256), hb=new Uint32Array(256);
-    for(var i=0;i<data.length;i+=4){
-      var a=data[i+3];
-      if(a===0) continue;
-      var r=data[i],g=data[i+1],b=data[i+2];
-      sumR+=r; sumG+=g; sumB+=b; count++;
-      hr[r]++; hg[g]++; hb[b]++;
+    for(var y=0; y<h; y+=band){
+      var rows=Math.min(band, h-y);
+      var data=ctx.getImageData(0,y,w,rows).data;
+      for(var i=0;i<data.length;i+=4){
+        if(data[i+3]===0) continue;
+        var r=data[i], g=data[i+1], b=data[i+2];
+        sumR+=r; sumG+=g; sumB+=b; count++;
+        hr[r]++; hg[g]++; hb[b]++;
+      }
     }
-    if(!count) throw new Error("empty");
-    var mean={r:sumR/count,g:sumG/count,b:sumB/count};
-    var median={r:medianFromHistogram(hr,count),g:medianFromHistogram(hg,count),b:medianFromHistogram(hb,count)};
-    return {mean:mean,median:median,count:count};
+    if(!count) return null;
+    return {
+      mean:{ r:sumR/count, g:sumG/count, b:sumB/count },
+      median:{ r:medianFromHistogram(hr,count), g:medianFromHistogram(hg,count), b:medianFromHistogram(hb,count) },
+      count:count
+    };
   }
 
-  function toHex(c){ return "#"+[c.r,c.g,c.b].map(function(v){ return Math.round(v).toString(16).padStart(2,"0"); }).join("").toUpperCase(); }
-  function rgbText(c){ return "RGB("+[c.r,c.g,c.b].map(Math.round).join(", ")+")"; }
-  function hsvText(c){ var h=rgbToHsv(c.r,c.g,c.b); return "HSV("+h.h.toFixed(1)+"°, "+h.s.toFixed(1)+"%, "+h.v.toFixed(1)+"%)"; }
+  function toHex(c){
+    return "#"+[c.r,c.g,c.b].map(function(v){
+      return Math.round(v).toString(16).padStart(2,"0");
+    }).join("").toUpperCase();
+  }
+  function rgbText(c){ return "rgb("+[c.r,c.g,c.b].map(Math.round).join(", ")+")"; }
+  function hsvText(c){
+    var v=rgbToHsv(c.r,c.g,c.b);
+    return "hsv("+v.h.toFixed(1)+"°, "+v.s.toFixed(1)+"%, "+v.v.toFixed(1)+"%)";
+  }
+  // スウォッチ上の文字色。背景の相対輝度で白/黒を切り替える（薄い色でも読める）。
+  function inkFor(c){
+    var lin=function(u){ u=Math.round(u)/255; return u<=0.04045 ? u/12.92 : Math.pow((u+0.055)/1.055,2.4); };
+    var L=0.2126*lin(c.r)+0.7152*lin(c.g)+0.0722*lin(c.b);
+    return L>0.36 ? "#16181D" : "#FFFFFF";
+  }
+
+  function setValue(id, text){
+    var el=$(id);
+    el.textContent=text;
+    el.setAttribute("data-copy",text);
+  }
   function setColor(prefix,c){
-    var hex=toHex(c), rgb=rgbText(c), hsv=hsvText(c);
-    document.getElementById(prefix+"-swatch").style.backgroundColor=hex;
-    document.getElementById(prefix+"-hex-large").textContent=hex;
-    document.getElementById(prefix+"-rgb").textContent=rgb;
-    document.getElementById(prefix+"-hsv").textContent=hsv;
-    document.getElementById(prefix+"-hex").textContent=hex;
-    document.getElementById(prefix+"-rgb").setAttribute("data-copy",rgb);
-    document.getElementById(prefix+"-hsv").setAttribute("data-copy",hsv);
-    document.getElementById(prefix+"-hex").setAttribute("data-copy",hex);
+    var hex=toHex(c);
+    var swatch=$(prefix+"-swatch");
+    swatch.style.backgroundColor=hex;
+    swatch.style.setProperty("--swatch-ink", inkFor(c));
+    swatch.classList.add("is-set");
+    swatch.setAttribute("data-copy",hex);
+    $(prefix+"-hex-large").textContent=hex;
+    setValue(prefix+"-hex",hex);
+    setValue(prefix+"-rgb",rgbText(c));
+    setValue(prefix+"-hsv",hsvText(c));
   }
 
-  function resetView(){
-    clearError(); els.results.hidden=true; els.meta.hidden=true; els.stats.hidden=true;
-    els.empty.hidden=false; els.previewWrap.hidden=true; els.preview.removeAttribute("src");
+  /* ---------- 読み込み ---------- */
+  function renderMeta(){
+    els.name.textContent=state.fileName;
+    els.name.title=state.fileName;
+    els.size.textContent=state.w+" × "+state.h+" px";
+    els.pixels.textContent=state.result ? fmtInt(state.result.count) : "—";
+    els.approx.hidden=!state.sampled;
   }
 
-  function loadImage(file){
+  function loadFile(file){
     clearError();
     if(!file || !file.type || file.type.indexOf("image/")!==0){ setError("t.invalid"); return; }
+
     var url=URL.createObjectURL(file);
     var img=new Image();
     img.onload=function(){
+      var canvas, ctx, result, scale;
       try{
-        var canvas=document.createElement("canvas"); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
-        var ctx=canvas.getContext("2d",{willReadFrequently:true}); ctx.drawImage(img,0,0);
-        var result=analyzeCanvas(canvas);
-        els.preview.src=url; els.preview.alt=file.name;
-        els.empty.hidden=true; els.previewWrap.hidden=false; els.dropzone.classList.add("has-image");
-        els.meta.hidden=false; els.name.textContent=file.name; els.size.textContent=img.naturalWidth+" × "+img.naturalHeight+" px";
-        els.stats.hidden=false; els.pixels.textContent=fmtInt(result.count);
-        setColor("mean",result.mean); setColor("median",result.median); els.results.hidden=false;
-      }catch(e){ URL.revokeObjectURL(url); setError("t.failed"); }
+        var w=img.naturalWidth, h=img.naturalHeight;
+        if(!w || !h) throw new Error("empty");
+        scale=Math.min(1, Math.sqrt(MAX_PIXELS/(w*h)));
+        canvas=document.createElement("canvas");
+        canvas.width=Math.max(1, Math.round(w*scale));
+        canvas.height=Math.max(1, Math.round(h*scale));
+        ctx=canvas.getContext("2d",{willReadFrequently:true});
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        result=analyzeCanvas(canvas);
+      }catch(e){
+        URL.revokeObjectURL(url); resetView(); setError("t.failed"); return;
+      }
+      if(!result){ URL.revokeObjectURL(url); resetView(); setError("t.allTransparent"); return; }
+
+      revokeUrl();
+      state.url=url; state.result=result; state.fileName=file.name || "image";
+      state.w=img.naturalWidth; state.h=img.naturalHeight; state.sampled=scale<1;
+
+      els.preview.src=url; els.preview.alt=state.fileName;
+      els.empty.hidden=true; els.previewWrap.hidden=false; els.dropzone.classList.add("has-image");
+      els.meta.hidden=false; els.actions.hidden=false;
+      renderMeta();
+
+      setColor("mean",result.mean); setColor("median",result.median);
+      els.placeholder.hidden=true; els.cardMean.hidden=false; els.cardMedian.hidden=false;
     };
-    img.onerror=function(){ URL.revokeObjectURL(url); setError("t.failed"); };
+    img.onerror=function(){ URL.revokeObjectURL(url); resetView(); setError("t.failed"); };
     img.src=url;
   }
 
-  els.choose.addEventListener("click",function(){ els.input.click(); });
-  els.input.addEventListener("change",function(){ if(this.files&&this.files[0]) loadImage(this.files[0]); this.value=""; });
-  ["dragenter","dragover"].forEach(function(type){ els.dropzone.addEventListener(type,function(e){ e.preventDefault(); e.stopPropagation(); els.dropzone.classList.add("is-over"); }); });
-  ["dragleave","drop"].forEach(function(type){ els.dropzone.addEventListener(type,function(e){ e.preventDefault(); e.stopPropagation(); els.dropzone.classList.remove("is-over"); }); });
-  els.dropzone.addEventListener("drop",function(e){ var files=e.dataTransfer.files; if(files&&files[0]) loadImage(files[0]); });
-  els.dropzone.addEventListener("keydown",function(e){ if((e.key==="Enter"||e.key===" ") && e.target===els.dropzone){ e.preventDefault(); els.input.click(); } });
+  /* ---------- イベント ---------- */
+  function pick(){ els.input.click(); }
+  els.choose.addEventListener("click",pick);
+  els.change.addEventListener("click",pick);
+  els.clear.addEventListener("click",resetView);
+  // 同じファイルを続けて選び直せるよう、開く前に値を空にする。
+  els.input.addEventListener("click",function(){ this.value=""; });
+  els.input.addEventListener("change",function(){ if(this.files && this.files[0]) loadFile(this.files[0]); });
 
-  document.querySelectorAll(".copy-btn").forEach(function(btn){
-    btn.addEventListener("click",function(){ var target=document.getElementById(btn.getAttribute("data-copy-target")); if(target) Shell.copy(target.textContent.trim(),btn); });
+  // ドラッグ＆ドロップ。子要素をまたぐと dragleave が発火するため、深さを数えてちらつきを防ぐ。
+  var dragDepth=0;
+  els.dropzone.addEventListener("dragenter",function(e){
+    e.preventDefault(); dragDepth++; els.dropzone.classList.add("is-over");
+  });
+  els.dropzone.addEventListener("dragover",function(e){
+    e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect="copy";
+  });
+  els.dropzone.addEventListener("dragleave",function(){
+    dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) els.dropzone.classList.remove("is-over");
+  });
+  els.dropzone.addEventListener("drop",function(e){
+    e.preventDefault(); dragDepth=0; els.dropzone.classList.remove("is-over");
+    var files=e.dataTransfer && e.dataTransfer.files;
+    if(files && files[0]) loadFile(files[0]);
+  });
+  // ページ外へドロップしてブラウザが画像を開いてしまうのを防ぐ。
+  ["dragover","drop"].forEach(function(type){
+    window.addEventListener(type,function(e){ if(!els.dropzone.contains(e.target)) e.preventDefault(); });
   });
 
-  Shell.init({strings:STRINGS,onSettingsChange:function(){
-    if(!els.meta.hidden && els.pixels.textContent){
-      // Only static labels require refresh; computed values are language-neutral.
+  // クリップボードからの貼り付け。
+  document.addEventListener("paste",function(e){
+    var items=e.clipboardData && e.clipboardData.items;
+    if(!items) return;
+    for(var i=0;i<items.length;i++){
+      if(items[i].type && items[i].type.indexOf("image/")===0){
+        var f=items[i].getAsFile();
+        if(f){ e.preventDefault(); loadFile(f); }
+        return;
+      }
     }
-  }});
+  });
+
+  // スウォッチはキーボードでもコピーできるようにする（クリックは Shell の [data-copy] が処理）。
+  ["mean-swatch","median-swatch"].forEach(function(id){
+    $(id).addEventListener("keydown",function(e){
+      if(e.key==="Enter" || e.key===" "){
+        e.preventDefault();
+        var v=this.getAttribute("data-copy");
+        if(v) Shell.copy(v,this);
+      }
+    });
+  });
+
+  document.querySelectorAll(".copy-btn").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var target=$(btn.getAttribute("data-copy-target"));
+      if(target && target.textContent.trim()!=="—") Shell.copy(target.textContent.trim(),btn);
+    });
+  });
+
+  Shell.init({
+    id:"average-color",
+    strings:STRINGS,
+    onSettingsChange:function(){
+      // 言語が変わると桁区切りが変わるため、読み込み済みの数値を描き直す。
+      if(state.result) renderMeta();
+    }
+  });
 })();
 </script>
-<script id="average-color-v2-replace">
-(function(){
-  const input=document.getElementById('file-input');
-  if(!input)return;
-  input.addEventListener('click',function(){this.value='';});
-  const host=input.parentElement;
-  if(host && !document.getElementById('v2-change-image')){
-    const b=document.createElement('button');
-    b.type='button'; b.id='v2-change-image'; b.className='btn btn--secondary';
-    b.textContent='Change image'; b.addEventListener('click',()=>input.click());
-    host.appendChild(b);
-  }
-})();
-</script></body>
+</body>
 </html>
