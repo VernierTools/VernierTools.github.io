@@ -20,12 +20,13 @@
   .seg--2 button:hover{ border-color:var(--text-3); }
   .seg--2 button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
 
-  .stairprev{ background:var(--surface); padding:var(--s4) var(--s4) var(--s3); }
+  .stairprev{ position:relative; background:var(--surface); padding:var(--s4) var(--s4) var(--s3); }
   .stairprev svg{ display:block; width:100%; height:auto; }
   .diagram-note{ font-size:11px; color:var(--text-3); text-align:center; margin-top:2px; }
 
-  .badges{ padding:0 var(--s4) var(--s2); margin-top:0; }
-  .readout__head + .badges{ padding-top:var(--s3); }
+  .diagbadge{ position:absolute; top:var(--s3); right:var(--s3); max-width:56%; display:flex; justify-content:flex-end; z-index:2; }
+  .diagbadge .badge{ text-align:left; box-shadow:0 1px 6px rgba(0,0,0,.28); border-radius:10px; white-space:normal; align-items:flex-start; line-height:1.4; }
+  .diagbadge .badge .d{ margin-top:5px; flex:none; }
 
   .handrail-card p{ font-size:12.5px; color:var(--text-2); line-height:1.55; margin-top:6px; }
   .hintnote{ font-size:11.5px; color:var(--text-3); line-height:1.5; padding:0 var(--s4) var(--s3); margin:0; }
@@ -88,8 +89,10 @@
 
       <div class="preview stairprev" style="margin-bottom:var(--s2)">
         <svg id="stair-svg" viewBox="0 0 320 200" role="img" aria-label="Stair profile diagram"></svg>
+        <div class="diagbadge" id="badges-blondel"></div>
       </div>
-      <div class="diagram-note" data-i18n="t.diagramNote" style="margin-bottom:var(--s4)">Full-height profile, drawn to scale — every step is shown, and height/depth use the same scale so proportions are accurate.</div>
+      <div class="diagram-note" data-i18n="t.diagramNote" style="margin-bottom:var(--s2)">Full-height profile, drawn to scale — every step is shown, and height/depth use the same scale so proportions are accurate.</div>
+      <p class="hintnote" data-i18n="t.blondelNote" style="padding:0 0 var(--s4)">A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.</p>
 
       <div class="readout">
         <div class="readout__head"><span class="eyebrow" data-i18n="t.output">This staircase</span></div>
@@ -119,8 +122,6 @@
           <span class="rrow__value" id="ro-stringer" data-copy="0">0<span class="u">mm</span></span>
         </div>
 
-        <div class="badges" id="badges-blondel"></div>
-        <p class="hintnote" data-i18n="t.blondelNote">A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.</p>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
 
@@ -154,31 +155,28 @@
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
   function round(v, dp) { var m = Math.pow(10, dp); return Math.round(v * m) / m; }
   function fmt(v, dp) { return round(v, dp).toFixed(dp); }
+  // input要素のmin/max属性そのものを唯一の基準にする（別にJS側で範囲を持つと、
+  // 「表示されている数値」と「実際に計算に使われる数値」がズレるバグの元になる）。
+  function bounds(el) { return [parseFloat(el.min), parseFloat(el.max)]; }
 
   function setValue(el, text, unitHtml, copyVal) {
     el.innerHTML = text + (unitHtml ? '<span class="u">' + unitHtml + '</span>' : "");
     el.setAttribute("data-copy", copyVal);
   }
 
-  // 入力欄の min/max はキーボード直接入力では強制されないため、計算前に必ずここで有効範囲へ丸める。
-  // （例: 蹴上げの目安に 0 や極端に小さい値を打ち込むと段数が天文学的な数になり、SVG描画が固まる恐れがある）
-  var LIMITS = {
-    height: [0, 20000],       // mm
-    tread: [50, 1000],        // mm
-    targetRiser: [50, 500],   // mm
-    steps: [1, 500]
-  };
-
   function calc() {
-    var height = clamp(num(inHeight, 2400), LIMITS.height[0], LIMITS.height[1]);
-    var tread = clamp(num(inTread, 250), LIMITS.tread[0], LIMITS.tread[1]);
+    var hb = bounds(inHeight), tb = bounds(inTread), sb = bounds(inSteps);
+
+    var height = clamp(num(inHeight, 2400), hb[0], hb[1]);
+    var tread = clamp(num(inTread, 250), tb[0], tb[1]);
 
     var steps;
     if (mode === "riser") {
-      var target = clamp(num(inTargetRiser, 180), LIMITS.targetRiser[0], LIMITS.targetRiser[1]);
-      steps = clamp(Math.round(height / target), LIMITS.steps[0], LIMITS.steps[1]);
+      var rb = bounds(inTargetRiser);
+      var target = clamp(num(inTargetRiser, 180), rb[0], rb[1]);
+      steps = clamp(Math.round(height / target), sb[0], sb[1]);
     } else {
-      steps = clamp(Math.round(num(inSteps, 13)), LIMITS.steps[0], LIMITS.steps[1]);
+      steps = clamp(Math.round(num(inSteps, 13)), sb[0], sb[1]);
     }
 
     var actualRiser = height / steps;
@@ -186,26 +184,23 @@
     var run = tread * treads;
     var angleDeg = (Math.atan2(actualRiser, tread) * 180) / Math.PI;
     var stringer = Math.sqrt(height * height + run * run);
-    var blondel = 2 * actualRiser + tread;
 
     return {
       height: height, tread: tread, steps: steps, actualRiser: actualRiser,
-      treads: treads, run: run, angleDeg: angleDeg, stringer: stringer, blondel: blondel
+      treads: treads, run: run, angleDeg: angleDeg, stringer: stringer
     };
   }
 
-  // 踏面(tread)は入力値そのままなので、2R+T が基準レンジからどちら向きにずれているかは
-  // そのまま「蹴上げが大きすぎる(急)／小さすぎる(緩やか)」に対応する。
-  // 角度が70度を超えたら、もはや階段というより壁に近いので専用メッセージにする。
-  function blondelBadge(v, angleDeg) {
-    if (angleDeg > 70) {
-      return '<span class="badge badge--neg"><span class="d"></span>' + Shell.t("t.blondelWall") + '</span>';
-    }
+  // 「2R+T(ブロンデルの法則)」は蹴上げ・踏面が両方小さいミニチュアのような階段でも
+  // 「緩やかすぎる」と誤判定することがある(角度は普通なのに歩幅の合計が小さいだけ、というケース)。
+  // 図に出している傾斜角度そのものを使えば、表示内容と判定が食い違うことがない。
+  function angleBadge(angleDeg) {
     var cls, key;
-    if (v >= 600 && v <= 660) { cls = "pos"; key = "t.blondelPos"; }
-    else if (v > 660 && v <= 680) { cls = "muted"; key = "t.blondelWarnSteep"; }
-    else if (v >= 580 && v < 600) { cls = "muted"; key = "t.blondelWarnShallow"; }
-    else if (v > 680) { cls = "neg"; key = "t.blondelNegSteep"; }
+    if (angleDeg > 70) { cls = "neg"; key = "t.blondelWall"; }
+    else if (angleDeg > 45) { cls = "neg"; key = "t.blondelNegSteep"; }
+    else if (angleDeg > 38) { cls = "muted"; key = "t.blondelWarnSteep"; }
+    else if (angleDeg >= 28) { cls = "pos"; key = "t.blondelPos"; }
+    else if (angleDeg >= 20) { cls = "muted"; key = "t.blondelWarnShallow"; }
     else { cls = "neg"; key = "t.blondelNegShallow"; }
     return '<span class="badge badge--' + cls + '"><span class="d"></span>' + Shell.t(key) + '</span>';
   }
@@ -222,7 +217,7 @@
     setValue(roAngle, fmt(r.angleDeg, 1), "°", fmt(r.angleDeg, 1));
     setValue(roStringer, fmt(r.stringer, 0), "mm", fmt(r.stringer, 0));
 
-    badgesBox.innerHTML = blondelBadge(r.blondel, r.angleDeg);
+    badgesBox.innerHTML = angleBadge(r.angleDeg);
 
     drawDiagram(r);
   }
@@ -304,7 +299,11 @@
 
     var r = calc();
     if (next === "steps") { inSteps.value = r.steps; }
-    else { inTargetRiser.value = clamp(Math.round(r.actualRiser), 120, 230); valTargetRiser.textContent = inTargetRiser.value + " mm"; }
+    else {
+      var rb = bounds(inTargetRiser);
+      inTargetRiser.value = clamp(Math.round(r.actualRiser), rb[0], rb[1]);
+      valTargetRiser.textContent = inTargetRiser.value + " mm";
+    }
 
     mode = next;
     segMode.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
@@ -319,7 +318,13 @@
   });
   [inHeight, inTread, inSteps].forEach(function (el) {
     el.addEventListener("input", render);
-    el.addEventListener("blur", function () { if (el.value === "") { el.value = el.defaultValue; render(); } });
+    el.addEventListener("blur", function () {
+      var b = bounds(el);
+      var dflt = parseFloat(el.defaultValue);
+      var v = clamp(num(el, dflt), b[0], b[1]);
+      el.value = v; // 表示値と計算に使う値を必ず一致させる
+      render();
+    });
   });
 
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
@@ -353,7 +358,7 @@
           "t.blondelNegSteep": "Too steep — likely to feel hard to walk up",
           "t.blondelNegShallow": "Too shallow — closer to a ramp than a staircase",
           "t.blondelWall": "Past 70° it's basically a wall, not stairs",
-          "t.blondelNote": "A rough real-world guideline: comfortable stairs usually fall in this range. Useful if you want the model to feel walkable, not just visually plausible.",
+          "t.blondelNote": "A rough real-world guideline based on slope angle: most comfortable stairs land around 28\u201338\u00B0. Useful if you want the model to feel walkable, not just visually plausible.",
           "t.handrailEyebrow": "If you're adding a handrail",
           "t.handrailNote": "Placed roughly 800\u2013900 mm above the sloped line that connects the front edge of each step. A reasonable default for a 3D model \u2014 for a real build, check local building code."
         },
@@ -384,7 +389,7 @@
           "t.blondelNegSteep": "急すぎて、登りにくく見える可能性があります",
           "t.blondelNegShallow": "緩やかすぎて、階段というよりスロープに近く見える可能性があります",
           "t.blondelWall": "70度を超えたらほぼ壁です",
-          "t.blondelNote": "実際の建物での目安です。見た目だけでなく「歩けそうな階段」にしたいときの参考にどうぞ。",
+          "t.blondelNote": "傾斜角度に基づく目安です。実際の建物では28〜38°くらいが歩きやすいとされています。見た目だけでなく「歩けそうな階段」にしたいときの参考にどうぞ。",
           "t.handrailEyebrow": "手すりを付ける場合",
           "t.handrailNote": "各段の先端を結んだ斜めのラインから、垂直に800〜900mmくらいが目安です。3Dモデルとしてはこれで十分ですが、実際の建築では建築基準の確認が必要です。"
         }
