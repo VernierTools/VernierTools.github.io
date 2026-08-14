@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polyphonic Oscillator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- segmented controls (mode / waveform), tool-local pattern (cf. Clock .seg) ---- */
+  .seg{ display:inline-flex; padding:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); gap:2px; flex-wrap:wrap; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+    height:34px; padding:0 14px; border:0; border-radius:6px; background:transparent; color:var(--text-2);
+    transition:all var(--tap); }
+  .seg button:hover{ color:var(--text); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .segrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; margin-bottom:var(--s5); }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s4); line-height:1.5; }
+
+  /* ---- 88-key piano ---- */
+  .pianowrap{ overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+    border:1px solid var(--border); border-radius:var(--r-lg); background:var(--surface-2); padding:var(--s4); }
+  .piano{ position:relative; height:132px; }
+  .pkey{ position:absolute; top:0; appearance:none; padding:0; margin:0; cursor:pointer; box-sizing:border-box; }
+  .wkey{ width:30px; height:132px; background:#fdfdfe; border:1px solid #C7CBD1; border-top:none;
+    border-radius:0 0 5px 5px; z-index:1; box-shadow:0 2px 3px rgba(16,24,40,.08); transition:background .08s ease; }
+  .wkey:hover{ background:#EFF1F4; }
+  .wkey[aria-pressed="true"]{ background:var(--accent-tint); border-color:var(--accent); }
+  .bkey{ width:18px; height:82px; background:#24252B; border:1px solid #000; border-top:none;
+    border-radius:0 0 4px 4px; z-index:2; box-shadow:0 2px 3px rgba(0,0,0,.35); transition:background .08s ease; }
+  .bkey:hover{ background:#3A3B44; }
+  .bkey[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); }
+  .pkey:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .klabel{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:9px;
+    color:#9AA0A8; pointer-events:none; user-select:none; }
+
+  /* ---- Hz-entry rows ---- */
+  .hzrow{ display:flex; align-items:center; gap:var(--s2); padding:var(--s3) 0; flex-wrap:wrap; }
+  .hzrow + .hzrow{ border-top:1px solid var(--border); }
+  .hzwave{ width:118px; flex:0 0 auto; }
+  .hzfreqgroup{ flex:0 0 148px; }
+  .hzrange{ flex:1 1 100px; min-width:70px; }
+  .hzplay{ flex:0 0 auto; min-width:78px; }
+  .hzremove{ flex:0 0 auto; width:34px; height:34px; padding:0; }
+  .hzremove svg{ width:15px; height:15px; }
+  @media (max-width:560px){
+    .hzfreqgroup{ flex:1 1 130px; }
+    .hzrange{ order:5; flex:1 1 100%; }
+  }
+
+  /* ---- readout list of active voices ---- */
+  .voicecount{ font-family:var(--font-mono); }
+  .roempty{ padding:var(--s5) var(--s4); text-align:center; color:var(--text-3); font-size:13px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Polyphonic Oscillator</h1>
+    <p data-i18n="t.desc">Play several tones at once — tap keys on an 88-key keyboard, or dial in exact frequencies.</p>
+  </div>
+
+  <div class="card">
+    <div class="segrow">
+      <div class="seg" id="modeseg" role="group">
+        <button type="button" data-mode="piano" aria-pressed="true" data-i18n="t.modepiano">Keyboard</button>
+        <button type="button" data-mode="hz" aria-pressed="false" data-i18n="t.modehz">Frequency (Hz)</button>
+      </div>
+    </div>
+
+    <div id="pianopanel">
+      <div class="pianowrap" id="pianowrap"><div class="piano" id="piano"></div></div>
+      <p class="hint" data-i18n="t.pianohint">Tap a key to start the note, tap again to stop. Tap several keys to play a chord.</p>
+    </div>
+
+    <div id="hzpanel" hidden>
+      <div id="hzlist"></div>
+      <div class="btnrow" style="margin-top:var(--s3)">
+        <button type="button" class="btn btn--secondary" id="hzadd">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span data-i18n="t.hzadd">Add oscillator</span>
+        </button>
+      </div>
+      <p class="hint" data-i18n="t.hzhint">Type an exact frequency and press Play. Add more oscillators to layer several tones.</p>
+    </div>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.settings">Sound</div>
+        <div class="field">
+          <label class="label" data-i18n="t.waveform">Waveform</label>
+          <div class="seg" id="waveseg" role="group">
+            <button type="button" data-wave="sine" aria-pressed="true" data-i18n="t.wavesine">Sine</button>
+            <button type="button" data-wave="square" aria-pressed="false" data-i18n="t.wavesquare">Square</button>
+            <button type="button" data-wave="triangle" aria-pressed="false" data-i18n="t.wavetriangle">Triangle</button>
+            <button type="button" data-wave="sawtooth" aria-pressed="false" data-i18n="t.wavesawtooth">Sawtooth</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.volume">Master volume</label>
+          <div class="sliderrow">
+            <input class="slider" id="vol" type="range" min="0" max="1" step="0.01" value="0.6">
+            <span class="val" id="volval">60%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout">
+        <div class="readout__head">
+          <span data-i18n="t.active">Sounding now</span>
+          <span class="live" id="live"><span class="dot" id="livedot" style="background:var(--text-3)"></span><span class="voicecount" id="voicecount">0</span></span>
+        </div>
+        <div id="readoutbody"></div>
+      </div>
+      <div class="btnrow">
+        <button type="button" class="btn btn--secondary btn--block" id="stopall" data-i18n="t.stopall">Stop all</button>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function(){
+  function $(id){ return document.getElementById(id); }
+
+  var WHITE_W = 30, BLACK_W = 18, WHITE_H = 132;
+  var NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  var BLACK_PC = {1:1,3:1,6:1,8:1,10:1};
+
+  var state = { mode:"piano", waveform:"sine", volume:0.6 };
+  var ctx = null, master = null, comp = null;
+  var voices = new Map(); // id -> {osc,gain,freq,type,kind,midi}
+  var VOICE_LEVEL = 0.20;
+  var hzRowSeq = 0;
+  var pianoCentered = false;
+
+  function noteName(midi){
+    var pc = ((midi % 12) + 12) % 12, oct = Math.floor(midi / 12) - 1;
+    return NOTE_NAMES[pc] + oct;
+  }
+  function freqOfMidi(midi){ return 440 * Math.pow(2, (midi - 69) / 12); }
+  function T(key, fallback){
+    if (typeof Shell !== "undefined" && Shell && typeof Shell.t === "function"){
+      var v = Shell.t(key);
+      if (v && v !== key) return v;
+    }
+    return fallback;
+  }
+
+  // ---------------------------------------------------------------- audio
+  function ensureCtx(){
+    if (!ctx){
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain(); master.gain.value = state.volume;
+      comp = ctx.createDynamicsCompressor();
+      master.connect(comp); comp.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+
+  function startVoice(id, freq, type, meta){
+    var c = ensureCtx();
+    if (voices.has(id)) return;
+    var osc = c.createOscillator();
+    osc.type = type; osc.frequency.value = freq;
+    var g = c.createGain(); g.gain.value = 0;
+    osc.connect(g); g.connect(master);
+    var now = c.currentTime;
+    g.gain.linearRampToValueAtTime(VOICE_LEVEL, now + 0.008);
+    osc.start();
+    osc.onended = function(){ try{ osc.disconnect(); g.disconnect(); }catch(e){} };
+    var v = { osc:osc, gain:g, freq:freq, type:type };
+    if (meta) { v.kind = meta.kind; v.midi = meta.midi; v.rowId = meta.rowId; }
+    voices.set(id, v);
+    updateReadout();
+  }
+  function stopVoice(id){
+    if (!voices.has(id)) return;
+    var v = voices.get(id);
+    var now = ctx.currentTime;
+    v.gain.gain.cancelScheduledValues(now);
+    v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+    v.gain.gain.linearRampToValueAtTime(0, now + 0.04);
+    try { v.osc.stop(now + 0.06); } catch(e){}
+    voices.delete(id);
+    updateReadout();
+  }
+  function updateVoiceFreq(id, freq){
+    var v = voices.get(id); if (!v) return;
+    v.freq = freq;
+    v.osc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.01);
+    updateReadout();
+  }
+  function stopAllVoices(){
+    Array.from(voices.keys()).forEach(stopVoice);
+    document.querySelectorAll('.pkey[aria-pressed="true"]').forEach(function(b){ b.setAttribute("aria-pressed","false"); });
+    document.querySelectorAll('.hzplay[aria-pressed="true"]').forEach(function(b){
+      b.setAttribute("aria-pressed","false"); relabelHzPlay(b);
+    });
+  }
+
+  // ---------------------------------------------------------------- readout
+  function updateReadout(){
+    var body = $("readoutbody");
+    body.innerHTML = "";
+    var n = voices.size;
+    $("voicecount").textContent = String(n);
+    $("livedot").style.background = n > 0 ? "var(--pos)" : "var(--text-3)";
+    if (n === 0){
+      var empty = document.createElement("div");
+      empty.className = "roempty";
+      empty.textContent = T("t.none", "Nothing is sounding");
+      body.appendChild(empty);
+      return;
+    }
+    var hzList = $("hzlist");
+    voices.forEach(function(v, id){
+      var label;
+      if (v.kind === "piano") label = noteName(v.midi);
+      else {
+        var idx = 1, rowEl = hzList.querySelector('[data-id="' + v.rowId + '"]');
+        if (rowEl) idx = Array.prototype.indexOf.call(hzList.children, rowEl) + 1;
+        label = T("t.hzosc", "Osc") + " " + idx;
+      }
+      var row = document.createElement("div");
+      row.className = "rrow";
+      var l = document.createElement("span"); l.className = "rrow__label"; l.textContent = label;
+      var val = document.createElement("span"); val.className = "rrow__value";
+      val.textContent = v.freq.toFixed(1);
+      var u = document.createElement("span"); u.className = "u"; u.textContent = "Hz";
+      val.appendChild(u);
+      row.appendChild(l); row.appendChild(val);
+      body.appendChild(row);
+    });
+  }
+
+  // ---------------------------------------------------------------- piano
+  function buildPiano(){
+    var piano = $("piano");
+    piano.innerHTML = "";
+    var whiteX = 0;
+    var frag = document.createDocumentFragment();
+    for (var midi = 21; midi <= 108; midi++){
+      var pc = ((midi % 12) + 12) % 12;
+      var oct = Math.floor(midi / 12) - 1;
+      if (!BLACK_PC[pc]){
+        var wb = document.createElement("button");
+        wb.type = "button"; wb.className = "pkey wkey";
+        wb.setAttribute("data-midi", midi);
+        wb.setAttribute("aria-pressed", "false");
+        wb.setAttribute("aria-label", noteName(midi));
+        wb.style.left = whiteX + "px";
+        if (pc === 0){
+          var lab = document.createElement("span");
+          lab.className = "klabel"; lab.textContent = "C" + oct;
+          wb.appendChild(lab);
+        }
+        frag.appendChild(wb);
+        whiteX += WHITE_W;
+      } else {
+        var bb = document.createElement("button");
+        bb.type = "button"; bb.className = "pkey bkey";
+        bb.setAttribute("data-midi", midi);
+        bb.setAttribute("aria-pressed", "false");
+        bb.setAttribute("aria-label", noteName(midi));
+        var prevWhiteLeft = whiteX - WHITE_W;
+        bb.style.left = (prevWhiteLeft + WHITE_W * 0.68 - BLACK_W / 2) + "px";
+        frag.appendChild(bb);
+      }
+    }
+    piano.appendChild(frag);
+    piano.style.width = whiteX + "px";
+  }
+  function centerPiano(){
+    var wrap = $("pianowrap");
+    var target = wrap.querySelector('.wkey[data-midi="60"]');
+    if (!target || !wrap.clientWidth) return;
+    var left = parseFloat(target.style.left) || 0;
+    wrap.scrollLeft = Math.max(0, left - wrap.clientWidth / 2 + WHITE_W / 2);
+    pianoCentered = true;
+  }
+  function toggleNote(midi, btn){
+    var id = "p" + midi;
+    var pressed = btn.getAttribute("aria-pressed") === "true";
+    if (pressed){
+      stopVoice(id);
+      btn.setAttribute("aria-pressed", "false");
+    } else {
+      startVoice(id, freqOfMidi(midi), state.waveform, { kind:"piano", midi:midi });
+      btn.setAttribute("aria-pressed", "true");
+    }
+  }
+  $("piano").addEventListener("click", function(e){
+    var b = e.target.closest(".pkey"); if (!b) return;
+    toggleNote(parseInt(b.getAttribute("data-midi"), 10), b);
+  });
+
+  // ---------------------------------------------------------------- Hz mode
+  function freqToSlider(f){
+    f = Math.min(8000, Math.max(20, f));
+    return Math.log(f / 20) / Math.log(8000 / 20);
+  }
+  function sliderToFreq(s){ return 20 * Math.pow(8000 / 20, s); }
+
+  function waveOptionsHTML(){
+    return (
+      '<option value="sine" data-i18n="t.wavesine">Sine</option>' +
+      '<option value="square" data-i18n="t.wavesquare">Square</option>' +
+      '<option value="triangle" data-i18n="t.wavetriangle">Triangle</option>' +
+      '<option value="sawtooth" data-i18n="t.wavesawtooth">Sawtooth</option>'
+    );
+  }
+  function localizeSubtree(el){
+    el.querySelectorAll("[data-i18n]").forEach(function(node){
+      node.textContent = T(node.getAttribute("data-i18n"), node.textContent);
+    });
+  }
+  function relabelHzPlay(btn){
+    var playing = btn.getAttribute("aria-pressed") === "true";
+    btn.textContent = playing ? T("t.hzstop", "Stop") : T("t.hzplay", "Play");
+  }
+
+  function addHzRow(freq){
+    freq = freq || 440;
+    hzRowSeq++;
+    var id = "row" + hzRowSeq;
+    var row = document.createElement("div");
+    row.className = "hzrow"; row.setAttribute("data-id", id);
+    row.innerHTML =
+      '<select class="select hzwave">' + waveOptionsHTML() + '</select>' +
+      '<div class="inputgroup hzfreqgroup"><input class="input hzfreq" type="number" min="1" max="20000" step="0.1" value="' + freq + '"><span class="unit">Hz</span></div>' +
+      '<input class="slider hzrange" type="range" min="0" max="1" step="0.0001" value="' + freqToSlider(freq) + '">' +
+      '<button type="button" class="btn btn--secondary hzplay" aria-pressed="false"></button>' +
+      '<button type="button" class="btn btn--ghost hzremove" aria-label="Remove">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>' +
+      '</button>';
+    $("hzlist").appendChild(row);
+    localizeSubtree(row);
+
+    var waveSel = row.querySelector(".hzwave");
+    var freqInput = row.querySelector(".hzfreq");
+    var rangeInput = row.querySelector(".hzrange");
+    var playBtn = row.querySelector(".hzplay");
+    var removeBtn = row.querySelector(".hzremove");
+    waveSel.value = state.waveform;
+    relabelHzPlay(playBtn);
+    removeBtn.title = T("t.hzremove", "Remove");
+    removeBtn.setAttribute("aria-label", T("t.hzremove", "Remove"));
+
+    function currentFreq(){
+      var v = parseFloat(freqInput.value);
+      if (!isFinite(v)) v = 440;
+      return Math.min(20000, Math.max(1, v));
+    }
+    freqInput.addEventListener("input", function(){
+      var f = currentFreq();
+      rangeInput.value = freqToSlider(f);
+      if (voices.has(id)) updateVoiceFreq(id, f);
+      else updateReadout();
+    });
+    rangeInput.addEventListener("input", function(){
+      var f = Math.round(sliderToFreq(parseFloat(rangeInput.value)) * 10) / 10;
+      freqInput.value = f;
+      if (voices.has(id)) updateVoiceFreq(id, f);
+      else updateReadout();
+    });
+    waveSel.addEventListener("change", function(){
+      var v = voices.get(id);
+      if (v){ v.osc.type = waveSel.value; v.type = waveSel.value; }
+    });
+    playBtn.addEventListener("click", function(){
+      var playing = playBtn.getAttribute("aria-pressed") === "true";
+      if (playing){
+        stopVoice(id);
+        playBtn.setAttribute("aria-pressed", "false");
+      } else {
+        startVoice(id, currentFreq(), waveSel.value, { kind:"hz", rowId:id });
+        playBtn.setAttribute("aria-pressed", "true");
+      }
+      relabelHzPlay(playBtn);
+    });
+    removeBtn.addEventListener("click", function(){
+      if ($("hzlist").querySelectorAll(".hzrow").length <= 1) return;
+      stopVoice(id);
+      row.remove();
+      updateReadout();
+    });
+  }
+  $("hzadd").addEventListener("click", function(){ addHzRow(440); });
+
+  // ---------------------------------------------------------------- mode / waveform seg
+  $("modeseg").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    state.mode = b.getAttribute("data-mode"); syncMode();
+  });
+  function syncMode(){
+    $("modeseg").querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === state.mode));
+    });
+    $("pianopanel").hidden = state.mode !== "piano";
+    $("hzpanel").hidden = state.mode !== "hz";
+    if (state.mode === "piano" && !pianoCentered) requestAnimationFrame(centerPiano);
+  }
+
+  $("waveseg").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    state.waveform = b.getAttribute("data-wave"); syncWaveSeg();
+  });
+  function syncWaveSeg(){
+    $("waveseg").querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-wave") === state.waveform));
+    });
+  }
+
+  $("vol").addEventListener("input", function(){
+    var v = parseFloat($("vol").value);
+    state.volume = v;
+    $("volval").textContent = Math.round(v * 100) + "%";
+    if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.01);
+  });
+
+  $("stopall").addEventListener("click", stopAllVoices);
+
+  // ---------------------------------------------------------------- boot
+  buildPiano();
+  addHzRow(440);
+  syncMode(); syncWaveSeg();
+  updateReadout();
+  window.addEventListener("resize", function(){ pianoCentered = false; if (state.mode === "piano") centerPiano(); });
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function"){
+    Shell.init({
+      id: "multi-oscillator",
+      strings: {
+        en: {
+          "t.title": "Polyphonic Oscillator",
+          "t.desc": "Play several tones at once — tap keys on an 88-key keyboard, or dial in exact frequencies.",
+          "t.modepiano": "Keyboard", "t.modehz": "Frequency (Hz)",
+          "t.pianohint": "Tap a key to start the note, tap again to stop. Tap several keys to play a chord.",
+          "t.hzhint": "Type an exact frequency and press Play. Add more oscillators to layer several tones.",
+          "t.hzadd": "Add oscillator", "t.hzplay": "Play", "t.hzstop": "Stop", "t.hzremove": "Remove", "t.hzosc": "Osc",
+          "t.settings": "Sound", "t.waveform": "Waveform",
+          "t.wavesine": "Sine", "t.wavesquare": "Square", "t.wavetriangle": "Triangle", "t.wavesawtooth": "Sawtooth",
+          "t.volume": "Master volume",
+          "t.active": "Sounding now", "t.none": "Nothing is sounding", "t.stopall": "Stop all"
+        },
+        ja: {
+          "t.title": "複数発声オシレーター",
+          "t.desc": "複数の音を同時に鳴らせるオシレーター。88鍵盤をぽちぽち押すか、ヘルツ数を直接指定して鳴らせます。",
+          "t.modepiano": "鍵盤", "t.modehz": "Hz指定",
+          "t.pianohint": "鍵盤をタップすると音が鳴ります。もう一度タップで停止。複数の鍵盤をタップすると和音になります。",
+          "t.hzhint": "周波数を入力してPlayを押すと鳴ります。オシレーターを追加すると複数の音を重ねられます。",
+          "t.hzadd": "オシレーターを追加", "t.hzplay": "再生", "t.hzstop": "停止", "t.hzremove": "削除", "t.hzosc": "オシレーター",
+          "t.settings": "サウンド", "t.waveform": "波形",
+          "t.wavesine": "サイン波", "t.wavesquare": "矩形波", "t.wavetriangle": "三角波", "t.wavesawtooth": "のこぎり波",
+          "t.volume": "マスター音量",
+          "t.active": "再生中の音", "t.none": "何も鳴っていません", "t.stopall": "すべて停止"
+        }
+      },
+      onSettingsChange: function(){
+        document.querySelectorAll(".hzrow").forEach(function(row){ relabelHzPlay(row.querySelector(".hzplay")); });
+        document.querySelectorAll(".hzremove").forEach(function(b){ b.title = T("t.hzremove","Remove"); b.setAttribute("aria-label", T("t.hzremove","Remove")); });
+        updateReadout();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
