@@ -13,25 +13,71 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
+  /* =======================================================================
+     ウィザード共通（ステップ1/2・2/2はOS初期設定風に画面中央・単一カラム）
+     ======================================================================= */
+  .wizard{ max-width:560px; margin:0 auto; padding:var(--s7) 0; }
+  .wizard-step{ display:none; }
+  .wizard-step.is-active{ display:block; }
+  .wizard-progress{ display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:var(--s6); }
+  .wizard-progress .dot{ width:6px; height:6px; border-radius:50%; background:var(--border-strong); transition:all var(--tap); }
+  .wizard-progress .dot.is-active{ background:var(--accent); width:18px; border-radius:3px; }
+  .wizard-progress .label{ font-size:11px; color:var(--text-3); font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    margin-left:8px; }
+  .wizard-head{ text-align:center; margin-bottom:var(--s6); }
+  .wizard-head h1{ font-size:22px; font-weight:600; letter-spacing:-.02em; margin-bottom:8px; }
+  .wizard-head p{ color:var(--text-2); font-size:14px; line-height:1.6; }
+  .wizard-icon{ width:44px; height:44px; margin:0 auto var(--s4); color:var(--accent); }
+  .wizard-icon svg{ width:100%; height:100%; }
+
   /* ---- ファイルドロップゾーン ---- */
-  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface);
-    padding:var(--s6) var(--s4); text-align:center; cursor:pointer; transition:all var(--tap); }
+  .dropzone{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface);
+    padding:var(--s7) var(--s4); text-align:center; cursor:pointer; transition:all var(--tap); }
   .dropzone:hover, .dropzone.is-drag{ border-color:var(--accent); background:var(--accent-tint); }
-  .dropzone svg{ width:28px; height:28px; color:var(--text-3); margin-bottom:var(--s2); }
+  .dropzone svg{ width:32px; height:32px; color:var(--text-3); margin-bottom:var(--s3); flex:none; }
   .dropzone .dz-main{ font-size:14px; color:var(--text-2); }
   .dropzone .dz-sub{ font-size:12px; color:var(--text-3); margin-top:4px; }
-  .dropzone input[type="file"]{ display:none; }
+  .dropzone input[type="file"]{ position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
   .filepill{ display:flex; align-items:center; gap:var(--s2); padding:var(--s3) var(--s4);
-    border:1px solid var(--border); border-radius:var(--r); background:var(--surface-2); font-size:13px; }
+    border:1px solid var(--border); border-radius:var(--r); background:var(--surface-2); font-size:13px; margin-top:var(--s4); }
   .filepill svg{ width:16px; height:16px; color:var(--text-3); flex:none; }
   .filepill .fp-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
-  .filepill .fp-clear{ appearance:none; border:0; background:transparent; cursor:pointer; color:var(--text-3);
-    display:flex; padding:2px; border-radius:4px; }
-  .filepill .fp-clear:hover{ color:var(--neg); background:var(--neg-tint); }
+  .filepill .fp-meta{ font-size:11px; color:var(--text-3); font-family:var(--font-mono); font-variant-numeric:tabular-nums; flex:none; }
 
   video.hidden-video{ display:none; }
 
-  /* ---- モード選択タブ ---- */
+  /* ---- ステップ2: VFR確認（大きな選択カード） ---- */
+  .choicecards{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); margin-top:var(--s5); }
+  .choicecard{ appearance:none; cursor:pointer; text-align:left; font:inherit;
+    border:1.5px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface);
+    padding:var(--s5) var(--s4); transition:all var(--tap); }
+  .choicecard:hover{ border-color:var(--accent); background:var(--accent-tint); }
+  .choicecard__icon{ width:26px; height:26px; color:var(--text-3); margin-bottom:var(--s3); }
+  .choicecard__icon svg{ width:100%; height:100%; }
+  .choicecard:hover .choicecard__icon{ color:var(--accent); }
+  .choicecard__title{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .choicecard__desc{ font-size:12px; color:var(--text-3); line-height:1.5; }
+  @media (max-width:520px){ .choicecards{ grid-template-columns:1fr; } }
+
+  .wizard-back{ display:flex; justify-content:center; margin-top:var(--s6); }
+  .backlink{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px;
+    color:var(--text-3); display:inline-flex; align-items:center; gap:5px; padding:6px 10px; border-radius:var(--r-sm);
+    transition:all var(--tap); }
+  .backlink:hover{ color:var(--text); background:var(--surface-2); }
+  .backlink svg{ width:14px; height:14px; }
+
+  /* =======================================================================
+     結果画面（測定・結果は従来の .work 2カラムレイアウト）
+     ======================================================================= */
+  .resultstep{ display:none; }
+  .resultstep.is-active{ display:block; }
+  .resulthead{ display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s4); margin-bottom:var(--s5); }
+  .resulthead .rh-file{ font-size:12.5px; color:var(--text-3); margin-top:4px; }
+
+  /* ---- モード選択タブ（VFRモードのみ表示） ---- */
   .modeseg{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .modeseg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
     height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
@@ -54,6 +100,16 @@
   .progtext{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-3); margin-top:6px;
     font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
 
+  /* ---- CFR結果: 代表値の大きな表示（平均・中央値を並列） ---- */
+  .heroduo{ display:grid; grid-template-columns:1fr 1fr; }
+  .herobox{ padding:var(--s5) var(--s4); text-align:center; }
+  .herobox + .herobox{ border-left:1px solid var(--border); }
+  .herobox__label{ font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
+  .herobox__value{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:30px; color:var(--accent);
+    cursor:pointer; line-height:1.1; }
+  .herobox__value .u{ font-size:14px; color:var(--text-3); margin-left:4px; }
+  @media (max-width:420px){ .heroduo{ grid-template-columns:1fr; } .herobox + .herobox{ border-left:0; border-top:1px solid var(--border); } }
+
   /* ---- readout: 区間ごとの結果 ---- */
   .segrow{ display:grid; grid-template-columns:1fr auto auto; gap:var(--s3); align-items:baseline; padding:var(--s3) var(--s4); }
   .segrow + .segrow{ border-top:1px solid var(--border); }
@@ -62,6 +118,7 @@
   .segrow .seg-fps{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:17px; color:var(--text);
     cursor:pointer; text-align:right; }
   .segrow .seg-fps .u{ font-size:12px; color:var(--text-3); margin-left:3px; }
+  .segrow .seg-drop{ font-size:10.5px; color:var(--neg); font-family:var(--font-mono); font-variant-numeric:tabular-nums; margin-top:2px; }
 
   .verdict{ padding:var(--s4); border-top:1px solid var(--border); }
 
@@ -80,6 +137,7 @@
   .scan-summary{ margin-top:var(--s4); }
 
   .btnrow--start{ margin-top:var(--s5); }
+  .btnrow--reset{ margin-top:var(--s6); justify-content:center; }
 
   @media (max-width:520px){
     .segrow{ grid-template-columns:1fr; row-gap:2px; }
@@ -89,111 +147,244 @@
 </head>
 <body>
 <main class="shell">
-  <div class="toolhead">
-    <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
-    <h1 data-i18n="t.title">Actual frame rate measurer</h1>
-    <p data-i18n="t.desc">Measures a video's real playback frame rate from displayed frame timestamps, instead of trusting the container's declared fps.</p>
-  </div>
 
-  <div class="work">
-    <!-- 左: 入力・操作 -->
-    <div>
-      <div class="card">
-        <div class="card__title" data-i18n="t.source">Video file</div>
-        <div class="field">
-          <label class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop a video file">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
-            <div class="dz-main" data-i18n="t.dzmain">Drop a video file here, or click to choose</div>
-            <div class="dz-sub" data-i18n="t.dzsub">Processed locally in your browser. Nothing is uploaded.</div>
-            <input type="file" id="fileInput" accept="video/*">
-          </label>
+  <!-- ============================================================
+       ステップ 1/2: ファイル読み込み（前面のみ）
+       ============================================================ -->
+  <section class="wizard-step is-active" id="step1">
+    <div class="wizard">
+      <div class="wizard-progress">
+        <span class="dot is-active"></span><span class="dot"></span>
+        <span class="label">1/2</span>
+      </div>
+      <div class="wizard-head">
+        <div class="wizard-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="m10 9 5 3-5 3V9Z"/></svg>
         </div>
-        <div class="field" id="filePillWrap" style="display:none">
-          <div class="filepill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v6h6"/></svg>
-            <span class="fp-name" id="fileName">—</span>
-            <button type="button" class="fp-clear" id="fileClear" aria-label="Remove file" data-i18n-title="t.clear">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <h1 data-i18n="t.title">Actual frame rate measurer</h1>
+        <p data-i18n="t.desc">Measures a video's real playback frame rate from displayed frame timestamps, instead of trusting the container's declared fps.</p>
+      </div>
+
+      <label class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop a video file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+        <div class="dz-main" data-i18n="t.dzmain">Drop a video file here, or click to choose</div>
+        <div class="dz-sub" data-i18n="t.dzsub">Processed locally in your browser. Nothing is uploaded.</div>
+        <input type="file" id="fileInput" accept="video/*">
+      </label>
+
+      <div class="filepill" id="filePillWrap" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v6h6"/></svg>
+        <span class="fp-name" id="fileName">—</span>
+        <span class="fp-meta" id="fileMeta"></span>
+      </div>
+
+      <video class="hidden-video" id="video" playsinline muted preload="metadata"></video>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ステップ 2/2: VFRの可能性を尋ねる
+       ============================================================ -->
+  <section class="wizard-step" id="step2">
+    <div class="wizard">
+      <div class="wizard-progress">
+        <span class="dot"></span><span class="dot is-active"></span>
+        <span class="label">2/2</span>
+      </div>
+      <div class="wizard-head">
+        <div class="wizard-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <h1 data-i18n="t.q-title">Might the frame rate change partway through?</h1>
+        <p data-i18n="t.q-desc">If you're not sure, screen recordings, game/emulator captures, and some smartphone or web-sourced clips are more likely to have a variable frame rate (VFR).</p>
+      </div>
+
+      <div class="choicecards">
+        <button type="button" class="choicecard" id="choiceCfr">
+          <div class="choicecard__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+          <div class="choicecard__title" data-i18n="t.q-cfr-title">No, probably constant</div>
+          <div class="choicecard__desc" data-i18n="t.q-cfr-desc">Runs 3 quick samples and shows one representative fps value.</div>
+        </button>
+        <button type="button" class="choicecard" id="choiceVfr">
+          <div class="choicecard__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-5 4 5 6 0s4-10 6-5 4 5 6 0"/></svg></div>
+          <div class="choicecard__title" data-i18n="t.q-vfr-title">Yes, it might vary</div>
+          <div class="choicecard__desc" data-i18n="t.q-vfr-desc">Choose between sampling and a full-video scan, with frame-drop detection.</div>
+        </button>
+      </div>
+
+      <div class="wizard-back">
+        <button type="button" class="backlink" id="backTo1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          <span data-i18n="t.back">Back</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       結果画面 A: CFR想定（代表値 + 内訳）
+       ============================================================ -->
+  <section class="resultstep" id="resultCfr">
+    <div class="toolhead">
+      <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
+      <div class="resulthead">
+        <div>
+          <h1 data-i18n="t.title">Actual frame rate measurer</h1>
+          <div class="rh-file" id="cfrFileLabel"></div>
+        </div>
+        <span class="badge badge--muted" id="cfrApiBadge">—</span>
+      </div>
+    </div>
+
+    <div class="work">
+      <div>
+        <div class="progwrap" id="cfrProgWrap">
+          <div class="progbar"><div class="progbar__fill" id="cfrProgFill"></div></div>
+          <div class="progtext"><span id="cfrProgLabel">—</span><span id="cfrProgPct">0%</span></div>
+        </div>
+        <div class="notebox">
+          <strong data-i18n="t.note1title">About declared fps:</strong>
+          <span data-i18n="t.note1body"> Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.</span>
+        </div>
+        <div class="notebox">
+          <strong data-i18n="t.note2title">About browser support:</strong>
+          <span data-i18n="t.note2body"> This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.</span>
+        </div>
+      </div>
+      <div>
+        <div class="readout" id="cfrHeroReadout" style="display:none">
+          <div class="heroduo">
+            <div class="herobox">
+              <div class="herobox__label" data-i18n="t.avg">Average</div>
+              <div class="herobox__value" id="cfrAvgVal">—</div>
+            </div>
+            <div class="herobox">
+              <div class="herobox__label" data-i18n="t.median">Median</div>
+              <div class="herobox__value" id="cfrMedVal">—</div>
+            </div>
+          </div>
+          <div class="verdict" id="cfrVerdict"></div>
+        </div>
+
+        <div class="readout" id="cfrDetailReadout" style="display:none; margin-top:var(--s4)">
+          <div class="readout__head"><span data-i18n="t.segbreakdown">Per-segment breakdown</span></div>
+          <div id="cfrSegRows"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btnrow btnrow--reset">
+      <button type="button" class="btn btn--secondary" id="resetFromCfr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+        <span data-i18n="t.analyzeanother">Analyze another file</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       結果画面 B: VFR想定（従来のサンプリング／全編スキャン）
+       ============================================================ -->
+  <section class="resultstep" id="resultVfr">
+    <div class="toolhead">
+      <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
+      <div class="resulthead">
+        <div>
+          <h1 data-i18n="t.title">Actual frame rate measurer</h1>
+          <div class="rh-file" id="vfrFileLabel"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="work">
+      <!-- 左: 入力・操作 -->
+      <div>
+        <div class="card">
+          <div class="card__title" data-i18n="t.mode">Measurement mode</div>
+          <div class="field">
+            <div class="modeseg" id="modeseg">
+              <button type="button" data-mode="sample" aria-pressed="true" data-i18n="t.modesample">Sampling</button>
+              <button type="button" data-mode="scan" aria-pressed="false" data-i18n="t.modescan">Full scan</button>
+            </div>
+            <div class="hint" id="modeHint" data-i18n="t.modehint-sample">Measures a few seconds each at the start, middle, and end at real-time playback speed.</div>
+          </div>
+
+          <div class="field" id="sampleOpts">
+            <label class="label" data-i18n="t.segdur">Seconds per segment</label>
+            <div class="inputgroup">
+              <input class="input" id="segDur" type="number" min="1" max="20" step="0.5" value="5" inputmode="decimal">
+              <span class="unit" data-i18n="u.sec">s</span>
+            </div>
+            <div class="hint" data-i18n="t.segdurhint">Longer segments average out more noise, at the cost of taking longer to measure.</div>
+          </div>
+
+          <div class="field" id="scanOpts" style="display:none">
+            <div class="notebox" id="scanEta" data-i18n="t.scaneta">Estimated time appears once a file is loaded.</div>
+          </div>
+
+          <div class="btnrow btnrow--start">
+            <button type="button" class="btn btn--primary" id="startBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l14-8L6 4Z"/></svg>
+              <span data-i18n="t.start">Start measuring</span>
+            </button>
+            <button type="button" class="btn btn--secondary" id="cancelBtn" style="display:none">
+              <span data-i18n="t.cancel">Cancel</span>
             </button>
           </div>
-        </div>
-        <video class="hidden-video" id="video" playsinline muted preload="metadata"></video>
-      </div>
 
-      <div class="card">
-        <div class="card__title" data-i18n="t.mode">Measurement mode</div>
-        <div class="field">
-          <div class="modeseg" id="modeseg">
-            <button type="button" data-mode="sample" aria-pressed="true" data-i18n="t.modesample">Sampling</button>
-            <button type="button" data-mode="scan" aria-pressed="false" data-i18n="t.modescan">Full scan</button>
-          </div>
-          <div class="hint" id="modeHint" data-i18n="t.modehint-sample">Measures a few seconds each at the start, middle, and end at real-time playback speed.</div>
-        </div>
-
-        <div class="field" id="sampleOpts">
-          <label class="label" data-i18n="t.segdur">Seconds per segment</label>
-          <div class="inputgroup">
-            <input class="input" id="segDur" type="number" min="1" max="20" step="0.5" value="3" inputmode="decimal">
-            <span class="unit" data-i18n="u.sec">s</span>
+          <div class="progwrap" id="progWrap">
+            <div class="progbar"><div class="progbar__fill" id="progFill"></div></div>
+            <div class="progtext"><span id="progLabel">—</span><span id="progPct">0%</span></div>
           </div>
         </div>
 
-        <div class="field" id="scanOpts" style="display:none">
-          <div class="notebox" id="scanEta" data-i18n="t.scaneta">Estimated time appears once a file is loaded.</div>
+        <div class="notebox">
+          <strong data-i18n="t.note1title">About declared fps:</strong>
+          <span data-i18n="t.note1body"> Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.</span>
         </div>
-
-        <div class="btnrow btnrow--start">
-          <button type="button" class="btn btn--primary" id="startBtn" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l14-8L6 4Z"/></svg>
-            <span data-i18n="t.start">Start measuring</span>
-          </button>
-          <button type="button" class="btn btn--secondary" id="cancelBtn" style="display:none">
-            <span data-i18n="t.cancel">Cancel</span>
-          </button>
+        <div class="notebox">
+          <strong data-i18n="t.note2title">About browser support:</strong>
+          <span data-i18n="t.note2body"> This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.</span>
         </div>
-
-        <div class="progwrap" id="progWrap">
-          <div class="progbar"><div class="progbar__fill" id="progFill"></div></div>
-          <div class="progtext"><span id="progLabel">—</span><span id="progPct">0%</span></div>
+        <div class="notebox" id="dropSupportNote" style="display:none" data-i18n="t.note3body">
+          Frame-drop detection (getVideoPlaybackQuality) isn't available in this browser, so dropped-frame counts are shown as "unknown" rather than 0.
         </div>
       </div>
 
-      <div class="notebox">
-        <strong data-i18n="t.note1title">About declared fps:</strong>
-        <span data-i18n="t.note1body"> Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.</span>
-      </div>
-      <div class="notebox">
-        <strong data-i18n="t.note2title">About browser support:</strong>
-        <span data-i18n="t.note2body"> This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.</span>
-      </div>
-    </div>
+      <!-- 右: 結果 -->
+      <div>
+        <div class="readout" id="readout" style="display:none">
+          <div class="readout__head">
+            <span data-i18n="t.results">Results</span>
+            <span class="badge badge--muted" id="apiBadge">—</span>
+          </div>
+          <div id="segRows"></div>
+          <div class="declared-note" id="declaredNote" style="display:none"></div>
+          <div class="verdict" id="verdict"></div>
+        </div>
 
-    <!-- 右: 結果 -->
-    <div>
-      <div class="readout" id="readout" style="display:none">
-        <div class="readout__head">
-          <span data-i18n="t.results">Results</span>
-          <span class="badge badge--muted" id="apiBadge">—</span>
+        <div class="card chartcard" id="scanCard">
+          <div class="card__title" data-i18n="t.scanchart">Frame rate over time</div>
+          <div class="chart-wrap">
+            <canvas id="fpsChart" width="900" height="440"></canvas>
+            <div class="chart-hover" id="chartHover"></div>
+          </div>
+          <div class="chart-legend">
+            <span data-i18n="t.chartx">Elapsed time (s)</span>
+            <span data-i18n="t.charty">Instantaneous fps</span>
+          </div>
+          <div class="scan-summary" id="scanSummary"></div>
         </div>
-        <div id="segRows"></div>
-        <div class="declared-note" id="declaredNote" style="display:none"></div>
-        <div class="verdict" id="verdict"></div>
-      </div>
-
-      <div class="card chartcard" id="scanCard">
-        <div class="card__title" data-i18n="t.scanchart">Frame rate over time</div>
-        <div class="chart-wrap">
-          <canvas id="fpsChart" width="900" height="440"></canvas>
-          <div class="chart-hover" id="chartHover"></div>
-        </div>
-        <div class="chart-legend">
-          <span data-i18n="t.chartx">Elapsed time (s)</span>
-          <span data-i18n="t.charty">Instantaneous fps</span>
-        </div>
-        <div class="scan-summary" id="scanSummary"></div>
       </div>
     </div>
-  </div>
+
+    <div class="btnrow btnrow--reset">
+      <button type="button" class="btn btn--secondary" id="resetFromVfr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+        <span data-i18n="t.analyzeanother">Analyze another file</span>
+      </button>
+    </div>
+  </section>
+
 </main>
 
 <script src="../../shared/shell.js"></script>
@@ -210,7 +401,13 @@
   var dropzone = $("dropzone");
   var filePillWrap = $("filePillWrap");
   var fileName = $("fileName");
-  var fileClear = $("fileClear");
+  var fileMeta = $("fileMeta");
+
+  var step1 = $("step1"), step2 = $("step2");
+  var resultCfr = $("resultCfr"), resultVfr = $("resultVfr");
+  var choiceCfr = $("choiceCfr"), choiceVfr = $("choiceVfr");
+  var backTo1 = $("backTo1");
+
   var modeSegEl = $("modeseg");
   var modeHint = $("modeHint");
   var sampleOpts = $("sampleOpts");
@@ -232,16 +429,51 @@
   var chartCanvas = $("fpsChart");
   var chartHover = $("chartHover");
   var scanSummary = $("scanSummary");
+  var dropSupportNote = $("dropSupportNote");
 
   var mode = "sample";
   var objectUrl = null;
   var duration = 0;
+  var currentFile = null;
   var cancelRequested = false;
   var running = false;
   var usesRVFC = ("requestVideoFrameCallback" in HTMLVideoElement.prototype);
+  var usesDropDetection = (typeof HTMLVideoElement !== "undefined" && "getVideoPlaybackQuality" in HTMLVideoElement.prototype);
 
   // ======================================================================
-  // ファイル読み込み
+  // ウィザード遷移
+  // ======================================================================
+  function showStep(el) {
+    [step1, step2, resultCfr, resultVfr].forEach(function (s) {
+      var active = (s === el);
+      s.classList.toggle("is-active", active);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function goToStep2() {
+    showStep(step2);
+  }
+
+  function resetToStep1() {
+    cancelRequested = true;
+    running = false;
+    fileInput.value = "";
+    if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+    video.removeAttribute("src"); video.load();
+    filePillWrap.style.display = "none";
+    duration = 0;
+    currentFile = null;
+    resetResults();
+    showStep(step1);
+  }
+
+  backTo1.addEventListener("click", function () { showStep(step1); });
+  $("resetFromCfr").addEventListener("click", resetToStep1);
+  $("resetFromVfr").addEventListener("click", resetToStep1);
+
+  // ======================================================================
+  // ファイル読み込み（ステップ1）
   // ======================================================================
   function resetResults() {
     readout.style.display = "none";
@@ -251,26 +483,37 @@
     verdictEl.innerHTML = "";
     scanSummary.innerHTML = "";
     clearChart();
+    $("cfrHeroReadout").style.display = "none";
+    $("cfrDetailReadout").style.display = "none";
+    $("cfrVerdict").innerHTML = "";
+    $("cfrSegRows").innerHTML = "";
+  }
+
+  function fmtFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   }
 
   function loadFile(file) {
     if (!file) return;
     if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
     resetResults();
+    currentFile = file;
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     fileName.textContent = file.name;
+    fileMeta.textContent = fmtFileSize(file.size);
     filePillWrap.style.display = "";
-    startBtn.disabled = true;
     video.onloadedmetadata = function () {
       duration = video.duration || 0;
-      startBtn.disabled = !(duration > 0);
       updateScanEta();
-      updateSampleAvailability();
+      if (duration > 0) {
+        setTimeout(goToStep2, 250);
+      }
     };
     video.onerror = function () {
       duration = 0;
-      startBtn.disabled = true;
     };
   }
 
@@ -295,19 +538,24 @@
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f && f.type.indexOf("video") === 0) loadFile(f);
   });
-  fileClear.addEventListener("click", function (e) {
-    e.stopPropagation();
-    fileInput.value = "";
-    if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
-    video.removeAttribute("src"); video.load();
-    filePillWrap.style.display = "none";
-    duration = 0;
-    startBtn.disabled = true;
-    resetResults();
+
+  // ======================================================================
+  // ステップ2: CFR/VFR選択
+  // ======================================================================
+  choiceCfr.addEventListener("click", function () {
+    $("cfrFileLabel").textContent = currentFile ? currentFile.name : "";
+    showStep(resultCfr);
+    runCfrFlow();
+  });
+  choiceVfr.addEventListener("click", function () {
+    $("vfrFileLabel").textContent = currentFile ? currentFile.name : "";
+    showStep(resultVfr);
+    dropSupportNote.style.display = usesDropDetection ? "none" : "";
+    syncMode();
   });
 
   // ======================================================================
-  // モード切替
+  // モード切替（VFR画面）
   // ======================================================================
   modeSegEl.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -329,13 +577,8 @@
     modeHint.textContent = Shell.t(key);
   }
 
-  function updateSampleAvailability() {
-    // 短い動画は区間数を自動で減らすため、UI側の制約は緩いまま（実際の分割はロジック側で調整）
-  }
-
   function updateScanEta() {
-    if (!duration) { scanEta.textContent = Shell && Shell.t ? Shell.t("t.scaneta") : "—"; return; }
-    // 全編スキャンは実速度再生なので、所要時間 ≈ 動画の長さ
+    if (!duration) return;
     var mins = Math.floor(duration / 60), secs = Math.round(duration % 60);
     var txt = (typeof Shell !== "undefined" && Shell && Shell.t) ? Shell.t("t.scanetaval") : "About {t} to run (real-time playback).";
     var human = mins > 0 ? (mins + "m " + secs + "s") : (secs + "s");
@@ -355,7 +598,6 @@
       }
       videoEl.requestVideoFrameCallback(step);
     } else {
-      // フォールバック: rAFで毎フレーム currentTime を読む（表示フレームと1:1対応しない可能性があり精度は落ちる）
       var frameCount = 0;
       function raf() {
         if (stopped) return;
@@ -369,21 +611,28 @@
   }
 
   // ======================================================================
-  // 共通測定ロジック: 指定した [start, end) 区間を実速度再生しつつフレーム間隔を集計
-  // 戻り値: Promise<{intervals: [{t, dt}], fps, frameCount, discarded}>
+  // 共通測定ロジック
   // ======================================================================
-  var WARMUP_FRAMES = 3; // シーク直後の乱れを避けるため、区間先頭の数フレームは除外
+  var WARMUP_FRAMES = 3;
+
+  function readDroppedFrames() {
+    if (!usesDropDetection) return null;
+    try {
+      var q = video.getVideoPlaybackQuality();
+      return typeof q.droppedVideoFrames === "number" ? q.droppedVideoFrames : null;
+    } catch (e) { return null; }
+  }
 
   function measureSegment(startTime, endTime, opts) {
     opts = opts || {};
     var onProgress = opts.onProgress || function () {};
-    var onSample = opts.onSample || null; // 全編スキャン用: 瞬間fpsを逐次通知
+    var onSample = opts.onSample || null;
 
     return new Promise(function (resolve, reject) {
       var timestamps = [];
-      var sampleFpsSeries = []; // {tElapsed, fps} 全編スキャン用
       var stopWatch = null;
       var settled = false;
+      var dropsBefore = null;
 
       function finish(result) {
         if (settled) return;
@@ -394,7 +643,7 @@
       }
 
       function onFrame(mediaTime) {
-        if (mediaTime < startTime - 0.001) return; // シーク完了待ち
+        if (mediaTime < startTime - 0.001) return;
         if (mediaTime >= endTime || video.currentTime >= endTime) {
           computeAndFinish();
           return;
@@ -413,23 +662,25 @@
 
       function computeAndFinish() {
         var usable = timestamps.slice(WARMUP_FRAMES);
+        var dropsAfter = readDroppedFrames();
+        var dropped = (dropsBefore != null && dropsAfter != null) ? Math.max(0, dropsAfter - dropsBefore) : null;
         if (usable.length < 2) {
-          finish({ fps: null, frameCount: timestamps.length, intervals: [], insufficientData: true });
+          finish({ fps: null, frameCount: timestamps.length, intervals: [], insufficientData: true, dropped: dropped });
           return;
         }
         var totalDt = usable[usable.length - 1] - usable[0];
         var frameGaps = usable.length - 1;
         var fps = totalDt > 0 ? frameGaps / totalDt : null;
-        finish({ fps: fps, frameCount: timestamps.length, span: totalDt, insufficientData: false });
+        finish({ fps: fps, frameCount: timestamps.length, span: totalDt, insufficientData: false, dropped: dropped });
       }
 
       function onSeeked() {
         video.removeEventListener("seeked", onSeeked);
         if (cancelRequested) { finish({ fps: null, frameCount: 0, cancelled: true }); return; }
+        dropsBefore = readDroppedFrames();
         stopWatch = watchFrames(video, onFrame);
         video.play().catch(function (err) { finish({ fps: null, frameCount: 0, error: String(err) }); });
 
-        // 保険: endTimeを過ぎても止まらない場合に備えたポーリング監視
         var guardTimer = setInterval(function () {
           if (settled) { clearInterval(guardTimer); return; }
           if (cancelRequested) { clearInterval(guardTimer); computeAndFinish(); return; }
@@ -450,13 +701,12 @@
   }
 
   // ======================================================================
-  // サンプリング測定
+  // 区間プラン（サンプリング共通）
   // ======================================================================
   function planSampleSegments(dur, segDur) {
-    // 動画が短い場合は区間数を自動で減らす
     var segments = [];
     if (dur <= 0) return segments;
-    var minGapForThree = segDur * 3 * 1.6; // 3区間を意味のある間隔で置けるかの目安
+    var minGapForThree = segDur * 3 * 1.6;
     var count = dur < 10 ? (dur < segDur * 2 ? 1 : 2) : (dur < minGapForThree ? 2 : 3);
 
     if (count === 1) {
@@ -476,15 +726,182 @@
     return segments.filter(function (sg) { return sg.end - sg.start > 0.05; });
   }
 
+  function labelForSeg(key) {
+    var map = { start: "t.segstart", mid: "t.segmid", end: "t.segend" };
+    return (Shell && Shell.t) ? Shell.t(map[key] || "t.segmid") : key;
+  }
+  function fmtTime(sec) {
+    sec = Math.max(0, sec);
+    var m = Math.floor(sec / 60), s = sec - m * 60;
+    return m > 0 ? (m + ":" + (s < 10 ? "0" : "") + s.toFixed(1)) : s.toFixed(1) + "s";
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+  function attachCopyHandlers(root) {
+    root.querySelectorAll("[data-copy]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var v = el.getAttribute("data-copy");
+        if (typeof Shell !== "undefined" && Shell && Shell.copy) Shell.copy(v, el);
+      });
+    });
+  }
+  function median(arr) {
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var n = s.length;
+    if (n === 0) return null;
+    return n % 2 === 1 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function mean(arr) {
+    if (!arr.length) return null;
+    return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
+  }
+
+  // ======================================================================
+  // CFR想定フロー
+  // ======================================================================
+  var CFR_SEG_DUR = 3;
+  var CFR_SPREAD_TOLERANCE = 0.2;
+
+  function runCfrFlow() {
+    var plan = planSampleSegments(duration, CFR_SEG_DUR);
+    if (!plan.length) return;
+
+    cancelRequested = false;
+    running = true;
+    var cfrProgWrap = $("cfrProgWrap"), cfrProgFill = $("cfrProgFill"), cfrProgLabel = $("cfrProgLabel"), cfrProgPct = $("cfrProgPct");
+    cfrProgWrap.classList.add("is-active");
+    $("cfrApiBadge").textContent = usesRVFC ? ((Shell && Shell.t) ? Shell.t("t.apirvfc") : "requestVideoFrameCallback") : ((Shell && Shell.t) ? Shell.t("t.apifallback") : "Fallback (rAF)");
+    $("cfrApiBadge").className = "badge " + (usesRVFC ? "badge--pos" : "badge--muted");
+
+    var results = [];
+    var i = 0;
+
+    function next() {
+      if (cancelRequested || i >= plan.length) { finishAll(); return; }
+      var sg = plan[i];
+      cfrProgLabel.textContent = labelForSeg(sg.key) + " (" + (i + 1) + "/" + plan.length + ")";
+      measureSegment(sg.start, sg.end, {
+        onProgress: function (t) {
+          var segFrac = (t - sg.start) / Math.max(0.001, sg.end - sg.start);
+          var overall = (i + segFrac) / plan.length;
+          var pct = Math.max(0, Math.min(1, overall));
+          cfrProgFill.style.width = (pct * 100).toFixed(1) + "%";
+          cfrProgPct.textContent = Math.round(pct * 100) + "%";
+        }
+      }).then(function (res) {
+        results.push({ seg: sg, result: res });
+        i++;
+        next();
+      }).catch(function () { i++; next(); });
+    }
+
+    function finishAll() {
+      cfrProgWrap.classList.remove("is-active");
+      running = false;
+      if (cancelRequested) return;
+      renderCfrResults(results);
+    }
+
+    next();
+  }
+
+  function renderCfrResults(results) {
+    var validFps = [];
+    results.forEach(function (r) {
+      if (!r.result.insufficientData && r.result.fps != null) validFps.push(r.result.fps);
+    });
+
+    var heroBox = $("cfrHeroReadout");
+    var detailBox = $("cfrDetailReadout");
+    var avgVal = $("cfrAvgVal"), medVal = $("cfrMedVal");
+    var verdict = $("cfrVerdict");
+    var rowsEl = $("cfrSegRows");
+
+    if (validFps.length < 2) {
+      heroBox.style.display = "";
+      avgVal.textContent = "—"; medVal.textContent = "—";
+      verdict.innerHTML = '<span class="badge badge--muted">' + ((Shell && Shell.t) ? esc(Shell.t("t.verdict-insufficient")) : "Not enough segments to compare.") + '</span>';
+      return;
+    }
+
+    var avg = mean(validFps), med = median(validFps);
+    var min = Math.min.apply(null, validFps), max = Math.max.apply(null, validFps);
+    var spread = max - min;
+    var consistent = spread <= CFR_SPREAD_TOLERANCE;
+
+    heroBox.style.display = "";
+    avgVal.setAttribute("data-copy", avg.toFixed(3));
+    avgVal.innerHTML = avg.toFixed(3) + '<span class="u">fps</span>';
+    medVal.setAttribute("data-copy", med.toFixed(3));
+    medVal.innerHTML = med.toFixed(3) + '<span class="u">fps</span>';
+    attachCopyHandlers(heroBox);
+
+    verdict.innerHTML = "";
+    var badge = document.createElement("span");
+    badge.className = "badge " + (consistent ? "badge--pos" : "badge--neg");
+    var dot = document.createElement("span"); dot.className = "d"; badge.appendChild(dot);
+    var label = document.createElement("span");
+    label.textContent = (consistent
+      ? ((Shell && Shell.t) ? Shell.t("t.cfr-verdict-consistent") : "Segments agree closely.")
+      : ((Shell && Shell.t) ? Shell.t("t.cfr-verdict-inconsistent") : "Segments disagree — this file may actually be VFR.")
+    ) + " (Δ" + spread.toFixed(3) + " fps)";
+    badge.appendChild(label);
+    verdict.appendChild(badge);
+
+    if (!consistent) {
+      var p = document.createElement("p");
+      p.className = "hint";
+      p.style.marginTop = "10px";
+      p.textContent = (Shell && Shell.t) ? Shell.t("t.cfr-verdict-suggest") : "The per-segment values below differ more than expected for a constant frame rate. Consider using the VFR path (sampling or full scan) instead.";
+      verdict.appendChild(p);
+
+      var goVfr = document.createElement("button");
+      goVfr.type = "button";
+      goVfr.className = "btn btn--secondary";
+      goVfr.style.marginTop = "10px";
+      goVfr.textContent = (Shell && Shell.t) ? Shell.t("t.gotovfr") : "Switch to VFR analysis";
+      goVfr.addEventListener("click", function () {
+        $("vfrFileLabel").textContent = currentFile ? currentFile.name : "";
+        showStep(resultVfr);
+        dropSupportNote.style.display = usesDropDetection ? "none" : "";
+        syncMode();
+      });
+      verdict.appendChild(goVfr);
+
+      detailBox.style.display = "";
+      rowsEl.innerHTML = "";
+      results.forEach(function (r) {
+        var row = document.createElement("div");
+        row.className = "segrow";
+        var lbl = labelForSeg(r.seg.key);
+        var range = fmtTime(r.seg.start) + "–" + fmtTime(r.seg.end);
+        var fpsText = (r.result.insufficientData || r.result.fps == null) ? "—" : r.result.fps.toFixed(3);
+        var fpsCopy = (r.result.insufficientData || r.result.fps == null) ? "" : r.result.fps.toFixed(3);
+        row.innerHTML =
+          '<div><div class="seg-label">' + esc(lbl) + '</div><div class="seg-range">' + esc(range) + '</div></div>' +
+          '<div></div>' +
+          '<div class="seg-fps"' + (fpsCopy ? ' data-copy="' + esc(fpsCopy) + '"' : '') + '>' + esc(fpsText) + (fpsCopy ? '<span class="u">fps</span>' : '') + '</div>';
+        rowsEl.appendChild(row);
+      });
+      attachCopyHandlers(rowsEl);
+    } else {
+      detailBox.style.display = "none";
+    }
+  }
+
+  // ======================================================================
+  // VFR想定フロー: サンプリング
+  // ======================================================================
   function runSampling() {
-    var segDur = parseFloat(segDurInput.value) || 3;
+    var segDur = parseFloat(segDurInput.value) || 5;
     segDur = Math.max(1, Math.min(20, segDur));
     var plan = planSampleSegments(duration, segDur);
     if (!plan.length) return;
 
     resetResults();
     readout.style.display = "";
-    apiBadge.textContent = usesRVFC ? (Shell && Shell.t ? Shell.t("t.apirvfc") : "requestVideoFrameCallback") : (Shell && Shell.t ? Shell.t("t.apifallback") : "Fallback (rAF)");
+    apiBadge.textContent = usesRVFC ? ((Shell && Shell.t) ? Shell.t("t.apirvfc") : "requestVideoFrameCallback") : ((Shell && Shell.t) ? Shell.t("t.apifallback") : "Fallback (rAF)");
     apiBadge.className = "badge " + (usesRVFC ? "badge--pos" : "badge--muted");
 
     setProgressActive(true);
@@ -505,10 +922,7 @@
         results.push({ seg: sg, result: res });
         i++;
         next();
-      }).catch(function () {
-        i++;
-        next();
-      });
+      }).catch(function () { i++; next(); });
     }
 
     function finishAll() {
@@ -521,11 +935,6 @@
     }
 
     next();
-  }
-
-  function labelForSeg(key) {
-    var map = { start: "t.segstart", mid: "t.segmid", end: "t.segend" };
-    return (Shell && Shell.t) ? Shell.t(map[key] || "t.segmid") : key;
   }
 
   function renderSampleResults(results) {
@@ -544,28 +953,23 @@
         fpsCopy = r.result.fps.toFixed(3);
         validFps.push(r.result.fps);
       }
+      var dropText = "";
+      if (r.result.dropped != null && r.result.dropped > 0) {
+        var dTpl = (Shell && Shell.t) ? Shell.t("t.dropped") : "{n} frame(s) dropped";
+        dropText = '<div class="seg-drop">' + esc(dTpl.replace("{n}", r.result.dropped)) + '</div>';
+      }
       row.innerHTML =
-        '<div><div class="seg-label">' + esc(label) + '</div><div class="seg-range">' + esc(range) + '</div></div>' +
+        '<div><div class="seg-label">' + esc(label) + '</div><div class="seg-range">' + esc(range) + '</div>' + dropText + '</div>' +
         '<div></div>' +
         '<div class="seg-fps"' + (fpsCopy ? ' data-copy="' + esc(fpsCopy) + '"' : '') + '>' + esc(fpsText) + (fpsCopy ? '<span class="u">fps</span>' : '') + '</div>';
       segRows.appendChild(row);
     });
     attachCopyHandlers(segRows);
-
-    // 申告fps（参考値・取得できる場合のみ）
-    var declared = guessDeclaredFps();
-    if (declared) {
-      declaredNote.style.display = "";
-      var noteTpl = (Shell && Shell.t) ? Shell.t("t.declaredref") : "Reference (declared, approximate): {v} fps";
-      declaredNote.textContent = noteTpl.replace("{v}", declared.toFixed(3));
-    } else {
-      declaredNote.style.display = "none";
-    }
-
-    renderVerdict(validFps, results.length);
+    declaredNote.style.display = "none";
+    renderVerdict(validFps);
   }
 
-  function renderVerdict(validFps, totalSegs) {
+  function renderVerdict(validFps) {
     verdictEl.innerHTML = "";
     if (validFps.length < 2) {
       var badge = document.createElement("span");
@@ -576,7 +980,7 @@
     }
     var min = Math.min.apply(null, validFps), max = Math.max.apply(null, validFps);
     var spread = max - min;
-    var TOLERANCE = 0.2; // 仕様通り絶対誤差固定（±0.1〜0.2fps目安の上限を採用）
+    var TOLERANCE = 0.2;
     var consistent = spread <= TOLERANCE;
 
     var wrap = document.createElement("div");
@@ -590,38 +994,18 @@
     ) + " (Δ" + spread.toFixed(3) + " fps)";
     badge.appendChild(label);
     wrap.appendChild(badge);
-
-    if (!consistent) {
-      var p = document.createElement("p");
-      p.className = "hint";
-      p.style.marginTop = "10px";
-      p.textContent = (Shell && Shell.t) ? Shell.t("t.verdict-suggest") : "Consider running a full scan to see how fps changes over the whole video.";
-      wrap.appendChild(p);
-
-      var goScan = document.createElement("button");
-      goScan.type = "button";
-      goScan.className = "btn btn--secondary";
-      goScan.style.marginTop = "10px";
-      goScan.textContent = (Shell && Shell.t) ? Shell.t("t.gotoscan") : "Switch to full scan";
-      goScan.addEventListener("click", function () {
-        mode = "scan"; syncMode();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-      wrap.appendChild(goScan);
-    }
     verdictEl.appendChild(wrap);
   }
 
   // ======================================================================
   // 全編スキャン
   // ======================================================================
-  var chartData = []; // {t, fps}
-  var scanChunkSec = 6; // 実装上、rVFCは連続再生で回すので区間分割は不要。0〜durationを一括測定。
+  var chartData = [];
 
   function runScan() {
     resetResults();
     scanCard.classList.add("is-active");
-    apiBadge.textContent = usesRVFC ? (Shell && Shell.t ? Shell.t("t.apirvfc") : "requestVideoFrameCallback") : (Shell && Shell.t ? Shell.t("t.apifallback") : "Fallback (rAF)");
+    apiBadge.textContent = usesRVFC ? ((Shell && Shell.t) ? Shell.t("t.apirvfc") : "requestVideoFrameCallback") : ((Shell && Shell.t) ? Shell.t("t.apifallback") : "Fallback (rAF)");
 
     setProgressActive(true);
     updateProgressLabel((Shell && Shell.t) ? Shell.t("t.scanning") : "Scanning…", 0, 1);
@@ -649,7 +1033,7 @@
     });
   }
 
-  function renderScanSummary(overallResult) {
+  function renderScanSummary() {
     scanSummary.innerHTML = "";
     if (!chartData.length) {
       var badge = document.createElement("span");
@@ -660,7 +1044,7 @@
     }
     var fpsVals = chartData.map(function (d) { return d.fps; });
     var min = Math.min.apply(null, fpsVals), max = Math.max.apply(null, fpsVals);
-    var avg = fpsVals.reduce(function (a, b) { return a + b; }, 0) / fpsVals.length;
+    var avg = mean(fpsVals);
     var spread = max - min;
     var TOLERANCE = 0.2;
     var consistent = spread <= TOLERANCE;
@@ -698,11 +1082,9 @@
     var ctx = chartCanvas.getContext("2d");
     ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
   }
-
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
-
   function drawChart(data, totalDuration) {
     var ctx = chartCanvas.getContext("2d");
     var W = chartCanvas.width, H = chartCanvas.height;
@@ -723,7 +1105,6 @@
     var textColor = cssVar("--text-3") || "#888";
     var accent = cssVar("--accent") || "#5457E5";
 
-    // グリッド + 軸ラベル
     ctx.strokeStyle = border;
     ctx.lineWidth = 1;
     ctx.font = "11px " + (cssVar("--font-mono") || "monospace");
@@ -746,7 +1127,6 @@
       ctx.fillText(xv.toFixed(0) + "s", x, H - padB + 8);
     }
 
-    // 折れ線
     ctx.beginPath();
     ctx.strokeStyle = accent;
     ctx.lineWidth = 1.75;
@@ -774,7 +1154,7 @@
   chartCanvas.addEventListener("mouseleave", function () { chartHover.style.opacity = 0; });
 
   // ======================================================================
-  // 進捗 UI
+  // 進捗 UI（VFR画面）
   // ======================================================================
   function setProgressActive(active) {
     progWrap.classList.toggle("is-active", !!active);
@@ -790,7 +1170,7 @@
   }
 
   // ======================================================================
-  // 開始 / キャンセル
+  // 開始 / キャンセル（VFR画面）
   // ======================================================================
   startBtn.addEventListener("click", function () {
     if (!duration || running) return;
@@ -805,31 +1185,6 @@
   });
 
   // ======================================================================
-  // ユーティリティ
-  // ======================================================================
-  function fmtTime(sec) {
-    sec = Math.max(0, sec);
-    var m = Math.floor(sec / 60), s = sec - m * 60;
-    return m > 0 ? (m + ":" + (s < 10 ? "0" : "") + s.toFixed(1)) : s.toFixed(1) + "s";
-  }
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
-  }
-  function guessDeclaredFps() {
-    // ブラウザAPIからは直接取得できないため、常に null（参考値欄自体を出さない）。
-    // 将来 MediaCapabilities 等で近似値が取れる場合に備えて関数だけ残す。
-    return null;
-  }
-  function attachCopyHandlers(root) {
-    root.querySelectorAll("[data-copy]").forEach(function (el) {
-      el.addEventListener("click", function () {
-        var v = el.getAttribute("data-copy");
-        if (typeof Shell !== "undefined" && Shell && Shell.copy) Shell.copy(v, el);
-      });
-    });
-  }
-
-  // ======================================================================
   // 起動
   // ======================================================================
   syncMode();
@@ -840,16 +1195,26 @@
         en: {
           "t.title": "Actual frame rate measurer",
           "t.desc": "Measures a video's real playback frame rate from displayed frame timestamps, instead of trusting the container's declared fps.",
-          "t.source": "Video file",
           "t.dzmain": "Drop a video file here, or click to choose",
           "t.dzsub": "Processed locally in your browser. Nothing is uploaded.",
-          "t.clear": "Remove file",
+          "t.q-title": "Might the frame rate change partway through?",
+          "t.q-desc": "If you're not sure, screen recordings, game/emulator captures, and some smartphone or web-sourced clips are more likely to have a variable frame rate (VFR).",
+          "t.q-cfr-title": "No, probably constant",
+          "t.q-cfr-desc": "Runs 3 quick samples and shows one representative fps value.",
+          "t.q-vfr-title": "Yes, it might vary",
+          "t.q-vfr-desc": "Choose between sampling and a full-video scan, with frame-drop detection.",
+          "t.back": "Back",
+          "t.avg": "Average",
+          "t.median": "Median",
+          "t.segbreakdown": "Per-segment breakdown",
+          "t.analyzeanother": "Analyze another file",
           "t.mode": "Measurement mode",
           "t.modesample": "Sampling",
           "t.modescan": "Full scan",
           "t.modehint-sample": "Measures a few seconds each at the start, middle, and end at real-time playback speed.",
           "t.modehint-scan": "Plays the entire video at real-time speed and plots fps over time. Takes about as long as the video itself.",
           "t.segdur": "Seconds per segment",
+          "t.segdurhint": "Longer segments average out more noise, at the cost of taking longer to measure.",
           "t.scaneta": "Estimated time appears once a file is loaded.",
           "t.scanetaval": "About {t} to run (real-time playback).",
           "t.start": "Start measuring",
@@ -860,12 +1225,15 @@
           "t.segstart": "Start",
           "t.segmid": "Middle",
           "t.segend": "End",
+          "t.dropped": "{n} frame(s) dropped",
           "t.declaredref": "Reference (declared, approximate): {v} fps",
           "t.verdict-consistent": "Segments agree — frame rate looks constant.",
           "t.verdict-inconsistent": "Segments disagree — frame rate may change within the video.",
           "t.verdict-insufficient": "Not enough segments to compare.",
-          "t.verdict-suggest": "Consider running a full scan to see how fps changes over the whole video.",
-          "t.gotoscan": "Switch to full scan",
+          "t.cfr-verdict-consistent": "Segments agree closely.",
+          "t.cfr-verdict-inconsistent": "Segments disagree — this file may actually be VFR.",
+          "t.cfr-verdict-suggest": "The per-segment values below differ more than expected for a constant frame rate. Consider using the VFR path (sampling or full scan) instead.",
+          "t.gotovfr": "Switch to VFR analysis",
           "t.scanning": "Scanning…",
           "t.scanchart": "Frame rate over time",
           "t.chartx": "Elapsed time (s)",
@@ -876,21 +1244,32 @@
           "t.note1body": " Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.",
           "t.note2title": "About browser support:",
           "t.note2body": " This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.",
+          "t.note3body": "Frame-drop detection (getVideoPlaybackQuality) isn't available in this browser, so dropped-frame counts are shown as \"unknown\" rather than 0.",
           "u.sec": "s"
         },
         ja: {
           "t.title": "実測フレームレート測定",
           "t.desc": "コンテナの申告fpsに頼らず、実際に描画されたフレームのタイムスタンプから実測fpsを測定します。",
-          "t.source": "動画ファイル",
           "t.dzmain": "ここに動画ファイルをドロップ、またはクリックして選択",
           "t.dzsub": "処理はすべてブラウザ内で完結します。アップロードはされません。",
-          "t.clear": "ファイルを削除",
+          "t.q-title": "動画の途中でフレームレートが変わる可能性はありますか？",
+          "t.q-desc": "判断に迷う場合、画面録画・ゲーム/エミュレータのキャプチャ・一部のスマホ撮影やWeb由来の動画は、可変フレームレート（VFR）である可能性が高めです。",
+          "t.q-cfr-title": "いいえ、おそらく一定",
+          "t.q-cfr-desc": "3区間を素早くサンプリングし、代表値を1つ表示します。",
+          "t.q-vfr-title": "はい、変わるかもしれない",
+          "t.q-vfr-desc": "サンプリング／全編スキャンを選択でき、フレームドロップ検出も行います。",
+          "t.back": "戻る",
+          "t.avg": "平均値",
+          "t.median": "中央値",
+          "t.segbreakdown": "区間ごとの内訳",
+          "t.analyzeanother": "別の動画を解析する",
           "t.mode": "測定モード",
           "t.modesample": "サンプリング",
           "t.modescan": "全編スキャン",
           "t.modehint-sample": "冒頭・中間・末尾それぞれ数秒を実速度で再生し、フレーム間隔を測定します。",
           "t.modehint-scan": "全編を実速度で再生し、時系列でのfps推移をグラフ表示します。動画の長さと同程度の時間がかかります。",
           "t.segdur": "区間あたりの秒数",
+          "t.segdurhint": "区間を長くするとノイズが平均化されますが、測定時間は伸びます。",
           "t.scaneta": "ファイルを読み込むと所要時間の目安が表示されます。",
           "t.scanetaval": "所要時間の目安: {t}（実速度再生のため）",
           "t.start": "測定開始",
@@ -901,12 +1280,15 @@
           "t.segstart": "冒頭",
           "t.segmid": "中間",
           "t.segend": "末尾",
+          "t.dropped": "{n}フレームがドロップ",
           "t.declaredref": "参考値（申告値・概算）: {v} fps",
           "t.verdict-consistent": "各区間の値はほぼ一致しています。フレームレートは一定と見られます。",
           "t.verdict-inconsistent": "各区間の値が一致しません。動画内でフレームレートが変化している可能性があります。",
           "t.verdict-insufficient": "比較できる区間数が不足しています。",
-          "t.verdict-suggest": "全編スキャンを実行すると、動画全体でのfps推移を確認できます。",
-          "t.gotoscan": "全編スキャンに切り替える",
+          "t.cfr-verdict-consistent": "各区間の値はよく一致しています。",
+          "t.cfr-verdict-inconsistent": "各区間の値が一致しません。この動画は実はVFRかもしれません。",
+          "t.cfr-verdict-suggest": "下記の区間ごとの値が、一定フレームレートとして想定される範囲より大きく異なっています。VFR側の分析（サンプリング／全編スキャン）の利用をご検討ください。",
+          "t.gotovfr": "VFR分析に切り替える",
           "t.scanning": "スキャン中…",
           "t.scanchart": "fps推移",
           "t.chartx": "経過時間（秒）",
@@ -917,6 +1299,7 @@
           "t.note1body": " コンテナの申告フレームレートはブラウザから直接取得できないため、参考値として表示する場合も概算値として扱ってください。",
           "t.note2title": "ブラウザ対応について：",
           "t.note2body": " このツールはrequestVideoFrameCallbackでフレーム精度の高いタイミング計測を行います。非対応ブラウザでは精度の落ちるフォールバック（requestAnimationFrame）を自動使用します。",
+          "t.note3body": "このブラウザではフレームドロップ検出（getVideoPlaybackQuality）が利用できないため、ドロップフレーム数は0ではなく「不明」として表示されます。",
           "u.sec": "秒"
         }
       },
