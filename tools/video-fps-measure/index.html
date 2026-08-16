@@ -346,7 +346,7 @@
           <span data-i18n="t.note2body"> This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.</span>
         </div>
         <div class="notebox" id="dropSupportNote" style="display:none" data-i18n="t.note3body">
-          Frame-drop detection (getVideoPlaybackQuality) isn't available in this browser, so dropped-frame counts are shown as "unknown" rather than 0.
+          Precise frame-drop detection (getVideoPlaybackQuality) isn't available in this browser. A rougher estimate from frame sequence numbers is used instead, so dropped-frame counts may be less accurate.
         </div>
       </div>
 
@@ -542,6 +542,17 @@
   // ======================================================================
   // ステップ2: CFR/VFR選択
   // ======================================================================
+  function syncDropSupportNote() {
+    if (usesDropDetection) {
+      dropSupportNote.style.display = "none";
+      return;
+    }
+    dropSupportNote.style.display = "";
+    var key = usesRVFC ? "t.note3body" : "t.note3body-none";
+    dropSupportNote.setAttribute("data-i18n", key);
+    if (typeof Shell !== "undefined" && Shell && Shell.t) dropSupportNote.textContent = Shell.t(key);
+  }
+
   choiceCfr.addEventListener("click", function () {
     $("cfrFileLabel").textContent = currentFile ? currentFile.name : "";
     showStep(resultCfr);
@@ -550,7 +561,7 @@
   choiceVfr.addEventListener("click", function () {
     $("vfrFileLabel").textContent = currentFile ? currentFile.name : "";
     showStep(resultVfr);
-    dropSupportNote.style.display = usesDropDetection ? "none" : "";
+    syncDropSupportNote();
     syncMode();
   });
 
@@ -591,9 +602,25 @@
   function watchFrames(videoEl, onFrame) {
     var stopped = false;
     if (usesRVFC) {
+      // presentedFrames は「動画開始からの累積表示フレーム数」の単調増加カウンタ。
+      // ブラウザによってはコールバックが同一フレームに対して重複発火したり
+      // （presentedFrames が前回と同じ値）、逆に複数フレーム分まとめて進んだ状態で
+      // 発火したりすることがある（presentedFrames の差分が2以上）。
+      // コールバック回数をそのまま「表示フレーム数」とみなすと、前者では
+      // 実際より多く、後者では実際より少なくカウントしてしまい、fps が歪む。
+      // presentedFrames の差分を見て、実際に新規表示されたフレーム数だけを渡す。
+      var lastPresented = null;
       function step(now, meta) {
         if (stopped) return;
-        onFrame(meta.mediaTime, meta.presentedFrames);
+        var presented = meta.presentedFrames;
+        var advance = 1;
+        if (typeof presented === "number" && lastPresented != null) {
+          var d = presented - lastPresented;
+          if (d > 0) advance = d; // 2以上ならフレームが飛んでいる（後段でドロップとして扱う）
+          else advance = 0;       // 0以下（重複発火）はこのコールバックを捨てる
+        }
+        if (typeof presented === "number") lastPresented = presented;
+        if (advance > 0) onFrame(meta.mediaTime, advance);
         videoEl.requestVideoFrameCallback(step);
       }
       videoEl.requestVideoFrameCallback(step);
@@ -602,7 +629,7 @@
       function raf() {
         if (stopped) return;
         frameCount++;
-        onFrame(videoEl.currentTime, frameCount);
+        onFrame(videoEl.currentTime, 1);
         requestAnimationFrame(raf);
       }
       requestAnimationFrame(raf);
@@ -629,7 +656,8 @@
     var onSample = opts.onSample || null;
 
     return new Promise(function (resolve, reject) {
-      var timestamps = [];
+      var timestamps = [];      // 実際に新規表示が確認できたフレームの mediaTime
+      var rvfcSkipped = 0;      // presentedFrames の差分から検出した、rVFC側で把握しているフレーム飛び数
       var stopWatch = null;
       var settled = false;
       var dropsBefore = null;
@@ -642,12 +670,17 @@
         resolve(result);
       }
 
-      function onFrame(mediaTime) {
+      function onFrame(mediaTime, advance) {
         if (mediaTime < startTime - 0.001) return;
         if (mediaTime >= endTime || video.currentTime >= endTime) {
           computeAndFinish();
           return;
         }
+        // advance が2以上 = このコールバックまでの間に本来複数フレーム進んでいたはずだが、
+        // 途中のフレームは提示イベントを個別には受け取れていない（＝実質的なドロップ）。
+        // 区間内フレーム数の分母を歪めないよう、飛んだ分は別カウントし、
+        // 実測できた1点として timestamps には mediaTime のみ積む。
+        if (advance > 1) rvfcSkipped += (advance - 1);
         timestamps.push(mediaTime);
         if (onSample && timestamps.length > WARMUP_FRAMES) {
           var n = timestamps.length;
@@ -663,7 +696,11 @@
       function computeAndFinish() {
         var usable = timestamps.slice(WARMUP_FRAMES);
         var dropsAfter = readDroppedFrames();
-        var dropped = (dropsBefore != null && dropsAfter != null) ? Math.max(0, dropsAfter - dropsBefore) : null;
+        var qDropped = (dropsBefore != null && dropsAfter != null) ? Math.max(0, dropsAfter - dropsBefore) : null;
+        // getVideoPlaybackQuality() が使えないブラウザ（Firefox含む）でも、
+        // presentedFrames の連番飛びから最低限のドロップ数を推定できる。
+        var dropped = qDropped != null ? qDropped : (rvfcSkipped > 0 ? rvfcSkipped : (usesDropDetection ? null : 0));
+        if (rvfcSkipped > 0 && qDropped != null) dropped = Math.max(qDropped, rvfcSkipped);
         if (usable.length < 2) {
           finish({ fps: null, frameCount: timestamps.length, intervals: [], insufficientData: true, dropped: dropped });
           return;
@@ -864,7 +901,7 @@
       goVfr.addEventListener("click", function () {
         $("vfrFileLabel").textContent = currentFile ? currentFile.name : "";
         showStep(resultVfr);
-        dropSupportNote.style.display = usesDropDetection ? "none" : "";
+        syncDropSupportNote();
         syncMode();
       });
       verdict.appendChild(goVfr);
@@ -1244,7 +1281,8 @@
           "t.note1body": " Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.",
           "t.note2title": "About browser support:",
           "t.note2body": " This tool uses requestVideoFrameCallback for frame-accurate timing. On browsers without it, a lower-precision fallback (requestAnimationFrame) is used automatically.",
-          "t.note3body": "Frame-drop detection (getVideoPlaybackQuality) isn't available in this browser, so dropped-frame counts are shown as \"unknown\" rather than 0.",
+          "t.note3body": "Precise frame-drop detection (getVideoPlaybackQuality) isn't available in this browser. A rougher estimate from frame sequence numbers is used instead, so dropped-frame counts may be less accurate.",
+          "t.note3body-none": "Frame-drop detection isn't available in this browser at all, so dropped-frame counts are shown as \"unknown\" rather than 0.",
           "u.sec": "s"
         },
         ja: {
@@ -1299,7 +1337,8 @@
           "t.note1body": " コンテナの申告フレームレートはブラウザから直接取得できないため、参考値として表示する場合も概算値として扱ってください。",
           "t.note2title": "ブラウザ対応について：",
           "t.note2body": " このツールはrequestVideoFrameCallbackでフレーム精度の高いタイミング計測を行います。非対応ブラウザでは精度の落ちるフォールバック（requestAnimationFrame）を自動使用します。",
-          "t.note3body": "このブラウザではフレームドロップ検出（getVideoPlaybackQuality）が利用できないため、ドロップフレーム数は0ではなく「不明」として表示されます。",
+          "t.note3body": "このブラウザでは精密なフレームドロップ検出（getVideoPlaybackQuality）が利用できないため、フレーム連番からの簡易推定を使用します。ドロップフレーム数の精度はやや落ちます。",
+          "t.note3body-none": "このブラウザではフレームドロップ検出が一切利用できないため、ドロップフレーム数は0ではなく「不明」として表示されます。",
           "u.sec": "秒"
         }
       },
