@@ -119,6 +119,11 @@
     cursor:pointer; text-align:right; }
   .segrow .seg-fps .u{ font-size:12px; color:var(--text-3); margin-left:3px; }
   .segrow .seg-drop{ font-size:10.5px; color:var(--neg); font-family:var(--font-mono); font-variant-numeric:tabular-nums; margin-top:2px; }
+  .seghead{ display:grid; grid-template-columns:1fr auto auto; gap:var(--s3);
+    padding:8px var(--s4) 4px; border-bottom:1px solid var(--border); }
+  .seghead span{ font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-3); text-align:right; }
+  .segrow .seg-fps--sub{ font-size:14px; color:var(--text-2); }
 
   .verdict{ padding:var(--s4); border-top:1px solid var(--border); }
 
@@ -369,6 +374,22 @@
             <div class="notebox" id="scanEta" data-i18n="t.scaneta">Estimated time appears once a file is loaded.</div>
           </div>
 
+          <div class="field">
+            <label class="toggle">
+              <input type="checkbox" id="vfrContentEnable" checked>
+              <span class="track"></span>
+              <span data-i18n="t.contenton">Also measure how often the picture actually changes</span>
+            </label>
+          </div>
+
+          <div class="field" id="vfrContentThreshField">
+            <label class="label" data-i18n="t.contentthresh">Duplicate threshold</label>
+            <div class="inputgroup">
+              <input class="input" id="vfrContentThresh" type="number" min="0" max="30" step="0.5" value="2" inputmode="decimal">
+              <span class="unit">MAD</span>
+            </div>
+          </div>
+
           <div class="btnrow btnrow--start">
             <button type="button" class="btn btn--primary" id="startBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l14-8L6 4Z"/></svg>
@@ -405,6 +426,7 @@
             <span data-i18n="t.results">Results</span>
             <span class="badge badge--muted" id="apiBadge">—</span>
           </div>
+          <div class="seghead" id="segHead" style="display:none"></div>
           <div id="segRows"></div>
           <div class="declared-note" id="declaredNote" style="display:none"></div>
           <div class="verdict" id="verdict"></div>
@@ -527,6 +549,7 @@
     readout.style.display = "none";
     scanCard.classList.remove("is-active");
     segRows.innerHTML = "";
+    if ($("segHead")) { $("segHead").innerHTML = ""; $("segHead").style.display = "none"; }
     declaredNote.style.display = "none";
     verdictEl.innerHTML = "";
     scanSummary.innerHTML = "";
@@ -593,14 +616,18 @@
   // ステップ2: CFR/VFR選択
   // ======================================================================
   function syncContentControls() {
-    var on = contentEnabled();
-    var f = $("contentThreshField");
-    if (f) f.style.display = on ? "" : "none";
+    [["contentEnable", "contentThreshField"], ["vfrContentEnable", "vfrContentThreshField"]]
+      .forEach(function (pair) {
+        var chk = $(pair[0]), f = $(pair[1]);
+        if (chk && f) f.style.display = chk.checked ? "" : "none";
+      });
   }
 
   (function wireContentControls() {
-    var chk = $("contentEnable");
-    if (chk) chk.addEventListener("change", syncContentControls);
+    ["contentEnable", "vfrContentEnable"].forEach(function (id) {
+      var chk = $(id);
+      if (chk) chk.addEventListener("change", syncContentControls);
+    });
     var rerun = $("cfrRerun");
     if (rerun) rerun.addEventListener("click", function () {
       if (running || !duration) return;
@@ -761,15 +788,24 @@
     return mad >= threshold;
   }
 
+  // 実質fpsの設定はCFR画面とVFR画面にそれぞれ存在する。
+  // 現在表示中の画面側の入力欄を読む。
+  function activeContentIds() {
+    var onVfr = resultVfr && resultVfr.classList.contains("is-active");
+    return onVfr
+      ? { chk: "vfrContentEnable", th: "vfrContentThresh", field: "vfrContentThreshField" }
+      : { chk: "contentEnable", th: "contentThresh", field: "contentThreshField" };
+  }
+
   function contentThreshold() {
-    var el = $("contentThresh");
+    var el = $(activeContentIds().th);
     var v = el ? parseFloat(el.value) : 2;
     if (!isFinite(v)) v = 2;
     return Math.max(0, Math.min(30, v));
   }
 
   function contentEnabled() {
-    var el = $("contentEnable");
+    var el = $(activeContentIds().chk);
     return el ? !!el.checked : false;
   }
 
@@ -820,6 +856,7 @@
         timestamps.push(mediaTime);
 
         // ---- 絵柄比較（実質フレームレート用） ----
+        var contentInstFps = null;
         if (contentOn && !sigFailed) {
           var sig = grabFrameSignature();
           if (!sig) {
@@ -829,6 +866,11 @@
             if (prevSig === null) {
               changeTimes.push(mediaTime);
             } else if (framesDiffer(prevSig, sig, thresh)) {
+              // 絵が変わった瞬間だけ、前回変化からの間隔で瞬間実質fpsを出す
+              if (changeTimes.length) {
+                var cdt = mediaTime - changeTimes[changeTimes.length - 1];
+                if (cdt > 0) contentInstFps = 1 / cdt;
+              }
               changeTimes.push(mediaTime);
             }
             prevSig = sig;
@@ -840,7 +882,7 @@
           var dt = timestamps[n - 1] - timestamps[n - 2];
           if (dt > 0) {
             var instFps = 1 / dt;
-            onSample(mediaTime, instFps);
+            onSample(mediaTime, instFps, contentInstFps);
           }
         }
         onProgress(mediaTime, startTime, endTime);
@@ -1230,6 +1272,7 @@
       var sg = plan[i];
       updateProgressLabel(labelForSeg(sg.key), i, plan.length);
       measureSegment(sg.start, sg.end, {
+        measureContent: contentEnabled(),
         onProgress: function (t) {
           var segFrac = (t - sg.start) / Math.max(0.001, sg.end - sg.start);
           var overall = (i + segFrac) / plan.length;
@@ -1256,7 +1299,8 @@
 
   function renderSampleResults(results) {
     segRows.innerHTML = "";
-    var validFps = [];
+    var validFps = [], validContent = [];
+    var showContent = contentEnabled();
     results.forEach(function (r) {
       var row = document.createElement("div");
       row.className = "segrow";
@@ -1275,24 +1319,48 @@
         var dTpl = (Shell && Shell.t) ? Shell.t("t.dropped") : "{n} frame(s) dropped";
         dropText = '<div class="seg-drop">' + esc(dTpl.replace("{n}", r.result.dropped)) + '</div>';
       }
+      // 実質fps（絵の変化頻度）を同じ行の副数値として出す
+      var contentCell = '<div></div>';
+      if (showContent) {
+        if (r.result.contentFps != null) {
+          validContent.push(r.result.contentFps);
+          contentCell = '<div class="seg-fps seg-fps--sub" data-copy="' + esc(r.result.contentFps.toFixed(3)) + '">' +
+            esc(r.result.contentFps.toFixed(3)) + '<span class="u">fps</span></div>';
+        } else {
+          contentCell = '<div class="seg-fps seg-fps--sub">—</div>';
+        }
+      }
       row.innerHTML =
         '<div><div class="seg-label">' + esc(label) + '</div><div class="seg-range">' + esc(range) + '</div>' + dropText + '</div>' +
-        '<div></div>' +
+        contentCell +
         '<div class="seg-fps"' + (fpsCopy ? ' data-copy="' + esc(fpsCopy) + '"' : '') + '>' + esc(fpsText) + (fpsCopy ? '<span class="u">fps</span>' : '') + '</div>';
       segRows.appendChild(row);
     });
     attachCopyHandlers(segRows);
     declaredNote.style.display = "none";
-    renderVerdict(validFps);
+    setSegHeader(showContent);
+    renderVerdict(validFps, validContent);
   }
 
-  function renderVerdict(validFps) {
+  // 区間テーブルの見出し行（実質fps列の有無で内容が変わる）
+  function setSegHeader(showContent) {
+    var head = $("segHead");
+    if (!head) return;
+    head.style.display = "";
+    var enc = (Shell && Shell.t) ? Shell.t("t.encodedshort") : "Encoded";
+    var eff = (Shell && Shell.t) ? Shell.t("t.effectiveshort") : "Effective";
+    head.innerHTML = '<span></span>' +
+      (showContent ? '<span>' + esc(eff) + '</span>' : '<span></span>') +
+      '<span>' + esc(enc) + '</span>';
+  }
+
+  function renderVerdict(validFps, validContent) {
     verdictEl.innerHTML = "";
     if (validFps.length < 2) {
-      var badge = document.createElement("span");
-      badge.className = "badge badge--muted";
-      badge.textContent = (Shell && Shell.t) ? Shell.t("t.verdict-insufficient") : "Not enough segments to compare.";
-      verdictEl.appendChild(badge);
+      var badge0 = document.createElement("span");
+      badge0.className = "badge badge--muted";
+      badge0.textContent = (Shell && Shell.t) ? Shell.t("t.verdict-insufficient") : "Not enough segments to compare.";
+      verdictEl.appendChild(badge0);
       return;
     }
     var min = Math.min.apply(null, validFps), max = Math.max.apply(null, validFps);
@@ -1311,6 +1379,27 @@
     ) + " (Δ" + spread.toFixed(3) + " fps)";
     badge.appendChild(label);
     wrap.appendChild(badge);
+
+    // 実質fpsが符号化fpsより明確に低ければ、重複フレームの存在を知らせる
+    if (validContent && validContent.length) {
+      var cMed = median(validContent), eMed = median(validFps);
+      var ratio = (eMed && cMed > 0) ? eMed / cMed : null;
+      if (ratio && ratio >= 1.5) {
+        var b2 = document.createElement("span");
+        b2.className = "badge badge--neg";
+        b2.style.marginTop = "8px";
+        var d2 = document.createElement("span"); d2.className = "d"; b2.appendChild(d2);
+        var nearest = Math.round(ratio);
+        var isClean = Math.abs(ratio - nearest) < 0.15;
+        var tpl = (Shell && Shell.t) ? Shell.t("t.content-duplicated") : "Picture changes only every {n} frames — this looks like {c}fps content stored at {e}fps.";
+        var l2 = document.createElement("span");
+        l2.textContent = tpl.replace("{n}", isClean ? String(nearest) : ratio.toFixed(1))
+          .replace("{c}", cMed.toFixed(2)).replace("{e}", eMed.toFixed(2));
+        b2.appendChild(l2);
+        wrap.appendChild(document.createElement("br"));
+        wrap.appendChild(b2);
+      }
+    }
     verdictEl.appendChild(wrap);
   }
 
@@ -1318,6 +1407,7 @@
   // 全編スキャン
   // ======================================================================
   var chartData = [];
+  var contentData = [];   // 全編スキャン時の実質fps推移
 
   function runScan() {
     resetResults();
@@ -1327,12 +1417,16 @@
     setProgressActive(true);
     updateProgressLabel((Shell && Shell.t) ? Shell.t("t.scanning") : "Scanning…", 0, 1);
     chartData = [];
+    contentData = [];
     clearChart();
 
     measureSegment(0, duration, {
+      measureContent: contentEnabled(),
       onProgress: function (t) { setProgress(t / duration); },
-      onSample: function (tElapsed, fps) {
+      onSample: function (tElapsed, fps, contentFps) {
         chartData.push({ t: tElapsed, fps: fps });
+        // 絵が変わった瞬間だけ実質fpsが渡ってくるので、来たときだけ点を足す
+        if (contentFps != null) contentData.push({ t: tElapsed, fps: contentFps });
         drawChart(chartData, duration);
       }
     }).then(function (res) {
@@ -1363,14 +1457,34 @@
     var min = Math.min.apply(null, fpsVals), max = Math.max.apply(null, fpsVals);
     var avg = mean(fpsVals);
     var spread = max - min;
+
+    // 瞬間fpsの最頻値。ドロップの影響を受けにくい代表値。
+    var encModeGaps = fpsVals.map(function (f) { return 1 / f; });
+    var encMode = modeOf(encModeGaps);
+    var encFps = encMode > 0 ? 1 / encMode : avg;
+
+    var contentFps = null;
+    if (contentData && contentData.length > 1) {
+      var cGapsArr = contentData.map(function (d) { return 1 / d.fps; });
+      var cm = modeOf(cGapsArr);
+      contentFps = cm > 0 ? 1 / cm : null;
+    }
     var TOLERANCE = 0.2;
     var consistent = spread <= TOLERANCE;
 
     var row = document.createElement("div");
-    row.className = "rrow";
-    row.innerHTML = '<span class="rrow__label" data-i18n="t.scanavg">Average fps</span>' +
-      '<span class="rrow__value" data-copy="' + avg.toFixed(3) + '">' + avg.toFixed(3) + '<span class="u">fps</span></span>';
+    row.className = "rrow rrow--hero";
+    row.innerHTML = '<span class="rrow__label" data-i18n="t.encodedfps">Encoded frame rate</span>' +
+      '<span class="rrow__value" data-copy="' + encFps.toFixed(3) + '">' + encFps.toFixed(3) + '<span class="u">fps</span></span>';
     scanSummary.appendChild(row);
+
+    if (contentFps != null) {
+      var rowC = document.createElement("div");
+      rowC.className = "rrow";
+      rowC.innerHTML = '<span class="rrow__label" data-i18n="t.effectivefps">Effective frame rate</span>' +
+        '<span class="rrow__value" data-copy="' + contentFps.toFixed(3) + '">' + contentFps.toFixed(3) + '<span class="u">fps</span></span>';
+      scanSummary.appendChild(rowC);
+    }
 
     var row2 = document.createElement("div");
     row2.className = "rrow";
@@ -1390,6 +1504,25 @@
     ) + " (Δ" + spread.toFixed(3) + " fps)";
     badge.appendChild(label);
     badgeWrap.appendChild(badge);
+
+    // 実質fpsが明確に低い場合は重複フレームの存在を知らせる
+    if (contentFps != null && encFps / contentFps >= 1.5) {
+      var ratio = encFps / contentFps;
+      var nearest = Math.round(ratio);
+      var isClean = Math.abs(ratio - nearest) < 0.15;
+      var b2 = document.createElement("span");
+      b2.className = "badge badge--neg";
+      b2.style.marginTop = "8px";
+      var d2 = document.createElement("span"); d2.className = "d"; b2.appendChild(d2);
+      var tpl = (Shell && Shell.t) ? Shell.t("t.content-duplicated") : "Picture changes only every {n} frames — this looks like {c}fps content stored at {e}fps.";
+      var l2 = document.createElement("span");
+      l2.textContent = tpl.replace("{n}", isClean ? String(nearest) : ratio.toFixed(1))
+        .replace("{c}", contentFps.toFixed(2)).replace("{e}", encFps.toFixed(2));
+      b2.appendChild(l2);
+      badgeWrap.appendChild(document.createElement("br"));
+      badgeWrap.appendChild(b2);
+    }
+
     scanSummary.appendChild(badgeWrap);
     attachCopyHandlers(scanSummary);
   }
@@ -1411,8 +1544,12 @@
     var padL = 56, padR = 16, padT = 16, padB = 30;
     var plotW = W - padL - padR, plotH = H - padT - padB;
 
-    var fpsVals = data.map(function (d) { return d.fps; });
-    var yMin = Math.min.apply(null, fpsVals), yMax = Math.max.apply(null, fpsVals);
+    var hasContent = contentData && contentData.length > 1;
+
+    // Y軸範囲は両系列をまとめて見る（実質fpsは符号化fpsより低いので下端が広がる）
+    var allVals = data.map(function (d) { return d.fps; });
+    if (hasContent) allVals = allVals.concat(contentData.map(function (d) { return d.fps; }));
+    var yMin = Math.min.apply(null, allVals), yMax = Math.max.apply(null, allVals);
     if (yMax - yMin < 1) { var mid = (yMax + yMin) / 2; yMin = mid - 0.5; yMax = mid + 0.5; }
     var pad = (yMax - yMin) * 0.15;
     yMin -= pad; yMax += pad;
@@ -1421,6 +1558,7 @@
     var border = cssVar("--border") || "#ddd";
     var textColor = cssVar("--text-3") || "#888";
     var accent = cssVar("--accent") || "#5457E5";
+    var posColor = cssVar("--pos") || "#1F9D57";
 
     ctx.strokeStyle = border;
     ctx.lineWidth = 1;
@@ -1444,15 +1582,38 @@
       ctx.fillText(xv.toFixed(0) + "s", x, H - padB + 8);
     }
 
-    ctx.beginPath();
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.75;
-    data.forEach(function (d, idx) {
-      var x = padL + plotW * (d.t / xMax);
-      var y = padT + plotH - plotH * ((d.fps - yMin) / (yMax - yMin));
-      if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+    function plot(series, color, width) {
+      if (series.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      series.forEach(function (d, idx) {
+        var x = padL + plotW * (d.t / xMax);
+        var y = padT + plotH - plotH * ((d.fps - yMin) / (yMax - yMin));
+        if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // 実質fpsを先に（下に）描き、符号化fpsを上に重ねる
+    if (hasContent) plot(contentData, posColor, 1.5);
+    plot(data, accent, 1.75);
+
+    // 凡例
+    if (hasContent) {
+      var lx = padL + 6, ly = padT + 8;
+      ctx.font = "11px " + (cssVar("--font-sans") || "sans-serif");
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      [[accent, (Shell && Shell.t) ? Shell.t("t.encodedshort") : "Encoded"],
+       [posColor, (Shell && Shell.t) ? Shell.t("t.effectiveshort") : "Effective"]]
+        .forEach(function (item, k) {
+          var yy = ly + k * 16;
+          ctx.strokeStyle = item[0]; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(lx, yy); ctx.lineTo(lx + 14, yy); ctx.stroke();
+          ctx.fillStyle = textColor;
+          ctx.fillText(item[1], lx + 20, yy);
+        });
+    }
   }
 
   chartCanvas.addEventListener("mousemove", function (e) {
@@ -1465,7 +1626,12 @@
     var t = ((mx - padL) / plotW) * xMax;
     if (t < 0 || t > xMax) { chartHover.style.opacity = 0; return; }
     var nearest = chartData.reduce(function (a, b) { return Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a; });
-    chartHover.textContent = fmtTime(nearest.t) + "  " + nearest.fps.toFixed(2) + " fps";
+    var txt = fmtTime(nearest.t) + "  " + nearest.fps.toFixed(2) + " fps";
+    if (contentData && contentData.length) {
+      var nc = contentData.reduce(function (a, b) { return Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a; });
+      txt += "  /  " + nc.fps.toFixed(2) + " fps";
+    }
+    chartHover.textContent = txt;
     chartHover.style.opacity = 1;
   });
   chartCanvas.addEventListener("mouseleave", function () { chartHover.style.opacity = 0; });
@@ -1529,6 +1695,8 @@
           "t.contentthresh": "Duplicate threshold",
           "t.contentthreshhint": "Average pixel difference (0–255) below which two frames count as the same picture. Raise it if lossy compression noise is being counted as motion.",
           "t.encodedfps": "Encoded frame rate",
+          "t.encodedshort": "Encoded",
+          "t.effectiveshort": "Effective",
           "t.fromtimestamps": "from timestamps",
           "t.effectivefps": "Effective frame rate",
           "t.frompixels": "from picture changes",
@@ -1600,6 +1768,8 @@
           "t.contentthresh": "重複判定のしきい値",
           "t.contentthreshhint": "画素の平均差（0〜255）がこの値未満なら同じ絵とみなします。非可逆圧縮のノイズが動きとして数えられてしまう場合は値を上げてください。",
           "t.encodedfps": "符号化フレームレート",
+          "t.encodedshort": "符号化",
+          "t.effectiveshort": "実質",
           "t.fromtimestamps": "タイムスタンプ基準",
           "t.effectivefps": "実質フレームレート",
           "t.frompixels": "絵の変化基準",
