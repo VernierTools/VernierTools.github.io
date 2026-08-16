@@ -238,10 +238,38 @@
 
     <div class="work">
       <div>
+        <div class="card">
+          <div class="card__title" data-i18n="t.contentsec">Effective frame rate</div>
+          <div class="field">
+            <label class="toggle">
+              <input type="checkbox" id="contentEnable" checked>
+              <span class="track"></span>
+              <span data-i18n="t.contenton">Also measure how often the picture actually changes</span>
+            </label>
+            <div class="hint" data-i18n="t.contenthint">Compares each frame with the previous one. A 12fps video screen-recorded at 60fps contains 60 frames per second but the picture only changes 12 times.</div>
+          </div>
+          <div class="field" id="contentThreshField">
+            <label class="label" data-i18n="t.contentthresh">Duplicate threshold</label>
+            <div class="inputgroup">
+              <input class="input" id="contentThresh" type="number" min="0" max="30" step="0.5" value="2" inputmode="decimal">
+              <span class="unit">MAD</span>
+            </div>
+            <div class="hint" data-i18n="t.contentthreshhint">Average pixel difference (0–255) below which two frames count as the same picture. Raise it if lossy compression noise is being counted as motion.</div>
+          </div>
+        </div>
+
         <div class="progwrap" id="cfrProgWrap">
           <div class="progbar"><div class="progbar__fill" id="cfrProgFill"></div></div>
           <div class="progtext"><span id="cfrProgLabel">—</span><span id="cfrProgPct">0%</span></div>
         </div>
+
+        <div class="btnrow">
+          <button type="button" class="btn btn--primary" id="cfrRerun">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 4 3 10 9 10"/><path d="M3.5 14a9 9 0 1 0 2-9.3L3 10"/></svg>
+            <span data-i18n="t.remeasure">Measure again</span>
+          </button>
+        </div>
+
         <div class="notebox">
           <strong data-i18n="t.note1title">About declared fps:</strong>
           <span data-i18n="t.note1body"> Browsers don't expose a container's declared frame rate directly, so any reference value shown here is approximate — treat it as a rough comparison, not ground truth.</span>
@@ -253,6 +281,10 @@
       </div>
       <div>
         <div class="readout" id="cfrHeroReadout" style="display:none">
+          <div class="readout__head">
+            <span data-i18n="t.encodedfps">Encoded frame rate</span>
+            <span class="badge badge--muted" data-i18n="t.fromtimestamps">from timestamps</span>
+          </div>
           <div class="heroduo">
             <div class="herobox">
               <div class="herobox__label" data-i18n="t.avg">Average</div>
@@ -264,6 +296,22 @@
             </div>
           </div>
           <div class="verdict" id="cfrVerdict"></div>
+        </div>
+
+        <div class="readout" id="cfrContentReadout" style="display:none; margin-top:var(--s4)">
+          <div class="readout__head">
+            <span data-i18n="t.effectivefps">Effective frame rate</span>
+            <span class="badge badge--muted" data-i18n="t.frompixels">from picture changes</span>
+          </div>
+          <div class="rrow rrow--hero">
+            <span class="rrow__label" data-i18n="t.picturechanges">Picture changes</span>
+            <span class="rrow__value" id="cfrContentVal">—</span>
+          </div>
+          <div class="rrow">
+            <span class="rrow__label" data-i18n="t.duperatio">Duplicate frames</span>
+            <span class="rrow__value" id="cfrDupVal">—</span>
+          </div>
+          <div class="verdict" id="cfrContentVerdict"></div>
         </div>
 
         <div class="readout" id="cfrDetailReadout" style="display:none; margin-top:var(--s4)">
@@ -485,7 +533,9 @@
     clearChart();
     $("cfrHeroReadout").style.display = "none";
     $("cfrDetailReadout").style.display = "none";
+    $("cfrContentReadout").style.display = "none";
     $("cfrVerdict").innerHTML = "";
+    $("cfrContentVerdict").innerHTML = "";
     $("cfrSegRows").innerHTML = "";
   }
 
@@ -542,6 +592,23 @@
   // ======================================================================
   // ステップ2: CFR/VFR選択
   // ======================================================================
+  function syncContentControls() {
+    var on = contentEnabled();
+    var f = $("contentThreshField");
+    if (f) f.style.display = on ? "" : "none";
+  }
+
+  (function wireContentControls() {
+    var chk = $("contentEnable");
+    if (chk) chk.addEventListener("change", syncContentControls);
+    var rerun = $("cfrRerun");
+    if (rerun) rerun.addEventListener("click", function () {
+      if (running || !duration) return;
+      resetResults();
+      runCfrFlow();
+    });
+  })();
+
   function syncDropSupportNote() {
     if (usesDropDetection) {
       dropSupportNote.style.display = "none";
@@ -556,6 +623,7 @@
   choiceCfr.addEventListener("click", function () {
     $("cfrFileLabel").textContent = currentFile ? currentFile.name : "";
     showStep(resultCfr);
+    syncContentControls();
     runCfrFlow();
   });
   choiceVfr.addEventListener("click", function () {
@@ -642,6 +710,69 @@
   // ======================================================================
   var WARMUP_FRAMES = 3;
 
+  // ======================================================================
+  // 実質フレームレート測定（フレームの絵柄比較）
+  //
+  // タイムスタンプ間隔から分かるのは「ファイルに何枚フレームが入っているか」
+  // （＝符号化フレームレート）であって、「絵が何回変わるか」ではない。
+  // 12fpsの映像を60fpsで画面収録すると、同じ絵が5枚ずつ重複した60fpsの
+  // ファイルになり、タイムスタンプ上は完全に60fpsに見える。
+  // そこで各フレームを小さく描画してピクセルを前フレームと比較し、
+  // 重複を除いた「絵が変わった回数」から実質フレームレートを求める。
+  // ======================================================================
+  var CMP_W = 64, CMP_H = 36;   // 比較用の縮小サイズ（速度優先。動きの検出には十分）
+  var cmpCanvas = null, cmpCtx = null;
+
+  function ensureCmpCanvas() {
+    if (cmpCanvas) return;
+    cmpCanvas = document.createElement("canvas");
+    cmpCanvas.width = CMP_W; cmpCanvas.height = CMP_H;
+    // willReadFrequently: getImageData を毎フレーム呼ぶのでソフトウェア面で最適化させる
+    cmpCtx = cmpCanvas.getContext("2d", { willReadFrequently: true });
+  }
+
+  // 現在の video のフレームを縮小して輝度配列で返す。
+  // 失敗（デコード前・CORS等）時は null。
+  function grabFrameSignature() {
+    ensureCmpCanvas();
+    try {
+      cmpCtx.drawImage(video, 0, 0, CMP_W, CMP_H);
+      var d = cmpCtx.getImageData(0, 0, CMP_W, CMP_H).data;
+      var lum = new Uint8Array(CMP_W * CMP_H);
+      for (var i = 0, p = 0; i < lum.length; i++, p += 4) {
+        // 輝度のみで比較（色ノイズの影響を減らし、計算量も1/3に）
+        lum[i] = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8;
+      }
+      return lum;
+    } catch (e) { return null; }
+  }
+
+  // 2フレームが「同じ絵」かを判定する。
+  // 非可逆圧縮では見た目同じ絵でも各画素が僅かにぶれるため、完全一致では判定できない。
+  // 画素ごとの平均絶対差(MAD)を取り、しきい値未満なら同一とみなす。
+  function framesDiffer(a, b, threshold) {
+    if (!a || !b || a.length !== b.length) return true;
+    var sum = 0;
+    for (var i = 0; i < a.length; i++) {
+      var d = a[i] - b[i];
+      sum += d < 0 ? -d : d;
+    }
+    var mad = sum / a.length;   // 0〜255
+    return mad >= threshold;
+  }
+
+  function contentThreshold() {
+    var el = $("contentThresh");
+    var v = el ? parseFloat(el.value) : 2;
+    if (!isFinite(v)) v = 2;
+    return Math.max(0, Math.min(30, v));
+  }
+
+  function contentEnabled() {
+    var el = $("contentEnable");
+    return el ? !!el.checked : false;
+  }
+
   function readDroppedFrames() {
     if (!usesDropDetection) return null;
     try {
@@ -657,6 +788,11 @@
 
     return new Promise(function (resolve, reject) {
       var timestamps = [];      // 実際に新規表示が確認できたフレームの mediaTime
+      var changeTimes = [];     // 絵が「変わった」フレームの mediaTime（実質fps用）
+      var prevSig = null;       // 直前フレームの輝度シグネチャ
+      var contentOn = !!opts.measureContent;
+      var thresh = contentOn ? contentThreshold() : 0;
+      var sigFailed = false;    // 一度でも取得に失敗したら実質fpsは算出しない
       var rvfcSkipped = 0;      // presentedFrames の差分から検出した、rVFC側で把握しているフレーム飛び数
       var stopWatch = null;
       var settled = false;
@@ -682,6 +818,23 @@
         // 実測できた1点として timestamps には mediaTime のみ積む。
         if (advance > 1) rvfcSkipped += (advance - 1);
         timestamps.push(mediaTime);
+
+        // ---- 絵柄比較（実質フレームレート用） ----
+        if (contentOn && !sigFailed) {
+          var sig = grabFrameSignature();
+          if (!sig) {
+            sigFailed = true;
+          } else {
+            // 最初のフレームは比較対象が無いので基準として記録するだけ
+            if (prevSig === null) {
+              changeTimes.push(mediaTime);
+            } else if (framesDiffer(prevSig, sig, thresh)) {
+              changeTimes.push(mediaTime);
+            }
+            prevSig = sig;
+          }
+        }
+
         if (onSample && timestamps.length > WARMUP_FRAMES) {
           var n = timestamps.length;
           var dt = timestamps[n - 1] - timestamps[n - 2];
@@ -705,10 +858,61 @@
           finish({ fps: null, frameCount: timestamps.length, intervals: [], insufficientData: true, dropped: dropped });
           return;
         }
+
+        // フレーム間隔の一覧を作る。
+        var gaps = [];
+        for (var gi = 1; gi < usable.length; gi++) {
+          var g = usable[gi] - usable[gi - 1];
+          if (g > 0) gaps.push(g);
+        }
+        if (!gaps.length) {
+          finish({ fps: null, frameCount: timestamps.length, insufficientData: true, dropped: dropped });
+          return;
+        }
+
         var totalDt = usable[usable.length - 1] - usable[0];
-        var frameGaps = usable.length - 1;
-        var fps = totalDt > 0 ? frameGaps / totalDt : null;
-        finish({ fps: fps, frameCount: timestamps.length, span: totalDt, insufficientData: false, dropped: dropped });
+        var meanFps = totalDt > 0 ? (usable.length - 1) / totalDt : null;
+
+        // 再生中にフレームが落ちると、その箇所の間隔だけが2倍・3倍に伸びる。
+        // 平均を取るとドロップの多寡でfpsが下振れし、測定のたびに値がぶれる。
+        // 素材本来のフレーム間隔は「最も多く現れた間隔」に現れるので、
+        // 間隔を量子化して最頻値を取り、それを代表間隔とする（ドロップ耐性がある）。
+        var modeGap = modeOf(gaps);
+        var modeFps = modeGap > 0 ? 1 / modeGap : null;
+
+        // ---- 実質フレームレート（絵が変わる頻度） ----
+        // changeTimes には「前フレームと絵が違った」フレームの時刻が入っている。
+        // その間隔の最頻値から、絵が何秒に1回変わるかを求める。
+        var contentFps = null, contentModeGap = null, uniqueCount = null, dupRatio = null;
+        if (contentOn && !sigFailed && changeTimes.length >= 2) {
+          var cGaps = [];
+          for (var ci = 1; ci < changeTimes.length; ci++) {
+            var cg = changeTimes[ci] - changeTimes[ci - 1];
+            if (cg > 0) cGaps.push(cg);
+          }
+          if (cGaps.length) {
+            contentModeGap = modeOf(cGaps);
+            contentFps = contentModeGap > 0 ? 1 / contentModeGap : null;
+          }
+          uniqueCount = changeTimes.length;
+          dupRatio = timestamps.length > 0 ? 1 - (changeTimes.length / timestamps.length) : null;
+        }
+
+        finish({
+          fps: modeFps,          // 代表値はモード基準（ドロップに強い）
+          meanFps: meanFps,      // 参考: 従来どおりの平均基準
+          modeGap: modeGap,
+          gaps: gaps,
+          contentFps: contentFps,        // 実質フレームレート（絵の変化頻度）
+          contentModeGap: contentModeGap,
+          uniqueCount: uniqueCount,      // 絵が変わったフレーム数
+          dupRatio: dupRatio,            // 重複フレームの割合
+          contentUnavailable: contentOn && sigFailed,
+          frameCount: timestamps.length,
+          span: totalDt,
+          insufficientData: false,
+          dropped: dropped
+        });
       }
 
       function onSeeked() {
@@ -794,6 +998,24 @@
     return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
   }
 
+  // フレーム間隔の最頻値を求める。実測値は僅かに揺らぐので、
+  // 0.1ms 刻みに量子化してから同じ値を数え、最も多かった刻みに属する
+  // 実測値の平均を代表間隔として返す（量子化誤差を持ち込まないため）。
+  function modeOf(values) {
+    if (!values.length) return 0;
+    var QUANT = 0.0001; // 0.1ms
+    var buckets = {};
+    values.forEach(function (v) {
+      var k = Math.round(v / QUANT);
+      (buckets[k] || (buckets[k] = [])).push(v);
+    });
+    var bestKey = null, bestCount = -1;
+    Object.keys(buckets).forEach(function (k) {
+      if (buckets[k].length > bestCount) { bestCount = buckets[k].length; bestKey = k; }
+    });
+    return mean(buckets[bestKey]);
+  }
+
   // ======================================================================
   // CFR想定フロー
   // ======================================================================
@@ -819,6 +1041,7 @@
       var sg = plan[i];
       cfrProgLabel.textContent = labelForSeg(sg.key) + " (" + (i + 1) + "/" + plan.length + ")";
       measureSegment(sg.start, sg.end, {
+        measureContent: contentEnabled(),
         onProgress: function (t) {
           var segFrac = (t - sg.start) / Math.max(0.001, sg.end - sg.start);
           var overall = (i + segFrac) / plan.length;
@@ -841,6 +1064,61 @@
     }
 
     next();
+  }
+
+  function renderContentResults(results, encodedFps) {
+    var box = $("cfrContentReadout");
+    var valEl = $("cfrContentVal"), dupEl = $("cfrDupVal"), vEl = $("cfrContentVerdict");
+
+    if (!contentEnabled()) { box.style.display = "none"; return; }
+
+    var cFps = [], dups = [], unavailable = false;
+    results.forEach(function (r) {
+      if (r.result.contentUnavailable) unavailable = true;
+      if (r.result.contentFps != null) cFps.push(r.result.contentFps);
+      if (r.result.dupRatio != null) dups.push(r.result.dupRatio);
+    });
+
+    box.style.display = "";
+    vEl.innerHTML = "";
+
+    if (unavailable || !cFps.length) {
+      valEl.textContent = "—"; dupEl.textContent = "—";
+      vEl.innerHTML = '<span class="badge badge--muted">' +
+        ((Shell && Shell.t) ? esc(Shell.t("t.content-unavailable")) : "Could not read pixels from this video.") + '</span>';
+      return;
+    }
+
+    var cMed = median(cFps);
+    var dupMean = dups.length ? mean(dups) : null;
+
+    valEl.setAttribute("data-copy", cMed.toFixed(3));
+    valEl.innerHTML = cMed.toFixed(3) + '<span class="u">fps</span>';
+    dupEl.textContent = dupMean != null ? (dupMean * 100).toFixed(1) + "%" : "—";
+    attachCopyHandlers(box);
+
+    // 符号化fpsとの比率。整数倍に近ければ「N枚に1枚だけ絵が変わる」と言える。
+    var ratio = (encodedFps && cMed > 0) ? encodedFps / cMed : null;
+    var badge = document.createElement("span");
+    var label = document.createElement("span");
+
+    if (ratio && ratio >= 1.5) {
+      var nearest = Math.round(ratio);
+      var isClean = Math.abs(ratio - nearest) < 0.15;
+      badge.className = "badge badge--neg";
+      var dot = document.createElement("span"); dot.className = "d"; badge.appendChild(dot);
+      var tpl = (Shell && Shell.t) ? Shell.t("t.content-duplicated") : "Picture changes only every {n} frames — this looks like {c}fps content stored at {e}fps.";
+      label.textContent = tpl
+        .replace("{n}", isClean ? String(nearest) : ratio.toFixed(1))
+        .replace("{c}", cMed.toFixed(2))
+        .replace("{e}", encodedFps.toFixed(2));
+    } else {
+      badge.className = "badge badge--pos";
+      var dot2 = document.createElement("span"); dot2.className = "d"; badge.appendChild(dot2);
+      label.textContent = (Shell && Shell.t) ? Shell.t("t.content-matches") : "Nearly every frame is a new picture — encoded and effective rates agree.";
+    }
+    badge.appendChild(label);
+    vEl.appendChild(badge);
   }
 
   function renderCfrResults(results) {
@@ -873,6 +1151,8 @@
     medVal.setAttribute("data-copy", med.toFixed(3));
     medVal.innerHTML = med.toFixed(3) + '<span class="u">fps</span>';
     attachCopyHandlers(heroBox);
+
+    renderContentResults(results, med);
 
     verdict.innerHTML = "";
     var badge = document.createElement("span");
@@ -1243,6 +1523,21 @@
           "t.back": "Back",
           "t.avg": "Average",
           "t.median": "Median",
+          "t.contentsec": "Effective frame rate",
+          "t.contenton": "Also measure how often the picture actually changes",
+          "t.contenthint": "Compares each frame with the previous one. A 12fps video screen-recorded at 60fps contains 60 frames per second but the picture only changes 12 times.",
+          "t.contentthresh": "Duplicate threshold",
+          "t.contentthreshhint": "Average pixel difference (0–255) below which two frames count as the same picture. Raise it if lossy compression noise is being counted as motion.",
+          "t.encodedfps": "Encoded frame rate",
+          "t.fromtimestamps": "from timestamps",
+          "t.effectivefps": "Effective frame rate",
+          "t.frompixels": "from picture changes",
+          "t.picturechanges": "Picture changes",
+          "t.duperatio": "Duplicate frames",
+          "t.remeasure": "Measure again",
+          "t.content-unavailable": "Could not read pixels from this video.",
+          "t.content-duplicated": "Picture changes only every {n} frames — this looks like {c}fps content stored at {e}fps.",
+          "t.content-matches": "Nearly every frame is a new picture — encoded and effective rates agree.",
           "t.segbreakdown": "Per-segment breakdown",
           "t.analyzeanother": "Analyze another file",
           "t.mode": "Measurement mode",
@@ -1299,6 +1594,21 @@
           "t.back": "戻る",
           "t.avg": "平均値",
           "t.median": "中央値",
+          "t.contentsec": "実質フレームレート",
+          "t.contenton": "絵が実際に変わる回数も測定する",
+          "t.contenthint": "各フレームを直前のフレームと比較します。12fpsの動画を60fpsで画面収録したファイルは、毎秒60枚のフレームを含みますが、絵は12回しか変わりません。",
+          "t.contentthresh": "重複判定のしきい値",
+          "t.contentthreshhint": "画素の平均差（0〜255）がこの値未満なら同じ絵とみなします。非可逆圧縮のノイズが動きとして数えられてしまう場合は値を上げてください。",
+          "t.encodedfps": "符号化フレームレート",
+          "t.fromtimestamps": "タイムスタンプ基準",
+          "t.effectivefps": "実質フレームレート",
+          "t.frompixels": "絵の変化基準",
+          "t.picturechanges": "絵が変わる頻度",
+          "t.duperatio": "重複フレーム",
+          "t.remeasure": "再測定",
+          "t.content-unavailable": "この動画からピクセルを読み取れませんでした。",
+          "t.content-duplicated": "絵は{n}フレームに1回しか変わりません。{e}fpsで記録された実質{c}fpsの映像と見られます。",
+          "t.content-matches": "ほぼ毎フレーム絵が変わっています。符号化fpsと実質fpsは一致しています。",
           "t.segbreakdown": "区間ごとの内訳",
           "t.analyzeanother": "別の動画を解析する",
           "t.mode": "測定モード",
