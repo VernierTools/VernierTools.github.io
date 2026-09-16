@@ -13,40 +13,60 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  .drop{ cursor:pointer; text-align:center; padding:var(--s6) var(--s4);
-    display:flex; flex-direction:column; align-items:center; }
-  .drop input{ display:none; }
+  /* ---- 画像コーナー: 未読込なら投入口、読込後は Before/After 比較 ---- */
+  .imgarea{ margin-bottom:var(--s5); }
+  .imgarea__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+    margin-bottom:6px; min-height:24px; }
+  .imgarea__head .eyebrow{ font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); }
+  .imgarea__head .right{ display:flex; align-items:center; gap:var(--s3); }
+  .imgarea__head .dim{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+  .imgarea__head .btn{ height:28px; padding:0 10px; font-size:12px; }
+  .imgarea__head .btn svg{ width:13px; height:13px; }
+
+  /* hidden 属性は .drop{display:flex} や .btn{display:inline-flex} に負けるため明示的に潰す */
+  [hidden]{ display:none !important; }
+
+  .drop{ cursor:pointer; text-align:center; padding:var(--s8) var(--s4);
+    display:flex; flex-direction:column; align-items:center;
+    width:100%; appearance:none; font:inherit; color:var(--text-2); }
   .drop svg{ margin:0 0 var(--s2); flex-shrink:0; }
   .drop > div{ width:100%; }
 
+  /* Before/After スライダー */
+  .ba{ position:relative; border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0/18px 18px;
+    --pos:50%; touch-action:none; user-select:none; }
+  .ba canvas{ display:block; width:100%; height:auto; }
+  /* 上に重ねた元画像を、つまみの位置で左側だけ見せる */
+  .ba__before{ position:absolute; inset:0; clip-path:inset(0 calc(100% - var(--pos)) 0 0); }
+  .ba__handle{ position:absolute; top:0; bottom:0; left:var(--pos); width:2px; margin-left:-1px;
+    background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.28); cursor:ew-resize; }
+  .ba__grip{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:34px; height:34px; border-radius:50%; background:#fff; color:#16181D;
+    box-shadow:0 1px 4px rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; }
+  .ba__grip svg{ width:17px; height:17px; }
+  .ba__handle:focus-visible{ outline:none; }
+  .ba__handle:focus-visible .ba__grip{ box-shadow:0 0 0 3px var(--accent-ring), 0 1px 4px rgba(0,0,0,.35); }
+  .ba__tag{ position:absolute; top:var(--s3); font-size:10.5px; font-weight:600; letter-spacing:.05em;
+    text-transform:uppercase; color:#fff; background:rgba(0,0,0,.55); padding:3px 8px;
+    border-radius:100px; pointer-events:none; }
+  .ba__tag--l{ left:var(--s3); }
+  .ba__tag--r{ right:var(--s3); }
+  .ba.dragover{ border-color:var(--accent); }
+  .ba.busy{ opacity:.5; }
+
+  /* ---- コントロール ---- */
   .tol{ display:flex; flex-direction:column; gap:var(--s4); }
   .tolrow .label{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .hint{ font-size:11px; color:var(--text-3); line-height:1.5; margin:0 0 var(--s3); }
 
-  /* 変換後は作業領域の下に全幅で大きく置く（絵を見るのが主目的のツールなので） */
-  .resultwrap{ margin-top:var(--s5); }
-  .resultwrap .preview{ background:
-      repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0/18px 18px; }
-  .resultwrap canvas{ display:block; width:100%; height:auto; }
-  .resultwrap .capt{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
-    font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; }
-  .resultwrap .capt .dim{ font-family:var(--font-mono); text-transform:none; letter-spacing:0; }
-
-  /* 元画像はサムネイルで十分 */
-  .thumbrow{ display:flex; align-items:center; gap:var(--s3); }
-  .thumb{ width:56px; flex:0 0 56px; border:1px solid var(--border);
-    border-radius:var(--r-sm); overflow:hidden; background:var(--surface-2); }
-  .thumb canvas{ display:block; width:100%; height:auto; }
-  .thumbrow .meta{ font-size:11.5px; color:var(--text-3); line-height:1.5; min-width:0; word-break:break-all; }
-
-  /* パレットは参考程度なので最小サイズ */
   .palette{ display:flex; flex-wrap:wrap; gap:3px; align-items:center; }
   .palette .sw{ width:10px; height:10px; border-radius:2px; }
-  .palette .more{ font-size:10.5px; color:var(--text-3); margin-left:2px;
-    font-family:var(--font-mono); }
+  .palette .more{ font-size:10.5px; color:var(--text-3); margin-left:2px; font-family:var(--font-mono); }
 
-  .busy{ opacity:.5; }
-  .empty{ font-size:13px; color:var(--text-3); text-align:center; padding:var(--s7) var(--s4); }
+  .readout.busy{ opacity:.5; }
   .notes{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+  .fname{ font-size:11.5px; color:var(--text-3); line-height:1.5; word-break:break-all; }
   #stage{ display:none; }
 </style>
 </head>
@@ -58,21 +78,46 @@
     <p data-i18n="t.desc">Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.</p>
   </div>
 
-  <div class="work">
-    <!-- 左: 入力・許容誤差 -->
-    <div>
-      <div class="card">
-        <div class="field" style="margin-bottom:0">
-          <label class="label" data-i18n="t.image">Image</label>
-          <label class="drop" id="drop">
-            <input type="file" id="file" accept="image/*">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <div><b data-i18n="t.dropb">Click to choose</b> <span data-i18n="t.dropo">or drag &amp; drop an image</span></div>
-            <small data-i18n="t.droph">Processed entirely in your browser. Nothing is uploaded.</small>
-          </label>
-        </div>
-      </div>
+  <!-- 画像コーナー（コントロールより上・全幅） -->
+  <section class="imgarea">
+    <div class="imgarea__head">
+      <span class="eyebrow" id="areahead" data-i18n="t.image">Image</span>
+      <span class="right">
+        <span class="dim" id="outdim"></span>
+        <button class="btn btn--ghost" id="change" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span data-i18n="t.change">Change image</span>
+        </button>
+      </span>
+    </div>
 
+    <input type="file" id="file" accept="image/*" hidden>
+
+    <button type="button" class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div><b data-i18n="t.dropb">Click to choose</b> <span data-i18n="t.dropo">or drag &amp; drop an image</span></div>
+      <small data-i18n="t.droph">Processed entirely in your browser. Nothing is uploaded.</small>
+    </button>
+
+    <div class="ba" id="ba" hidden>
+      <canvas id="cv-out"></canvas>
+      <div class="ba__before">
+        <canvas id="cv-before"></canvas>
+        <span class="ba__tag ba__tag--l" id="tag-before" data-i18n="t.before">Original</span>
+      </div>
+      <span class="ba__tag ba__tag--r" id="tag-after" data-i18n="t.after">Randomized</span>
+      <div class="ba__handle" id="bahandle" tabindex="0" role="slider"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <span class="ba__grip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 4 12 9 18"/><polyline points="15 6 20 12 15 18"/></svg>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <div class="work">
+    <!-- 左: 許容誤差と操作 -->
+    <div>
       <div class="card">
         <div class="field">
           <label class="label" data-i18n="t.tolerance">HSV tolerance</label>
@@ -97,8 +142,7 @@
             <span class="track"></span>
             <span data-i18n="t.achroma">Ignore hue for near-grays</span>
           </label>
-          <p style="font-size:11px; color:var(--text-3); line-height:1.5; margin:0 0 var(--s3)"
-             data-i18n="t.achromahint">Hue is unstable at low saturation — grays one RGB step apart can read as 0° and 240°. Off = strict HSV comparison.</p>
+          <p class="hint" data-i18n="t.achromahint">Hue is unstable at low saturation — grays one RGB step apart can read as 0° and 240°. Off = strict HSV comparison.</p>
           <label class="toggle">
             <input type="checkbox" id="alpha" checked>
             <span class="track"></span>
@@ -114,7 +158,7 @@
       </div>
     </div>
 
-    <!-- 右: 数値と補助情報 -->
+    <!-- 右: 出力 -->
     <div>
       <div class="readout" id="readout" hidden>
         <div class="readout__head"><span data-i18n="t.output">Output</span></div>
@@ -129,14 +173,8 @@
         <div class="rrow" style="display:block">
           <span class="rrow__label" style="display:block; margin-bottom:8px" data-i18n="t.palette">Palette</span>
           <div class="palette" id="palette"></div>
-        </div>
-        <div class="rrow" style="display:block">
-          <span class="rrow__label" style="display:block; margin-bottom:8px" data-i18n="t.source">Source</span>
-          <div class="thumbrow">
-            <div class="thumb"><canvas id="cv-src"></canvas></div>
-            <div class="meta" id="fileinfo"></div>
-          </div>
           <div class="notes" id="notes" style="margin-top:var(--s3)"></div>
+          <div class="fname" id="fileinfo" style="margin-top:var(--s3)"></div>
         </div>
         <div style="padding:0 var(--s4) var(--s4)">
           <button class="btn btn--secondary btn--block" id="download">
@@ -146,18 +184,10 @@
         </div>
       </div>
       <div class="card" id="emptycard">
-        <div class="empty" data-i18n="t.empty">Choose an image to get started.</div>
+        <div style="font-size:13px; color:var(--text-3); text-align:center; padding:var(--s7) var(--s4)"
+             data-i18n="t.empty">Choose an image to get started.</div>
       </div>
     </div>
-  </div>
-
-  <!-- 変換後: 全幅の大きいプレビュー -->
-  <div class="resultwrap" id="resultwrap" hidden>
-    <div class="capt">
-      <span data-i18n="t.after">Randomized</span>
-      <span class="dim" id="outdim"></span>
-    </div>
-    <div class="preview"><canvas id="cv-out"></canvas></div>
   </div>
 
   <canvas id="stage"></canvas>
@@ -181,16 +211,17 @@
   var MAX_SWATCH = 48;
   var ACHROMATIC_S = 5;   // これ以下の彩度は「無彩色」とみなす（%）
 
-  var fileInput = $("file"), drop = $("drop"), fileinfo = $("fileinfo");
+  var fileInput = $("file"), drop = $("drop"), changeBtn = $("change"), fileinfo = $("fileinfo");
   var hSl = $("h"), sSl = $("s"), vSl = $("v"), alphaCb = $("alpha"), achromaCb = $("achroma");
   var hVal = $("hval"), sVal = $("sval"), vVal = $("vval");
   var reseedBtn = $("reseed"), downloadBtn = $("download");
-  var readout = $("readout"), emptycard = $("emptycard"), resultwrap = $("resultwrap");
+  var readout = $("readout"), emptycard = $("emptycard");
   var ngroups = $("ngroups"), seedval = $("seedval"), palette = $("palette"), notes = $("notes");
-  var outdim = $("outdim");
+  var outdim = $("outdim"), areahead = $("areahead");
+  var ba = $("ba"), baHandle = $("bahandle");
 
-  var srcCanvas = $("cv-src"), srcCtx = srcCanvas.getContext("2d");
   var outCanvas = $("cv-out"), outCtx = outCanvas.getContext("2d");
+  var beforeCanvas = $("cv-before"), beforeCtx = beforeCanvas.getContext("2d");
   var stage = $("stage"), stageCtx = stage.getContext("2d", { willReadFrequently: true });
 
   var A = null;   // 解析結果（画像ごとに1回だけ作る）
@@ -268,7 +299,7 @@
 
     if (hTol === 0 && sTol === 0 && vTol === 0) {   // 誤差0: 色ごとに1グループ（最速経路）
       for (var i0 = 0; i0 < m; i0++) uToG[i0] = i0;
-      return { uToG: uToG, gH: uH, gS: uS, gV: uV, gcount: m };
+      return { uToG: uToG, gcount: m };
     }
 
     var gH = new Float32Array(MAX_GROUPS), gS = new Float32Array(MAX_GROUPS), gV = new Float32Array(MAX_GROUPS);
@@ -322,7 +353,7 @@
       }
       uToG[i] = found;
     }
-    return { uToG: uToG, gH: gH, gS: gS, gV: gV, gcount: gc };
+    return { uToG: uToG, gcount: gc };
   }
 
   // ---------------- 実行 ----------------
@@ -331,10 +362,9 @@
     running = true;
     var t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
 
-    var hTol = +hSl.value, sTol = +sSl.value, vTol = +vSl.value;
-    var keepAlpha = alphaCb.checked;
-    var R = buildGroups(hTol, sTol, vTol);
+    var R = buildGroups(+hSl.value, +sSl.value, +vSl.value);
     var gcount = R.gcount, uToG = R.uToG;
+    var keepAlpha = alphaCb.checked;
 
     // 各グループへ S=100% V=100% のランダム色を割り当て
     var rnd = mulberry32(seed);
@@ -359,7 +389,6 @@
     outCanvas.width = w; outCanvas.height = h;
     outCtx.putImageData(new ImageData(out, w, h), 0, 0);
 
-    // 数値・パレット
     ngroups.textContent = gcount.toLocaleString();
     ngroups.setAttribute("data-copy", String(gcount));
     seedval.textContent = String(seed);
@@ -381,7 +410,7 @@
     }
 
     renderNotes();
-    resultwrap.classList.remove("busy");
+    ba.classList.remove("busy");
     readout.classList.remove("busy");
     lastMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
     running = false;
@@ -392,19 +421,14 @@
 
   function renderNotes() {
     notes.innerHTML = "";
-    if (A && A.shift > 0) {
-      notes.appendChild(badge("badge--muted", tt("t.quantized").replace("{b}", String(8 - A.shift))));
-    }
-    if (capped) {
-      notes.appendChild(badge("badge--neg", tt("t.capped").replace("{n}", MAX_GROUPS.toLocaleString())));
-    }
+    if (A && A.shift > 0) notes.appendChild(badge("badge--muted", tt("t.quantized").replace("{b}", String(8 - A.shift))));
+    if (capped) notes.appendChild(badge("badge--neg", tt("t.capped").replace("{n}", MAX_GROUPS.toLocaleString())));
   }
   function badge(cls, text) {
     var b = document.createElement("span");
     b.className = "badge " + cls;
     var d = document.createElement("span"); d.className = "d";
-    b.appendChild(d);
-    b.appendChild(document.createTextNode(text));
+    b.appendChild(d); b.appendChild(document.createTextNode(text));
     return b;
   }
 
@@ -412,7 +436,7 @@
   // 直前の処理が重かった画像ほど待ち時間を延ばして、つまみの追従を保つ。
   function schedule(delay) {
     if (!A) return;
-    resultwrap.classList.add("busy");
+    ba.classList.add("busy");
     readout.classList.add("busy");
     if (timer) clearTimeout(timer);
     var d = delay !== undefined ? delay : Math.min(500, Math.max(120, lastMs));
@@ -441,38 +465,87 @@
 
       // ユニーク色が多すぎる画像は、収まるまで下位ビットを丸める
       var shift = 0, res = analyze(data, px, 0);
-      while (res.m > UNIQUE_LIMIT && shift < 3) {
-        shift++; res = analyze(data, px, shift);
-      }
+      while (res.m > UNIQUE_LIMIT && shift < 3) { shift++; res = analyze(data, px, shift); }
       res.w = w; res.h = h;
       res.alpha = new Uint8Array(px);
       for (var i = 0, p = 3; i < px; i++, p += 4) res.alpha[i] = data[p];
       A = res;
 
-      var tw = 112, th = Math.max(1, Math.round(h * (tw / w)));
-      srcCanvas.width = tw; srcCanvas.height = th;
-      srcCtx.clearRect(0, 0, tw, th);
-      srcCtx.drawImage(im, 0, 0, tw, th);
+      // 比較用の元画像（処理解像度と同じ）
+      beforeCanvas.width = w; beforeCanvas.height = h;
+      beforeCtx.clearRect(0, 0, w, h);
+      beforeCtx.drawImage(im, 0, 0, w, h);
 
       fileinfo.textContent = f.name + " · " + im.naturalWidth + "×" + im.naturalHeight;
       outdim.textContent = w + "×" + h;
 
+      drop.hidden = true;
+      ba.hidden = false;
+      changeBtn.hidden = false;
+      areahead.setAttribute("data-i18n", "t.compare");
+      areahead.textContent = tt("t.compare");
       readout.hidden = false;
       emptycard.hidden = true;
-      resultwrap.hidden = false;
       reseedBtn.disabled = false;
+      setPos(50);
       lastMs = 0;
       schedule(0);
     };
     im.src = url;
   }
   fileInput.addEventListener("change", function () { loadFile(fileInput.files[0]); });
-  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-  drop.addEventListener("dragleave", function () { drop.classList.remove("dragover"); });
-  drop.addEventListener("drop", function (e) {
-    e.preventDefault(); drop.classList.remove("dragover");
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  drop.addEventListener("click", function () { fileInput.click(); });
+  changeBtn.addEventListener("click", function () { fileInput.click(); });
+
+  // ドラッグ&ドロップは投入口・比較ビューのどちらでも受ける
+  [drop, ba].forEach(function (el) {
+    el.addEventListener("dragover", function (e) { e.preventDefault(); el.classList.add("dragover"); });
+    el.addEventListener("dragleave", function () { el.classList.remove("dragover"); });
+    el.addEventListener("drop", function (e) {
+      e.preventDefault(); el.classList.remove("dragover");
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+    });
   });
+
+  // ---------------- Before/After のつまみ ----------------
+  var pos = 50, dragging = false;
+  function setPos(v) {
+    pos = Math.max(0, Math.min(100, v));
+    ba.style.setProperty("--pos", pos + "%");
+    baHandle.setAttribute("aria-valuenow", String(Math.round(pos)));
+  }
+  function posFromEvent(e) {
+    var r = ba.getBoundingClientRect();
+    if (!r.width) return pos;
+    return ((e.clientX - r.left) / r.width) * 100;
+  }
+  function onDown(e) {
+    if (ba.hidden) return;
+    dragging = true; setPos(posFromEvent(e));
+    if (e.target === baHandle || baHandle.contains(e.target)) baHandle.focus();
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  }
+  function onMove(e) { if (dragging) setPos(posFromEvent(e)); }
+  function onUp() {
+    dragging = false;
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+  }
+  ba.addEventListener("pointerdown", onDown);
+  baHandle.addEventListener("keydown", function (e) {
+    var step = 0;
+    if (e.key === "ArrowLeft") step = -2;
+    else if (e.key === "ArrowRight") step = 2;
+    else if (e.key === "Home") { setPos(0); e.preventDefault(); return; }
+    else if (e.key === "End") { setPos(100); e.preventDefault(); return; }
+    else return;
+    setPos(pos + step); e.preventDefault();
+  });
+  setPos(50);
 
   // ---------------- 入力 ----------------
   function syncSliders() {
@@ -518,6 +591,8 @@
           "t.title": "HSV color randomizer",
           "t.desc": "Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.",
           "t.image": "Image",
+          "t.compare": "Before / after",
+          "t.change": "Change image",
           "t.dropb": "Click to choose",
           "t.dropo": "or drag & drop an image",
           "t.droph": "Processed entirely in your browser. Nothing is uploaded.",
@@ -528,12 +603,11 @@
           "t.achromahint": "Hue is unstable at low saturation — grays one RGB step apart can read as 0° and 240°. Off = strict HSV comparison.",
           "t.reseed": "New seed",
           "t.empty": "Choose an image to get started.",
-          "t.after": "Randomized",
+          "t.before": "Original", "t.after": "Randomized",
           "t.output": "Output",
           "t.groups": "Colors used",
           "t.seed": "Seed",
           "t.palette": "Palette",
-          "t.source": "Source",
           "t.download": "Download PNG",
           "t.quantized": "Reduced to {b}-bit color for speed",
           "t.capped": "Groups capped at {n}"
@@ -542,6 +616,8 @@
           "t.title": "HSVカラーランダマイザー",
           "t.desc": "色相・彩度・明度それぞれの許容誤差内にある色同士をグループ化し、各グループに彩度・明度が最大のランダムな色を割り当てます。",
           "t.image": "画像",
+          "t.compare": "変換前 / 変換後",
+          "t.change": "画像を変更",
           "t.dropb": "クリックして選択",
           "t.dropo": "またはドラッグ&ドロップ",
           "t.droph": "すべてブラウザ内で処理されます。アップロードは行われません。",
@@ -552,18 +628,20 @@
           "t.achromahint": "彩度が低い色は色相が不安定で、RGBが1違うだけで0°と240°になります。オフにすると厳密なHSV比較。",
           "t.reseed": "シード値を変更",
           "t.empty": "画像を選択すると開始できます。",
-          "t.after": "変換後",
+          "t.before": "元画像", "t.after": "変換後",
           "t.output": "出力",
           "t.groups": "使用した色数",
           "t.seed": "シード値",
           "t.palette": "パレット",
-          "t.source": "元画像",
           "t.download": "PNGをダウンロード",
           "t.quantized": "処理軽減のため{b}bit色に丸めました",
           "t.capped": "グループ数を{n}で打ち切りました"
         }
       },
-      onSettingsChange: function () { renderNotes(); }
+      onSettingsChange: function () {
+        renderNotes();
+        if (!ba.hidden) areahead.textContent = tt("t.compare");
+      }
     });
   }
 })();
