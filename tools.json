@@ -1803,6 +1803,37 @@
         "踏面"
       ],
       "added": "2026-08-05"
+    },
+    {
+      "id": "hsv-color-randomizer",
+      "type": "web",
+      "path": "tools/hsv-color-randomizer/",
+      "categories": [
+        "image"
+      ],
+      "sub": "color",
+      "name": {
+        "en": "HSV color randomizer",
+        "ja": "HSVカラーランダマイザー"
+      },
+      "description": {
+        "en": "Group pixel colors by hue/saturation/value tolerance and reassign each group a random full-saturation, full-brightness color.",
+        "ja": "色相・彩度・明度の許容誤差で画像内の色をグループ化し、各グループに彩度・明度が最大のランダムな色を割り当てる。"
+      },
+      "keywords": [
+        "hsv",
+        "hue",
+        "saturation",
+        "value",
+        "color randomize",
+        "recolor",
+        "色相",
+        "彩度",
+        "明度",
+        "色置換",
+        "ランダム"
+      ],
+      "added": "2026-09-16"
     }
   ]
 }

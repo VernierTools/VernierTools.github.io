@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HSV color randomizer — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .drop{ cursor:pointer; text-align:center; padding:var(--s6) var(--s4); }
+  .drop input{ display:none; }
+  #fileinfo{ font-size:12.5px; color:var(--text-2); margin-top:var(--s3); word-break:break-all; }
+
+  .tol{ display:flex; flex-direction:column; gap:var(--s4); }
+  .tolrow .label{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .tolrow .label b{ font-weight:500; color:var(--text-2); font-size:12.5px; }
+
+  .prevwrap{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); margin-bottom:var(--s4); }
+  .prevwrap .preview{ position:relative; background:
+      repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0/16px 16px; }
+  .prevwrap .preview canvas{ display:block; width:100%; height:auto; }
+  .prevwrap .capt{ font-size:11px; color:var(--text-3); text-align:center; margin-top:6px; }
+  .prevwrap.single{ grid-template-columns:1fr; }
+
+  #stage{ display:none; }
+
+  .colorlist{ display:grid; grid-template-columns:repeat(auto-fill,minmax(30px,1fr)); gap:4px; margin-top:var(--s3); }
+  .colorlist .sw{ aspect-ratio:1; border-radius:var(--r-sm); border:1px solid var(--border); }
+
+  .empty{ font-size:13px; color:var(--text-3); text-align:center; padding:var(--s7) var(--s4); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">HSV color randomizer</h1>
+    <p data-i18n="t.desc">Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力・許容誤差 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.image">Image</label>
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept="image/*">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div><b data-i18n="t.dropb">Click to choose</b> <span data-i18n="t.dropo">or drag & drop an image</span></div>
+            <small data-i18n="t.droph">Processed entirely in your browser. Nothing is uploaded.</small>
+          </label>
+          <div id="fileinfo" hidden></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.tolerance">HSV tolerance</label>
+          <div class="tol">
+            <div class="tolrow">
+              <div class="label"><span data-i18n="t.htol">Hue (H)</span><span class="val" id="hval">±10°</span></div>
+              <input type="range" class="slider" id="h" min="0" max="180" value="10" step="1">
+            </div>
+            <div class="tolrow">
+              <div class="label"><span data-i18n="t.stol">Saturation (S)</span><span class="val" id="sval">±10%</span></div>
+              <input type="range" class="slider" id="s" min="0" max="100" value="10" step="1">
+            </div>
+            <div class="tolrow">
+              <div class="label"><span data-i18n="t.vtol">Value (V)</span><span class="val" id="vval">±10%</span></div>
+              <input type="range" class="slider" id="v" min="0" max="100" value="10" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="alpha" checked>
+            <span class="track"></span>
+            <span data-i18n="t.keepalpha">Keep original transparency</span>
+          </label>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <button class="btn btn--primary btn--block" id="run" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            <span data-i18n="t.run">Randomize colors</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: プレビューと出力 -->
+    <div>
+      <div class="card" id="previewcard">
+        <div class="prevwrap single" id="prevwrap">
+          <div>
+            <div class="preview"><canvas id="cv-src"></canvas></div>
+            <div class="capt" data-i18n="t.before">Original</div>
+          </div>
+        </div>
+        <div class="empty" id="empty" data-i18n="t.empty">Choose an image to get started.</div>
+      </div>
+
+      <div class="readout" id="readout" hidden>
+        <div class="readout__head">
+          <span data-i18n="t.output">Output</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.groups">Distinct colors found</span>
+          <span class="rrow__value" id="ngroups">0</span>
+        </div>
+        <div style="padding:0 var(--s4) var(--s4)">
+          <div class="colorlist" id="colorlist"></div>
+        </div>
+        <div style="padding:0 var(--s4) var(--s4)">
+          <button class="btn btn--secondary btn--block" id="download">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="t.download">Download PNG</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="stage"></canvas>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  function $(id) { return document.getElementById(id); }
+
+  var fileInput = $("file"), drop = $("drop"), fileinfo = $("fileinfo");
+  var hSl = $("h"), sSl = $("s"), vSl = $("v");
+  var hVal = $("hval"), sVal = $("sval"), vVal = $("vval");
+  var runBtn = $("run"), downloadBtn = $("download");
+  var prevwrap = $("prevwrap"), empty = $("empty"), previewcard = $("previewcard");
+  var readout = $("readout"), ngroups = $("ngroups"), colorlist = $("colorlist");
+  var stage = $("stage"), stageCtx = stage.getContext("2d", { willReadFrequently: true });
+
+  var srcCanvas = $("cv-src"), srcCtx = srcCanvas.getContext("2d");
+  var outCanvas = null, outCtx = null;
+  var img = null, outputBlobUrl = null;
+
+  // ---------------- color conversion ----------------
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    var h = 0;
+    if (d !== 0) {
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    var s = max === 0 ? 0 : d / max;
+    var v = max;
+    return [h, s * 100, v * 100];
+  }
+  function hsvToRgb(h, s, v) {
+    s /= 100; v /= 100;
+    var c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+    var r, g, b;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    return [
+      Math.round((r + m) * 255),
+      Math.round((g + m) * 255),
+      Math.round((b + m) * 255)
+    ];
+  }
+  function hueDist(a, b) {
+    var d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+
+  // ---------------- file loading ----------------
+  function loadFile(f) {
+    if (!f || f.type.indexOf("image/") !== 0) return;
+    var url = URL.createObjectURL(f);
+    var im = new Image();
+    im.onload = function () {
+      img = im;
+      URL.revokeObjectURL(url);
+      var MAXW = 1600;
+      var w = im.naturalWidth, h = im.naturalHeight;
+      if (w > MAXW) { h = Math.round(h * (MAXW / w)); w = MAXW; }
+      srcCanvas.width = w; srcCanvas.height = h;
+      srcCtx.clearRect(0, 0, w, h);
+      srcCtx.drawImage(im, 0, 0, w, h);
+      fileinfo.hidden = false;
+      fileinfo.textContent = f.name + "  ·  " + im.naturalWidth + "×" + im.naturalHeight;
+      empty.style.display = "none";
+      runBtn.disabled = false;
+      readout.hidden = true;
+      // remove any previous output preview
+      var oldOut = document.getElementById("cv-out-wrap");
+      if (oldOut) oldOut.remove();
+      prevwrap.classList.add("single");
+    };
+    im.src = url;
+  }
+  fileInput.addEventListener("change", function () { loadFile(fileInput.files[0]); });
+  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+  drop.addEventListener("dragleave", function () { drop.classList.remove("dragover"); });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault(); drop.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  // ---------------- tolerance sliders ----------------
+  function syncSliders() {
+    hVal.textContent = "±" + hSl.value + "°";
+    sVal.textContent = "±" + sSl.value + "%";
+    vVal.textContent = "±" + vSl.value + "%";
+  }
+  [hSl, sSl, vSl].forEach(function (el) { el.addEventListener("input", syncSliders); });
+  syncSliders();
+
+  // ---------------- grouping + recolor ----------------
+  function run() {
+    if (!img) return;
+    var w = srcCanvas.width, h = srcCanvas.height;
+    stage.width = w; stage.height = h;
+    stageCtx.clearRect(0, 0, w, h);
+    stageCtx.drawImage(srcCanvas, 0, 0);
+    var imageData = stageCtx.getImageData(0, 0, w, h);
+    var data = imageData.data;
+
+    var hTol = parseFloat(hSl.value), sTol = parseFloat(sSl.value), vTol = parseFloat(vSl.value);
+    var keepAlpha = $("alpha").checked;
+
+    // groups: { h, s, v (representative, running average), count, assigned:[r,g,b] }
+    var groups = [];
+    // cache RGB triple -> group index, so identical colors skip re-comparison
+    var cache = Object.create(null);
+
+    function findGroup(hh, ss, vv) {
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        if (hueDist(hh, g.h) <= hTol && Math.abs(ss - g.s) <= sTol && Math.abs(vv - g.v) <= vTol) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    for (var p = 0; p < data.length; p += 4) {
+      var r = data[p], gC = data[p + 1], b = data[p + 2], a = data[p + 3];
+      if (a === 0) continue; // fully transparent pixels untouched
+      var key = r * 65536 + gC * 256 + b;
+      var gi = cache[key];
+      if (gi === undefined) {
+        var hsv = rgbToHsv(r, gC, b);
+        gi = findGroup(hsv[0], hsv[1], hsv[2]);
+        if (gi === -1) {
+          groups.push({ h: hsv[0], s: hsv[1], v: hsv[2], count: 0, assigned: null });
+          gi = groups.length - 1;
+        }
+        cache[key] = gi;
+      }
+      groups[gi].count++;
+    }
+
+    // assign a random hue with S=100 V=100 to each group
+    groups.forEach(function (g) {
+      var rh = Math.random() * 360;
+      g.assigned = hsvToRgb(rh, 100, 100);
+    });
+
+    // second pass: recolor
+    var cache2 = Object.create(null);
+    for (var p2 = 0; p2 < data.length; p2 += 4) {
+      var a2 = data[p2 + 3];
+      if (a2 === 0) continue;
+      var r2 = data[p2], g2 = data[p2 + 1], b2 = data[p2 + 2];
+      var key2 = r2 * 65536 + g2 * 256 + b2;
+      var gi2 = cache[key2];
+      var col = groups[gi2].assigned;
+      data[p2] = col[0]; data[p2 + 1] = col[1]; data[p2 + 2] = col[2];
+      if (!keepAlpha) data[p2 + 3] = 255;
+    }
+
+    stageCtx.putImageData(imageData, 0, 0);
+
+    // build/refresh output preview canvas
+    var outWrap = document.getElementById("cv-out-wrap");
+    if (!outWrap) {
+      outWrap = document.createElement("div");
+      outWrap.id = "cv-out-wrap";
+      var previewDiv = document.createElement("div");
+      previewDiv.className = "preview";
+      outCanvas = document.createElement("canvas");
+      outCanvas.id = "cv-out";
+      previewDiv.appendChild(outCanvas);
+      outWrap.appendChild(previewDiv);
+      var capt = document.createElement("div");
+      capt.className = "capt";
+      capt.setAttribute("data-i18n", "t.after");
+      capt.textContent = Shell && Shell.t ? Shell.t("t.after") : "Randomized";
+      outWrap.appendChild(capt);
+      prevwrap.appendChild(outWrap);
+    }
+    outCanvas = document.getElementById("cv-out");
+    outCtx = outCanvas.getContext("2d");
+    outCanvas.width = w; outCanvas.height = h;
+    outCtx.clearRect(0, 0, w, h);
+    outCtx.drawImage(stage, 0, 0);
+    prevwrap.classList.remove("single");
+
+    // sort groups by pixel count desc, cap the swatch list for sanity
+    var sorted = groups.slice().sort(function (a, b) { return b.count - a.count; });
+    ngroups.textContent = String(groups.length);
+    colorlist.innerHTML = "";
+    var MAXSW = 200;
+    sorted.slice(0, MAXSW).forEach(function (g) {
+      var sw = document.createElement("div");
+      sw.className = "sw";
+      sw.style.background = "rgb(" + g.assigned[0] + "," + g.assigned[1] + "," + g.assigned[2] + ")";
+      sw.title = g.count + " px";
+      colorlist.appendChild(sw);
+    });
+
+    readout.hidden = false;
+
+    if (outputBlobUrl) URL.revokeObjectURL(outputBlobUrl);
+    outCanvas.toBlob(function (blob) {
+      outputBlobUrl = URL.createObjectURL(blob);
+    });
+  }
+
+  runBtn.addEventListener("click", run);
+
+  downloadBtn.addEventListener("click", function () {
+    if (!outCanvas) return;
+    outCanvas.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "hsv-randomized.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    });
+  });
+
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "hsv-color-randomizer",
+      strings: {
+        en: {
+          "t.title": "HSV color randomizer",
+          "t.desc": "Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.",
+          "t.image": "Image",
+          "t.dropb": "Click to choose",
+          "t.dropo": "or drag & drop an image",
+          "t.droph": "Processed entirely in your browser. Nothing is uploaded.",
+          "t.tolerance": "HSV tolerance",
+          "t.htol": "Hue (H)", "t.stol": "Saturation (S)", "t.vtol": "Value (V)",
+          "t.keepalpha": "Keep original transparency",
+          "t.run": "Randomize colors",
+          "t.empty": "Choose an image to get started.",
+          "t.before": "Original", "t.after": "Randomized",
+          "t.output": "Output",
+          "t.groups": "Distinct colors found",
+          "t.download": "Download PNG"
+        },
+        ja: {
+          "t.title": "HSVカラーランダマイザー",
+          "t.desc": "色相・彩度・明度それぞれの許容誤差内にある色同士をグループ化し、各グループに彩度・明度が最大のランダムな色を割り当てます。",
+          "t.image": "画像",
+          "t.dropb": "クリックして選択",
+          "t.dropo": "またはドラッグ&ドロップ",
+          "t.droph": "すべてブラウザ内で処理されます。アップロードは行われません。",
+          "t.tolerance": "HSV許容誤差",
+          "t.htol": "色相 (H)", "t.stol": "彩度 (S)", "t.vtol": "明度 (V)",
+          "t.keepalpha": "元の透明度を維持する",
+          "t.run": "色をランダム化",
+          "t.empty": "画像を選択すると開始できます。",
+          "t.before": "元画像", "t.after": "変換後",
+          "t.output": "出力",
+          "t.groups": "検出された色の種類数",
+          "t.download": "PNGをダウンロード"
+        }
+      },
+      onSettingsChange: function () {
+        var capt = document.querySelector('[data-i18n="t.after"]');
+        if (capt && Shell && Shell.t) capt.textContent = Shell.t("t.after");
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
