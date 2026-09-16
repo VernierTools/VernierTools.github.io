@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
+  /* hidden 属性は .drop{display:flex} や .btn{display:inline-flex} に負けるため明示的に潰す */
+  [hidden]{ display:none !important; }
+
   /* ---- 画像コーナー: 未読込なら投入口、読込後は Before/After 比較 ---- */
   .imgarea{ margin-bottom:var(--s5); }
   .imgarea__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
@@ -22,9 +25,6 @@
   .imgarea__head .dim{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
   .imgarea__head .btn{ height:28px; padding:0 10px; font-size:12px; }
   .imgarea__head .btn svg{ width:13px; height:13px; }
-
-  /* hidden 属性は .drop{display:flex} や .btn{display:inline-flex} に負けるため明示的に潰す */
-  [hidden]{ display:none !important; }
 
   .drop{ cursor:pointer; text-align:center; padding:var(--s8) var(--s4);
     display:flex; flex-direction:column; align-items:center;
@@ -59,6 +59,21 @@
   .tol{ display:flex; flex-direction:column; gap:var(--s4); }
   .tolrow .label{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
   .hint{ font-size:11px; color:var(--text-3); line-height:1.5; margin:0 0 var(--s3); }
+  .hint:last-child{ margin-bottom:0; }
+
+  .seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500; height:38px;
+    border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text-2); transition:all var(--tap); }
+  .seg button:hover{ border-color:var(--text-3); }
+  .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .ramp{ height:10px; border-radius:100px; margin-top:var(--s3);
+    background:linear-gradient(to right,
+      rgb(0,0,143) 0%, rgb(0,0,255) 12.5%, rgb(0,255,255) 37.5%,
+      rgb(255,255,0) 62.5%, rgb(255,0,0) 87.5%, rgb(128,0,0) 100%); }
+  .ramp__ends{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-3);
+    font-family:var(--font-mono); margin-top:4px; }
 
   .palette{ display:flex; flex-wrap:wrap; gap:3px; align-items:center; }
   .palette .sw{ width:10px; height:10px; border-radius:2px; }
@@ -67,6 +82,7 @@
   .readout.busy{ opacity:.5; }
   .notes{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
   .fname{ font-size:11.5px; color:var(--text-3); line-height:1.5; word-break:break-all; }
+  .off{ opacity:.45; pointer-events:none; }
   #stage{ display:none; }
 </style>
 </head>
@@ -75,7 +91,7 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
     <h1 data-i18n="t.title">HSV color randomizer</h1>
-    <p data-i18n="t.desc">Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.</p>
+    <p data-i18n="t.desc">Groups pixel colors that fall within your hue/saturation/value tolerances, then recolors each group — either at random or along a thermographic ramp.</p>
   </div>
 
   <!-- 画像コーナー（コントロールより上・全幅） -->
@@ -103,9 +119,9 @@
       <canvas id="cv-out"></canvas>
       <div class="ba__before">
         <canvas id="cv-before"></canvas>
-        <span class="ba__tag ba__tag--l" id="tag-before" data-i18n="t.before">Original</span>
+        <span class="ba__tag ba__tag--l" data-i18n="t.before">Original</span>
       </div>
-      <span class="ba__tag ba__tag--r" id="tag-after" data-i18n="t.after">Randomized</span>
+      <span class="ba__tag ba__tag--r" data-i18n="t.after">Randomized</span>
       <div class="ba__handle" id="bahandle" tabindex="0" role="slider"
            aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
         <span class="ba__grip">
@@ -116,7 +132,7 @@
   </section>
 
   <div class="work">
-    <!-- 左: 許容誤差と操作 -->
+    <!-- 左: 操作 -->
     <div>
       <div class="card">
         <div class="field">
@@ -136,7 +152,7 @@
             </div>
           </div>
         </div>
-        <div class="field">
+        <div class="field" style="margin-bottom:0">
           <label class="toggle" style="margin-bottom:var(--s3)">
             <input type="checkbox" id="achroma" checked>
             <span class="track"></span>
@@ -149,11 +165,46 @@
             <span data-i18n="t.keepalpha">Keep original transparency</span>
           </label>
         </div>
+      </div>
+
+      <!-- 配色モード -->
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.mode">Coloring</label>
+          <div class="seg" id="seg">
+            <button type="button" data-mode="random" aria-pressed="true" data-i18n="t.mrandom">Random</button>
+            <button type="button" data-mode="s" aria-pressed="false" data-i18n="t.msat">Sat →</button>
+            <button type="button" data-mode="v" aria-pressed="false" data-i18n="t.mval">Val →</button>
+          </div>
+          <p class="hint" id="modehint" style="margin-top:var(--s3)" data-i18n="t.mrandomhint">Each group gets a random hue at full saturation and brightness.</p>
+          <div id="rampbox" hidden>
+            <div class="ramp"></div>
+            <div class="ramp__ends"><span>0%</span><span>100%</span></div>
+          </div>
+        </div>
         <div class="field" style="margin-bottom:0">
           <button class="btn btn--primary btn--block" id="reseed" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M21 3l-7.5 7.5"/><path d="M3 3l7.5 7.5"/><path d="M12 14v7"/><circle cx="12" cy="12" r="2"/></svg>
             <span data-i18n="t.reseed">New seed</span>
           </button>
+        </div>
+      </div>
+
+      <!-- 小さい島の除去 -->
+      <div class="card">
+        <div class="field" style="margin-bottom:0">
+          <label class="toggle" style="margin-bottom:var(--s3)">
+            <input type="checkbox" id="island">
+            <span class="track"></span>
+            <span data-i18n="t.island">Blacken small islands</span>
+          </label>
+          <p class="hint" data-i18n="t.islandhint">Fills any connected patch smaller than the threshold with black — useful for killing anti-aliasing speckle.</p>
+          <div id="islandbox" class="off">
+            <div class="label" style="display:flex; align-items:baseline; justify-content:space-between">
+              <span data-i18n="t.islandsize">Minimum island</span><span class="val" id="isoval">16 px</span>
+            </div>
+            <input type="range" class="slider" id="iso" min="1" max="100" value="9" step="1">
+          </div>
         </div>
       </div>
     </div>
@@ -166,9 +217,13 @@
           <span class="rrow__label" data-i18n="t.groups">Colors used</span>
           <span class="rrow__value" id="ngroups" data-copy="0">0</span>
         </div>
-        <div class="rrow">
+        <div class="rrow" id="seedrow">
           <span class="rrow__label" data-i18n="t.seed">Seed</span>
           <span class="rrow__value" id="seedval" data-copy="0">0</span>
+        </div>
+        <div class="rrow" id="blackrow" hidden>
+          <span class="rrow__label" data-i18n="t.blackened">Blackened</span>
+          <span class="rrow__value" id="blackval" data-copy="0">0<span class="u">%</span></span>
         </div>
         <div class="rrow" style="display:block">
           <span class="rrow__label" style="display:block; margin-bottom:8px" data-i18n="t.palette">Palette</span>
@@ -214,9 +269,13 @@
   var fileInput = $("file"), drop = $("drop"), changeBtn = $("change"), fileinfo = $("fileinfo");
   var hSl = $("h"), sSl = $("s"), vSl = $("v"), alphaCb = $("alpha"), achromaCb = $("achroma");
   var hVal = $("hval"), sVal = $("sval"), vVal = $("vval");
+  var seg = $("seg"), modehint = $("modehint"), rampbox = $("rampbox");
+  var islandCb = $("island"), islandBox = $("islandbox"), isoSl = $("iso"), isoVal = $("isoval");
   var reseedBtn = $("reseed"), downloadBtn = $("download");
   var readout = $("readout"), emptycard = $("emptycard");
-  var ngroups = $("ngroups"), seedval = $("seedval"), palette = $("palette"), notes = $("notes");
+  var ngroups = $("ngroups"), seedval = $("seedval"), seedrow = $("seedrow");
+  var blackrow = $("blackrow"), blackval = $("blackval");
+  var palette = $("palette"), notes = $("notes");
   var outdim = $("outdim"), areahead = $("areahead");
   var ba = $("ba"), baHandle = $("bahandle");
 
@@ -224,8 +283,10 @@
   var beforeCanvas = $("cv-before"), beforeCtx = beforeCanvas.getContext("2d");
   var stage = $("stage"), stageCtx = stage.getContext("2d", { willReadFrequently: true });
 
-  var A = null;   // 解析結果（画像ごとに1回だけ作る）
+  var A = null;            // 解析結果（画像ごとに1回だけ作る）
+  var buf = null;          // 島判定用の作業バッファ（画像ごとに1回だけ確保）
   var seed = (Math.random() * 4294967296) >>> 0;
+  var mode = "random";
   var timer = null, running = false, queued = false, lastMs = 0;
   var capped = false;
 
@@ -253,6 +314,24 @@
     return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
   }
   function hueDist(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
+  // サーモグラフィ配色（jet）。写像が単調なので、隣り合う階調には
+  // 隣り合う色が入る＝グラデーションがグラデーションのまま残る。
+  var JET = [[0, 0, 143], [0, 0, 255], [0, 255, 255], [255, 255, 0], [255, 0, 0], [128, 0, 0]];
+  var JETP = [0, 0.125, 0.375, 0.625, 0.875, 1];
+  function jet(t) {
+    if (!(t > 0)) return JET[0];
+    if (t >= 1) return JET[JET.length - 1];
+    for (var i = 1; i < JETP.length; i++) {
+      if (t <= JETP[i]) {
+        var a = JETP[i - 1], f = (t - a) / (JETP[i] - a), c0 = JET[i - 1], c1 = JET[i];
+        return [Math.round(c0[0] + (c1[0] - c0[0]) * f),
+                Math.round(c0[1] + (c1[1] - c0[1]) * f),
+                Math.round(c0[2] + (c1[2] - c0[2]) * f)];
+      }
+    }
+    return JET[JET.length - 1];
+  }
 
   // 種あり乱数（mulberry32）: 同じシードなら同じ配色が再現できる
   function mulberry32(a) {
@@ -299,7 +378,7 @@
 
     if (hTol === 0 && sTol === 0 && vTol === 0) {   // 誤差0: 色ごとに1グループ（最速経路）
       for (var i0 = 0; i0 < m; i0++) uToG[i0] = i0;
-      return { uToG: uToG, gcount: m };
+      return { uToG: uToG, gcount: m, gS: uS, gV: uV };
     }
 
     var gH = new Float32Array(MAX_GROUPS), gS = new Float32Array(MAX_GROUPS), gV = new Float32Array(MAX_GROUPS);
@@ -353,8 +432,39 @@
       }
       uToG[i] = found;
     }
-    return { uToG: uToG, gcount: gc };
+    return { uToG: uToG, gcount: gc, gS: gS, gV: gV };
   }
+
+  // ---------------- 小さい島の検出（連結成分ラベリング） ----------------
+  // 同じグループ番号で4近傍につながった塊を1つの島として数え、
+  // 閾値未満の島に印を付ける。色空間だけでは取れない「面積」の軸。
+  function markSmallIslands(uToG, threshold) {
+    var w = A.w, h = A.h, px = w * h, pixU = A.pixU;
+    var small = buf.small, visited = buf.visited, stack = buf.stack, comp = buf.comp;
+    small.fill(0); visited.fill(0);
+    var removed = 0;
+    for (var start = 0; start < px; start++) {
+      if (visited[start]) continue;
+      var u0 = pixU[start];
+      if (u0 < 0) { visited[start] = 1; continue; }
+      var g0 = uToG[u0], sp = 0, cn = 0;
+      stack[sp++] = start; visited[start] = 1;
+      while (sp > 0) {
+        var p = stack[--sp];
+        comp[cn++] = p;
+        var x = p % w, y = (p - x) / w, q;
+        if (x > 0)     { q = p - 1; if (!visited[q] && pixU[q] >= 0 && uToG[pixU[q]] === g0) { visited[q] = 1; stack[sp++] = q; } }
+        if (x < w - 1) { q = p + 1; if (!visited[q] && pixU[q] >= 0 && uToG[pixU[q]] === g0) { visited[q] = 1; stack[sp++] = q; } }
+        if (y > 0)     { q = p - w; if (!visited[q] && pixU[q] >= 0 && uToG[pixU[q]] === g0) { visited[q] = 1; stack[sp++] = q; } }
+        if (y < h - 1) { q = p + w; if (!visited[q] && pixU[q] >= 0 && uToG[pixU[q]] === g0) { visited[q] = 1; stack[sp++] = q; } }
+      }
+      if (cn < threshold) { for (var i = 0; i < cn; i++) small[comp[i]] = 1; removed += cn; }
+    }
+    return removed;
+  }
+
+  // スライダー値(1-100) → 島の最小サイズ(px)。低い側を細かく刻む
+  function isoPixels() { return Math.max(1, Math.round(Math.pow(+isoSl.value, 2) / 5)); }
 
   // ---------------- 実行 ----------------
   function process() {
@@ -366,23 +476,38 @@
     var gcount = R.gcount, uToG = R.uToG;
     var keepAlpha = alphaCb.checked;
 
-    // 各グループへ S=100% V=100% のランダム色を割り当て
-    var rnd = mulberry32(seed);
+    // グループごとの色を決める
     var gr = new Uint8Array(gcount), gg = new Uint8Array(gcount), gb = new Uint8Array(gcount);
-    for (var q = 0; q < gcount; q++) {
-      var c = hsvToRgb(rnd() * 360, 100, 100);
-      gr[q] = c[0]; gg[q] = c[1]; gb[q] = c[2];
+    if (mode === "random") {
+      var rnd = mulberry32(seed);
+      for (var q = 0; q < gcount; q++) {
+        var c = hsvToRgb(rnd() * 360, 100, 100);
+        gr[q] = c[0]; gg[q] = c[1]; gb[q] = c[2];
+      }
+    } else {
+      var src = mode === "s" ? R.gS : R.gV;   // 0-100 をサーモグラフィ配色へ
+      for (var q2 = 0; q2 < gcount; q2++) {
+        var c2 = jet(src[q2] / 100);
+        gr[q2] = c2[0]; gg[q2] = c2[1]; gb[q2] = c2[2];
+      }
     }
 
+    // 小さい島を黒で潰す
+    var small = null, removed = 0, px = A.w * A.h;
+    if (islandCb.checked) { removed = markSmallIslands(uToG, isoPixels()); small = buf.small; }
+
     // 塗り直し（ピクセル→ユニーク色→グループ の型付き配列参照のみ）
-    var w = A.w, h = A.h, px = w * h;
+    var w = A.w, h = A.h;
     var out = new Uint8ClampedArray(px * 4);
     var pixU = A.pixU, alphaArr = A.alpha;
     for (var i = 0, p = 0; i < px; i++, p += 4) {
       var u = pixU[i];
       if (u < 0) { out[p + 3] = 0; continue; }   // 完全透明はそのまま
-      var g = uToG[u];
-      out[p] = gr[g]; out[p + 1] = gg[g]; out[p + 2] = gb[g];
+      if (small && small[i]) { out[p] = 0; out[p + 1] = 0; out[p + 2] = 0; }
+      else {
+        var g = uToG[u];
+        out[p] = gr[g]; out[p + 1] = gg[g]; out[p + 2] = gb[g];
+      }
       out[p + 3] = keepAlpha ? alphaArr[i] : 255;
     }
 
@@ -393,20 +518,31 @@
     ngroups.setAttribute("data-copy", String(gcount));
     seedval.textContent = String(seed);
     seedval.setAttribute("data-copy", String(seed));
+    seedrow.hidden = (mode !== "random");
 
-    palette.innerHTML = "";
-    var show = Math.min(gcount, MAX_SWATCH);
-    for (var s2 = 0; s2 < show; s2++) {
-      var sw = document.createElement("div");
-      sw.className = "sw";
-      sw.style.background = "rgb(" + gr[s2] + "," + gg[s2] + "," + gb[s2] + ")";
-      palette.appendChild(sw);
+    blackrow.hidden = !islandCb.checked;
+    if (islandCb.checked) {
+      var pct = px ? (removed / px) * 100 : 0;
+      blackval.innerHTML = pct.toFixed(1) + '<span class="u">%</span>';
+      blackval.setAttribute("data-copy", pct.toFixed(1));
     }
-    if (gcount > show) {
-      var more = document.createElement("span");
-      more.className = "more";
-      more.textContent = "+" + (gcount - show).toLocaleString();
-      palette.appendChild(more);
+
+    // パレット: ランダムなら実際の配色、ランプならカラーマップの目盛り
+    palette.innerHTML = "";
+    if (mode === "random") {
+      var show = Math.min(gcount, MAX_SWATCH);
+      for (var s2 = 0; s2 < show; s2++) palette.appendChild(swatch(gr[s2], gg[s2], gb[s2]));
+      if (gcount > show) {
+        var more = document.createElement("span");
+        more.className = "more";
+        more.textContent = "+" + (gcount - show).toLocaleString();
+        palette.appendChild(more);
+      }
+    } else {
+      for (var s3 = 0; s3 < MAX_SWATCH; s3++) {
+        var cc = jet(s3 / (MAX_SWATCH - 1));
+        palette.appendChild(swatch(cc[0], cc[1], cc[2]));
+      }
     }
 
     renderNotes();
@@ -415,6 +551,13 @@
     lastMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
     running = false;
     if (queued) { queued = false; schedule(0); }
+  }
+
+  function swatch(r, g, b) {
+    var sw = document.createElement("div");
+    sw.className = "sw";
+    sw.style.background = "rgb(" + r + "," + g + "," + b + ")";
+    return sw;
   }
 
   function tt(k) { return (typeof Shell !== "undefined" && Shell && Shell.t) ? Shell.t(k) : k; }
@@ -471,6 +614,10 @@
       for (var i = 0, p = 3; i < px; i++, p += 4) res.alpha[i] = data[p];
       A = res;
 
+      // 島判定用の作業バッファは画像ごとに1回だけ確保して使い回す
+      buf = { small: new Uint8Array(px), visited: new Uint8Array(px),
+              stack: new Int32Array(px), comp: new Int32Array(px) };
+
       // 比較用の元画像（処理解像度と同じ）
       beforeCanvas.width = w; beforeCanvas.height = h;
       beforeCtx.clearRect(0, 0, w, h);
@@ -486,7 +633,7 @@
       areahead.textContent = tt("t.compare");
       readout.hidden = false;
       emptycard.hidden = true;
-      reseedBtn.disabled = false;
+      syncMode();
       setPos(50);
       lastMs = 0;
       schedule(0);
@@ -552,9 +699,29 @@
     hVal.textContent = "±" + hSl.value + "°";
     sVal.textContent = "±" + sSl.value + "%";
     vVal.textContent = "±" + vSl.value + "%";
+    isoVal.textContent = isoPixels().toLocaleString() + " px";
   }
+  function syncMode() {
+    seg.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode));
+    });
+    var isRandom = mode === "random";
+    rampbox.hidden = isRandom;
+    reseedBtn.disabled = !isRandom || !A;
+    modehint.textContent = tt(isRandom ? "t.mrandomhint" : (mode === "s" ? "t.msathint" : "t.mvalhint"));
+    modehint.setAttribute("data-i18n", isRandom ? "t.mrandomhint" : (mode === "s" ? "t.msathint" : "t.mvalhint"));
+  }
+  seg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    mode = b.getAttribute("data-mode"); syncMode(); schedule(0);
+  });
   [hSl, sSl, vSl].forEach(function (el) {
     el.addEventListener("input", function () { syncSliders(); schedule(); });
+  });
+  isoSl.addEventListener("input", function () { syncSliders(); if (islandCb.checked) schedule(); });
+  islandCb.addEventListener("change", function () {
+    islandBox.classList.toggle("off", !islandCb.checked);
+    schedule(0);
   });
   alphaCb.addEventListener("change", function () { schedule(0); });
   achromaCb.addEventListener("change", function () { schedule(0); });
@@ -562,9 +729,9 @@
     seed = (Math.random() * 4294967296) >>> 0;
     schedule(0);
   });
-  syncSliders();
+  syncSliders(); syncMode();
 
-  [ngroups, seedval].forEach(function (el) {
+  [ngroups, seedval, blackval].forEach(function (el) {
     el.addEventListener("click", function () {
       if (typeof Shell !== "undefined" && Shell && Shell.copy) {
         Shell.copy(el.getAttribute("data-copy") || el.textContent, el);
@@ -577,7 +744,8 @@
     outCanvas.toBlob(function (blob) {
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");
-      a.href = url; a.download = "hsv-randomized-" + seed + ".png";
+      a.href = url;
+      a.download = "hsv-" + (mode === "random" ? "random-" + seed : mode + "-ramp") + ".png";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     });
@@ -589,7 +757,7 @@
       strings: {
         en: {
           "t.title": "HSV color randomizer",
-          "t.desc": "Groups pixel colors that fall within your hue/saturation/value tolerances, then reassigns each group a random fully-saturated, full-brightness color.",
+          "t.desc": "Groups pixel colors that fall within your hue/saturation/value tolerances, then recolors each group — either at random or along a thermographic ramp.",
           "t.image": "Image",
           "t.compare": "Before / after",
           "t.change": "Change image",
@@ -601,12 +769,21 @@
           "t.keepalpha": "Keep original transparency",
           "t.achroma": "Ignore hue for near-grays",
           "t.achromahint": "Hue is unstable at low saturation — grays one RGB step apart can read as 0° and 240°. Off = strict HSV comparison.",
+          "t.mode": "Coloring",
+          "t.mrandom": "Random", "t.msat": "Sat →", "t.mval": "Val →",
+          "t.mrandomhint": "Each group gets a random hue at full saturation and brightness.",
+          "t.msathint": "Each group is colored by its saturation on a thermographic ramp — low is blue, high is red.",
+          "t.mvalhint": "Each group is colored by its brightness on a thermographic ramp — dark is blue, bright is red.",
+          "t.island": "Blacken small islands",
+          "t.islandhint": "Fills any connected patch smaller than the threshold with black — useful for killing anti-aliasing speckle.",
+          "t.islandsize": "Minimum island",
           "t.reseed": "New seed",
           "t.empty": "Choose an image to get started.",
-          "t.before": "Original", "t.after": "Randomized",
+          "t.before": "Original", "t.after": "Recolored",
           "t.output": "Output",
           "t.groups": "Colors used",
           "t.seed": "Seed",
+          "t.blackened": "Blackened",
           "t.palette": "Palette",
           "t.download": "Download PNG",
           "t.quantized": "Reduced to {b}-bit color for speed",
@@ -614,7 +791,7 @@
         },
         ja: {
           "t.title": "HSVカラーランダマイザー",
-          "t.desc": "色相・彩度・明度それぞれの許容誤差内にある色同士をグループ化し、各グループに彩度・明度が最大のランダムな色を割り当てます。",
+          "t.desc": "色相・彩度・明度それぞれの許容誤差内にある色同士をグループ化し、各グループをランダムな色またはサーモグラフィ配色で塗り替えます。",
           "t.image": "画像",
           "t.compare": "変換前 / 変換後",
           "t.change": "画像を変更",
@@ -626,12 +803,21 @@
           "t.keepalpha": "元の透明度を維持する",
           "t.achroma": "無彩色の色相を無視する",
           "t.achromahint": "彩度が低い色は色相が不安定で、RGBが1違うだけで0°と240°になります。オフにすると厳密なHSV比較。",
+          "t.mode": "配色",
+          "t.mrandom": "ランダム", "t.msat": "彩度 →", "t.mval": "明度 →",
+          "t.mrandomhint": "各グループに彩度・明度が最大のランダムな色を割り当てます。",
+          "t.msathint": "各グループを彩度の値でサーモグラフィ配色に対応させます。低いほど青、高いほど赤。",
+          "t.mvalhint": "各グループを明度の値でサーモグラフィ配色に対応させます。暗いほど青、明るいほど赤。",
+          "t.island": "小さい島を黒で潰す",
+          "t.islandhint": "つながった塊が閾値より小さい場合に黒で塗ります。アンチエイリアスのノイズ除去に有効。",
+          "t.islandsize": "島の最小サイズ",
           "t.reseed": "シード値を変更",
           "t.empty": "画像を選択すると開始できます。",
           "t.before": "元画像", "t.after": "変換後",
           "t.output": "出力",
           "t.groups": "使用した色数",
           "t.seed": "シード値",
+          "t.blackened": "黒で潰した割合",
           "t.palette": "パレット",
           "t.download": "PNGをダウンロード",
           "t.quantized": "処理軽減のため{b}bit色に丸めました",
@@ -639,7 +825,7 @@
         }
       },
       onSettingsChange: function () {
-        renderNotes();
+        renderNotes(); syncMode();
         if (!ba.hidden) areahead.textContent = tt("t.compare");
       }
     });
