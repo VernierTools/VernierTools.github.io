@@ -13,8 +13,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  .drop{ cursor:pointer; text-align:center; padding:var(--s6) var(--s4); }
+  .drop{ cursor:pointer; text-align:center; padding:var(--s6) var(--s4);
+    display:flex; flex-direction:column; align-items:center; }
   .drop input{ display:none; }
+  .drop svg{ margin:0 0 var(--s2); flex-shrink:0; }
+  .drop > div{ width:100%; }
   #fileinfo{ font-size:12.5px; color:var(--text-2); margin-top:var(--s3); word-break:break-all; }
 
   .tol{ display:flex; flex-direction:column; gap:var(--s4); }
