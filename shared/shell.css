@@ -278,6 +278,21 @@ button{ font-family:inherit; }
 .empty{ text-align:center; color:var(--text-3); padding:var(--s8) 0; }
 
 /* =========================================================================
+   TABS（入力そのものが切り替わる用途。role="tablist" / "tab" / "tabpanel" と組で使う）
+   <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">…</button>…</div>
+   ========================================================================= */
+.tabs{ display:flex; gap:var(--s1); border-bottom:1px solid var(--border); margin-bottom:var(--s5);
+  overflow-x:auto; scrollbar-width:none; }
+.tabs::-webkit-scrollbar{ display:none; }
+.tab{ flex:0 0 auto; font:inherit; font-size:13.5px; font-weight:500; color:var(--text-2); background:none;
+  border:0; border-bottom:2px solid transparent; margin-bottom:-1px; padding:var(--s2) var(--s3) var(--s3);
+  cursor:pointer; transition:color var(--tap), border-color var(--tap); }
+.tab:hover{ color:var(--text); }
+.tab[aria-selected="true"]{ color:var(--text); border-bottom-color:var(--accent); }
+.tab:focus-visible{ border-radius:var(--r-sm) var(--r-sm) 0 0; }
+[role="tabpanel"][hidden]{ display:none; }
+
+/* =========================================================================
    PROSE (about 等)
    ========================================================================= */
 .prose{ max-width:64ch; }
