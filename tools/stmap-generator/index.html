@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STMap generator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .input--mono{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .row3{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--s3); }
+  .sub{ font-size:11px; color:var(--text-3); margin-top:var(--s1); font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .preview{ margin-bottom:var(--s4); background:var(--surface); }
+  .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; padding:var(--s2) var(--s3); border-top:1px solid var(--border);
+    font-size:11px; color:var(--text-3); }
+  .legend i{ display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:6px; }
+  .notes{ margin:0; padding-left:1.2em; color:var(--text-2); font-size:13px; }
+  .notes li + li{ margin-top:var(--s1); }
+  .exportrow{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s4); }
+  .exportrow .sub{ margin-top:0; }
+  @media (max-width:380px){ .row3{ grid-template-columns:1fr 1fr; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">STMap generator</h1>
+    <p data-i18n="t.desc">Generate an undistort STMap from Blender's Polynomial lens distortion coefficients, as a 32-bit float EXR.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.camera">Camera</div>
+        <div class="row2 field">
+          <div>
+            <label class="label" for="in-w" data-i18n="t.width">Width</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-w" type="number" min="16" max="16384" step="1" inputmode="numeric" value="3840"><span class="unit">px</span></div>
+          </div>
+          <div>
+            <label class="label" for="in-h" data-i18n="t.height">Height</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-h" type="number" min="16" max="16384" step="1" inputmode="numeric" value="2160"><span class="unit">px</span></div>
+          </div>
+        </div>
+        <div class="row2 field">
+          <div>
+            <label class="label" for="in-focal" data-i18n="t.focal">Focal length</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-focal" type="number" min="0.01" step="any" inputmode="decimal" value="35"><span class="unit">mm</span></div>
+            <div class="sub" id="focal-px"></div>
+          </div>
+          <div>
+            <label class="label" for="in-sensor" data-i18n="t.sensor">Sensor width</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-sensor" type="number" min="0.01" step="any" inputmode="decimal" value="36"><span class="unit">mm</span></div>
+          </div>
+        </div>
+        <div class="row2 field" style="margin-bottom:0">
+          <div>
+            <label class="label" for="in-ppx" data-i18n="t.ppx">Optical center X</label>
+            <input class="input input--mono" id="in-ppx" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
+          </div>
+          <div>
+            <label class="label" for="in-ppy" data-i18n="t.ppy">Optical center Y</label>
+            <input class="input input--mono" id="in-ppy" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.coeffs">Blender · Polynomial</div>
+        <div class="row3">
+          <div>
+            <label class="label" for="in-k1">K1</label>
+            <input class="input input--mono" id="in-k1" type="number" step="0.001" inputmode="decimal" value="0">
+          </div>
+          <div>
+            <label class="label" for="in-k2">K2</label>
+            <input class="input input--mono" id="in-k2" type="number" step="0.001" inputmode="decimal" value="0">
+          </div>
+          <div>
+            <label class="label" for="in-k3">K3</label>
+            <input class="input input--mono" id="in-k3" type="number" step="0.001" inputmode="decimal" value="0">
+          </div>
+        </div>
+        <div class="exportrow">
+          <button class="btn btn--primary" id="export" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+            <span data-i18n="t.export">Export EXR</span>
+          </button>
+          <span class="sub" id="export-size"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.howto">Using it in Blender</div>
+        <ul class="notes">
+          <li data-i18n="t.n1">Set the Image node's color space to Non-Color.</li>
+          <li data-i18n="t.n2">Blue is written as 1.0, so it plugs straight into Map UV.</li>
+          <li data-i18n="t.n3">In Blender 5.0+, set Map UV interpolation to Bicubic or Bilinear.</li>
+          <li data-i18n="t.n4">Coordinates are pixel-centered with a bottom-left origin — the same convention as Nuke's STMap.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 右: プレビュー + readout -->
+    <div>
+      <div class="preview">
+        <canvas id="pv" width="640" height="360" role="img" aria-label="Distortion preview"></canvas>
+        <div class="legend">
+          <span><i id="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
+          <span><i id="lg-grid"></i><span data-i18n="t.lggrid">Where output pixels sample from</span></span>
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="eyebrow">Undistort</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.maxshift">Max edge shift</span>
+          <span class="rrow__value" id="ro-shift" data-copy="">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.outside">Edge pixels sampling outside</span>
+          <span class="rrow__value" id="ro-out" data-copy="">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.focalpx">Focal length</span>
+          <span class="rrow__value" id="ro-fpx" data-copy="">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.res">Resolution</span>
+          <span class="rrow__value" id="ro-res" data-copy="">–</span></div>
+      </div>
+      <div class="badges" id="badges"></div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script src="models.js"></script>
+<script src="exr.js"></script>
+<script>
+"use strict";
+var I18N = {
+    en: {
+      "t.title": "STMap generator",
+      "t.desc": "Generate an undistort STMap from Blender's Polynomial lens distortion coefficients, as a 32-bit float EXR.",
+      "t.camera": "Camera", "t.width": "Width", "t.height": "Height",
+      "t.focal": "Focal length", "t.sensor": "Sensor width",
+      "t.ppx": "Optical center X", "t.ppy": "Optical center Y",
+      "t.coeffs": "Blender · Polynomial", "t.export": "Export EXR", "t.exporting": "Generating…",
+      "t.howto": "Using it in Blender",
+      "t.n1": "Set the Image node's color space to Non-Color.",
+      "t.n2": "Blue is written as 1.0, so it plugs straight into Map UV.",
+      "t.n3": "In Blender 5.0+, set Map UV interpolation to Bicubic or Bilinear.",
+      "t.n4": "Coordinates are pixel-centered with a bottom-left origin — the same convention as Nuke's STMap.",
+      "t.lgframe": "Source frame", "t.lggrid": "Where output pixels sample from",
+      "t.output": "Output", "t.maxshift": "Max edge shift", "t.outside": "Edge pixels sampling outside",
+      "t.focalpx": "Focal length", "t.res": "Resolution",
+      "t.proto": "Prototype: Blender Polynomial, undistort only",
+      "t.overscan": "Edges sample outside the source frame — overscan is not supported yet",
+      "t.bad": "Check the inputs", "t.big": "Large output — generation may take a while",
+      "t.size": "≈ {mb} MB"
+    },
+    ja: {
+      "t.title": "STMapジェネレーター",
+      "t.desc": "BlenderのPolynomialレンズ歪み係数から、歪み取り用のSTMapを32bit浮動小数点EXRで生成します。",
+      "t.camera": "カメラ", "t.width": "幅", "t.height": "高さ",
+      "t.focal": "焦点距離", "t.sensor": "センサー幅",
+      "t.ppx": "光学中心 X", "t.ppy": "光学中心 Y",
+      "t.coeffs": "Blender · Polynomial", "t.export": "EXRを書き出す", "t.exporting": "生成中…",
+      "t.howto": "Blenderで使うとき",
+      "t.n1": "Imageノードのカラースペースは Non-Color にしてください。",
+      "t.n2": "Bチャンネルは1.0で書き出すので、そのままMap UVにつなげます。",
+      "t.n3": "Blender 5.0以降はMap UVの補間を Bicubic か Bilinear にしてください。",
+      "t.n4": "座標はピクセル中心・左下原点で、NukeのSTMapと同じ規約です。",
+      "t.lgframe": "元画像の枠", "t.lggrid": "出力ピクセルの参照位置",
+      "t.output": "出力", "t.maxshift": "端の最大移動量", "t.outside": "枠外を参照する端ピクセル",
+      "t.focalpx": "焦点距離", "t.res": "解像度",
+      "t.proto": "試作版: Blender Polynomial・歪み取りのみ",
+      "t.overscan": "端が元画像の枠外を参照しています（オーバースキャンは未対応）",
+      "t.bad": "入力値を確認してください", "t.big": "出力が大きいため、生成に時間がかかる場合があります",
+      "t.size": "約 {mb} MB"
+    }
+};
+
+var $ = function (id) { return document.getElementById(id); };
+var ids = ["in-w", "in-h", "in-focal", "in-sensor", "in-ppx", "in-ppy", "in-k1", "in-k2", "in-k3"];
+
+function readOpts() {
+  var v = {};
+  ids.forEach(function (id) { v[id] = parseFloat($(id).value); });
+  var W = Math.round(v["in-w"]), H = Math.round(v["in-h"]);
+  var ok = W >= 16 && H >= 16 && W <= 16384 && H <= 16384 &&
+           v["in-focal"] > 0 && v["in-sensor"] > 0 &&
+           Math.abs(v["in-ppx"]) <= 1 && Math.abs(v["in-ppy"]) <= 1 &&
+           isFinite(v["in-k1"]) && isFinite(v["in-k2"]) && isFinite(v["in-k3"]);
+  return {
+    ok: ok, W: W, H: H,
+    focalPx: v["in-focal"] * W / v["in-sensor"],     // Blender と同じ換算: mm × 幅 ÷ センサー幅
+    ppx: v["in-ppx"], ppy: v["in-ppy"],
+    k1: v["in-k1"], k2: v["in-k2"], k3: v["in-k3"]
+  };
+}
+
+function fmt(n, dp) { return n.toFixed(dp); }
+function setVal(el, text, unit, copy) {
+  el.innerHTML = "";
+  el.appendChild(document.createTextNode(text));
+  if (unit) { var u = document.createElement("span"); u.className = "u"; u.textContent = unit; el.appendChild(u); }
+  el.setAttribute("data-copy", copy);
+}
+function badge(kind, text) {
+  return '<span class="badge badge--' + kind + '"><span class="d" style="background:currentColor"></span>' + text + '</span>';
+}
+
+function render() {
+  var o = readOpts();
+  var badges = [badge("muted", Shell.t("t.proto"))];
+  if (!o.ok) {
+    ["ro-shift", "ro-out", "ro-fpx", "ro-res"].forEach(function (id) { setVal($(id), "–", "", ""); });
+    $("focal-px").textContent = ""; $("export-size").textContent = "";
+    $("export").disabled = true;
+    badges.push(badge("neg", Shell.t("t.bad")));
+    $("badges").innerHTML = badges.join("");
+    drawPreview(null);
+    return;
+  }
+  $("export").disabled = false;
+  var st = STModels.edgeStats(o);
+  setVal($("ro-shift"), fmt(st.maxShift, 2), "px", fmt(st.maxShift, 4));
+  setVal($("ro-out"), fmt(st.outside * 100, 1), "%", fmt(st.outside * 100, 2));
+  setVal($("ro-fpx"), fmt(o.focalPx, 2), "px", fmt(o.focalPx, 4));
+  setVal($("ro-res"), o.W + " × " + o.H, "", o.W + ", " + o.H);
+  $("focal-px").textContent = "= " + fmt(o.focalPx, 2) + " px";
+  var mb = (o.W * o.H * 12 + o.H * 16) / 1048576;
+  $("export-size").textContent = Shell.t("t.size").replace("{mb}", mb < 10 ? mb.toFixed(1) : Math.round(mb));
+  if (st.outside > 0) badges.push(badge("neg", Shell.t("t.overscan")));
+  if (o.W * o.H > 3840 * 2160 * 2) badges.push(badge("muted", Shell.t("t.big")));
+  $("badges").innerHTML = badges.join("");
+  drawPreview(o);
+}
+
+/* プレビュー: 元画像の枠と、出力の格子が元画像のどこを参照するか */
+function drawPreview(o) {
+  var cv = $("pv"), ctx = cv.getContext("2d");
+  var cs = getComputedStyle(document.documentElement);
+  var cFrame = cs.getPropertyValue("--text-3").trim(), cGrid = cs.getPropertyValue("--accent").trim(),
+      cBg = cs.getPropertyValue("--surface").trim();
+  $("lg-frame").style.background = cFrame; $("lg-grid").style.background = cGrid;
+  var dpr = window.devicePixelRatio || 1;
+  var aspect = o ? o.H / o.W : 9 / 16;
+  var cssW = cv.clientWidth || 480, cssH = Math.round(cssW * aspect);
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = cBg; ctx.fillRect(0, 0, cssW, cssH);
+  if (!o) return;
+  // 余白を取って枠外の参照も見えるようにする
+  var pad = 0.12, s = Math.min(cssW / (o.W * (1 + 2 * pad)), cssH / (o.H * (1 + 2 * pad)));
+  var ox = (cssW - o.W * s) / 2, oy = (cssH - o.H * s) / 2;
+  function toCanvas(px, py) { return [ox + px * s, oy + (o.H - py) * s]; }   // 左下原点 → canvas
+
+  ctx.strokeStyle = cFrame; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  ctx.strokeRect(ox + 0.5, oy + 0.5, o.W * s, o.H * s);
+  ctx.setLineDash([]);
+
+  var cam = STModels.camera(o), N = 12, M = Math.max(4, Math.round(N * o.H / o.W)), steps = 48;
+  ctx.strokeStyle = cGrid; ctx.lineWidth = 1.25;
+  function line(fn) {
+    ctx.beginPath();
+    for (var t = 0; t <= steps; t++) {
+      var p = fn(t / steps), sp = STModels.undistortSample(cam, p[0], p[1]), c = toCanvas(sp[0], sp[1]);
+      if (t === 0) ctx.moveTo(c[0], c[1]); else ctx.lineTo(c[0], c[1]);
+    }
+    ctx.stroke();
+  }
+  for (var i = 0; i <= N; i++) { var x = o.W * i / N; line(function (t) { return [x, o.H * t]; }); }
+  for (var j = 0; j <= M; j++) { var y = o.H * j / M; line(function (t) { return [o.W * t, y]; }); }
+}
+
+function exportEXR() {
+  var o = readOpts(); if (!o.ok) return;
+  var btn = $("export"), label = btn.querySelector("span");
+  btn.disabled = true; label.textContent = Shell.t("t.exporting");
+  setTimeout(function () {                      // ラベル更新を先に描画させる
+    try {
+      var map = STModels.buildUndistortMap(o);
+      var meta = JSON.stringify({ tool: "vernier/stmap-generator", model: "blender-polynomial", type: "undistort",
+        W: o.W, H: o.H, focalPx: o.focalPx, ppx: o.ppx, ppy: o.ppy, k1: o.k1, k2: o.k2, k3: o.k3 });
+      var blob = new Blob([STExr.writeStmapEXR(map, meta)], { type: "image/x-exr" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "stmap_undistort_blender-poly_" + o.W + "x" + o.H + ".exr";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+    } catch (e) {
+      $("badges").insertAdjacentHTML("beforeend", badge("neg", String(e && e.message || e)));
+    }
+    btn.disabled = false; label.textContent = Shell.t("t.export");
+  }, 30);
+}
+
+ids.forEach(function (id) { $(id).addEventListener("input", render); });
+$("export").addEventListener("click", exportEXR);
+window.addEventListener("resize", function () { var o = readOpts(); drawPreview(o.ok ? o : null); });
+Shell.init({ id: "stmap-generator", strings: I18N, onSettingsChange: render });
+</script>
+</body>
+</html>
