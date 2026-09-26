@@ -66,11 +66,11 @@
     <div class="card__title" data-i18n="t.camera">Camera</div>
     <div class="camgrid">
       <div class="field">
-        <label class="label" for="cam-w" data-i18n="t.width">Width</label>
+        <label class="label" for="cam-w" data-i18n="t.width">Resolution (width)</label>
         <div class="inputgroup"><input class="input input--mono" id="cam-w" type="number" min="16" max="16384" step="1" inputmode="numeric" value="3840"><span class="unit">px</span></div>
       </div>
       <div class="field">
-        <label class="label" for="cam-h" data-i18n="t.height">Height</label>
+        <label class="label" for="cam-h" data-i18n="t.height">Resolution (height)</label>
         <div class="inputgroup"><input class="input input--mono" id="cam-h" type="number" min="16" max="16384" step="1" inputmode="numeric" value="2160"><span class="unit">px</span></div>
       </div>
       <div class="field">
@@ -92,7 +92,7 @@
       </div>
     </div>
     <div class="hint" id="cam-hint" data-i18n="t.camHint">Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).</div>
-    <div class="hint" data-i18n="t.resHint">Width and height must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.</div>
+    <div class="hint" data-i18n="t.resHint">Resolution must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.</div>
   </div>
 
   <!-- ================= 係数 → STMap ================= -->
@@ -285,10 +285,10 @@ var I18N = {
     "t.title": "STMap generator",
     "t.desc": "Convert lens distortion coefficients to and from STMaps. Blender's four distortion models, with cross-model conversion.",
     "t.tabGen": "Coefficients → STMap", "t.tabAna": "STMap → coefficients", "t.tabConv": "Convert",
-    "t.camera": "Camera", "t.width": "Width", "t.height": "Height", "t.focal": "Focal length", "t.sensor": "Sensor width",
+    "t.camera": "Camera", "t.width": "Resolution (width)", "t.height": "Resolution (height)", "t.focal": "Focal length", "t.sensor": "Sensor width",
     "t.ppx": "Optical center X", "t.ppy": "Optical center Y",
     "t.camHint": "Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).",
-    "t.resHint": "Width and height must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.",
+    "t.resHint": "Resolution must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.",
     "t.lens": "Lens distortion", "t.model": "Model", "t.outputSettings": "Output",
     "t.direction": "Direction", "t.undistort": "Undistort", "t.redistort": "Redistort", "t.format": "Format",
     "t.fmtZip": "EXR 32-bit float · ZIP", "t.fmtNone": "EXR 32-bit float · uncompressed", "t.fmtPng": "PNG 16-bit",
@@ -336,10 +336,10 @@ var I18N = {
     "t.title": "STMapジェネレーター",
     "t.desc": "レンズ歪み係数とSTMapを双方向に変換します。Blenderの4つの歪みモデルに対応し、モデル間の係数変換もできます。",
     "t.tabGen": "係数 → STMap", "t.tabAna": "STMap → 係数", "t.tabConv": "係数変換",
-    "t.camera": "カメラ", "t.width": "幅", "t.height": "高さ", "t.focal": "焦点距離", "t.sensor": "センサー幅",
+    "t.camera": "カメラ", "t.width": "解像度（幅）", "t.height": "解像度（高さ）", "t.focal": "焦点距離", "t.sensor": "センサー幅",
     "t.ppx": "光学中心 X", "t.ppy": "光学中心 Y",
     "t.camHint": "BlenderのMovie Clip Editor → Track → Camera に表示される値を入力します。光学中心は正規化座標（−1〜1）です。",
-    "t.resHint": "幅と高さは映像の解像度と同じにしてください。STMapの方が大きいと、Blenderは中央を切り出すため拡大されたように見えます。",
+    "t.resHint": "解像度は映像と同じにしてください。STMapの方が大きいと、Blenderは中央を切り出すため拡大されたように見えます。",
     "t.lens": "レンズ歪み", "t.model": "モデル", "t.outputSettings": "出力",
     "t.direction": "種類", "t.undistort": "歪み取り（Undistort）", "t.redistort": "歪み戻し（Redistort）", "t.format": "形式",
     "t.fmtZip": "EXR 32bit float・ZIP圧縮", "t.fmtNone": "EXR 32bit float・無圧縮", "t.fmtPng": "PNG 16bit",
