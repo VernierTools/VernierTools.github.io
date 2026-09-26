@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Punctuation duplication fixer — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- ハイライト付きテキスト編集欄（textarea + 背後のマーク描画レイヤー） ---- */
+  .editorwrap{ position:relative; }
+  .ed-backdrop,.ta{
+    box-sizing:border-box; width:100%; min-height:280px;
+    font-family:var(--font-sans); font-size:14px; line-height:1.75; letter-spacing:normal;
+    padding:10px 12px; border:1px solid var(--border-strong); border-radius:var(--r);
+    white-space:pre-wrap; word-break:break-word; overflow:auto; margin:0;
+  }
+  .ed-backdrop{
+    position:absolute; inset:0; color:transparent; background:var(--surface);
+    pointer-events:none; z-index:1;
+  }
+  .ed-backdrop mark{ color:transparent; border-radius:2px; }
+  .ta{
+    position:relative; z-index:2; resize:vertical;
+    background:transparent; color:var(--text); caret-color:var(--text);
+    transition:border-color var(--tap), box-shadow var(--tap);
+  }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+  .ed-backdrop mark.hl-dup{ background:var(--neg-tint); }
+  .cardhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .cardhead .label{ margin:0; }
+  /* ---- 対象文字チップ ---- */
+  .chipgrid{ display:flex; flex-wrap:wrap; gap:6px; }
+  .charchip{ appearance:none; cursor:pointer; font:inherit; font-family:var(--font-mono); font-size:14px;
+    min-width:36px; height:34px; padding:0 10px; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--text-2); transition:all var(--tap); }
+  .charchip:hover{ border-color:var(--text-3); }
+  .charchip[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  #btn-dup-prev:disabled, #btn-dup-next:disabled{ opacity:.4; cursor:not-allowed; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Punctuation duplication fixer</h1>
+    <p data-i18n="t.desc">Detect repeated punctuation such as “、、” or “！！” and merge it — edited directly in your text, with undo/redo.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 編集欄 -->
+    <div>
+      <div class="card">
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
+          <div class="editorwrap">
+            <div class="ed-backdrop" id="ed-backdrop" aria-hidden="true"></div>
+            <textarea id="ta-in" class="ta" rows="12" spellcheck="false" data-i18n-ph="t.inputPh"></textarea>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-undo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>
+            <span data-i18n="t.undo">Undo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-redo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M20.5 13a8 8 0 1 1-1.8-8.2L21 9"/></svg>
+            <span data-i18n="t.redo">Redo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-copyall" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+            <span data-i18n="t.copyall">Copy all</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 検出・修正 -->
+    <div>
+      <div class="card">
+        <div class="cardhead">
+          <label class="label" data-i18n="t.dupTitle">Repeated punctuation</label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="badge badge--muted" id="dup-badge"><span class="d"></span><span id="dup-count">0</span></span>
+            <button class="tb-iconbtn" id="btn-dup-prev" type="button" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="tb-iconbtn" id="btn-dup-next" type="button" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+        <label class="label" style="font-size:11.5px" data-i18n="t.dupChars">Characters to check</label>
+        <div class="chipgrid" id="char-toggle" role="group">
+          <button type="button" class="charchip" data-ch="、" aria-pressed="true">、</button>
+          <button type="button" class="charchip" data-ch="。" aria-pressed="true">。</button>
+          <button type="button" class="charchip" data-ch="！" aria-pressed="false">！</button>
+          <button type="button" class="charchip" data-ch="？" aria-pressed="false">？</button>
+          <button type="button" class="charchip" data-ch="!" aria-pressed="false">!</button>
+          <button type="button" class="charchip" data-ch="?" aria-pressed="false">?</button>
+          <button type="button" class="charchip" data-ch="." aria-pressed="false">.</button>
+          <button type="button" class="charchip" data-ch="," aria-pressed="false">,</button>
+        </div>
+        <label class="toggle" style="margin-top:var(--s4)" id="mix-toggle-row">
+          <input type="checkbox" id="mix-toggle" checked>
+          <span class="track"></span>
+          <span data-i18n="t.mixToggle">Also detect mixed 、／。 runs</span>
+        </label>
+        <div class="hint" data-i18n="t.dupHint" style="margin:var(--s3) 0; font-size:12px; color:var(--text-3);">
+          Detects the same character repeated in a row (e.g. "！！"). Choose which characters to check.
+        </div>
+        <button class="btn btn--primary btn--block" id="btn-fix-dup" type="button" disabled data-i18n="t.dupFix">Merge repeated characters</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var taIn = $("ta-in"), backdrop = $("ed-backdrop");
+  var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
+  var charToggle = $("char-toggle"), dupBadge = $("dup-badge"), dupCountEl = $("dup-count"), btnFixDup = $("btn-fix-dup");
+  var btnDupPrev = $("btn-dup-prev"), btnDupNext = $("btn-dup-next");
+  var mixToggle = $("mix-toggle"), mixToggleRow = $("mix-toggle-row");
+
+  function esc(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  /* =========================================================
+     選択した文字の連続検出・一括修正
+     ========================================================= */
+  function selectedChars() {
+    return Array.prototype.slice.call(charToggle.querySelectorAll('[aria-pressed="true"]'))
+      .map(function (b) { return b.getAttribute("data-ch"); });
+  }
+  // 「、」と「。」は、両方選択されている時だけ「混在の連続」（、。／。、 等）も
+  // 例外的に検出対象にする。片方しか選択されていない場合はその文字単体の連続のみ。
+  function buildDupRegex(chars) {
+    if (!chars.length) return null;
+    var hasTouten = chars.indexOf("、") !== -1;
+    var hasKuten = chars.indexOf("。") !== -1;
+    var mixToutenKuten = hasTouten && hasKuten && mixToggle.checked;
+    var genericChars = chars.filter(function (c) {
+      return !(mixToutenKuten && (c === "、" || c === "。"));
+    });
+    var parts = [];
+    if (genericChars.length) parts.push("(" + "[" + genericChars.join("") + "]" + ")\\1+");
+    if (mixToutenKuten) parts.push("[、。]{2,}");
+    if (!parts.length) return null;
+    return new RegExp(parts.join("|"), "g");
+  }
+  function fixDuplicates(v, chars) {
+    var re = buildDupRegex(chars);
+    if (!re) return v;
+    return v.replace(re, function () {
+      var m = arguments[0];
+      var offset = arguments[arguments.length - 2];
+      var str = arguments[arguments.length - 1];
+      // 「、」「。」だけからなる連続で、直後が改行またはテキストの末尾なら「。」に統一する。
+      if (/^[、。]+$/.test(m)) {
+        var endIdx = offset + m.length;
+        if (endIdx >= str.length || str[endIdx] === "\n") return "。";
+      }
+      return m.charAt(0);
+    });
+  }
+
+  charToggle.addEventListener("click", function (e) {
+    var b = e.target.closest(".charchip"); if (!b) return;
+    b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+    refreshDerived();
+  });
+  mixToggle.addEventListener("change", refreshDerived);
+
+  function syncMixToggleAvailability() {
+    var chars = selectedChars();
+    var available = chars.indexOf("、") !== -1 && chars.indexOf("。") !== -1;
+    mixToggle.disabled = !available;
+    mixToggleRow.style.opacity = available ? "1" : ".5";
+  }
+
+  // ハイライト: 重複した句読点（hl-dup）
+  function collectSegments(v) {
+    var segments = [];
+    var chars = selectedChars(), dupRe = buildDupRegex(chars);
+    if (dupRe) {
+      var m1; dupRe.lastIndex = 0;
+      while ((m1 = dupRe.exec(v))) segments.push({ start: m1.index, end: m1.index + m1[0].length, cls: "hl-dup" });
+    }
+    return segments;
+  }
+  function buildBackdropHTML(v, segments) {
+    var html = "", last = 0;
+    segments.forEach(function (seg) {
+      if (seg.start < last) return; // 文字集合が排他のため通常は発生しないが念のため
+      html += esc(v.slice(last, seg.start)) + '<mark class="' + seg.cls + '">' + esc(v.slice(seg.start, seg.end)) + "</mark>";
+      last = seg.end;
+    });
+    return html + esc(v.slice(last));
+  }
+
+  // ---- 重複ハイライト間のジャンプ（前へ／次へ） ----
+  var dupMatches = [], dupCursor = -1;
+  function stepDup(delta) {
+    if (!dupMatches.length) return;
+    if (dupCursor === -1) dupCursor = delta > 0 ? 0 : dupMatches.length - 1;
+    else dupCursor = ((dupCursor + delta) % dupMatches.length + dupMatches.length) % dupMatches.length;
+    var seg = dupMatches[dupCursor];
+    taIn.focus();
+    taIn.setSelectionRange(seg.start, seg.end);
+  }
+  btnDupNext.addEventListener("click", function () { stepDup(1); });
+  btnDupPrev.addEventListener("click", function () { stepDup(-1); });
+  function updateDupNav() {
+    var prevLabel = Shell.t("t.dupPrev"), nextLabel = Shell.t("t.dupNext");
+    btnDupPrev.title = prevLabel; btnDupPrev.setAttribute("aria-label", prevLabel);
+    btnDupNext.title = nextLabel; btnDupNext.setAttribute("aria-label", nextLabel);
+    var has = dupMatches.length > 0;
+    btnDupPrev.disabled = !has; btnDupNext.disabled = !has;
+    if (dupCursor >= dupMatches.length) dupCursor = has ? 0 : -1;
+  }
+
+  function refreshDerived() {
+    var v = taIn.value;
+    syncMixToggleAvailability();
+    var segments = v === "" ? [] : collectSegments(v);
+    dupMatches = segments;
+    var count = dupMatches.length;
+    backdrop.innerHTML = (v === "" ? "" : buildBackdropHTML(v, segments)) + " "; // 末尾改行の高さ崩れ対策
+    dupCountEl.textContent = count;
+    dupBadge.classList.toggle("badge--neg", count > 0);
+    dupBadge.classList.toggle("badge--muted", count === 0);
+    btnFixDup.disabled = count === 0;
+    updateDupNav();
+  }
+  taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
+
+  /* =========================================================
+     Undo / Redo（自前の履歴管理。打鍵はデバウンスでチェックポイント化、
+     ボタン操作は即座に1ステップとして積む）
+     ========================================================= */
+  var history = [""], histIndex = 0, typingTimer = null;
+  var TYPING_DEBOUNCE = 450, MAX_HISTORY = 200;
+
+  function pushHistory(v) {
+    if (v === history[histIndex]) return;
+    history = history.slice(0, histIndex + 1);
+    history.push(v);
+    histIndex = history.length - 1;
+    if (history.length > MAX_HISTORY) {
+      var overflow = history.length - MAX_HISTORY;
+      history.splice(0, overflow);
+      histIndex -= overflow;
+    }
+    syncUndoRedoUI();
+  }
+  function flushPending() {
+    clearTimeout(typingTimer);
+    if (taIn.value !== history[histIndex]) pushHistory(taIn.value);
+  }
+  function syncUndoRedoUI() {
+    btnUndo.disabled = histIndex <= 0;
+    btnRedo.disabled = histIndex >= history.length - 1;
+  }
+  // old→new の共通の前後部分から「実際に変わった範囲」を特定し、
+  // pos（旧テキスト上の位置）がその範囲の前・後・内側のどこにあったかで新テキスト上の位置に変換する。
+  function remapPosition(oldStr, newStr, pos) {
+    var oldLen = oldStr.length, newLen = newStr.length;
+    var maxPrefix = Math.min(oldLen, newLen), prefixLen = 0;
+    while (prefixLen < maxPrefix && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+    var maxSuffix = Math.min(oldLen, newLen) - prefixLen, suffixLen = 0;
+    while (suffixLen < maxSuffix && oldStr[oldLen - 1 - suffixLen] === newStr[newLen - 1 - suffixLen]) suffixLen++;
+    var oldChangeEnd = oldLen - suffixLen, newChangeEnd = newLen - suffixLen;
+    if (pos <= prefixLen) return pos;                       // 変化範囲より前 → そのまま
+    if (pos >= oldChangeEnd) return pos + (newLen - oldLen); // 変化範囲より後 → 差分だけシフト
+    return newChangeEnd;                                     // 変化範囲の内側 → 変化後の直後に置く
+  }
+  function performUndo() {
+    flushPending();
+    if (histIndex > 0) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex--; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function performRedo() {
+    if (histIndex < history.length - 1) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex++; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function applyTransform(fn) {
+    flushPending();
+    var old = taIn.value, oldStart = taIn.selectionStart, oldEnd = taIn.selectionEnd;
+    var next = fn(old);
+    if (next === old) return;
+    taIn.value = next;
+    pushHistory(next);
+    refreshDerived();
+    var start = remapPosition(old, next, oldStart);
+    var end = oldEnd === oldStart ? start : remapPosition(old, next, oldEnd);
+    taIn.focus();
+    taIn.setSelectionRange(start, end);
+  }
+
+  btnUndo.addEventListener("click", performUndo);
+  btnRedo.addEventListener("click", performRedo);
+  taIn.addEventListener("keydown", function (e) {
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+    var k = e.key.toLowerCase();
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); performUndo(); }
+    else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); performRedo(); }
+  });
+  taIn.addEventListener("blur", flushPending);
+  taIn.addEventListener("input", function () {
+    refreshDerived();
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(function () { pushHistory(taIn.value); }, TYPING_DEBOUNCE);
+  });
+
+  btnCopyAll.addEventListener("click", function () { Shell.copy(taIn.value, btnCopyAll); });
+  btnFixDup.addEventListener("click", function () { applyTransform(function (v) { return fixDuplicates(v, selectedChars()); }); });
+
+  Shell.init({
+    id: "punctuation-dedupe",
+    strings: {
+      en: {
+        "t.input": "Text",
+        "t.inputPh": "Paste or type text here…",
+        "t.undo": "Undo",
+        "t.redo": "Redo",
+        "t.copyall": "Copy all",
+        "t.title": "Punctuation duplication fixer",
+        "t.desc": "Detect repeated punctuation such as “、、” or “！！” and merge it — edited directly in your text, with undo/redo.",
+        "t.dupTitle": "Repeated punctuation",
+        "t.dupPrev": "Previous match",
+        "t.dupNext": "Next match",
+        "t.dupChars": "Characters to check",
+        "t.mixToggle": "Also detect mixed 、／。 runs (e.g. “、。”)",
+        "t.dupHint": "Detects the same character repeated in a row (e.g. “！！”). Choose which characters to check. A mixed 、/。 run at the end of a line becomes “。”.",
+        "t.dupFix": "Merge repeated characters"
+      },
+      ja: {
+        "t.input": "テキスト",
+        "t.inputPh": "ここにテキストを貼り付け／入力…",
+        "t.undo": "元に戻す",
+        "t.redo": "やり直す",
+        "t.copyall": "全文コピー",
+        "t.title": "句読点の重複修正",
+        "t.desc": "「、、」「！！」のような句読点・記号の重複を検出して、まとめて修正します。編集は本文に直接反映され、元に戻す・やり直しにも対応。",
+        "t.dupTitle": "句読点などの連続",
+        "t.dupPrev": "前の箇所へ",
+        "t.dupNext": "次の箇所へ",
+        "t.dupChars": "対象の文字",
+        "t.mixToggle": "「、」「。」の混在も検出する（例:「、。」）",
+        "t.dupHint": "同じ文字が連続している箇所を検出します（例:「！！」）。対象の文字は選択できます。行末にある「、」「。」の混在は「。」にまとめます。",
+        "t.dupFix": "選択した文字の重複をまとめて修正"
+      }
+    },
+    onSettingsChange: refreshDerived
+  });
+
+  refreshDerived(); syncUndoRedoUI();
+})();
+</script>
+</body>
+</html>

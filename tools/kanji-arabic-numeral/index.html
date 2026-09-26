@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanji / Arabic numeral unifier — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- ハイライト付きテキスト編集欄（textarea + 背後のマーク描画レイヤー） ---- */
+  .editorwrap{ position:relative; }
+  .ed-backdrop,.ta{
+    box-sizing:border-box; width:100%; min-height:280px;
+    font-family:var(--font-sans); font-size:14px; line-height:1.75; letter-spacing:normal;
+    padding:10px 12px; border:1px solid var(--border-strong); border-radius:var(--r);
+    white-space:pre-wrap; word-break:break-word; overflow:auto; margin:0;
+  }
+  .ed-backdrop{
+    position:absolute; inset:0; color:transparent; background:var(--surface);
+    pointer-events:none; z-index:1;
+  }
+  .ed-backdrop mark{ color:transparent; border-radius:2px; }
+  .ta{
+    position:relative; z-index:2; resize:vertical;
+    background:transparent; color:var(--text); caret-color:var(--text);
+    transition:border-color var(--tap), box-shadow var(--tap);
+  }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+  .ed-backdrop mark.hl-info{ background:var(--accent-tint); }
+  .ed-backdrop mark.hl-warn{ background:var(--warn-tint); }
+  /* 「判定できない」語のための警告色。shell.css に該当トークンが無いためツール内で定義する。 */
+  :root{ --warn:#9A6B00; --warn-tint:#FBF0CE; }
+  html[data-theme="dark"]{ --warn:#E0B33C; --warn-tint:rgba(224,179,60,.18); }
+
+  .amblist{ display:flex; flex-wrap:wrap; gap:6px; }
+  .ambitem{ appearance:none; cursor:pointer; font:inherit; font-size:13px; height:32px; padding:0 12px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--warn-tint);
+    color:var(--warn); font-weight:500; transition:all var(--tap); }
+  .ambitem:hover{ border-color:var(--warn); }
+  .ambitem .pos{ font-family:var(--font-mono); font-size:11px; opacity:.7; margin-left:6px; }
+  /* ---- 統計行（全角スペース／全角数字） ---- */
+  .rrow2b{ display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s4); }
+  .rrow2b + .rrow2b{ border-top:1px solid var(--border); }
+  .rrow2b__label{ flex:1; font-size:13px; color:var(--text-2); }
+  .rrow2b__value{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:20px;
+    color:var(--text); min-width:2ch; text-align:right; }
+  .btn--sm{ height:30px; padding:0 12px; font-size:12.5px; flex:0 0 auto; }
+  .cardhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .cardhead .label{ margin:0; }
+  .ed-backdrop mark.hl-alt{ background:var(--pos-tint); }
+  .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:8px; vertical-align:-1px; }
+  .sw--kanji{ background:var(--accent-tint); border:1px solid var(--accent); }
+  .sw--arabic{ background:var(--pos-tint); border:1px solid var(--pos); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Kanji / Arabic numeral unifier</h1>
+    <p data-i18n="t.desc">Unify kanji and Arabic numerals in your text, in either direction — edited directly in your text, with undo/redo.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 編集欄 -->
+    <div>
+      <div class="card">
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
+          <div class="editorwrap">
+            <div class="ed-backdrop" id="ed-backdrop" aria-hidden="true"></div>
+            <textarea id="ta-in" class="ta" rows="12" spellcheck="false" data-i18n-ph="t.inputPh"></textarea>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-undo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>
+            <span data-i18n="t.undo">Undo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-redo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M20.5 13a8 8 0 1 1-1.8-8.2L21 9"/></svg>
+            <span data-i18n="t.redo">Redo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-copyall" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+            <span data-i18n="t.copyall">Copy all</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 検出・修正 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.numTitle">Kanji ⇔ Arabic numerals</span></div>
+        <div class="rrow2b">
+          <span class="rrow2b__label"><i class="sw sw--kanji"></i><span data-i18n="t.kanjiNum">Kanji numerals</span></span>
+          <span class="rrow2b__value" id="cnt-kanji">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-num-to-arabic" type="button" disabled data-i18n="t.toArabic">→ 123</button>
+        </div>
+        <div class="rrow2b">
+          <span class="rrow2b__label"><i class="sw sw--arabic"></i><span data-i18n="t.arabicNum">Arabic numerals</span></span>
+          <span class="rrow2b__value" id="cnt-arabic">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-num-to-kanji" type="button" disabled data-i18n="t.toKanji">→ 一二三</button>
+        </div>
+      </div>
+      <div class="hint" data-i18n="t.numCaveat" style="margin-top:var(--s3); font-size:11px; color:var(--text-3);">Kanji→Arabic only counts tokens with a unit right after them or hiragana on both sides. Arabic→Kanji skips digits that look like phone numbers, dates, decimals, or version numbers, unless a unit follows.</div>
+
+      <div class="card" id="amb-card" style="margin-top:var(--s4)" hidden>
+        <div class="cardhead">
+          <label class="label" data-i18n="t.ambTitle">Needs your judgement</label>
+          <span class="badge badge--muted" id="amb-badge"><span class="d"></span><span id="amb-count">0</span></span>
+        </div>
+        <div class="hint" data-i18n="t.ambHint" style="margin-bottom:var(--s3); font-size:12px; color:var(--text-3);">
+          These could be either a number or a set phrase, so they're left untouched. Click one to jump to it.
+        </div>
+        <div class="amblist" id="amb-list"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var taIn = $("ta-in"), backdrop = $("ed-backdrop");
+  var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
+  var cntKanji = $("cnt-kanji"), cntArabic = $("cnt-arabic");
+  var btnNumToArabic = $("btn-num-to-arabic"), btnNumToKanji = $("btn-num-to-kanji");
+  var ambCard = $("amb-card"), ambList = $("amb-list"), ambBadge = $("amb-badge"), ambCountEl = $("amb-count");
+
+  function esc(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  var KANJI_DIGIT_MAP = { "〇": "0", "零": "0", "一": "1", "二": "2", "三": "3", "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9" };
+  var KANJI_RE = /[〇零一二三四五六七八九十百千万億兆]+/g;
+
+  // 単位が続く場合はほぼ確実に数字とみなす。カテゴリごとにまとめてあります。
+  // 誤検出する単位が見つかったら、ここから外すか BLACKLIST_WORDS に個別の語を足してください。
+  var UNIT_WORDS = [
+    // 時間
+    "年", "月", "日", "時", "分", "秒", "週", "週間", "ヶ月", "か月", "箇月", "時間", "世紀",
+    // 人・動物
+    "人", "名", "匹", "頭", "羽",
+    // 物を数える一般的な助数詞
+    "個", "つ", "本", "冊", "枚", "台", "着", "足", "双", "組", "杯", "皿", "膳",
+    "粒", "滴", "錠", "箱", "缶", "瓶", "部", "通", "件", "号", "巻", "話",
+    "章", "節", "曲", "首", "句", "編", "局", "戦", "試合", "点",
+    // 順序・頻度・階層
+    "歳", "才", "段", "級", "等", "位", "番", "度", "回", "割", "倍",
+    "階", "棟", "軒", "戸", "室", "両", "機", "隻",
+    // お金
+    "円", "銭", "ドル", "ユーロ",
+    // 長さ
+    "km", "m", "cm", "mm", "里",
+    // 重さ
+    "kg", "g", "mg", "t",
+    // 面積・体積
+    "㎡", "坪", "L", "ml", "cc", "合"
+  ];
+  // 【確実に数値ではない語】静かに除外する（ハイライトも変換もしない）。
+  // 各語は「漢数字文字の直後が単位リストにある」または「ひらがなに挟まれる」ために
+  // 誤って数字とみなされる実例のみ登録すること（根拠のない語を足しても意味がない）。
+  var BLACKLIST_WORDS = ["四六時中", "三日月", "百足", "人一倍", "一通り", "万年筆", "万万一", "万一"];
+  // 【文脈次第でどちらにもなり得る語】自動変換せず、黄色で示して一覧に出し、人間が判断する。
+  // 例: 「一件落着」（慣用句）と「残り一件」（1件）、「八百万の神」と「八百万円」。
+  var AMBIGUOUS_WORDS = ["四六時中", "十分", "一時", "一件", "一部", "八百万", "一二三"].filter(function (w) {
+    return BLACKLIST_WORDS.indexOf(w) === -1;
+  });
+  // 長い語から先に照合する（「万万一」が「万一」に横取りされないように）
+  function byLengthDesc(a, b) { return b.length - a.length; }
+  BLACKLIST_WORDS.sort(byLengthDesc);
+  AMBIGUOUS_WORDS.sort(byLengthDesc);
+  var HIRAGANA_RE = /[ぁ-んー]/;
+
+  function matchWordAt(list, v, start) {
+    for (var i = 0; i < list.length; i++) {
+      if (v.substr(start, list[i].length) === list[i]) return list[i];
+    }
+    return null;
+  }
+  // 語がテキスト中に出現する範囲をすべて求める（「人一倍」のように漢数字が語頭以外に
+  // ある場合でも、トークンがその語に含まれていれば除外できるようにするため）。
+  function findWordRanges(list, v) {
+    var ranges = [];
+    list.forEach(function (w) {
+      var i = v.indexOf(w);
+      while (i !== -1) { ranges.push({ start: i, end: i + w.length, text: w }); i = v.indexOf(w, i + 1); }
+    });
+    ranges.sort(function (a, b) { return a.start - b.start; });
+    return ranges;
+  }
+  function coveringRange(ranges, start, end) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (start < ranges[i].end && end > ranges[i].start) return ranges[i];
+    }
+    return null;
+  }
+
+  function hasUnitAt(v, end) {
+    for (var i = 0; i < UNIT_WORDS.length; i++) {
+      if (v.substr(end, UNIT_WORDS[i].length) === UNIT_WORDS[i]) return true;
+    }
+    return false;
+  }
+  function isHiraganaFlanked(v, start, end) {
+    if (start <= 0 || end >= v.length) return false;
+    return HIRAGANA_RE.test(v[start - 1]) && HIRAGANA_RE.test(v[end]);
+  }
+  // 漢数字らしき並びのうち、「単位が続く」または「ひらがなに前後を挟まれる」場合だけを
+  // 数字とみなす。除外リスト・判定保留リストの語に重なるトークンは最優先で対象外にする。
+  function findKanjiNumberTokens(v) {
+    var tokens = [], re = new RegExp(KANJI_RE.source, "g"), m;
+    var blocked = findWordRanges(BLACKLIST_WORDS, v), pending = findWordRanges(AMBIGUOUS_WORDS, v);
+    while ((m = re.exec(v))) {
+      var start = m.index, tok = m[0], end = start + tok.length;
+      if (coveringRange(blocked, start, end)) continue;
+      if (coveringRange(pending, start, end)) continue;
+      if (hasUnitAt(v, end) || isHiraganaFlanked(v, start, end)) tokens.push({ start: start, end: end, text: tok });
+    }
+    return tokens;
+  }
+  // 判定保留リストに一致した箇所（人間の判断に委ねる）。除外リストに含まれる語は出さない。
+  function findAmbiguousTokens(v) {
+    var blocked = findWordRanges(BLACKLIST_WORDS, v);
+    var out = [], last = -1;
+    findWordRanges(AMBIGUOUS_WORDS, v).forEach(function (r) {
+      if (coveringRange(blocked, r.start, r.end)) return;
+      if (r.start < last) return;   // 語同士が重なる場合は先に見つかった方を優先
+      out.push(r); last = r.end;
+    });
+    return out;
+  }
+
+  function kanjiToNumber(tok) {
+    var digitMap = { "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+    var smallUnits = { "十": 10, "百": 100, "千": 1000 };
+    var bigUnits = [["兆", 1000000000000], ["億", 100000000], ["万", 10000]];
+    function parseSmall(s) {
+      var num = 0, current = 0;
+      for (var i = 0; i < s.length; i++) {
+        var c = s[i];
+        if (digitMap.hasOwnProperty(c)) current = digitMap[c];
+        else if (smallUnits.hasOwnProperty(c)) { num += (current === 0 ? 1 : current) * smallUnits[c]; current = 0; }
+      }
+      return num + current;
+    }
+    var total = 0, remaining = tok;
+    bigUnits.forEach(function (bu) {
+      var idx = remaining.indexOf(bu[0]);
+      if (idx !== -1) {
+        var part = remaining.slice(0, idx);
+        total += (part ? parseSmall(part) : 1) * bu[1];
+        remaining = remaining.slice(idx + 1);
+      }
+    });
+    total += parseSmall(remaining);
+    return total;
+  }
+  function kanjiTokenToArabic(tok) {
+    if (!/[十百千万億兆]/.test(tok)) {
+      return tok.split("").map(function (c) { return KANJI_DIGIT_MAP.hasOwnProperty(c) ? KANJI_DIGIT_MAP[c] : c; }).join("");
+    }
+    return String(kanjiToNumber(tok));
+  }
+  function numberToKanji(num) {
+    var kd = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    var bigUnits = ["", "万", "億", "兆"];
+    function fourDigit(n) {
+      var s = "", th = Math.floor(n / 1000) % 10, hd = Math.floor(n / 100) % 10, te = Math.floor(n / 10) % 10, on = n % 10;
+      if (th) s += (th === 1 ? "" : kd[th]) + "千";
+      if (hd) s += (hd === 1 ? "" : kd[hd]) + "百";
+      if (te) s += (te === 1 ? "" : kd[te]) + "十";
+      if (on) s += kd[on];
+      return s;
+    }
+    if (num === 0) return "〇";
+    var groups = [], n = num;
+    while (n > 0) { groups.push(n % 10000); n = Math.floor(n / 10000); }
+    var result = "";
+    for (var i = groups.length - 1; i >= 0; i--) {
+      if (groups[i] === 0) continue;
+      result += fourDigit(groups[i]) + bigUnits[i];
+    }
+    return result || "〇";
+  }
+  function convertKanjiToArabic(v) {
+    var tokens = findKanjiNumberTokens(v);
+    if (!tokens.length) return v;
+    var result = "", last = 0;
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + kanjiTokenToArabic(t.text); last = t.end; });
+    return result + v.slice(last);
+  }
+  // 電話番号・日付・小数・バージョン表記などに見える並び（前後に -／:．やアルファベットが
+  // 接している）は「数字ではあるが自然文の数量ではない」とみなし変換対象から外す。
+  // ただし単位が続く場合は最優先で変換対象にする。全角数字（０-９）も算用数字として扱う。
+  var CODE_ADJACENT_RE = /[\-\/:.#@A-Za-z]/;
+  var ARABIC_ANY_RE = /[0-9０-９]+/g;
+  function normalizeDigits(tok) {
+    return tok.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
+  function findArabicNumberTokens(v) {
+    var tokens = [], re = new RegExp(ARABIC_ANY_RE.source, "g"), m;
+    while ((m = re.exec(v))) {
+      var start = m.index, tok = m[0], end = start + tok.length;
+      if (hasUnitAt(v, end)) { tokens.push({ start: start, end: end, text: tok }); continue; }
+      var before = start > 0 ? v[start - 1] : "", after = end < v.length ? v[end] : "";
+      if (CODE_ADJACENT_RE.test(before) || CODE_ADJACENT_RE.test(after)) continue;
+      tokens.push({ start: start, end: end, text: tok });
+    }
+    return tokens;
+  }
+  function convertArabicToKanji(v) {
+    var tokens = findArabicNumberTokens(v);
+    if (!tokens.length) return v;
+    var result = "", last = 0;
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(parseInt(normalizeDigits(t.text), 10)); last = t.end; });
+    return result + v.slice(last);
+  }
+
+  // ハイライト: 漢数字（hl-info）・算用数字（hl-alt）・判定保留の語（hl-warn）
+  function collectSegments(v) {
+    var segments = [];
+    findKanjiNumberTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-info" }); });
+    findArabicNumberTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-alt" }); });
+    findAmbiguousTokens(v).forEach(function (t) { segments.push({ start: t.start, end: t.end, cls: "hl-warn" }); });
+    segments.sort(function (a, b) { return a.start - b.start; });
+    return segments;
+  }
+  function buildBackdropHTML(v, segments) {
+    var html = "", last = 0;
+    segments.forEach(function (seg) {
+      if (seg.start < last) return; // 文字集合が排他のため通常は発生しないが念のため
+      html += esc(v.slice(last, seg.start)) + '<mark class="' + seg.cls + '">' + esc(v.slice(seg.start, seg.end)) + "</mark>";
+      last = seg.end;
+    });
+    return html + esc(v.slice(last));
+  }
+
+  // ---- 判定できなかった語の一覧（クリックでその箇所へジャンプ） ----
+  function refreshAmbiguous() {
+    var v = taIn.value;
+    var items = v === "" ? [] : findAmbiguousTokens(v);
+    ambCard.hidden = items.length === 0;
+    ambCountEl.textContent = items.length;
+    ambBadge.classList.toggle("badge--muted", true);
+    ambList.innerHTML = items.map(function (t, i) {
+      return '<button type="button" class="ambitem" data-idx="' + i + '">' + esc(t.text) +
+        '<span class="pos">' + (t.start + 1) + "</span></button>";
+    }).join("");
+    ambList._items = items;
+  }
+  ambList.addEventListener("click", function (e) {
+    var b = e.target.closest(".ambitem"); if (!b) return;
+    var items = ambList._items || [];
+    var t = items[parseInt(b.getAttribute("data-idx"), 10)];
+    if (!t) return;
+    taIn.focus();
+    taIn.setSelectionRange(t.start, t.end);
+  });
+
+  function refreshDerived() {
+    var v = taIn.value;
+    var kanjiCount = v === "" ? 0 : findKanjiNumberTokens(v).length;
+    var arabicCount = v === "" ? 0 : findArabicNumberTokens(v).length;
+    cntKanji.textContent = kanjiCount; cntArabic.textContent = arabicCount;
+    btnNumToArabic.disabled = kanjiCount === 0; btnNumToKanji.disabled = arabicCount === 0;
+    backdrop.innerHTML = (v === "" ? "" : buildBackdropHTML(v, collectSegments(v))) + " "; // 末尾改行の高さ崩れ対策
+    refreshAmbiguous();
+  }
+  taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
+
+  /* =========================================================
+     Undo / Redo（自前の履歴管理。打鍵はデバウンスでチェックポイント化、
+     ボタン操作は即座に1ステップとして積む）
+     ========================================================= */
+  var history = [""], histIndex = 0, typingTimer = null;
+  var TYPING_DEBOUNCE = 450, MAX_HISTORY = 200;
+
+  function pushHistory(v) {
+    if (v === history[histIndex]) return;
+    history = history.slice(0, histIndex + 1);
+    history.push(v);
+    histIndex = history.length - 1;
+    if (history.length > MAX_HISTORY) {
+      var overflow = history.length - MAX_HISTORY;
+      history.splice(0, overflow);
+      histIndex -= overflow;
+    }
+    syncUndoRedoUI();
+  }
+  function flushPending() {
+    clearTimeout(typingTimer);
+    if (taIn.value !== history[histIndex]) pushHistory(taIn.value);
+  }
+  function syncUndoRedoUI() {
+    btnUndo.disabled = histIndex <= 0;
+    btnRedo.disabled = histIndex >= history.length - 1;
+  }
+  // old→new の共通の前後部分から「実際に変わった範囲」を特定し、
+  // pos（旧テキスト上の位置）がその範囲の前・後・内側のどこにあったかで新テキスト上の位置に変換する。
+  function remapPosition(oldStr, newStr, pos) {
+    var oldLen = oldStr.length, newLen = newStr.length;
+    var maxPrefix = Math.min(oldLen, newLen), prefixLen = 0;
+    while (prefixLen < maxPrefix && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+    var maxSuffix = Math.min(oldLen, newLen) - prefixLen, suffixLen = 0;
+    while (suffixLen < maxSuffix && oldStr[oldLen - 1 - suffixLen] === newStr[newLen - 1 - suffixLen]) suffixLen++;
+    var oldChangeEnd = oldLen - suffixLen, newChangeEnd = newLen - suffixLen;
+    if (pos <= prefixLen) return pos;                       // 変化範囲より前 → そのまま
+    if (pos >= oldChangeEnd) return pos + (newLen - oldLen); // 変化範囲より後 → 差分だけシフト
+    return newChangeEnd;                                     // 変化範囲の内側 → 変化後の直後に置く
+  }
+  function performUndo() {
+    flushPending();
+    if (histIndex > 0) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex--; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function performRedo() {
+    if (histIndex < history.length - 1) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex++; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function applyTransform(fn) {
+    flushPending();
+    var old = taIn.value, oldStart = taIn.selectionStart, oldEnd = taIn.selectionEnd;
+    var next = fn(old);
+    if (next === old) return;
+    taIn.value = next;
+    pushHistory(next);
+    refreshDerived();
+    var start = remapPosition(old, next, oldStart);
+    var end = oldEnd === oldStart ? start : remapPosition(old, next, oldEnd);
+    taIn.focus();
+    taIn.setSelectionRange(start, end);
+  }
+
+  btnUndo.addEventListener("click", performUndo);
+  btnRedo.addEventListener("click", performRedo);
+  taIn.addEventListener("keydown", function (e) {
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+    var k = e.key.toLowerCase();
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); performUndo(); }
+    else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); performRedo(); }
+  });
+  taIn.addEventListener("blur", flushPending);
+  taIn.addEventListener("input", function () {
+    refreshDerived();
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(function () { pushHistory(taIn.value); }, TYPING_DEBOUNCE);
+  });
+
+  btnCopyAll.addEventListener("click", function () { Shell.copy(taIn.value, btnCopyAll); });
+  btnNumToArabic.addEventListener("click", function () { applyTransform(convertKanjiToArabic); });
+  btnNumToKanji.addEventListener("click", function () { applyTransform(convertArabicToKanji); });
+
+  Shell.init({
+    id: "kanji-arabic-numeral",
+    strings: {
+      en: {
+        "t.input": "Text",
+        "t.inputPh": "Paste or type text here…",
+        "t.undo": "Undo",
+        "t.redo": "Redo",
+        "t.copyall": "Copy all",
+        "t.title": "Kanji / Arabic numeral unifier",
+        "t.desc": "Unify kanji and Arabic numerals in your text, in either direction — edited directly in your text, with undo/redo.",
+        "t.numTitle": "Kanji ⇔ Arabic numerals",
+        "t.kanjiNum": "Kanji numerals",
+        "t.arabicNum": "Arabic numerals",
+        "t.toArabic": "→ 123",
+        "t.toKanji": "→ 一二三",
+        "t.ambTitle": "Needs your judgement",
+        "t.ambHint": "These could be either a number or a set phrase, so they're left untouched. Click one to jump to it.",
+        "t.numCaveat": "Kanji→Arabic only counts tokens with a unit right after them or hiragana on both sides (with a short exception list). Arabic→Kanji skips digits that look like phone numbers, dates, decimals, or version numbers (touching \"-\", \"/\", \":\", \".\", or a letter), unless a unit follows."
+      },
+      ja: {
+        "t.input": "テキスト",
+        "t.inputPh": "ここにテキストを貼り付け／入力…",
+        "t.undo": "元に戻す",
+        "t.redo": "やり直す",
+        "t.copyall": "全文コピー",
+        "t.title": "漢数字⇔算用数字統一",
+        "t.desc": "文章中の漢数字と算用数字を、どちらかに統一します。編集は本文に直接反映され、元に戻す・やり直しにも対応。",
+        "t.numTitle": "漢数字⇔算用数字",
+        "t.kanjiNum": "漢数字",
+        "t.arabicNum": "算用数字",
+        "t.toArabic": "算用数字に",
+        "t.toKanji": "漢数字に",
+        "t.ambTitle": "自動判定できなかった語",
+        "t.ambHint": "数値とも慣用句とも取れるため、変換対象から外しています。クリックするとその箇所へ移動します。",
+        "t.numCaveat": "漢数字→算用数字は、単位が続くかひらがなに挟まれているものだけを数字とみなします（例外リストあり）。算用数字→漢数字は、電話番号・日付・小数・バージョン表記のような並び（前後に「-」「/」「:」「.」やアルファベットが接する場合）は変換対象から外します（単位が続く場合は例外的に対象にします）。"
+      }
+    },
+    onSettingsChange: refreshDerived
+  });
+
+  refreshDerived(); syncUndoRedoUI();
+})();
+</script>
+</body>
+</html>

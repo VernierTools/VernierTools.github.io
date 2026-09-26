@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full-width to half-width converter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- ハイライト付きテキスト編集欄（textarea + 背後のマーク描画レイヤー） ---- */
+  .editorwrap{ position:relative; }
+  .ed-backdrop,.ta{
+    box-sizing:border-box; width:100%; min-height:280px;
+    font-family:var(--font-sans); font-size:14px; line-height:1.75; letter-spacing:normal;
+    padding:10px 12px; border:1px solid var(--border-strong); border-radius:var(--r);
+    white-space:pre-wrap; word-break:break-word; overflow:auto; margin:0;
+  }
+  .ed-backdrop{
+    position:absolute; inset:0; color:transparent; background:var(--surface);
+    pointer-events:none; z-index:1;
+  }
+  .ed-backdrop mark{ color:transparent; border-radius:2px; }
+  .ta{
+    position:relative; z-index:2; resize:vertical;
+    background:transparent; color:var(--text); caret-color:var(--text);
+    transition:border-color var(--tap), box-shadow var(--tap);
+  }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+  .ed-backdrop mark.hl-info{ background:var(--accent-tint); }
+  /* ---- 統計行（全角スペース／全角数字） ---- */
+  .rrow2b{ display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s4); }
+  .rrow2b + .rrow2b{ border-top:1px solid var(--border); }
+  .rrow2b__label{ flex:1; font-size:13px; color:var(--text-2); }
+  .rrow2b__value{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:20px;
+    color:var(--text); min-width:2ch; text-align:right; }
+  .btn--sm{ height:30px; padding:0 12px; font-size:12.5px; flex:0 0 auto; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Full-width to half-width converter</h1>
+    <p data-i18n="t.desc">Convert full-width digits and spaces to half-width in one click — edited directly in your text, with undo/redo.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 編集欄 -->
+    <div>
+      <div class="card">
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="ta-in" data-i18n="t.input">Text</label>
+          <div class="editorwrap">
+            <div class="ed-backdrop" id="ed-backdrop" aria-hidden="true"></div>
+            <textarea id="ta-in" class="ta" rows="12" spellcheck="false" data-i18n-ph="t.inputPh"></textarea>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn--secondary" id="btn-undo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a8 8 0 1 0 1.8-8.2L3 9"/></svg>
+            <span data-i18n="t.undo">Undo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-redo" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M20.5 13a8 8 0 1 1-1.8-8.2L21 9"/></svg>
+            <span data-i18n="t.redo">Redo</span>
+          </button>
+          <button class="btn btn--secondary" id="btn-copyall" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+            <span data-i18n="t.copyall">Copy all</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右: 検出・修正 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.detected">Full-width check</span></div>
+        <div class="rrow2b">
+          <span class="rrow2b__label" data-i18n="t.fwSpace">Full-width spaces</span>
+          <span class="rrow2b__value" id="cnt-space">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-fix-space" type="button" disabled data-i18n="t.fix">Fix</button>
+        </div>
+        <div class="rrow2b">
+          <span class="rrow2b__label" data-i18n="t.fwDigit">Full-width digits</span>
+          <span class="rrow2b__value" id="cnt-digit">0</span>
+          <button class="btn btn--secondary btn--sm" id="btn-fix-digit" type="button" disabled data-i18n="t.fix">Fix</button>
+        </div>
+      </div>
+      <button class="btn btn--primary btn--block" id="btn-fix-all" type="button" disabled style="margin-top:var(--s4)" data-i18n="t.fixAll">Convert both to half-width</button>
+      <div class="hint" data-i18n="t.fwHint" style="margin-top:var(--s3); font-size:12px; color:var(--text-3);">Full-width spaces (　) become half-width spaces, and full-width digits (０–９) become 0–9. Highlighted in the text.</div>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var taIn = $("ta-in"), backdrop = $("ed-backdrop");
+  var btnUndo = $("btn-undo"), btnRedo = $("btn-redo"), btnCopyAll = $("btn-copyall");
+  var cntSpace = $("cnt-space"), cntDigit = $("cnt-digit");
+  var btnFixSpace = $("btn-fix-space"), btnFixDigit = $("btn-fix-digit"), btnFixAll = $("btn-fix-all");
+
+  function esc(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  /* =========================================================
+     全角スペース / 全角数字：カウント + 修正（本文へ直接反映）
+     ========================================================= */
+  function countFWSpace(v) { var m = v.match(/\u3000/g); return m ? m.length : 0; }
+  function countFWDigit(v) { var m = v.match(/[０-９]/g); return m ? m.length : 0; }
+  function fixFWSpace(v) { return v.replace(/\u3000/g, " "); }
+  function fixFWDigit(v) { return v.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  function fixBoth(v) { return fixFWDigit(fixFWSpace(v)); }
+
+  // ハイライト: 全角スペース・全角数字（hl-info）
+  function collectSegments(v) {
+    var segments = [];
+    var spaceRe = /\u3000+/g, m2;
+    while ((m2 = spaceRe.exec(v))) segments.push({ start: m2.index, end: m2.index + m2[0].length, cls: "hl-info" });
+    var digitRe = /[０-９]+/g, m3;
+    while ((m3 = digitRe.exec(v))) segments.push({ start: m3.index, end: m3.index + m3[0].length, cls: "hl-info" });
+    segments.sort(function (a, b) { return a.start - b.start; });
+    return segments;
+  }
+  function buildBackdropHTML(v, segments) {
+    var html = "", last = 0;
+    segments.forEach(function (seg) {
+      if (seg.start < last) return; // 文字集合が排他のため通常は発生しないが念のため
+      html += esc(v.slice(last, seg.start)) + '<mark class="' + seg.cls + '">' + esc(v.slice(seg.start, seg.end)) + "</mark>";
+      last = seg.end;
+    });
+    return html + esc(v.slice(last));
+  }
+
+  function refreshDerived() {
+    var v = taIn.value;
+    var sp = countFWSpace(v), dg = countFWDigit(v);
+    cntSpace.textContent = sp; cntDigit.textContent = dg;
+    btnFixSpace.disabled = sp === 0; btnFixDigit.disabled = dg === 0; btnFixAll.disabled = sp + dg === 0;
+    backdrop.innerHTML = (v === "" ? "" : buildBackdropHTML(v, collectSegments(v))) + " "; // 末尾改行の高さ崩れ対策
+  }
+  taIn.addEventListener("scroll", function () { backdrop.scrollTop = taIn.scrollTop; backdrop.scrollLeft = taIn.scrollLeft; });
+
+  /* =========================================================
+     Undo / Redo（自前の履歴管理。打鍵はデバウンスでチェックポイント化、
+     ボタン操作は即座に1ステップとして積む）
+     ========================================================= */
+  var history = [""], histIndex = 0, typingTimer = null;
+  var TYPING_DEBOUNCE = 450, MAX_HISTORY = 200;
+
+  function pushHistory(v) {
+    if (v === history[histIndex]) return;
+    history = history.slice(0, histIndex + 1);
+    history.push(v);
+    histIndex = history.length - 1;
+    if (history.length > MAX_HISTORY) {
+      var overflow = history.length - MAX_HISTORY;
+      history.splice(0, overflow);
+      histIndex -= overflow;
+    }
+    syncUndoRedoUI();
+  }
+  function flushPending() {
+    clearTimeout(typingTimer);
+    if (taIn.value !== history[histIndex]) pushHistory(taIn.value);
+  }
+  function syncUndoRedoUI() {
+    btnUndo.disabled = histIndex <= 0;
+    btnRedo.disabled = histIndex >= history.length - 1;
+  }
+  // old→new の共通の前後部分から「実際に変わった範囲」を特定し、
+  // pos（旧テキスト上の位置）がその範囲の前・後・内側のどこにあったかで新テキスト上の位置に変換する。
+  function remapPosition(oldStr, newStr, pos) {
+    var oldLen = oldStr.length, newLen = newStr.length;
+    var maxPrefix = Math.min(oldLen, newLen), prefixLen = 0;
+    while (prefixLen < maxPrefix && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+    var maxSuffix = Math.min(oldLen, newLen) - prefixLen, suffixLen = 0;
+    while (suffixLen < maxSuffix && oldStr[oldLen - 1 - suffixLen] === newStr[newLen - 1 - suffixLen]) suffixLen++;
+    var oldChangeEnd = oldLen - suffixLen, newChangeEnd = newLen - suffixLen;
+    if (pos <= prefixLen) return pos;                       // 変化範囲より前 → そのまま
+    if (pos >= oldChangeEnd) return pos + (newLen - oldLen); // 変化範囲より後 → 差分だけシフト
+    return newChangeEnd;                                     // 変化範囲の内側 → 変化後の直後に置く
+  }
+  function performUndo() {
+    flushPending();
+    if (histIndex > 0) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex--; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function performRedo() {
+    if (histIndex < history.length - 1) {
+      var old = taIn.value, oldPos = taIn.selectionStart;
+      histIndex++; taIn.value = history[histIndex];
+      refreshDerived(); syncUndoRedoUI();
+      var pos = remapPosition(old, taIn.value, oldPos);
+      taIn.focus(); taIn.setSelectionRange(pos, pos);
+    }
+  }
+  function applyTransform(fn) {
+    flushPending();
+    var old = taIn.value, oldStart = taIn.selectionStart, oldEnd = taIn.selectionEnd;
+    var next = fn(old);
+    if (next === old) return;
+    taIn.value = next;
+    pushHistory(next);
+    refreshDerived();
+    var start = remapPosition(old, next, oldStart);
+    var end = oldEnd === oldStart ? start : remapPosition(old, next, oldEnd);
+    taIn.focus();
+    taIn.setSelectionRange(start, end);
+  }
+
+  btnUndo.addEventListener("click", performUndo);
+  btnRedo.addEventListener("click", performRedo);
+  taIn.addEventListener("keydown", function (e) {
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+    var k = e.key.toLowerCase();
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); performUndo(); }
+    else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); performRedo(); }
+  });
+  taIn.addEventListener("blur", flushPending);
+  taIn.addEventListener("input", function () {
+    refreshDerived();
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(function () { pushHistory(taIn.value); }, TYPING_DEBOUNCE);
+  });
+
+  btnCopyAll.addEventListener("click", function () { Shell.copy(taIn.value, btnCopyAll); });
+  btnFixSpace.addEventListener("click", function () { applyTransform(fixFWSpace); });
+  btnFixDigit.addEventListener("click", function () { applyTransform(fixFWDigit); });
+  btnFixAll.addEventListener("click", function () { applyTransform(fixBoth); });
+
+  Shell.init({
+    id: "fullwidth-to-halfwidth",
+    strings: {
+      en: {
+        "t.input": "Text",
+        "t.inputPh": "Paste or type text here…",
+        "t.undo": "Undo",
+        "t.redo": "Redo",
+        "t.copyall": "Copy all",
+        "t.title": "Full-width to half-width converter",
+        "t.desc": "Convert full-width digits and spaces to half-width in one click — edited directly in your text, with undo/redo.",
+        "t.detected": "Full-width check",
+        "t.fwSpace": "Full-width spaces",
+        "t.fwDigit": "Full-width digits",
+        "t.fix": "Fix",
+        "t.fixAll": "Convert both to half-width",
+        "t.fwHint": "Full-width spaces (　) become half-width spaces, and full-width digits (０–９) become 0–9. Highlighted in the text."
+      },
+      ja: {
+        "t.input": "テキスト",
+        "t.inputPh": "ここにテキストを貼り付け／入力…",
+        "t.undo": "元に戻す",
+        "t.redo": "やり直す",
+        "t.copyall": "全文コピー",
+        "t.title": "全角→半角コンバーター",
+        "t.desc": "全角数字・全角スペースを一括で半角に変換します。編集は本文に直接反映され、元に戻す・やり直しにも対応。",
+        "t.detected": "全角チェック",
+        "t.fwSpace": "全角スペース",
+        "t.fwDigit": "全角数字",
+        "t.fix": "修正",
+        "t.fixAll": "両方まとめて半角にする",
+        "t.fwHint": "全角スペース（　）は半角スペースに、全角数字（０〜９）は 0〜9 に変換します。本文中の該当箇所はハイライト表示されます。"
+      }
+    },
+    onSettingsChange: refreshDerived
+  });
+
+  refreshDerived(); syncUndoRedoUI();
+})();
+</script>
+</body>
+</html>
