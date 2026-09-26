@@ -113,7 +113,9 @@
   /* ---- オーバースキャン ----
      mode "none": 元画像と同じ枠
      mode "auto": 元画像の枠の外周が出力側でどこに来るかを調べ、はみ出す分だけ枠を広げる
-                  （Blender の Movie Distortion と同じ考え方。広げるだけで縮めない）
+                  （広げるだけで縮めない）。左右・上下は対称にそろえる。
+                  Blender は EXR の data window の位置を無視して画像を中央合わせで置くため、
+                  非対称だとレンダー解像度で切り出したときに位置がずれる（2026-09-27 実測で約 1px）。
      mode "percent": 幅・高さそれぞれ pct% を左右・上下に均等に足す
      戻り値は左下原点のピクセル単位で { l, r, b, t }（各方向に足すピクセル数） */
   function overscan(opts) {
@@ -134,10 +136,9 @@
     for (var j = 0; j <= H; j += step) { probe(0, j); probe(W, j); }
     probe(W, 0); probe(0, H); probe(W, H);
     // 極端な歪みでの巨大化を防ぐため、各方向は元の寸法までに制限（Blender と同じ）
-    return {
-      l: Math.min(W, Math.ceil(-minX)), r: Math.min(W, Math.ceil(maxX - W)),
-      b: Math.min(H, Math.ceil(-minY)), t: Math.min(H, Math.ceil(maxY - H))
-    };
+    var ex = Math.min(W, Math.max(0, Math.ceil(-minX), Math.ceil(maxX - W)));
+    var ey = Math.min(H, Math.max(0, Math.ceil(-minY), Math.ceil(maxY - H)));
+    return { l: ex, r: ex, b: ey, t: ey };
   }
 
   /* ---- STMap 本体 ----

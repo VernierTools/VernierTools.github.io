@@ -92,6 +92,7 @@
       </div>
     </div>
     <div class="hint" id="cam-hint" data-i18n="t.camHint">Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).</div>
+    <div class="hint" data-i18n="t.resHint">Width and height must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.</div>
   </div>
 
   <!-- ================= 係数 → STMap ================= -->
@@ -157,6 +158,7 @@
           <li data-i18n="t.n1">Blender: set the Image node's color space to Non-Color.</li>
           <li data-i18n="t.n2">Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.</li>
           <li data-i18n="t.n3">Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.</li>
+          <li data-i18n="t.n6">Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.</li>
           <li data-i18n="t.n4">Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).</li>
           <li data-i18n="t.n5">Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.</li>
         </ul>
@@ -286,6 +288,7 @@ var I18N = {
     "t.camera": "Camera", "t.width": "Width", "t.height": "Height", "t.focal": "Focal length", "t.sensor": "Sensor width",
     "t.ppx": "Optical center X", "t.ppy": "Optical center Y",
     "t.camHint": "Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).",
+    "t.resHint": "Width and height must match the footage. If the STMap is larger than the footage, Blender crops its center and the result looks zoomed in.",
     "t.lens": "Lens distortion", "t.model": "Model", "t.outputSettings": "Output",
     "t.direction": "Direction", "t.undistort": "Undistort", "t.redistort": "Redistort", "t.format": "Format",
     "t.fmtZip": "EXR 32-bit float · ZIP", "t.fmtNone": "EXR 32-bit float · uncompressed", "t.fmtPng": "PNG 16-bit",
@@ -296,6 +299,7 @@ var I18N = {
     "t.n2": "Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.",
     "t.blue1": "Write Blue = 1 (plug into Blender's Map UV without the add-on)",
     "t.n3": "Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.",
+    "t.n6": "Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.",
     "t.n4": "Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).",
     "t.n5": "Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.",
     "t.lgframe": "Source frame", "t.lggrid": "Where output pixels sample from", "t.lgfit": "Fitted model",
@@ -335,6 +339,7 @@ var I18N = {
     "t.camera": "カメラ", "t.width": "幅", "t.height": "高さ", "t.focal": "焦点距離", "t.sensor": "センサー幅",
     "t.ppx": "光学中心 X", "t.ppy": "光学中心 Y",
     "t.camHint": "BlenderのMovie Clip Editor → Track → Camera に表示される値を入力します。光学中心は正規化座標（−1〜1）です。",
+    "t.resHint": "幅と高さは映像の解像度と同じにしてください。STMapの方が大きいと、Blenderは中央を切り出すため拡大されたように見えます。",
     "t.lens": "レンズ歪み", "t.model": "モデル", "t.outputSettings": "出力",
     "t.direction": "種類", "t.undistort": "歪み取り（Undistort）", "t.redistort": "歪み戻し（Redistort）", "t.format": "形式",
     "t.fmtZip": "EXR 32bit float・ZIP圧縮", "t.fmtNone": "EXR 32bit float・無圧縮", "t.fmtPng": "PNG 16bit",
@@ -345,6 +350,7 @@ var I18N = {
     "t.n2": "Map UVはBチャンネルを有効範囲のマスクとして扱うため、1にする必要があります。STMap Setup Nodeアドオンを使えば自動で設定されます。アドオンなしで直接つなぐ場合は上の「B = 1」にチェックしてください。",
     "t.blue1": "B = 1 で書き出す（アドオンなしでBlenderのMap UVに直接つなぐ場合）",
     "t.n3": "Blender 5.0以降: Map UVの補間は Bicubic か Bilinear にしてください。",
+    "t.n6": "Blender: オーバースキャンを付けたときは、レンダー解像度を右の「出力サイズ」に合わせてください。合わせないと広げた部分が切り取られます。広げる量は左右・上下で均等なので、位置はずれません。",
     "t.n4": "ピクセル中心・左下原点で、NukeのSTMapと同じ規約です。オーバースキャンはEXRのdata windowに記録します（Nukeではbbox）。",
     "t.n5": "Blender標準のMovie Distortionノードは、拡張後の枠が奇数サイズになる軸で最大0.5pxずれることがあります。このツールはレンズの式どおりに計算します。",
     "t.lgframe": "元画像の枠", "t.lggrid": "出力ピクセルの参照位置", "t.lgfit": "当てはめたモデル",
