@@ -1253,9 +1253,9 @@
       "added": "2026-08-03"
     },
     {
-      "id": "poly-oscillator",
+      "id": "multi-oscillator",
       "type": "web",
-      "path": "tools/poly-oscillator/",
+      "path": "tools/multi-oscillator/",
       "categories": [
         "audio"
       ],
@@ -1387,33 +1387,6 @@
         "STMap",
         "レンズ歪み",
         "歪み係数"
-      ],
-      "added": "2026-08-05"
-    },
-    {
-      "id": "random-word",
-      "type": "web",
-      "path": "tools/random-word/",
-      "categories": [
-        "general",
-        "text"
-      ],
-      "name": {
-        "en": "Random word",
-        "ja": "ランダム単語"
-      },
-      "description": {
-        "en": "Keep showing random words in Japanese or English, for a spark of inspiration.",
-        "ja": "日本語・英語のランダムな単語を表示し続け、発想のきっかけに。"
-      },
-      "keywords": [
-        "random word",
-        "inspiration",
-        "brainstorm",
-        "prompt",
-        "ランダム単語",
-        "インスピレーション",
-        "発想"
       ],
       "added": "2026-08-05"
     },
