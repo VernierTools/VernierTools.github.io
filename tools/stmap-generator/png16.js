@@ -32,10 +32,11 @@
     return out;
   }
 
-  /* map: { W, H, R, G }（上の行から、0〜1 の範囲。範囲外はクランプ）。B は 1.0。
+  /* map: { W, H, R, G, blue? }（上の行から、0〜1 の範囲。範囲外はクランプ）。B は map.blue（既定 0）。
      戻り値 Promise<{ buffer, clipped }>（clipped = 0〜1 の範囲外でクランプしたピクセル数） */
   function writeStmapPNG16(map, onProgress) {
     var W = map.W, H = map.H, rowBytes = 1 + W * 6, raw = new Uint8Array(rowBytes * H), clipped = 0;
+    var blue = map.blue ? 255 : 0;
     for (var y = 0; y < H; y++) {
       var o = y * rowBytes, s = y * W;
       raw[o] = 0;                                       // フィルタなし
@@ -47,7 +48,7 @@
         var q = o + 1 + x * 6;
         raw[q] = ri >> 8; raw[q + 1] = ri & 255;
         raw[q + 2] = gi >> 8; raw[q + 3] = gi & 255;
-        raw[q + 4] = 255; raw[q + 5] = 255;
+        raw[q + 4] = blue; raw[q + 5] = blue;
       }
       if (onProgress && (y & 127) === 0) onProgress(y / H * 0.5);
     }

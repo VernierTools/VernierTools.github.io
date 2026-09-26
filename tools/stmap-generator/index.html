@@ -140,6 +140,7 @@
             <div class="inputgroup"><input class="input input--mono" id="gen-pct" type="number" min="0" max="100" step="1" inputmode="decimal" value="10"><span class="unit">%</span></div>
           </div>
         </div>
+        <label class="check" style="margin-top:var(--s4)"><input type="checkbox" id="gen-blue"><span data-i18n="t.blue1">Write Blue = 1 (plug into Blender's Map UV without the add-on)</span></label>
         <div class="actions">
           <button class="btn btn--primary" id="gen-export" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
@@ -154,7 +155,7 @@
         <div class="card__title" data-i18n="t.howto">Using it in Blender / Nuke</div>
         <ul class="notes">
           <li data-i18n="t.n1">Blender: set the Image node's color space to Non-Color.</li>
-          <li data-i18n="t.n2">Blue is written as 1.0, so it plugs straight into Blender's Map UV.</li>
+          <li data-i18n="t.n2">Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.</li>
           <li data-i18n="t.n3">Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.</li>
           <li data-i18n="t.n4">Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).</li>
           <li data-i18n="t.n5">Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.</li>
@@ -292,7 +293,8 @@ var I18N = {
     "t.osAmount": "Extra size", "t.export": "Export", "t.exporting": "Generating…",
     "t.howto": "Using it in Blender / Nuke",
     "t.n1": "Blender: set the Image node's color space to Non-Color.",
-    "t.n2": "Blue is written as 1.0, so it plugs straight into Blender's Map UV.",
+    "t.n2": "Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.",
+    "t.blue1": "Write Blue = 1 (plug into Blender's Map UV without the add-on)",
     "t.n3": "Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.",
     "t.n4": "Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).",
     "t.n5": "Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.",
@@ -340,7 +342,8 @@ var I18N = {
     "t.osAmount": "追加する大きさ", "t.export": "書き出す", "t.exporting": "生成中…",
     "t.howto": "Blender / Nuke で使うとき",
     "t.n1": "Blender: Imageノードのカラースペースは Non-Color にしてください。",
-    "t.n2": "Bチャンネルは1.0で書き出すので、BlenderのMap UVにそのままつなげます。",
+    "t.n2": "Map UVはBチャンネルを有効範囲のマスクとして扱うため、1にする必要があります。STMap Setup Nodeアドオンを使えば自動で設定されます。アドオンなしで直接つなぐ場合は上の「B = 1」にチェックしてください。",
+    "t.blue1": "B = 1 で書き出す（アドオンなしでBlenderのMap UVに直接つなぐ場合）",
     "t.n3": "Blender 5.0以降: Map UVの補間は Bicubic か Bilinear にしてください。",
     "t.n4": "ピクセル中心・左下原点で、NukeのSTMapと同じ規約です。オーバースキャンはEXRのdata windowに記録します（Nukeではbbox）。",
     "t.n5": "Blender標準のMovie Distortionノードは、拡張後の枠が奇数サイズになる軸で最大0.5pxずれることがあります。このツールはレンズの式どおりに計算します。",
@@ -388,7 +391,7 @@ var DEFAULT_K = { k1: 0, k2: 0, k3: 0, k4: 0, p1: 0, p2: 0 };
 /* ---------------- 状態（URL ハッシュに保存） ---------------- */
 var S = {
   tab: "gen",
-  gen: { model: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dir: "undistort", fmt: "exr-zip", os: "none", pct: 10 },
+  gen: { model: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dir: "undistort", fmt: "exr-zip", os: "none", pct: 10, blue: false },
   ana: { model: "blender-polynomial", dir: "auto", est: false },
   conv: { src: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dst: "blender-nuke" }
 };
@@ -412,6 +415,7 @@ function readHash() {
   S.gen.model = model(q.gm, S.gen.model); ks(q.gk, S.gen.k);
   if (/^(undistort|redistort)$/.test(q.gd)) S.gen.dir = q.gd;
   if (/^(exr-zip|exr|png16)$/.test(q.gf)) S.gen.fmt = q.gf;
+  S.gen.blue = q.gb === "1";
   if (q.go === "auto" || q.go === "none") S.gen.os = q.go;
   else if (q.go && isFinite(+q.go)) { S.gen.os = "percent"; S.gen.pct = +q.go; }
   S.ana.model = model(q.am, S.ana.model);
@@ -426,7 +430,7 @@ function writeHash() {
   var parts = ["tab=" + S.tab];
   Object.keys(CAM_IDS).forEach(function (k) { parts.push(k + "=" + encodeURIComponent($(CAM_IDS[k]).value)); });
   parts.push("gm=" + MODEL_SHORT[S.gen.model], "gk=" + ks(S.gen.model, S.gen.k), "gd=" + S.gen.dir, "gf=" + S.gen.fmt,
-             "go=" + (S.gen.os === "percent" ? S.gen.pct : S.gen.os),
+             "go=" + (S.gen.os === "percent" ? S.gen.pct : S.gen.os), "gb=" + (S.gen.blue ? 1 : 0),
              "am=" + MODEL_SHORT[S.ana.model], "ad=" + S.ana.dir, "ae=" + (S.ana.est ? 1 : 0),
              "cs=" + MODEL_SHORT[S.conv.src], "ck=" + ks(S.conv.src, S.conv.k), "cd=" + MODEL_SHORT[S.conv.dst]);
   history.replaceState(null, "", "#" + parts.join("&"));
@@ -606,11 +610,11 @@ function exportGen() {
   var o = genOpts(cam), fmt = S.gen.fmt;
   var meta = JSON.stringify({ tool: "vernier/stmap-generator", v: 1, model: o.model, dir: o.dir, W: o.W, H: o.H,
     focalMm: cam.focalMm, sensorMm: cam.sensorMm, ppx: o.ppx, ppy: o.ppy,
-    k: M[o.model].params.reduce(function (a, p) { a[p] = o[p]; return a; }, {}), overscan: o.overscan });
+    k: M[o.model].params.reduce(function (a, p) { a[p] = o[p]; return a; }, {}), overscan: o.overscan, blue: S.gen.blue ? 1 : 0 });
   var btn = $("gen-export"), label = btn.querySelector("span"), bar = $("gen-prog");
   genBusy = true; genNote = ""; btn.disabled = true; label.textContent = Shell.t("t.exporting");
   bar.hidden = false; bar.firstChild.style.width = "0%";
-  run("build", { opts: o, format: fmt, meta: meta }, function (f) { bar.firstChild.style.width = Math.round(f * 100) + "%"; })
+  run("build", { opts: o, format: fmt, blue: S.gen.blue ? 1 : 0, meta: meta }, function (f) { bar.firstChild.style.width = Math.round(f * 100) + "%"; })
     .then(function (r) {
       var os = STModels.overscan(o), w = cam.W + os.l + os.r, h = cam.H + os.b + os.t;
       var name = "stmap_" + o.dir + "_" + MODEL_SHORT[o.model] + "_" + w + "x" + h + (fmt === "png16" ? ".png" : ".exr");
@@ -792,7 +796,7 @@ function selectTab(tab, focus) {
 }
 function syncGenControls() {
   $("gen-model").value = S.gen.model; $("gen-dir").value = S.gen.dir; $("gen-fmt").value = S.gen.fmt;
-  $("gen-os").value = S.gen.os; $("gen-pct").value = S.gen.pct;
+  $("gen-os").value = S.gen.os; $("gen-pct").value = S.gen.pct; $("gen-blue").checked = S.gen.blue;
   buildParams($("gen-params"), S.gen.model, S.gen.k, "gen-", genParamsChanged);
 }
 
@@ -835,6 +839,7 @@ function init() {
   $("gen-fmt").addEventListener("change", function () { S.gen.fmt = this.value; genParamsChanged(); });
   $("gen-os").addEventListener("change", function () { S.gen.os = this.value; genParamsChanged(); });
   $("gen-pct").addEventListener("input", function () { S.gen.pct = parseFloat(this.value); genParamsChanged(); });
+  $("gen-blue").addEventListener("change", function () { S.gen.blue = this.checked; genParamsChanged(); });
   $("gen-export").addEventListener("click", exportGen);
 
   // STMap → 係数

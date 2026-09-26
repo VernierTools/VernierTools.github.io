@@ -8,9 +8,10 @@
   var STModels = root.STModels, STExr = root.STExr, STPng = root.STPng, STFit = root.STFit;
   var cache = null;   // 最後に読み込んだ STMap（{ id, img }）
   root.STTasks = {
-    /* p: { opts, format: "exr-zip" | "exr" | "png16", meta } → { buffer, name, clipped, unconverged } */
+    /* p: { opts, format: "exr-zip" | "exr" | "png16", blue: 0|1, meta } → { buffer, name, clipped, unconverged } */
     build: function (p, progress) {
       var map = STModels.buildMap(p.opts, function (f) { progress(f * 0.7); });
+      map.blue = p.blue ? 1 : 0;
       if (p.format === "png16") {
         return STPng.writeStmapPNG16(map, function (f) { progress(0.7 + f * 0.3); }).then(function (r) {
           return { buffer: r.buffer, clipped: r.clipped, unconverged: map.unconverged };

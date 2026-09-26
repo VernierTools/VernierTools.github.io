@@ -1,7 +1,8 @@
 /* =========================================================================
    STMap generator — exr.js
    OpenEXR の書き出しと読み込み（scanline・single-part のみ）。
-     書き出し: float32、チャンネル B/G/R（B = 1.0。Blender の Map UV は3番目の成分を透明度として扱う）、
+     書き出し: float32、チャンネル B/G/R（B は既定 0 = 一般的な STMap の見た目。map.blue = 1 で 1.0 にすると
+               Blender の Map UV にアドオン無しで直接つなげる。Map UV は3番目の成分を透明度として扱うため）、
                圧縮は無し / ZIP（16行ブロック）。data window と display window を正しく記録する。
      読み込み: 圧縮は無し / RLE / ZIPS / ZIP、ピクセル型は half / float / uint。
                PIZ・DWAA・DWAB・tiled・multi-part は非対応（理由付きでエラーを返す）。
@@ -114,9 +115,10 @@
   /* rows 行ぶんの非圧縮ブロック（行ごとに B, G, R の順） */
   function rawBlock(map, w, row0, rows) {
     var line = w * 12, out = new Uint8Array(line * rows), f = new Float32Array(w), fb = new Uint8Array(f.buffer);
+    var blue = map.blue ? 1 : 0;
     for (var r = 0; r < rows; r++) {
       var o = (row0 + r) * w, base = r * line;
-      f.fill(1); out.set(fb, base);
+      f.fill(blue); out.set(fb, base);
       f.set(map.G.subarray(o, o + w)); out.set(fb, base + w * 4);
       f.set(map.R.subarray(o, o + w)); out.set(fb, base + w * 8);
     }
