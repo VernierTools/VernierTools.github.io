@@ -14,17 +14,37 @@
 <meta name="theme-color" content="#5457E5">
 <style>
   .input--mono{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
-  .row3{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--s3); }
+  .camgrid{ display:grid; grid-template-columns:repeat(6,1fr); gap:var(--s3); }
+  .camgrid .field{ margin-bottom:0; }
+  .pgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--s3); }
+  .pgrid .field{ margin-bottom:0; }
   .sub{ font-size:11px; color:var(--text-3); margin-top:var(--s1); font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.5; }
+  .camcard{ margin-bottom:var(--s5); }
   .preview{ margin-bottom:var(--s4); background:var(--surface); }
   .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; padding:var(--s2) var(--s3); border-top:1px solid var(--border);
     font-size:11px; color:var(--text-3); }
   .legend i{ display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:6px; }
   .notes{ margin:0; padding-left:1.2em; color:var(--text-2); font-size:13px; }
   .notes li + li{ margin-top:var(--s1); }
-  .exportrow{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s4); }
-  .exportrow .sub{ margin-top:0; }
-  @media (max-width:380px){ .row3{ grid-template-columns:1fr 1fr; } }
+  .actions{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s4); }
+  .actions .sub{ margin-top:0; }
+  .check{ display:flex; align-items:center; gap:var(--s2); font-size:13px; color:var(--text-2); cursor:pointer; }
+  .check input{ width:16px; height:16px; accent-color:var(--accent); }
+  .drop{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--s2); text-align:center;
+    min-height:132px; padding:var(--s5); border:1.5px dashed var(--border-strong); border-radius:var(--r-lg);
+    background:var(--surface-2); color:var(--text-2); font-size:13px; cursor:pointer; transition:border-color var(--tap), background var(--tap); }
+  .drop:hover, .drop.is-over{ border-color:var(--accent); background:var(--accent-tint); }
+  .drop svg{ width:22px; height:22px; color:var(--text-3); }
+  .drop input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .drop:focus-within{ box-shadow:0 0 0 3px var(--accent-ring); }
+  .drop__name{ font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; }
+  .rrow__value--sm{ font-size:17px; }
+  .readout__head .btn{ height:28px; padding:0 10px; font-size:12px; }
+  .progress{ height:4px; border-radius:2px; background:var(--border); overflow:hidden; flex:1 1 120px; max-width:200px; }
+  .progress > i{ display:block; height:100%; width:0; background:var(--accent); transition:width .1s linear; }
+  @media (max-width:760px){ .camgrid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:380px){ .pgrid{ grid-template-columns:1fr 1fr; } }
 </style>
 </head>
 <body>
@@ -32,277 +52,835 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
     <h1 data-i18n="t.title">STMap generator</h1>
-    <p data-i18n="t.desc">Generate an undistort STMap from Blender's Polynomial lens distortion coefficients, as a 32-bit float EXR.</p>
+    <p data-i18n="t.desc">Convert lens distortion coefficients to and from STMaps. Blender's four distortion models, with cross-model conversion.</p>
   </div>
 
-  <div class="work">
-    <!-- 左: 入力 -->
+  <div class="tabs" role="tablist" aria-label="Mode">
+    <button class="tab" role="tab" id="tab-gen" aria-controls="panel-gen" aria-selected="true" data-tab="gen" data-i18n="t.tabGen">Coefficients → STMap</button>
+    <button class="tab" role="tab" id="tab-ana" aria-controls="panel-ana" aria-selected="false" tabindex="-1" data-tab="ana" data-i18n="t.tabAna">STMap → coefficients</button>
+    <button class="tab" role="tab" id="tab-conv" aria-controls="panel-conv" aria-selected="false" tabindex="-1" data-tab="conv" data-i18n="t.tabConv">Convert</button>
+  </div>
+
+  <!-- 共通: カメラ -->
+  <div class="card camcard">
+    <div class="card__title" data-i18n="t.camera">Camera</div>
+    <div class="camgrid">
+      <div class="field">
+        <label class="label" for="cam-w" data-i18n="t.width">Width</label>
+        <div class="inputgroup"><input class="input input--mono" id="cam-w" type="number" min="16" max="16384" step="1" inputmode="numeric" value="3840"><span class="unit">px</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cam-h" data-i18n="t.height">Height</label>
+        <div class="inputgroup"><input class="input input--mono" id="cam-h" type="number" min="16" max="16384" step="1" inputmode="numeric" value="2160"><span class="unit">px</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cam-f" data-i18n="t.focal">Focal length</label>
+        <div class="inputgroup"><input class="input input--mono" id="cam-f" type="number" min="0.01" step="any" inputmode="decimal" value="35"><span class="unit">mm</span></div>
+        <div class="sub" id="cam-fpx"></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cam-sw" data-i18n="t.sensor">Sensor width</label>
+        <div class="inputgroup"><input class="input input--mono" id="cam-sw" type="number" min="0.01" step="any" inputmode="decimal" value="36"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cam-cx" data-i18n="t.ppx">Optical center X</label>
+        <input class="input input--mono" id="cam-cx" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
+      </div>
+      <div class="field">
+        <label class="label" for="cam-cy" data-i18n="t.ppy">Optical center Y</label>
+        <input class="input input--mono" id="cam-cy" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
+      </div>
+    </div>
+    <div class="hint" id="cam-hint" data-i18n="t.camHint">Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).</div>
+  </div>
+
+  <!-- ================= 係数 → STMap ================= -->
+  <section class="work" role="tabpanel" id="panel-gen" aria-labelledby="tab-gen">
     <div>
       <div class="card">
-        <div class="card__title" data-i18n="t.camera">Camera</div>
-        <div class="row2 field">
-          <div>
-            <label class="label" for="in-w" data-i18n="t.width">Width</label>
-            <div class="inputgroup"><input class="input input--mono" id="in-w" type="number" min="16" max="16384" step="1" inputmode="numeric" value="3840"><span class="unit">px</span></div>
-          </div>
-          <div>
-            <label class="label" for="in-h" data-i18n="t.height">Height</label>
-            <div class="inputgroup"><input class="input input--mono" id="in-h" type="number" min="16" max="16384" step="1" inputmode="numeric" value="2160"><span class="unit">px</span></div>
-          </div>
+        <div class="card__title" data-i18n="t.lens">Lens distortion</div>
+        <div class="field">
+          <label class="label" for="gen-model" data-i18n="t.model">Model</label>
+          <select class="select" id="gen-model"></select>
         </div>
+        <div class="pgrid" id="gen-params"></div>
+        <div class="hint" id="gen-mhint"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.outputSettings">Output</div>
         <div class="row2 field">
           <div>
-            <label class="label" for="in-focal" data-i18n="t.focal">Focal length</label>
-            <div class="inputgroup"><input class="input input--mono" id="in-focal" type="number" min="0.01" step="any" inputmode="decimal" value="35"><span class="unit">mm</span></div>
-            <div class="sub" id="focal-px"></div>
+            <label class="label" for="gen-dir" data-i18n="t.direction">Direction</label>
+            <select class="select" id="gen-dir">
+              <option value="undistort" data-i18n="t.undistort">Undistort</option>
+              <option value="redistort" data-i18n="t.redistort">Redistort</option>
+            </select>
           </div>
           <div>
-            <label class="label" for="in-sensor" data-i18n="t.sensor">Sensor width</label>
-            <div class="inputgroup"><input class="input input--mono" id="in-sensor" type="number" min="0.01" step="any" inputmode="decimal" value="36"><span class="unit">mm</span></div>
+            <label class="label" for="gen-fmt" data-i18n="t.format">Format</label>
+            <select class="select" id="gen-fmt">
+              <option value="exr-zip" data-i18n="t.fmtZip">EXR 32-bit float · ZIP</option>
+              <option value="exr" data-i18n="t.fmtNone">EXR 32-bit float · uncompressed</option>
+              <option value="png16" data-i18n="t.fmtPng">PNG 16-bit</option>
+            </select>
           </div>
         </div>
         <div class="row2 field" style="margin-bottom:0">
           <div>
-            <label class="label" for="in-ppx" data-i18n="t.ppx">Optical center X</label>
-            <input class="input input--mono" id="in-ppx" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
+            <label class="label" for="gen-os" data-i18n="t.overscan">Overscan</label>
+            <select class="select" id="gen-os">
+              <option value="none" data-i18n="t.osNone">None</option>
+              <option value="auto" data-i18n="t.osAuto">Auto (fit the whole frame)</option>
+              <option value="percent" data-i18n="t.osPct">Custom (%)</option>
+            </select>
           </div>
-          <div>
-            <label class="label" for="in-ppy" data-i18n="t.ppy">Optical center Y</label>
-            <input class="input input--mono" id="in-ppy" type="number" min="-1" max="1" step="0.001" inputmode="decimal" value="0">
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card__title" data-i18n="t.coeffs">Blender · Polynomial</div>
-        <div class="row3">
-          <div>
-            <label class="label" for="in-k1">K1</label>
-            <input class="input input--mono" id="in-k1" type="number" step="0.001" inputmode="decimal" value="0">
-          </div>
-          <div>
-            <label class="label" for="in-k2">K2</label>
-            <input class="input input--mono" id="in-k2" type="number" step="0.001" inputmode="decimal" value="0">
-          </div>
-          <div>
-            <label class="label" for="in-k3">K3</label>
-            <input class="input input--mono" id="in-k3" type="number" step="0.001" inputmode="decimal" value="0">
+          <div id="gen-pctwrap" hidden>
+            <label class="label" for="gen-pct" data-i18n="t.osAmount">Extra size</label>
+            <div class="inputgroup"><input class="input input--mono" id="gen-pct" type="number" min="0" max="100" step="1" inputmode="decimal" value="10"><span class="unit">%</span></div>
           </div>
         </div>
-        <div class="exportrow">
-          <button class="btn btn--primary" id="export" type="button">
+        <div class="actions">
+          <button class="btn btn--primary" id="gen-export" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
-            <span data-i18n="t.export">Export EXR</span>
+            <span data-i18n="t.export">Export</span>
           </button>
-          <span class="sub" id="export-size"></span>
+          <div class="progress" id="gen-prog" hidden><i></i></div>
+          <span class="sub" id="gen-size"></span>
         </div>
       </div>
 
       <div class="card">
-        <div class="card__title" data-i18n="t.howto">Using it in Blender</div>
+        <div class="card__title" data-i18n="t.howto">Using it in Blender / Nuke</div>
         <ul class="notes">
-          <li data-i18n="t.n1">Set the Image node's color space to Non-Color.</li>
-          <li data-i18n="t.n2">Blue is written as 1.0, so it plugs straight into Map UV.</li>
-          <li data-i18n="t.n3">In Blender 5.0+, set Map UV interpolation to Bicubic or Bilinear.</li>
-          <li data-i18n="t.n4">Coordinates are pixel-centered with a bottom-left origin — the same convention as Nuke's STMap.</li>
+          <li data-i18n="t.n1">Blender: set the Image node's color space to Non-Color.</li>
+          <li data-i18n="t.n2">Blue is written as 1.0, so it plugs straight into Blender's Map UV.</li>
+          <li data-i18n="t.n3">Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.</li>
+          <li data-i18n="t.n4">Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).</li>
+          <li data-i18n="t.n5">Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.</li>
         </ul>
       </div>
     </div>
 
-    <!-- 右: プレビュー + readout -->
     <div>
       <div class="preview">
-        <canvas id="pv" width="640" height="360" role="img" aria-label="Distortion preview"></canvas>
+        <canvas id="gen-pv" width="640" height="360" role="img" aria-label="Distortion preview"></canvas>
         <div class="legend">
-          <span><i id="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
-          <span><i id="lg-grid"></i><span data-i18n="t.lggrid">Where output pixels sample from</span></span>
+          <span><i class="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
+          <span><i class="lg-grid"></i><span data-i18n="t.lggrid">Where output pixels sample from</span></span>
         </div>
       </div>
-
       <div class="readout">
         <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
-          <span class="eyebrow">Undistort</span></div>
+          <span class="eyebrow" id="gen-dirlbl"></span></div>
         <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.maxshift">Max edge shift</span>
-          <span class="rrow__value" id="ro-shift" data-copy="">–</span></div>
+          <span class="rrow__value" id="gen-shift" data-copy="">–</span></div>
         <div class="rrow"><span class="rrow__label" data-i18n="t.outside">Edge pixels sampling outside</span>
-          <span class="rrow__value" id="ro-out" data-copy="">–</span></div>
+          <span class="rrow__value" id="gen-out" data-copy="">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.outRes">Output size</span>
+          <span class="rrow__value" id="gen-res" data-copy="">–</span></div>
         <div class="rrow"><span class="rrow__label" data-i18n="t.focalpx">Focal length</span>
-          <span class="rrow__value" id="ro-fpx" data-copy="">–</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.res">Resolution</span>
-          <span class="rrow__value" id="ro-res" data-copy="">–</span></div>
+          <span class="rrow__value" id="gen-fpx" data-copy="">–</span></div>
       </div>
-      <div class="badges" id="badges"></div>
+      <div class="badges" id="gen-badges"></div>
     </div>
-  </div>
+  </section>
+
+  <!-- ================= STMap → 係数 ================= -->
+  <section class="work" role="tabpanel" id="panel-ana" aria-labelledby="tab-ana" hidden>
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.stmapFile">STMap file</div>
+        <label class="drop" id="ana-drop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 21h16"/></svg>
+          <span data-i18n="t.dropHint">Drop an STMap (EXR or PNG) here, or click to choose</span>
+          <span class="drop__name" id="ana-name"></span>
+          <input type="file" id="ana-file" accept=".exr,.png,image/png,image/x-exr">
+        </label>
+        <div class="hint" data-i18n="t.dropNote">Read locally in your browser — nothing is uploaded. EXR: uncompressed, RLE, ZIP, ZIPS (not PIZ/DWA).</div>
+      </div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.fitTo">Fit to</div>
+        <div class="field">
+          <label class="label" for="ana-model" data-i18n="t.model">Model</label>
+          <select class="select" id="ana-model"></select>
+        </div>
+        <div class="field">
+          <label class="label" for="ana-dir" data-i18n="t.mapDir">Map direction</label>
+          <select class="select" id="ana-dir">
+            <option value="auto" data-i18n="t.dirAuto">Detect automatically</option>
+            <option value="undistort" data-i18n="t.undistort">Undistort</option>
+            <option value="redistort" data-i18n="t.redistort">Redistort</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="ana-est"><span data-i18n="t.estCenter">Estimate the optical center</span></label>
+        <div class="hint" data-i18n="t.anaHint">Width and height come from the file. Enter the focal length and sensor width used for the footage — focal-normalized models cannot recover them from an STMap alone.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="preview">
+        <canvas id="ana-pv" width="640" height="360" role="img" aria-label="Fitted distortion preview"></canvas>
+        <div class="legend">
+          <span><i class="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
+          <span><i class="lg-grid"></i><span data-i18n="t.lgfit">Fitted model</span></span>
+        </div>
+      </div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.coefs">Coefficients</span>
+          <button class="btn btn--secondary" id="ana-copyall" type="button" disabled data-i18n="t.copyAll">Copy all</button></div>
+        <div id="ana-rows"><div class="rrow"><span class="rrow__label" data-i18n="t.noFile">Load an STMap to start</span><span></span></div></div>
+      </div>
+      <div class="actions"><button class="btn btn--secondary" id="ana-togen" type="button" disabled data-i18n="t.toGen">Open in generator</button></div>
+      <div class="badges" id="ana-badges"></div>
+    </div>
+  </section>
+
+  <!-- ================= 係数変換 ================= -->
+  <section class="work" role="tabpanel" id="panel-conv" aria-labelledby="tab-conv" hidden>
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.from">From</div>
+        <div class="field">
+          <label class="label" for="conv-src" data-i18n="t.model">Model</label>
+          <select class="select" id="conv-src"></select>
+        </div>
+        <div class="pgrid" id="conv-params"></div>
+        <div class="hint" id="conv-mhint"></div>
+      </div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.to">To</div>
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="conv-dst" data-i18n="t.model">Model</label>
+          <select class="select" id="conv-dst"></select>
+        </div>
+        <div class="hint" data-i18n="t.convHint">Different formulas can only approximate each other. The residual shows how closely the result matches, in pixels.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" id="conv-dstlbl"></span>
+          <button class="btn btn--secondary" id="conv-copyall" type="button" disabled data-i18n="t.copyAll">Copy all</button></div>
+        <div id="conv-rows"></div>
+      </div>
+      <div class="actions"><button class="btn btn--secondary" id="conv-togen" type="button" disabled data-i18n="t.toGen">Open in generator</button></div>
+      <div class="badges" id="conv-badges"></div>
+    </div>
+  </section>
 </main>
 <script src="../../shared/shell.js"></script>
 <script src="models.js"></script>
 <script src="exr.js"></script>
+<script src="png16.js"></script>
+<script src="fit.js"></script>
+<script src="tasks.js"></script>
 <script>
 "use strict";
 var I18N = {
-    en: {
-      "t.title": "STMap generator",
-      "t.desc": "Generate an undistort STMap from Blender's Polynomial lens distortion coefficients, as a 32-bit float EXR.",
-      "t.camera": "Camera", "t.width": "Width", "t.height": "Height",
-      "t.focal": "Focal length", "t.sensor": "Sensor width",
-      "t.ppx": "Optical center X", "t.ppy": "Optical center Y",
-      "t.coeffs": "Blender · Polynomial", "t.export": "Export EXR", "t.exporting": "Generating…",
-      "t.howto": "Using it in Blender",
-      "t.n1": "Set the Image node's color space to Non-Color.",
-      "t.n2": "Blue is written as 1.0, so it plugs straight into Map UV.",
-      "t.n3": "In Blender 5.0+, set Map UV interpolation to Bicubic or Bilinear.",
-      "t.n4": "Coordinates are pixel-centered with a bottom-left origin — the same convention as Nuke's STMap.",
-      "t.lgframe": "Source frame", "t.lggrid": "Where output pixels sample from",
-      "t.output": "Output", "t.maxshift": "Max edge shift", "t.outside": "Edge pixels sampling outside",
-      "t.focalpx": "Focal length", "t.res": "Resolution",
-      "t.proto": "Prototype: Blender Polynomial, undistort only",
-      "t.overscan": "Edges sample outside the source frame — overscan is not supported yet",
-      "t.bad": "Check the inputs", "t.big": "Large output — generation may take a while",
-      "t.size": "≈ {mb} MB"
-    },
-    ja: {
-      "t.title": "STMapジェネレーター",
-      "t.desc": "BlenderのPolynomialレンズ歪み係数から、歪み取り用のSTMapを32bit浮動小数点EXRで生成します。",
-      "t.camera": "カメラ", "t.width": "幅", "t.height": "高さ",
-      "t.focal": "焦点距離", "t.sensor": "センサー幅",
-      "t.ppx": "光学中心 X", "t.ppy": "光学中心 Y",
-      "t.coeffs": "Blender · Polynomial", "t.export": "EXRを書き出す", "t.exporting": "生成中…",
-      "t.howto": "Blenderで使うとき",
-      "t.n1": "Imageノードのカラースペースは Non-Color にしてください。",
-      "t.n2": "Bチャンネルは1.0で書き出すので、そのままMap UVにつなげます。",
-      "t.n3": "Blender 5.0以降はMap UVの補間を Bicubic か Bilinear にしてください。",
-      "t.n4": "座標はピクセル中心・左下原点で、NukeのSTMapと同じ規約です。",
-      "t.lgframe": "元画像の枠", "t.lggrid": "出力ピクセルの参照位置",
-      "t.output": "出力", "t.maxshift": "端の最大移動量", "t.outside": "枠外を参照する端ピクセル",
-      "t.focalpx": "焦点距離", "t.res": "解像度",
-      "t.proto": "試作版: Blender Polynomial・歪み取りのみ",
-      "t.overscan": "端が元画像の枠外を参照しています（オーバースキャンは未対応）",
-      "t.bad": "入力値を確認してください", "t.big": "出力が大きいため、生成に時間がかかる場合があります",
-      "t.size": "約 {mb} MB"
-    }
+  en: {
+    "t.title": "STMap generator",
+    "t.desc": "Convert lens distortion coefficients to and from STMaps. Blender's four distortion models, with cross-model conversion.",
+    "t.tabGen": "Coefficients → STMap", "t.tabAna": "STMap → coefficients", "t.tabConv": "Convert",
+    "t.camera": "Camera", "t.width": "Width", "t.height": "Height", "t.focal": "Focal length", "t.sensor": "Sensor width",
+    "t.ppx": "Optical center X", "t.ppy": "Optical center Y",
+    "t.camHint": "Values as shown in Blender's Movie Clip Editor → Track → Camera. Optical center is in normalized coordinates (−1 to 1).",
+    "t.lens": "Lens distortion", "t.model": "Model", "t.outputSettings": "Output",
+    "t.direction": "Direction", "t.undistort": "Undistort", "t.redistort": "Redistort", "t.format": "Format",
+    "t.fmtZip": "EXR 32-bit float · ZIP", "t.fmtNone": "EXR 32-bit float · uncompressed", "t.fmtPng": "PNG 16-bit",
+    "t.overscan": "Overscan", "t.osNone": "None", "t.osAuto": "Auto (fit the whole frame)", "t.osPct": "Custom (%)",
+    "t.osAmount": "Extra size", "t.export": "Export", "t.exporting": "Generating…",
+    "t.howto": "Using it in Blender / Nuke",
+    "t.n1": "Blender: set the Image node's color space to Non-Color.",
+    "t.n2": "Blue is written as 1.0, so it plugs straight into Blender's Map UV.",
+    "t.n3": "Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.",
+    "t.n4": "Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).",
+    "t.n5": "Blender's own Movie Distortion node can land up to 0.5 px off on one axis when its expanded frame has an odd size. This tool follows the lens formula exactly.",
+    "t.lgframe": "Source frame", "t.lggrid": "Where output pixels sample from", "t.lgfit": "Fitted model",
+    "t.output": "Output", "t.maxshift": "Max edge shift", "t.outside": "Edge pixels sampling outside",
+    "t.outRes": "Output size", "t.focalpx": "Focal length",
+    "t.size": "≈ {mb} MB before compression", "t.sizePng": "PNG · compressed size varies",
+    "t.bad": "Check the inputs", "t.big": "Large output — generation may take a while and use a lot of memory",
+    "t.needOs": "Edges sample outside the source frame — choose Auto overscan to keep the whole image",
+    "t.pngOs": "PNG cannot store overscan or values outside 0–1 — use EXR",
+    "t.clipped": "{n} pixels were clamped to 0–1 in the PNG",
+    "t.unconv": "{n} pixels did not converge (distortion too strong for the inverse)",
+    "t.noWorker": "Running on the main thread (background workers are unavailable here)",
+    "t.hPoly": "Normalized by the focal length in pixels. Same formula as OpenCV's k1–k3.",
+    "t.hDiv": "Normalized by the focal length in pixels. The formula runs undistorted → distorted, the reverse of the textbook division model.",
+    "t.hNuke": "Normalized by half the larger image side; focal length is not used. K1/K2 = Nuke k0/k1; P1/P2 = Nuke's anamorphic k2/k3, not tangential terms.",
+    "t.hBrown": "Normalized by the focal length in pixels. P1/P2 are swapped relative to OpenCV; K4 is an r⁸ term.",
+    "t.stmapFile": "STMap file", "t.dropHint": "Drop an STMap (EXR or PNG) here, or click to choose",
+    "t.dropNote": "Read locally in your browser — nothing is uploaded. EXR: uncompressed, RLE, ZIP, ZIPS (not PIZ/DWA).",
+    "t.fitTo": "Fit to", "t.mapDir": "Map direction", "t.dirAuto": "Detect automatically",
+    "t.estCenter": "Estimate the optical center",
+    "t.anaHint": "Width and height come from the file. Enter the focal length and sensor width used for the footage — focal-normalized models cannot recover them from an STMap alone.",
+    "t.coefs": "Coefficients", "t.copyAll": "Copy all", "t.noFile": "Load an STMap to start", "t.toGen": "Open in generator",
+    "t.residRms": "Residual (RMS)", "t.residMax": "Residual (max)", "t.detDir": "Map direction", "t.center": "Optical center",
+    "t.fileInfo": "File", "t.reading": "Reading…", "t.fitting": "Fitting…",
+    "t.lowPrec": "Low-precision file (half float / 8-bit) — coefficients may be biased",
+    "t.metaFound": "Made with this tool — its settings were restored",
+    "t.highOrder": "High-order terms (K3, K4) are weakly determined; the mapping still matches within the residual",
+    "t.goodFit": "Fit matches within {v} px", "t.poorFit": "Large residual — check the model, focal length and direction",
+    "t.from": "From", "t.to": "To",
+    "t.convHint": "Different formulas can only approximate each other. The residual shows how closely the result matches, in pixels.",
+    "t.exact": "Exact match"
+  },
+  ja: {
+    "t.title": "STMapジェネレーター",
+    "t.desc": "レンズ歪み係数とSTMapを双方向に変換します。Blenderの4つの歪みモデルに対応し、モデル間の係数変換もできます。",
+    "t.tabGen": "係数 → STMap", "t.tabAna": "STMap → 係数", "t.tabConv": "係数変換",
+    "t.camera": "カメラ", "t.width": "幅", "t.height": "高さ", "t.focal": "焦点距離", "t.sensor": "センサー幅",
+    "t.ppx": "光学中心 X", "t.ppy": "光学中心 Y",
+    "t.camHint": "BlenderのMovie Clip Editor → Track → Camera に表示される値を入力します。光学中心は正規化座標（−1〜1）です。",
+    "t.lens": "レンズ歪み", "t.model": "モデル", "t.outputSettings": "出力",
+    "t.direction": "種類", "t.undistort": "歪み取り（Undistort）", "t.redistort": "歪み戻し（Redistort）", "t.format": "形式",
+    "t.fmtZip": "EXR 32bit float・ZIP圧縮", "t.fmtNone": "EXR 32bit float・無圧縮", "t.fmtPng": "PNG 16bit",
+    "t.overscan": "オーバースキャン", "t.osNone": "なし", "t.osAuto": "自動（画像全体を収める）", "t.osPct": "指定（%）",
+    "t.osAmount": "追加する大きさ", "t.export": "書き出す", "t.exporting": "生成中…",
+    "t.howto": "Blender / Nuke で使うとき",
+    "t.n1": "Blender: Imageノードのカラースペースは Non-Color にしてください。",
+    "t.n2": "Bチャンネルは1.0で書き出すので、BlenderのMap UVにそのままつなげます。",
+    "t.n3": "Blender 5.0以降: Map UVの補間は Bicubic か Bilinear にしてください。",
+    "t.n4": "ピクセル中心・左下原点で、NukeのSTMapと同じ規約です。オーバースキャンはEXRのdata windowに記録します（Nukeではbbox）。",
+    "t.n5": "Blender標準のMovie Distortionノードは、拡張後の枠が奇数サイズになる軸で最大0.5pxずれることがあります。このツールはレンズの式どおりに計算します。",
+    "t.lgframe": "元画像の枠", "t.lggrid": "出力ピクセルの参照位置", "t.lgfit": "当てはめたモデル",
+    "t.output": "出力", "t.maxshift": "端の最大移動量", "t.outside": "枠外を参照する端ピクセル",
+    "t.outRes": "出力サイズ", "t.focalpx": "焦点距離",
+    "t.size": "圧縮前 約 {mb} MB", "t.sizePng": "PNG・圧縮後のサイズは内容次第",
+    "t.bad": "入力値を確認してください", "t.big": "出力が大きいため、生成に時間とメモリを使います",
+    "t.needOs": "端が元画像の枠外を参照しています。画像全体を残すにはオーバースキャンを「自動」にしてください",
+    "t.pngOs": "PNGはオーバースキャンや0〜1外の値を保存できません。EXRを使ってください",
+    "t.clipped": "PNGで {n} ピクセルを0〜1に切り詰めました",
+    "t.unconv": "{n} ピクセルで逆算が収束しませんでした（歪みが強すぎます）",
+    "t.noWorker": "メインスレッドで計算しています（この環境ではバックグラウンド処理が使えません）",
+    "t.hPoly": "焦点距離（px）で正規化。式はOpenCVのk1〜k3と同じです。",
+    "t.hDiv": "焦点距離（px）で正規化。式は「真っ直ぐ → 歪み」の向きで、教科書的なDivisionモデルとは逆です。",
+    "t.hNuke": "画像の長辺の半分で正規化し、焦点距離は使いません。K1/K2 = Nukeのk0/k1、P1/P2は接線歪みではなくNukeアナモフィックのk2/k3です。",
+    "t.hBrown": "焦点距離（px）で正規化。P1/P2の並びはOpenCVと逆で、K4はr⁸の項です。",
+    "t.stmapFile": "STMapファイル", "t.dropHint": "STMap（EXR または PNG）をここにドロップ、またはクリックして選択",
+    "t.dropNote": "ブラウザ内で読み込み、アップロードはしません。EXRは無圧縮・RLE・ZIP・ZIPSに対応（PIZ・DWAは非対応）。",
+    "t.fitTo": "当てはめ先", "t.mapDir": "マップの種類", "t.dirAuto": "自動判定",
+    "t.estCenter": "光学中心も推定する",
+    "t.anaHint": "幅と高さはファイルから取ります。焦点距離とセンサー幅は撮影時の値を入れてください（焦点距離で正規化するモデルでは、STMapだけからは求まりません）。",
+    "t.coefs": "係数", "t.copyAll": "すべてコピー", "t.noFile": "STMapを読み込んでください", "t.toGen": "ジェネレーターで開く",
+    "t.residRms": "残差（RMS）", "t.residMax": "残差（最大）", "t.detDir": "マップの種類", "t.center": "光学中心",
+    "t.fileInfo": "ファイル", "t.reading": "読み込み中…", "t.fitting": "当てはめ中…",
+    "t.lowPrec": "低精度のファイルです（half float / 8bit）。係数に偏りが出る可能性があります",
+    "t.metaFound": "このツールで作られたファイルです。生成時の設定を復元しました",
+    "t.highOrder": "高次の係数（K3・K4）は決まりにくい項です。対応関係自体は残差の範囲で一致しています",
+    "t.goodFit": "{v} px 以内で一致", "t.poorFit": "残差が大きいです。モデル・焦点距離・種類を確認してください",
+    "t.from": "変換元", "t.to": "変換先",
+    "t.convHint": "式の形が違うモデル同士は近似になります。どこまで一致するかを残差（px）で示します。",
+    "t.exact": "完全一致"
+  }
 };
 
 var $ = function (id) { return document.getElementById(id); };
-var ids = ["in-w", "in-h", "in-focal", "in-sensor", "in-ppx", "in-ppy", "in-k1", "in-k2", "in-k3"];
+var M = STModels.MODELS;
+var MODEL_IDS = ["blender-polynomial", "blender-division", "blender-nuke", "blender-brown"];
+var MODEL_LABEL = { "blender-polynomial": "Blender · Polynomial", "blender-division": "Blender · Division",
+                    "blender-nuke": "Blender · Nuke", "blender-brown": "Blender · Brown-Conrady" };
+var MODEL_SHORT = { "blender-polynomial": "poly", "blender-division": "div", "blender-nuke": "nuke", "blender-brown": "brown" };
+var MODEL_HINT = { "blender-polynomial": "t.hPoly", "blender-division": "t.hDiv", "blender-nuke": "t.hNuke", "blender-brown": "t.hBrown" };
+var DEFAULT_K = { k1: 0, k2: 0, k3: 0, k4: 0, p1: 0, p2: 0 };
 
-function readOpts() {
-  var v = {};
-  ids.forEach(function (id) { v[id] = parseFloat($(id).value); });
-  var W = Math.round(v["in-w"]), H = Math.round(v["in-h"]);
-  var ok = W >= 16 && H >= 16 && W <= 16384 && H <= 16384 &&
-           v["in-focal"] > 0 && v["in-sensor"] > 0 &&
-           Math.abs(v["in-ppx"]) <= 1 && Math.abs(v["in-ppy"]) <= 1 &&
-           isFinite(v["in-k1"]) && isFinite(v["in-k2"]) && isFinite(v["in-k3"]);
-  return {
-    ok: ok, W: W, H: H,
-    focalPx: v["in-focal"] * W / v["in-sensor"],     // Blender と同じ換算: mm × 幅 ÷ センサー幅
-    ppx: v["in-ppx"], ppy: v["in-ppy"],
-    k1: v["in-k1"], k2: v["in-k2"], k3: v["in-k3"]
-  };
-}
+/* ---------------- 状態（URL ハッシュに保存） ---------------- */
+var S = {
+  tab: "gen",
+  gen: { model: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dir: "undistort", fmt: "exr-zip", os: "none", pct: 10 },
+  ana: { model: "blender-polynomial", dir: "auto", est: false },
+  conv: { src: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dst: "blender-nuke" }
+};
+var CAM_IDS = { w: "cam-w", h: "cam-h", f: "cam-f", sw: "cam-sw", cx: "cam-cx", cy: "cam-cy" };
 
-function fmt(n, dp) { return n.toFixed(dp); }
-function setVal(el, text, unit, copy) {
-  el.innerHTML = "";
-  el.appendChild(document.createTextNode(text));
-  if (unit) { var u = document.createElement("span"); u.className = "u"; u.textContent = unit; el.appendChild(u); }
-  el.setAttribute("data-copy", copy);
-}
-function badge(kind, text) {
-  return '<span class="badge badge--' + kind + '"><span class="d" style="background:currentColor"></span>' + text + '</span>';
-}
-
-function render() {
-  var o = readOpts();
-  var badges = [badge("muted", Shell.t("t.proto"))];
-  if (!o.ok) {
-    ["ro-shift", "ro-out", "ro-fpx", "ro-res"].forEach(function (id) { setVal($(id), "–", "", ""); });
-    $("focal-px").textContent = ""; $("export-size").textContent = "";
-    $("export").disabled = true;
-    badges.push(badge("neg", Shell.t("t.bad")));
-    $("badges").innerHTML = badges.join("");
-    drawPreview(null);
-    return;
+function readHash() {
+  var h = location.hash.replace(/^#/, ""); if (!h) return;
+  var q = {};
+  h.split("&").forEach(function (kv) { var m = kv.split("="); if (m[0]) q[m[0]] = decodeURIComponent(m[1] || ""); });
+  if (/^(gen|ana|conv)$/.test(q.tab)) S.tab = q.tab;
+  Object.keys(CAM_IDS).forEach(function (k) { if (q[k] != null && q[k] !== "" && isFinite(+q[k])) $(CAM_IDS[k]).value = q[k]; });
+  function model(v, def) {
+    if (M[v]) return v;
+    for (var id in MODEL_SHORT) if (MODEL_SHORT[id] === v) return id;
+    return def;
   }
-  $("export").disabled = false;
-  var st = STModels.edgeStats(o);
-  setVal($("ro-shift"), fmt(st.maxShift, 2), "px", fmt(st.maxShift, 4));
-  setVal($("ro-out"), fmt(st.outside * 100, 1), "%", fmt(st.outside * 100, 2));
-  setVal($("ro-fpx"), fmt(o.focalPx, 2), "px", fmt(o.focalPx, 4));
-  setVal($("ro-res"), o.W + " × " + o.H, "", o.W + ", " + o.H);
-  $("focal-px").textContent = "= " + fmt(o.focalPx, 2) + " px";
-  var mb = (o.W * o.H * 12 + o.H * 16) / 1048576;
-  $("export-size").textContent = Shell.t("t.size").replace("{mb}", mb < 10 ? mb.toFixed(1) : Math.round(mb));
-  if (st.outside > 0) badges.push(badge("neg", Shell.t("t.overscan")));
-  if (o.W * o.H > 3840 * 2160 * 2) badges.push(badge("muted", Shell.t("t.big")));
-  $("badges").innerHTML = badges.join("");
-  drawPreview(o);
+  function ks(v, into) {
+    if (!v) return;
+    v.split(",").forEach(function (pair) { var m = pair.split(":"); if (m[0] in DEFAULT_K && isFinite(+m[1])) into[m[0]] = +m[1]; });
+  }
+  S.gen.model = model(q.gm, S.gen.model); ks(q.gk, S.gen.k);
+  if (/^(undistort|redistort)$/.test(q.gd)) S.gen.dir = q.gd;
+  if (/^(exr-zip|exr|png16)$/.test(q.gf)) S.gen.fmt = q.gf;
+  if (q.go === "auto" || q.go === "none") S.gen.os = q.go;
+  else if (q.go && isFinite(+q.go)) { S.gen.os = "percent"; S.gen.pct = +q.go; }
+  S.ana.model = model(q.am, S.ana.model);
+  if (/^(auto|undistort|redistort)$/.test(q.ad)) S.ana.dir = q.ad;
+  S.ana.est = q.ae === "1";
+  S.conv.src = model(q.cs, S.conv.src); ks(q.ck, S.conv.k); S.conv.dst = model(q.cd, S.conv.dst);
+}
+function writeHash() {
+  function ks(model, k) {
+    return M[model].params.map(function (p) { return p + ":" + (+k[p] || 0); }).join(",");
+  }
+  var parts = ["tab=" + S.tab];
+  Object.keys(CAM_IDS).forEach(function (k) { parts.push(k + "=" + encodeURIComponent($(CAM_IDS[k]).value)); });
+  parts.push("gm=" + MODEL_SHORT[S.gen.model], "gk=" + ks(S.gen.model, S.gen.k), "gd=" + S.gen.dir, "gf=" + S.gen.fmt,
+             "go=" + (S.gen.os === "percent" ? S.gen.pct : S.gen.os),
+             "am=" + MODEL_SHORT[S.ana.model], "ad=" + S.ana.dir, "ae=" + (S.ana.est ? 1 : 0),
+             "cs=" + MODEL_SHORT[S.conv.src], "ck=" + ks(S.conv.src, S.conv.k), "cd=" + MODEL_SHORT[S.conv.dst]);
+  history.replaceState(null, "", "#" + parts.join("&"));
 }
 
-/* プレビュー: 元画像の枠と、出力の格子が元画像のどこを参照するか */
-function drawPreview(o) {
-  var cv = $("pv"), ctx = cv.getContext("2d");
-  var cs = getComputedStyle(document.documentElement);
+/* ---------------- 共通ユーティリティ ---------------- */
+function camera() {
+  var W = Math.round(+$("cam-w").value), H = Math.round(+$("cam-h").value);
+  var f = +$("cam-f").value, sw = +$("cam-sw").value, cx = +$("cam-cx").value, cy = +$("cam-cy").value;
+  var ok = W >= 16 && H >= 16 && W <= 16384 && H <= 16384 && f > 0 && sw > 0 &&
+           isFinite(cx) && isFinite(cy) && Math.abs(cx) <= 1 && Math.abs(cy) <= 1;
+  return { ok: ok, W: W, H: H, focalMm: f, sensorMm: sw, focalPx: f * W / sw, ppx: cx, ppy: cy };
+}
+function fmtCoef(v) {
+  if (!isFinite(v)) return "–";
+  if (Math.abs(v) < 1e-12) return "0";
+  return String(+v.toPrecision(6));
+}
+function fmtPx(v) {
+  if (!isFinite(v)) return "–";
+  return v < 0.001 ? v.toExponential(1) : v < 10 ? v.toFixed(4) : v.toFixed(2);
+}
+function setVal(el, text, unit, copy) {
+  el.textContent = text;
+  if (unit) { var u = document.createElement("span"); u.className = "u"; u.textContent = unit; el.appendChild(u); }
+  el.setAttribute("data-copy", copy == null ? text : copy);
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function badge(kind, text) {
+  return '<span class="badge badge--' + kind + '"><span class="d" style="background:currentColor"></span>' + esc(text) + "</span>";
+}
+function tpl(key, vars) { var s = Shell.t(key); for (var k in vars) s = s.replace("{" + k + "}", vars[k]); return s; }
+function paramLabel(p) { return p.toUpperCase(); }
+
+function fillModelSelect(sel, value) {
+  sel.innerHTML = MODEL_IDS.map(function (id) {
+    return '<option value="' + id + '"' + (id === value ? " selected" : "") + ">" + MODEL_LABEL[id] + "</option>";
+  }).join("");
+}
+/* モデルの係数入力欄を作り直す（値は k から） */
+function buildParams(box, model, k, prefix, onInput) {
+  box.innerHTML = M[model].params.map(function (p) {
+    return '<div class="field"><label class="label" for="' + prefix + p + '">' + paramLabel(p) + '</label>' +
+      '<input class="input input--mono" id="' + prefix + p + '" type="number" step="0.001" inputmode="decimal" value="' + (+k[p] || 0) + '"></div>';
+  }).join("");
+  M[model].params.forEach(function (p) {
+    $(prefix + p).addEventListener("input", function () { var v = parseFloat(this.value); k[p] = isFinite(v) ? v : NaN; onInput(); });
+  });
+}
+function paramsOk(model, k) { return M[model].params.every(function (p) { return isFinite(k[p]); }); }
+function modelOpts(cam, model, k) {
+  var o = { model: model, W: cam.W, H: cam.H, focalPx: cam.focalPx, ppx: cam.ppx, ppy: cam.ppy };
+  M[model].params.forEach(function (p) { o[p] = +k[p] || 0; });
+  return o;
+}
+
+/* ---------------- プレビュー ---------------- */
+function drawPreview(cv, o, dir) {
+  var ctx = cv.getContext("2d"), cs = getComputedStyle(document.documentElement);
   var cFrame = cs.getPropertyValue("--text-3").trim(), cGrid = cs.getPropertyValue("--accent").trim(),
       cBg = cs.getPropertyValue("--surface").trim();
-  $("lg-frame").style.background = cFrame; $("lg-grid").style.background = cGrid;
-  var dpr = window.devicePixelRatio || 1;
-  var aspect = o ? o.H / o.W : 9 / 16;
-  var cssW = cv.clientWidth || 480, cssH = Math.round(cssW * aspect);
+  document.querySelectorAll(".lg-frame").forEach(function (e) { e.style.background = cFrame; });
+  document.querySelectorAll(".lg-grid").forEach(function (e) { e.style.background = cGrid; });
+  var dpr = window.devicePixelRatio || 1, aspect = o ? o.H / o.W : 9 / 16;
+  var cssW = cv.clientWidth || 480, cssH = Math.max(120, Math.round(cssW * Math.min(aspect, 1.2)));
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.height = cssH + "px";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = cBg; ctx.fillRect(0, 0, cssW, cssH);
   if (!o) return;
-  // 余白を取って枠外の参照も見えるようにする
-  var pad = 0.12, s = Math.min(cssW / (o.W * (1 + 2 * pad)), cssH / (o.H * (1 + 2 * pad)));
+  var pad = 0.14, s = Math.min(cssW / (o.W * (1 + 2 * pad)), cssH / (o.H * (1 + 2 * pad)));
   var ox = (cssW - o.W * s) / 2, oy = (cssH - o.H * s) / 2;
-  function toCanvas(px, py) { return [ox + px * s, oy + (o.H - py) * s]; }   // 左下原点 → canvas
-
   ctx.strokeStyle = cFrame; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
-  ctx.strokeRect(ox + 0.5, oy + 0.5, o.W * s, o.H * s);
-  ctx.setLineDash([]);
-
-  var cam = STModels.camera(o), N = 12, M = Math.max(4, Math.round(N * o.H / o.W)), steps = 48;
+  ctx.strokeRect(ox + 0.5, oy + 0.5, o.W * s, o.H * s); ctx.setLineDash([]);
+  var cam; try { cam = STModels.camera(o); } catch (e) { return; }
+  var fn = STModels.sampler(cam, dir), N = 12, R = Math.max(4, Math.round(N * o.H / o.W)), steps = 48;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, cssW, cssH); ctx.clip();
   ctx.strokeStyle = cGrid; ctx.lineWidth = 1.25;
-  function line(fn) {
-    ctx.beginPath();
+  function line(pt) {
+    ctx.beginPath(); var pen = false;
     for (var t = 0; t <= steps; t++) {
-      var p = fn(t / steps), sp = STModels.undistortSample(cam, p[0], p[1]), c = toCanvas(sp[0], sp[1]);
-      if (t === 0) ctx.moveTo(c[0], c[1]); else ctx.lineTo(c[0], c[1]);
+      var p = pt(t / steps), sp = fn(cam, p[0], p[1]);
+      if (!sp[2] || !isFinite(sp[0]) || !isFinite(sp[1])) { pen = false; continue; }
+      var x = ox + sp[0] * s, y = oy + (o.H - sp[1]) * s;
+      if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
   for (var i = 0; i <= N; i++) { var x = o.W * i / N; line(function (t) { return [x, o.H * t]; }); }
-  for (var j = 0; j <= M; j++) { var y = o.H * j / M; line(function (t) { return [o.W * t, y]; }); }
+  for (var j = 0; j <= R; j++) { var y = o.H * j / R; line(function (t) { return [o.W * t, y]; }); }
+  ctx.restore();
 }
 
-function exportEXR() {
-  var o = readOpts(); if (!o.ok) return;
-  var btn = $("export"), label = btn.querySelector("span");
-  btn.disabled = true; label.textContent = Shell.t("t.exporting");
-  setTimeout(function () {                      // ラベル更新を先に描画させる
-    try {
-      var map = STModels.buildUndistortMap(o);
-      var meta = JSON.stringify({ tool: "vernier/stmap-generator", model: "blender-polynomial", type: "undistort",
-        W: o.W, H: o.H, focalPx: o.focalPx, ppx: o.ppx, ppy: o.ppy, k1: o.k1, k2: o.k2, k3: o.k3 });
-      var blob = new Blob([STExr.writeStmapEXR(map, meta)], { type: "image/x-exr" });
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "stmap_undistort_blender-poly_" + o.W + "x" + o.H + ".exr";
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
-    } catch (e) {
-      $("badges").insertAdjacentHTML("beforeend", badge("neg", String(e && e.message || e)));
-    }
-    btn.disabled = false; label.textContent = Shell.t("t.export");
-  }, 30);
+/* ---------------- 重い処理の実行（Worker が使えなければメインスレッド） ---------------- */
+var worker = null, workerOk = true, jobs = {}, jobSeq = 0;
+try { worker = new Worker("worker.js"); } catch (e) { workerOk = false; }
+if (worker) {
+  worker.onmessage = function (e) {
+    var d = e.data, j = jobs[d.id]; if (!j) return;
+    j.started = true;
+    if ("progress" in d) { if (j.onProgress) j.onProgress(d.progress); return; }
+    delete jobs[d.id];
+    if (d.error) j.reject(new Error(d.error)); else j.resolve(d.result);
+  };
+  worker.onerror = function (e) {
+    // 読み込み自体に失敗（file:// 等）: 以後はメインスレッドで実行し、待っている仕事もやり直す
+    e.preventDefault(); workerOk = false;
+    Object.keys(jobs).forEach(function (id) {
+      var j = jobs[id]; delete jobs[id];
+      runLocal(j.cmd, j.payload, j.onProgress).then(j.resolve, j.reject);
+    });
+  };
+}
+function runLocal(cmd, payload, onProgress) {
+  return new Promise(function (res) { setTimeout(res, 20); })   // 状態表示を先に描かせる
+    .then(function () { return window.STTasks[cmd](payload, onProgress || function () {}); });
+}
+function run(cmd, payload, onProgress, transfer) {
+  if (!worker || !workerOk) return runLocal(cmd, payload, onProgress);
+  return new Promise(function (resolve, reject) {
+    var id = ++jobSeq;
+    jobs[id] = { resolve: resolve, reject: reject, onProgress: onProgress, cmd: cmd, payload: payload };
+    worker.postMessage({ id: id, cmd: cmd, payload: payload }, transfer || []);
+  });
+}
+function download(buffer, name, type) {
+  var blob = new Blob([buffer], { type: type }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 15000);
 }
 
-ids.forEach(function (id) { $(id).addEventListener("input", render); });
-$("export").addEventListener("click", exportEXR);
-window.addEventListener("resize", function () { var o = readOpts(); drawPreview(o.ok ? o : null); });
-Shell.init({ id: "stmap-generator", strings: I18N, onSettingsChange: render });
+/* =================================================================
+   係数 → STMap
+   ================================================================= */
+function genParamsChanged() { renderGen(); writeHash(); }
+function renderGen() {
+  var cam = camera(), g = S.gen, badges = [];
+  var ok = cam.ok && paramsOk(g.model, g.k) && (g.os !== "percent" || (g.pct >= 0 && g.pct <= 100));
+  $("gen-mhint").textContent = Shell.t(MODEL_HINT[g.model]);
+  $("gen-pctwrap").hidden = g.os !== "percent";
+  $("gen-dirlbl").textContent = g.dir === "redistort" ? "Redistort" : "Undistort";
+  if (!ok) {
+    ["gen-shift", "gen-out", "gen-res", "gen-fpx"].forEach(function (id) { setVal($(id), "–", "", ""); });
+    $("gen-size").textContent = ""; $("gen-export").disabled = true;
+    $("gen-badges").innerHTML = badge("neg", Shell.t("t.bad"));
+    drawPreview($("gen-pv"), null);
+    return;
+  }
+  var o = genOpts(cam), st = STModels.edgeStats(o), os = st.overscan;
+  var w = cam.W + os.l + os.r, h = cam.H + os.b + os.t;
+  setVal($("gen-shift"), fmtPx(st.maxShift), "px", st.maxShift.toFixed(4));
+  setVal($("gen-out"), (st.outside * 100).toFixed(1), "%", (st.outside * 100).toFixed(2));
+  setVal($("gen-res"), w + " × " + h, "", w + ", " + h);
+  setVal($("gen-fpx"), cam.focalPx.toFixed(2), "px", cam.focalPx.toFixed(4));
+  var mb = w * h * 12 / 1048576;
+  $("gen-size").textContent = g.fmt === "png16" ? Shell.t("t.sizePng") : tpl("t.size", { mb: mb < 10 ? mb.toFixed(1) : Math.round(mb) });
+  $("gen-export").disabled = !!genBusy;
+  if (st.outside > 0 && g.os === "none") badges.push(badge("muted", Shell.t("t.needOs")));
+  if (g.fmt === "png16" && (g.os !== "none" || st.outside > 0)) badges.push(badge("neg", Shell.t("t.pngOs")));
+  if (st.unconverged > 0) badges.push(badge("neg", tpl("t.unconv", { n: st.unconverged })));
+  if (w * h > 3840 * 2160 * 2) badges.push(badge("muted", Shell.t("t.big")));
+  if (!workerOk) badges.push(badge("muted", Shell.t("t.noWorker")));
+  $("gen-badges").innerHTML = badges.join("") + (genNote || "");
+  drawPreview($("gen-pv"), o, g.dir);
+}
+function genOpts(cam) {
+  var o = modelOpts(cam, S.gen.model, S.gen.k);
+  o.dir = S.gen.dir;
+  o.overscan = S.gen.os === "percent" ? { mode: "percent", pct: S.gen.pct } : { mode: S.gen.os };
+  return o;
+}
+var genBusy = false, genNote = "";
+function exportGen() {
+  var cam = camera(); if (!cam.ok || genBusy) return;
+  var o = genOpts(cam), fmt = S.gen.fmt;
+  var meta = JSON.stringify({ tool: "vernier/stmap-generator", v: 1, model: o.model, dir: o.dir, W: o.W, H: o.H,
+    focalMm: cam.focalMm, sensorMm: cam.sensorMm, ppx: o.ppx, ppy: o.ppy,
+    k: M[o.model].params.reduce(function (a, p) { a[p] = o[p]; return a; }, {}), overscan: o.overscan });
+  var btn = $("gen-export"), label = btn.querySelector("span"), bar = $("gen-prog");
+  genBusy = true; genNote = ""; btn.disabled = true; label.textContent = Shell.t("t.exporting");
+  bar.hidden = false; bar.firstChild.style.width = "0%";
+  run("build", { opts: o, format: fmt, meta: meta }, function (f) { bar.firstChild.style.width = Math.round(f * 100) + "%"; })
+    .then(function (r) {
+      var os = STModels.overscan(o), w = cam.W + os.l + os.r, h = cam.H + os.b + os.t;
+      var name = "stmap_" + o.dir + "_" + MODEL_SHORT[o.model] + "_" + w + "x" + h + (fmt === "png16" ? ".png" : ".exr");
+      download(r.buffer, name, fmt === "png16" ? "image/png" : "image/x-exr");
+      if (r.clipped) genNote += badge("neg", tpl("t.clipped", { n: r.clipped }));
+      if (r.unconverged) genNote += badge("neg", tpl("t.unconv", { n: r.unconverged }));
+    })
+    .catch(function (e) { genNote = badge("neg", String(e && e.message || e)); })
+    .then(function () {
+      genBusy = false; label.textContent = Shell.t("t.export"); bar.hidden = true; renderGen();
+    });
+}
+
+/* =================================================================
+   STMap → 係数
+   ================================================================= */
+var ana = { fileId: 0, name: "", info: null, fit: null, busy: false, pending: false, error: "", restored: false };
+var anaTimer = null;
+function loadFile(file) {
+  if (!file) return;
+  ana.fileId++; ana.name = file.name; ana.info = null; ana.fit = null; ana.error = ""; ana.restored = false;
+  $("ana-name").textContent = file.name;
+  renderAna(Shell.t("t.reading"));
+  var id = ana.fileId;
+  file.arrayBuffer().then(function (buf) {
+    return run("analyze", { fileId: id, buffer: buf }, null, [buf]);
+  }).then(function (r) {
+    if (id !== ana.fileId) return;
+    ana.info = r.info;
+    $("cam-w").value = r.info.W; $("cam-h").value = r.info.H;
+    restoreMeta(r.info.meta);
+    writeHash(); renderGen();
+    fitNow();
+  }).catch(function (e) { if (id === ana.fileId) { ana.error = String(e && e.message || e); renderAna(); } });
+}
+function restoreMeta(meta) {
+  if (!meta) return;
+  try {
+    var m = JSON.parse(meta);
+    if (m.tool !== "vernier/stmap-generator" || !M[m.model]) return;
+    if (m.focalMm > 0) $("cam-f").value = m.focalMm;
+    if (m.sensorMm > 0) $("cam-sw").value = m.sensorMm;
+    if (isFinite(m.ppx)) $("cam-cx").value = m.ppx;
+    if (isFinite(m.ppy)) $("cam-cy").value = m.ppy;
+    S.ana.model = m.model; $("ana-model").value = m.model;
+    if (m.dir === "undistort" || m.dir === "redistort") { S.ana.dir = m.dir; $("ana-dir").value = m.dir; }
+    ana.restored = true;
+  } catch (e) { /* 他ツールの文字列属性などは無視 */ }
+}
+function fitSoon() { clearTimeout(anaTimer); anaTimer = setTimeout(fitNow, 250); }
+function fitNow() {
+  if (!ana.info) return;
+  if (ana.busy) { ana.pending = true; return; }
+  var cam = camera();
+  if (!cam.ok) { renderAna(); return; }
+  ana.busy = true; ana.pending = false; ana.error = "";
+  renderAna(Shell.t("t.fitting"));
+  var id = ana.fileId;
+  var base = { model: S.ana.model, focalMm: cam.focalMm, sensorMm: cam.sensorMm, ppx: cam.ppx, ppy: cam.ppy, est: S.ana.est };
+  run("analyze", { fileId: id, base: base, dir: S.ana.dir, estimateCenter: S.ana.est })
+    .then(function (r) { if (id === ana.fileId) { ana.fit = r.fit; ana.fit.estimated = base.est; } },
+          function (e) { if (id === ana.fileId) { ana.fit = null; ana.error = String(e && e.message || e); } })
+    .then(function () {
+      ana.busy = false;
+      if (id !== ana.fileId) { if (ana.info) fitNow(); return; }   // 途中で別ファイルに替わった
+      renderAna();
+      if (ana.pending) fitNow();
+    });
+}
+function coefRows(model, opts, withCenter) {
+  var html = "";
+  M[model].params.forEach(function (p) {
+    var v = fmtCoef(opts[p]);
+    html += '<div class="rrow"><span class="rrow__label">' + paramLabel(p) + '</span><span class="rrow__value rrow__value--sm" data-copy="' + v + '">' + v + "</span></div>";
+  });
+  if (withCenter) {
+    var c = fmtCoef(+opts.ppx.toFixed(5)) + ", " + fmtCoef(+opts.ppy.toFixed(5));
+    html += '<div class="rrow"><span class="rrow__label">' + esc(Shell.t("t.center")) + '</span><span class="rrow__value rrow__value--sm" data-copy="' + c + '">' + c + "</span></div>";
+  }
+  return html;
+}
+function residRows(fit, hero) {
+  return '<div class="rrow' + (hero ? " rrow--hero" : "") + '"><span class="rrow__label">' + esc(Shell.t("t.residRms")) +
+      '</span><span class="rrow__value" data-copy="' + fit.rms.toPrecision(3) + '">' + fmtPx(fit.rms) + '<span class="u">px</span></span></div>' +
+    '<div class="rrow"><span class="rrow__label">' + esc(Shell.t("t.residMax")) +
+      '</span><span class="rrow__value rrow__value--sm" data-copy="' + fit.max.toPrecision(3) + '">' + fmtPx(fit.max) + '<span class="u">px</span></span></div>';
+}
+function fitBadges(fit, model) {
+  var b = [];
+  if (fit.rms < 0.05) b.push(badge("pos", tpl("t.goodFit", { v: fmtPx(Math.max(fit.max, fit.rms)) })));
+  else if (fit.rms > 0.5) b.push(badge("neg", Shell.t("t.poorFit")));
+  if (model === "blender-brown" || model === "blender-polynomial") b.push(badge("muted", Shell.t("t.highOrder")));
+  return b;
+}
+function renderAna(status) {
+  var rows = $("ana-rows"), badges = [];
+  $("ana-copyall").disabled = !ana.fit; $("ana-togen").disabled = !ana.fit;
+  if (ana.info) {
+    var i = ana.info, dwTxt = (i.w !== i.W || i.h !== i.H) ? " · data " + i.w + "×" + i.h : "";
+    $("ana-name").textContent = ana.name + " — " + i.W + "×" + i.H + dwTxt + " · " + i.format;
+    if (i.lowPrecision) badges.push(badge("neg", Shell.t("t.lowPrec")));
+    if (ana.restored) badges.push(badge("muted", Shell.t("t.metaFound")));
+  }
+  if (ana.error) badges.push(badge("neg", ana.error));
+  if (status) badges.push(badge("muted", status));
+  if (ana.fit) {
+    var f = ana.fit;
+    rows.innerHTML = residRows(f, true) +
+      '<div class="rrow"><span class="rrow__label">' + esc(Shell.t("t.detDir")) + '</span><span class="rrow__value rrow__value--sm" data-copy="' +
+        f.dir + '">' + esc(Shell.t("t." + f.dir)) + "</span></div>" +
+      coefRows(f.opts.model, f.opts, f.estimated);
+    badges = fitBadges(f, f.opts.model).concat(badges);
+    drawPreview($("ana-pv"), f.opts, f.dir);
+  } else if (!ana.info) {
+    rows.innerHTML = '<div class="rrow"><span class="rrow__label">' + esc(Shell.t("t.noFile")) + "</span><span></span></div>";
+    drawPreview($("ana-pv"), null);
+  }
+  $("ana-badges").innerHTML = badges.join("");
+}
+
+/* =================================================================
+   係数変換
+   ================================================================= */
+var conv = { fit: null, seq: 0, error: "" };
+function renderConvInputs() { $("conv-mhint").textContent = Shell.t(MODEL_HINT[S.conv.src]); }
+function convNow() {
+  var cam = camera(), c = S.conv, id = ++conv.seq;
+  $("conv-dstlbl").textContent = MODEL_LABEL[c.dst];
+  if (!cam.ok || !paramsOk(c.src, c.k)) { conv.fit = null; conv.error = Shell.t("t.bad"); renderConv(); return; }
+  var src = modelOpts(cam, c.src, c.k), dst = { model: c.dst, W: cam.W, H: cam.H, focalPx: cam.focalPx, ppx: cam.ppx, ppy: cam.ppy };
+  run("convert", { src: src, dst: dst }).then(function (r) {
+    if (id !== conv.seq) return;
+    conv.fit = r; conv.error = ""; renderConv();
+  }, function (e) { if (id === conv.seq) { conv.fit = null; conv.error = String(e && e.message || e); renderConv(); } });
+}
+function renderConv() {
+  var badges = [];
+  $("conv-copyall").disabled = !conv.fit; $("conv-togen").disabled = !conv.fit;
+  if (conv.fit) {
+    $("conv-rows").innerHTML = residRows(conv.fit, false) + coefRows(conv.fit.opts.model, conv.fit.opts, false);
+    if (conv.fit.max < 1e-6) badges.push(badge("pos", Shell.t("t.exact")));
+    else badges = badges.concat(fitBadges(conv.fit, "").slice(0, 1));
+  } else $("conv-rows").innerHTML = "";
+  if (conv.error) badges.push(badge("neg", conv.error));
+  $("conv-badges").innerHTML = badges.join("");
+}
+
+/* 当てはめ結果をジェネレーターへ */
+function sendToGen(model, opts, dir, withCenter) {
+  S.gen.model = model;
+  M[model].params.forEach(function (p) {
+    var v = +opts[p] || 0;
+    S.gen.k[p] = Math.abs(v) < 1e-10 ? 0 : +v.toPrecision(8);   // 計算誤差レベルの値は 0 に
+  });
+  if (withCenter) { $("cam-cx").value = +opts.ppx.toFixed(6); $("cam-cy").value = +opts.ppy.toFixed(6); updateFocalPx(); }
+  if (dir) S.gen.dir = dir;
+  syncGenControls();
+  selectTab("gen", true);
+}
+function copyCoefs(model, opts) {
+  Shell.copy(M[model].params.map(function (p) { return fmtCoef(opts[p]); }).join(", "), true);
+}
+
+/* =================================================================
+   タブ・入力の配線
+   ================================================================= */
+function selectTab(tab, focus) {
+  S.tab = tab;
+  document.querySelectorAll(".tab").forEach(function (b) {
+    var on = b.getAttribute("data-tab") === tab;
+    b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  });
+  ["gen", "ana", "conv"].forEach(function (t) { $("panel-" + t).hidden = t !== tab; });
+  writeHash();
+  if (tab === "gen") renderGen();
+  else if (tab === "ana") renderAna();
+  else convNow();
+}
+function syncGenControls() {
+  $("gen-model").value = S.gen.model; $("gen-dir").value = S.gen.dir; $("gen-fmt").value = S.gen.fmt;
+  $("gen-os").value = S.gen.os; $("gen-pct").value = S.gen.pct;
+  buildParams($("gen-params"), S.gen.model, S.gen.k, "gen-", genParamsChanged);
+}
+
+function init() {
+  readHash();
+  fillModelSelect($("gen-model"), S.gen.model);
+  fillModelSelect($("ana-model"), S.ana.model);
+  fillModelSelect($("conv-src"), S.conv.src);
+  fillModelSelect($("conv-dst"), S.conv.dst);
+  syncGenControls();
+  $("ana-dir").value = S.ana.dir; $("ana-est").checked = S.ana.est;
+  buildParams($("conv-params"), S.conv.src, S.conv.k, "conv-", function () { writeHash(); convNow(); });
+
+  // タブ（矢印キーで移動）
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  tabs.forEach(function (b, i) {
+    b.addEventListener("click", function () { selectTab(b.getAttribute("data-tab")); });
+    b.addEventListener("keydown", function (e) {
+      var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (e.key === "Home") d = -i; if (e.key === "End") d = tabs.length - 1 - i;
+      if (!d) return;
+      e.preventDefault();
+      selectTab(tabs[(i + d + tabs.length) % tabs.length].getAttribute("data-tab"), true);
+    });
+  });
+
+  // カメラ（全タブ共通）
+  Object.keys(CAM_IDS).forEach(function (k) {
+    $(CAM_IDS[k]).addEventListener("input", function () {
+      writeHash(); updateFocalPx();
+      if (S.tab === "gen") renderGen(); else if (S.tab === "ana") fitSoon(); else convNow();
+    });
+  });
+
+  // 係数 → STMap
+  $("gen-model").addEventListener("change", function () {
+    S.gen.model = this.value; buildParams($("gen-params"), S.gen.model, S.gen.k, "gen-", genParamsChanged); genParamsChanged();
+  });
+  $("gen-dir").addEventListener("change", function () { S.gen.dir = this.value; genParamsChanged(); });
+  $("gen-fmt").addEventListener("change", function () { S.gen.fmt = this.value; genParamsChanged(); });
+  $("gen-os").addEventListener("change", function () { S.gen.os = this.value; genParamsChanged(); });
+  $("gen-pct").addEventListener("input", function () { S.gen.pct = parseFloat(this.value); genParamsChanged(); });
+  $("gen-export").addEventListener("click", exportGen);
+
+  // STMap → 係数
+  var drop = $("ana-drop"), input = $("ana-file");
+  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-over"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-over"); });
+  });
+  drop.addEventListener("drop", function (e) { loadFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  $("ana-model").addEventListener("change", function () { S.ana.model = this.value; writeHash(); fitNow(); });
+  $("ana-dir").addEventListener("change", function () { S.ana.dir = this.value; writeHash(); fitNow(); });
+  $("ana-est").addEventListener("change", function () { S.ana.est = this.checked; writeHash(); fitNow(); });
+  $("ana-copyall").addEventListener("click", function () { if (ana.fit) copyCoefs(ana.fit.opts.model, ana.fit.opts); });
+  $("ana-togen").addEventListener("click", function () { if (ana.fit) sendToGen(ana.fit.opts.model, ana.fit.opts, ana.fit.dir, ana.fit.estimated); });
+
+  // 係数変換
+  $("conv-src").addEventListener("change", function () {
+    S.conv.src = this.value; buildParams($("conv-params"), S.conv.src, S.conv.k, "conv-", function () { writeHash(); convNow(); });
+    renderConvInputs(); writeHash(); convNow();
+  });
+  $("conv-dst").addEventListener("change", function () { S.conv.dst = this.value; writeHash(); convNow(); });
+  $("conv-copyall").addEventListener("click", function () { if (conv.fit) copyCoefs(conv.fit.opts.model, conv.fit.opts); });
+  $("conv-togen").addEventListener("click", function () { if (conv.fit) sendToGen(conv.fit.opts.model, conv.fit.opts, null, false); });
+
+  // 共有された URL をこのタブで開き直したとき（replaceState では発火しない）
+  window.addEventListener("hashchange", function () { location.reload(); });
+  window.addEventListener("resize", function () {
+    if (S.tab === "gen") renderGen(); else if (S.tab === "ana") renderAna();
+  });
+  renderConvInputs();
+  updateFocalPx();
+  Shell.init({ id: "stmap-generator", strings: I18N, onSettingsChange: onSettings });
+}
+function updateFocalPx() {
+  var c = camera();
+  $("cam-fpx").textContent = c.ok ? "= " + c.focalPx.toFixed(2) + " px" : "";
+}
+function onSettings() {
+  // 言語・テーマ変更時: 動的な文言とプレビューの色を描き直す
+  renderConvInputs();
+  selectTab(S.tab);
+}
+init();
 </script>
 </body>
 </html>

@@ -1366,7 +1366,8 @@
       "type": "web",
       "path": "tools/stmap-generator/",
       "categories": [
-        "image"
+        "image",
+        "3dcg"
       ],
       "sub": "generate",
       "name": {
@@ -1374,19 +1375,32 @@
         "ja": "STMapジェネレーター"
       },
       "description": {
-        "en": "Generate an STMap image from lens distortion coefficients (k1, k2, k3).",
-        "ja": "レンズ歪み係数(k1・k2・k3)からSTMap画像を生成。"
+        "en": "Convert lens distortion coefficients to and from STMaps (32-bit EXR). Blender's four distortion models, with cross-model conversion.",
+        "ja": "レンズ歪み係数とSTMap（32bit EXR）を双方向に変換。Blenderの4つの歪みモデルに対応し、モデル間の係数変換も。"
       },
       "keywords": [
         "stmap",
+        "st map",
         "lens distortion",
+        "undistort",
+        "redistort",
+        "overscan",
+        "exr",
         "k1",
         "k2",
-        "undistort",
-        "uv",
+        "k3",
+        "blender",
+        "nuke",
+        "polynomial",
+        "division",
+        "brown-conrady",
+        "map uv",
+        "movie distortion",
         "STMap",
         "レンズ歪み",
-        "歪み係数"
+        "歪み係数",
+        "歪み取り",
+        "オーバースキャン"
       ],
       "added": "2026-08-05"
     },
