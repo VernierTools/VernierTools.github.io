@@ -1620,23 +1620,26 @@
         "video"
       ],
       "name": {
-        "en": "MP4 to GIF",
-        "ja": "MP4→GIF変換"
+        "en": "Video to GIF",
+        "ja": "動画→GIF変換"
       },
       "description": {
-        "en": "Convert a short MP4 clip into an animated GIF, entirely in the browser.",
-        "ja": "短いMP4クリップをブラウザ内だけでアニメーションGIFに変換。"
+        "en": "Turn a short clip (MP4, MOV, WebM) into an animated GIF or WebP, entirely in the browser.",
+        "ja": "短い動画（MP4・MOV・WebM）をアニメーションGIFまたはWebPに、ブラウザ内だけで変換。"
       },
       "keywords": [
-        "mp4",
         "gif",
+        "webp",
+        "video",
+        "mp4",
+        "mov",
+        "webm",
+        "animation",
         "convert",
-        "animated",
-        "video to gif",
-        "MP4",
-        "GIF",
-        "変換",
-        "アニメーション"
+        "動画",
+        "GIF変換",
+        "アニメーション",
+        "変換"
       ],
       "added": "2026-08-05"
     },

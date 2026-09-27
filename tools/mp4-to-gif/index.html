@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video to GIF — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- 入力（ドロップ領域）: 他の画像ツールと同じ見た目 ---- */
+  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
+    display:flex; align-items:center; justify-content:center; min-height:260px; padding:var(--s5);
+    transition:border-color var(--tap), background var(--tap); }
+  .dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
+  .dropzone__empty{ text-align:center; max-width:40ch; }
+  .dropzone__icon{ width:48px; height:48px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-3); }
+  .dropzone__icon svg{ width:24px; height:24px; }
+  .dropzone__title{ font-size:15px; font-weight:600; }
+  .dropzone__hint{ color:var(--text-3); font-size:12.5px; margin-top:6px; }
+  .dropzone__actions{ display:flex; justify-content:center; margin-top:var(--s4); }
+  #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+
+  .vid{ display:block; width:100%; max-height:360px; background:#000; border-radius:var(--r); }
+  .meta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+  .meta .chip{ font-family:var(--font-mono); font-size:11.5px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s3); }
+  .row3 .field, .row2 .field{ margin-bottom:0; }
+  .settime{ margin-top:6px; height:28px; padding:0 10px; font-size:12px; width:100%; }
+  .input--mono{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .check{ display:flex; align-items:center; gap:var(--s2); font-size:13px; color:var(--text-2); cursor:pointer; }
+  .check input{ width:16px; height:16px; accent-color:var(--accent); }
+  .seg2{ display:inline-flex; border:1px solid var(--border-strong); border-radius:var(--r-sm); overflow:hidden; }
+  .seg2 button{ font:inherit; font-size:13px; padding:6px 14px; border:0; background:var(--surface); color:var(--text-2); cursor:pointer; }
+  .seg2 button + button{ border-left:1px solid var(--border-strong); }
+  .seg2 button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .seg2 button:disabled{ opacity:.45; cursor:not-allowed; }
+  .sub{ font-size:11.5px; color:var(--text-3); margin-top:var(--s1); font-family:var(--font-mono); }
+  .gap{ margin-top:var(--s4); }
+  .actions{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s5); }
+  .progress{ height:4px; border-radius:2px; background:var(--border); overflow:hidden; flex:1 1 140px; }
+  .progress > i{ display:block; height:100%; width:0; background:var(--accent); transition:width .1s linear; }
+  .phase{ font-size:12px; color:var(--text-3); }
+  .outimg{ display:block; max-width:100%; max-height:360px; margin:0 auto; border-radius:var(--r);
+    background:repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0/16px 16px; }
+  .outwrap{ margin-top:var(--s4); padding:var(--s3); border:1px solid var(--border); border-radius:var(--r-lg); background:var(--surface); }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
+  .range{ width:100%; accent-color:var(--accent); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.video">Video</span></div>
+    <h1 data-i18n="t.title">Video to GIF</h1>
+    <p data-i18n="t.desc">Turn a short clip into an animated GIF or WebP, entirely in your browser. Works with any video your browser can play — MP4, MOV, WebM.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 動画と設定 -->
+    <div>
+      <section class="card">
+        <div class="dropzone" id="dropzone">
+          <input id="file-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv">
+          <div class="dropzone__empty">
+            <div class="dropzone__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9.5 5 2.5-5 2.5z"/>
+              </svg>
+            </div>
+            <div class="dropzone__title" data-i18n="t.dropTitle">Drop a video here</div>
+            <div class="dropzone__hint" data-i18n="t.dropHint">MP4, MOV, WebM — anything your browser can play. Nothing is uploaded.</div>
+            <div class="dropzone__actions">
+              <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose video</button>
+            </div>
+          </div>
+        </div>
+        <div id="loaded" hidden>
+          <video class="vid" id="vid" controls muted playsinline preload="auto"></video>
+          <div class="meta" id="meta"></div>
+          <div class="actions" style="margin-top:var(--s3)">
+            <button class="btn btn--ghost" id="btn-change" type="button" data-i18n="t.change">Change video</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="card-trim" hidden>
+        <div class="card__title" data-i18n="t.trim">Clip</div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" for="in-start" data-i18n="t.start">Start</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-start" type="number" min="0" step="0.01" inputmode="decimal" value="0"><span class="unit">s</span></div>
+            <button class="btn btn--secondary settime" id="set-start" type="button" data-i18n="t.setStart">Use current time</button>
+          </div>
+          <div class="field">
+            <label class="label" for="in-end" data-i18n="t.end">End</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-end" type="number" min="0" step="0.01" inputmode="decimal" value="0"><span class="unit">s</span></div>
+            <button class="btn btn--secondary settime" id="set-end" type="button" data-i18n="t.setEnd">Use current time</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="card-set" hidden>
+        <div class="card__title" data-i18n="t.output">Output</div>
+        <div class="field">
+          <div class="seg2" id="fmt" role="group" aria-label="Format">
+            <button type="button" data-fmt="gif" aria-pressed="true">GIF</button>
+            <button type="button" data-fmt="webp" aria-pressed="false">WebP</button>
+          </div>
+          <div class="sub" id="fmt-note"></div>
+        </div>
+        <div class="row3">
+          <div class="field">
+            <label class="label" for="in-fps" data-i18n="t.fps">Frame rate</label>
+            <select class="select" id="in-fps">
+              <option value="5">5 fps</option><option value="8">8 fps</option><option value="10">10 fps</option>
+              <option value="12" selected>12 fps</option><option value="15">15 fps</option><option value="20">20 fps</option>
+              <option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="in-width" data-i18n="t.width">Width</label>
+            <div class="inputgroup"><input class="input input--mono" id="in-width" type="number" min="16" max="1920" step="1" inputmode="numeric" value="480"><span class="unit">px</span></div>
+          </div>
+          <div class="field">
+            <label class="label" for="in-speed" data-i18n="t.speed">Speed</label>
+            <select class="select" id="in-speed">
+              <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+              <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option>
+            </select>
+          </div>
+        </div>
+        <label class="check gap"><input type="checkbox" id="in-loop" checked><span data-i18n="t.loop">Loop forever</span></label>
+
+        <div id="gif-opts" class="gap">
+          <div class="row3">
+            <div class="field">
+              <label class="label" for="in-colors" data-i18n="t.colors">Colors</label>
+              <select class="select" id="in-colors">
+                <option value="256" selected>256</option><option value="128">128</option><option value="64">64</option>
+                <option value="32">32</option><option value="16">16</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="in-pal" data-i18n="t.palette">Palette</label>
+              <select class="select" id="in-pal">
+                <option value="global" data-i18n="t.palGlobal">Shared</option>
+                <option value="frame" data-i18n="t.palFrame">Per frame</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="in-dither" data-i18n="t.dither">Dithering</label>
+              <select class="select" id="in-dither">
+                <option value="1" data-i18n="t.on">On</option><option value="0" data-i18n="t.off">Off</option>
+              </select>
+            </div>
+          </div>
+          <div class="hint" data-i18n="t.gifHint">Fewer colors and no dithering make smaller files. “Per frame” palettes look better on colorful clips but are larger.</div>
+        </div>
+        <div id="webp-opts" class="gap" hidden>
+          <label class="label" for="in-q"><span data-i18n="t.quality">Quality</span> <span class="sub" id="q-val"></span></label>
+          <input class="range" id="in-q" type="range" min="0.3" max="1" step="0.05" value="0.8">
+        </div>
+
+        <div class="actions">
+          <button class="btn btn--primary" id="btn-go" type="button" data-i18n="t.convert">Convert</button>
+          <button class="btn btn--ghost" id="btn-cancel" type="button" hidden data-i18n="t.cancel">Cancel</button>
+          <div class="progress" id="prog" hidden><i></i></div>
+          <span class="phase" id="phase"></span>
+        </div>
+      </section>
+    </div>
+
+    <!-- 右: 見積もりと結果 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.result">Result</span>
+          <span class="eyebrow" id="ro-fmt">GIF</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.fileSize">File size</span><span class="rrow__value" id="ro-size">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.frames">Frames</span><span class="rrow__value" id="ro-frames">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.dims">Dimensions</span><span class="rrow__value" id="ro-dims">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.dur">Duration</span><span class="rrow__value" id="ro-dur">–</span></div>
+      </div>
+      <div class="outwrap" id="outwrap" hidden>
+        <img class="outimg" id="outimg" alt="">
+        <div class="actions" style="margin-top:var(--s3); justify-content:center">
+          <button class="btn btn--primary" id="btn-dl" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+            <span data-i18n="t.download">Download</span>
+          </button>
+        </div>
+      </div>
+      <div class="badges" id="badges"></div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script src="gif.js"></script>
+<script src="webp.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var vid = $("vid");
+  var MAX_FRAMES = 600, MAX_PIXELS = 160e6;              // 出力の上限（メモリ保護）
+
+  /* ---------------- 状態 ---------------- */
+  var S = { file: null, url: null, dur: 0, vw: 0, vh: 0, fmt: "gif", busy: false, cancel: false, out: null, webpOK: null };
+  var SAVE_KEY = "vernier.video2gif";
+  function loadPrefs() {
+    try {
+      var p = JSON.parse(localStorage.getItem(SAVE_KEY) || "{}");
+      ["in-fps", "in-speed", "in-colors", "in-pal", "in-dither", "in-q"].forEach(function (id) { if (p[id] != null) $(id).value = p[id]; });
+      if (p.loop != null) $("in-loop").checked = p.loop;
+      if (p.fmt) S.fmt = p.fmt;
+    } catch (e) {}
+  }
+  function savePrefs() {
+    try {
+      var p = { loop: $("in-loop").checked, fmt: S.fmt };
+      ["in-fps", "in-speed", "in-colors", "in-pal", "in-dither", "in-q"].forEach(function (id) { p[id] = $(id).value; });
+      localStorage.setItem(SAVE_KEY, JSON.stringify(p));
+    } catch (e) {}
+  }
+
+  /* ---------------- ブラウザが WebP を書き出せるか ---------------- */
+  function checkWebP() {
+    var c = document.createElement("canvas"); c.width = c.height = 2;
+    return new Promise(function (res) {
+      try { c.toBlob(function (b) { res(!!b && b.type === "image/webp"); }, "image/webp", 0.8); } catch (e) { res(false); }
+    });
+  }
+
+  /* ---------------- 読み込み ---------------- */
+  function loadFile(file) {
+    if (!file) return;
+    if (S.busy) return;
+    if (S.url) URL.revokeObjectURL(S.url);
+    S.file = file; S.url = URL.createObjectURL(file);
+    clearOutput();
+    $("badges").innerHTML = "";
+    vid.src = S.url;
+    vid.load();
+  }
+  vid.addEventListener("loadedmetadata", function () {
+    S.dur = vid.duration; S.vw = vid.videoWidth; S.vh = vid.videoHeight;
+    if (!isFinite(S.dur) || !S.vw) { fail(Shell.t("t.noPlay")); return; }
+    $("dropzone").hidden = true; $("loaded").hidden = false; $("card-trim").hidden = false; $("card-set").hidden = false;
+    $("in-start").value = 0;
+    $("in-end").value = (Math.min(S.dur, 5)).toFixed(2);           // 長い動画は最初の 5 秒を既定に
+    $("in-width").value = Math.min(480, S.vw);
+    $("in-start").max = $("in-end").max = S.dur.toFixed(2);
+    $("meta").innerHTML = [esc(S.file.name), S.vw + "×" + S.vh, fmtSec(S.dur), fmtBytes(S.file.size)]
+      .map(function (s) { return '<span class="chip">' + s + "</span>"; }).join("");
+    update();
+  });
+  vid.addEventListener("error", function () { if (S.url) fail(Shell.t("t.noPlay")); });
+  function fail(msg) {
+    $("dropzone").hidden = false; $("loaded").hidden = true; $("card-trim").hidden = true; $("card-set").hidden = true;
+    $("badges").innerHTML = badge("neg", msg);
+  }
+
+  /* ---------------- 見積もり ---------------- */
+  function settings() {
+    var start = Math.max(0, +$("in-start").value || 0), end = Math.min(S.dur, +$("in-end").value || 0);
+    var fps = +$("in-fps").value, speed = +$("in-speed").value;
+    var w = Math.round(+$("in-width").value || 0), h = Math.max(1, Math.round(w * S.vh / S.vw));
+    var n = Math.max(0, Math.floor((end - start) * fps / speed + 1e-6));
+    return { start: start, end: end, fps: fps, speed: speed, w: w, h: h, n: n, loop: $("in-loop").checked,
+      colors: +$("in-colors").value, palette: $("in-pal").value, dither: $("in-dither").value === "1", q: +$("in-q").value };
+  }
+  function problems(s) {
+    var p = [];
+    if (!(s.end > s.start)) p.push(Shell.t("t.badRange"));
+    if (!(s.w >= 16 && s.w <= 1920)) p.push(Shell.t("t.badWidth"));
+    if (s.n > MAX_FRAMES) p.push(Shell.t("t.tooMany").replace("{n}", s.n).replace("{max}", MAX_FRAMES));
+    else if (s.n * s.w * s.h > MAX_PIXELS) p.push(Shell.t("t.tooBig"));
+    return p;
+  }
+  function update() {
+    if (!S.dur) return;
+    var s = settings(), p = problems(s);
+    $("ro-fmt").textContent = S.fmt === "gif" ? "GIF" : "WebP";
+    $("fmt").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-fmt") === S.fmt)); });
+    $("gif-opts").hidden = S.fmt !== "gif"; $("webp-opts").hidden = S.fmt !== "webp";
+    $("q-val").textContent = Math.round(s.q * 100) + "%";
+    if (!S.out) {
+      setVal("ro-size", "–", "");
+      setVal("ro-frames", String(s.n), "");
+      setVal("ro-dims", s.w + " × " + s.h, "", s.w + ", " + s.h);
+      setVal("ro-dur", ((s.end - s.start) / s.speed).toFixed(2), "s");
+    }
+    $("btn-go").disabled = S.busy || p.length > 0;
+    var b = p.map(function (m) { return badge("neg", m); });
+    if (S.webpOK === false) b.push(badge("muted", Shell.t("t.noWebP")));
+    if (!S.busy && !S.out) $("badges").innerHTML = b.join("");
+    savePrefs();
+  }
+
+  /* ---------------- コマの取り出し（シークして描く） ---------------- */
+  /* シークして、そのコマが描ける状態になるまで待つ。
+     次のコマの表示（requestVideoFrameCallback）はシークの前に待ち受けておく
+     （シーク完了後に登録すると、表示済みのコマを取り逃して待ち続けることがある）。 */
+  function seekTo(t) {
+    return new Promise(function (res) {
+      if (Math.abs(vid.currentTime - t) < 1e-4) { res(); return; }
+      var shown = vid.requestVideoFrameCallback
+        ? new Promise(function (r) { vid.requestVideoFrameCallback(function () { r(); }); setTimeout(r, 150); })
+        : new Promise(function (r) { setTimeout(r, 30); });
+      var seeked = new Promise(function (r) { vid.addEventListener("seeked", r, { once: true }); setTimeout(r, 4000); });
+      vid.currentTime = t;
+      Promise.all([seeked, shown]).then(function () { res(); });
+    });
+  }
+  function extract(s, onProgress) {
+    var cv = document.createElement("canvas"); cv.width = s.w; cv.height = s.h;
+    var ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingQuality = "high";
+    var frames = [], i = 0;
+    vid.pause();
+    function next() {
+      if (S.cancel) return Promise.reject(new Error("cancel"));
+      if (i >= s.n) return Promise.resolve(frames);
+      // コマの境目ちょうど（例: 12fps で取り出す 24fps の動画）を指すと、誤差で1つ前のコマになるため 1ms 後ろをとる
+      var t = Math.min(S.dur - 0.001, s.start + i * s.speed / s.fps + 0.001);
+      return seekTo(t).then(function () {
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, s.w, s.h);
+        ctx.drawImage(vid, 0, 0, s.w, s.h);
+        frames.push(S.fmt === "gif" ? ctx.getImageData(0, 0, s.w, s.h).data : snapshot(cv));
+        i++; onProgress(i / s.n);
+        return next();
+      });
+    }
+    return next();
+  }
+  function snapshot(cv) {                                   // WebP 用: 各コマをその場で WebP に
+    return new Promise(function (res, rej) {
+      cv.toBlob(function (b) { b ? b.arrayBuffer().then(res, rej) : rej(new Error("WebP encoding failed")); }, "image/webp", +$("in-q").value);
+    });
+  }
+
+  /* ---------------- GIF の圧縮（Worker、使えなければメインスレッド） ---------------- */
+  var worker = null, abortEncode = null;
+  function encodeGIF(frames, opts, onProgress) {
+    return new Promise(function (resolve, reject) {
+      abortEncode = function () { if (worker) { worker.terminate(); worker = null; } reject(new Error("cancel")); };
+      var useLocal = function () {
+        setTimeout(function () {
+          try {
+            opts.onProgress = onProgress;
+            var r = GIFEnc.encodeGIF(frames, opts); resolve({ bytes: r.bytes, frames: r.frames });
+          } catch (e) { reject(e); }
+        }, 20);
+      };
+      try { worker = new Worker("worker.js"); } catch (e) { worker = null; }
+      if (!worker) { useLocal(); return; }
+      var started = false;
+      worker.onmessage = function (e) {
+        started = true;
+        var d = e.data;
+        if ("progress" in d) { onProgress(d.progress); return; }
+        worker.terminate(); worker = null;
+        if (d.error) reject(new Error(d.error)); else resolve({ bytes: new Uint8Array(d.result.bytes), frames: d.result.frames });
+      };
+      worker.onerror = function (e) {
+        e.preventDefault(); if (worker) worker.terminate(); worker = null;
+        if (!started) useLocal(); else reject(new Error("Worker failed"));
+      };
+      var bufs = frames.map(function (f) { return f.buffer; });
+      var o = {}; for (var k in opts) if (k !== "onProgress") o[k] = opts[k];
+      worker.postMessage({ frames: bufs, opts: o }, bufs);
+    });
+  }
+
+  /* ---------------- 変換 ---------------- */
+  function convert() {
+    var s = settings(); if (problems(s).length || S.busy) return;
+    S.busy = true; S.cancel = false; clearOutput();
+    $("btn-go").disabled = true; $("btn-cancel").hidden = false; $("prog").hidden = false; setProg(0);
+    $("badges").innerHTML = "";
+    var fmt = S.fmt, t0 = performance.now();
+    phase(Shell.t("t.pExtract"));
+    extract(s, function (f) { setProg(f * (fmt === "gif" ? 0.45 : 0.9)); })
+      .then(function (frames) {
+        if (fmt === "webp") {
+          phase(Shell.t("t.pWebP"));
+          return Promise.all(frames).then(function (bufs) {
+            var ms = 1000 / s.fps;
+            var list = bufs.map(function (b, i) { return { buffer: b, ms: Math.round((i + 1) * ms) - Math.round(i * ms) }; });
+            return { bytes: WebPMux.muxAnimatedWebP(list, s.w, s.h, s.loop), frames: bufs.length, type: "image/webp" };
+          });
+        }
+        phase(Shell.t("t.pGIF"));
+        return encodeGIF(frames, { width: s.w, height: s.h, fps: s.fps, loop: s.loop, colors: s.colors, palette: s.palette, dither: s.dither },
+          function (f) { setProg(0.45 + f * 0.55); })
+          .then(function (r) { return { bytes: r.bytes, frames: r.frames, type: "image/gif" }; });
+      })
+      .then(function (r) {
+        setProg(1);
+        var blob = new Blob([r.bytes], { type: r.type });
+        S.out = { blob: blob, url: URL.createObjectURL(blob), type: r.type, s: s };
+        $("outimg").src = S.out.url; $("outwrap").hidden = false;
+        setVal("ro-size", fmtBytes(blob.size).split(" ")[0], fmtBytes(blob.size).split(" ")[1], String(blob.size));
+        setVal("ro-frames", String(r.frames), "");
+        setVal("ro-dims", s.w + " × " + s.h, "", s.w + ", " + s.h);
+        setVal("ro-dur", ((s.end - s.start) / s.speed).toFixed(2), "s");
+        var b = [badge("pos", Shell.t("t.done").replace("{s}", ((performance.now() - t0) / 1000).toFixed(1)))];
+        if (r.type === "image/gif" && r.frames < s.n) b.push(badge("muted", Shell.t("t.merged").replace("{n}", s.n - r.frames)));
+        $("badges").innerHTML = b.join("");
+      })
+      .catch(function (e) {
+        if (worker) { worker.terminate(); worker = null; }
+        $("badges").innerHTML = e && e.message === "cancel" ? badge("muted", Shell.t("t.cancelled")) : badge("neg", String(e && e.message || e));
+      })
+      .then(function () {
+        S.busy = false; abortEncode = null; $("btn-cancel").hidden = true; $("prog").hidden = true; phase("");
+        update();
+      });
+  }
+  function clearOutput() {
+    if (S.out) URL.revokeObjectURL(S.out.url);
+    S.out = null; $("outwrap").hidden = true; $("outimg").removeAttribute("src");
+  }
+  function download() {
+    if (!S.out) return;
+    var base = (S.file && S.file.name || "clip").replace(/\.[^.]+$/, "");
+    var a = document.createElement("a"); a.href = S.out.url; a.download = base + (S.out.type === "image/gif" ? ".gif" : ".webp");
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  /* ---------------- 表示の小物 ---------------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function badge(kind, text) { return '<span class="badge badge--' + kind + '"><span class="d" style="background:currentColor"></span>' + esc(text) + "</span>"; }
+  function setVal(id, text, unit, copy) {
+    var el = $(id); el.textContent = text;
+    if (unit) { var u = document.createElement("span"); u.className = "u"; u.textContent = unit; el.appendChild(u); }
+    el.setAttribute("data-copy", copy == null ? text : copy);
+  }
+  function setProg(f) { $("prog").firstChild.style.width = Math.round(f * 100) + "%"; }
+  function phase(t) { $("phase").textContent = t; }
+  function fmtSec(s) { var m = Math.floor(s / 60), r = s - m * 60; return (m ? m + ":" + (r < 10 ? "0" : "") : "") + r.toFixed(2) + (m ? "" : " s"); }
+  function fmtBytes(n) { return n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(2) + " MB"; }
+
+  /* ---------------- 配線 ---------------- */
+  var input = $("file-input"), dz = $("dropzone"), depth = 0;
+  $("choose").addEventListener("click", function () { input.click(); });
+  $("btn-change").addEventListener("click", function () { input.click(); });
+  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
+  dz.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; dz.classList.add("is-over"); });
+  dz.addEventListener("dragover", function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; });
+  dz.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; dz.classList.remove("is-over"); } });
+  dz.addEventListener("drop", function (e) { e.preventDefault(); depth = 0; dz.classList.remove("is-over"); loadFile(e.dataTransfer.files[0]); });
+  $("loaded").addEventListener("dragover", function (e) { e.preventDefault(); });
+  $("loaded").addEventListener("drop", function (e) { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+
+  $("set-start").addEventListener("click", function () { $("in-start").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
+  $("set-end").addEventListener("click", function () { $("in-end").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
+  ["in-start", "in-end", "in-width", "in-q"].forEach(function (id) { $(id).addEventListener("input", function () { clearOutput(); update(); }); });
+  ["in-fps", "in-speed", "in-colors", "in-pal", "in-dither", "in-loop"].forEach(function (id) { $(id).addEventListener("change", function () { clearOutput(); update(); }); });
+  $("fmt").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b || b.disabled) return;
+    S.fmt = b.getAttribute("data-fmt"); clearOutput(); update();
+  });
+  $("btn-go").addEventListener("click", convert);
+  $("btn-cancel").addEventListener("click", function () { S.cancel = true; if (abortEncode) abortEncode(); });
+  $("btn-dl").addEventListener("click", download);
+
+  loadPrefs();
+  checkWebP().then(function (ok) {
+    S.webpOK = ok;
+    var b = $("fmt").querySelector('[data-fmt="webp"]');
+    b.disabled = !ok;
+    if (!ok && S.fmt === "webp") S.fmt = "gif";
+    $("fmt-note").textContent = ok ? "" : Shell.t("t.noWebP");
+    update();
+  });
+
+  Shell.init({
+    id: "mp4-to-gif",
+    strings: {
+      en: {
+        "t.title": "Video to GIF",
+        "t.desc": "Turn a short clip into an animated GIF or WebP, entirely in your browser. Works with any video your browser can play — MP4, MOV, WebM.",
+        "t.dropTitle": "Drop a video here", "t.dropHint": "MP4, MOV, WebM — anything your browser can play. Nothing is uploaded.",
+        "t.choose": "Choose video", "t.change": "Change video",
+        "t.trim": "Clip", "t.start": "Start", "t.end": "End", "t.setStart": "Use current time", "t.setEnd": "Use current time",
+        "t.output": "Output", "t.fps": "Frame rate", "t.width": "Width", "t.speed": "Speed", "t.loop": "Loop forever",
+        "t.colors": "Colors", "t.palette": "Palette", "t.palGlobal": "Shared", "t.palFrame": "Per frame",
+        "t.dither": "Dithering", "t.on": "On", "t.off": "Off",
+        "t.gifHint": "Fewer colors and no dithering make smaller files. “Per frame” palettes look better on colorful clips but are larger. Unchanged pixels are skipped automatically.",
+        "t.quality": "Quality", "t.convert": "Convert", "t.cancel": "Cancel",
+        "t.result": "Result", "t.fileSize": "File size", "t.frames": "Frames", "t.dims": "Dimensions", "t.dur": "Duration",
+        "t.download": "Download",
+        "t.noPlay": "This browser can't play that file. Try MP4 (H.264) or WebM, or open it in another browser (Safari plays HEVC and ProRes).",
+        "t.badRange": "End must be after start", "t.badWidth": "Width must be 16–1920 px",
+        "t.tooMany": "{n} frames — the limit is {max}. Shorten the clip or lower the frame rate",
+        "t.tooBig": "Too many pixels in total — reduce the width, length or frame rate",
+        "t.noWebP": "This browser can't encode WebP (Safari). GIF is available.",
+        "t.pExtract": "Reading frames…", "t.pGIF": "Building GIF…", "t.pWebP": "Building WebP…",
+        "t.done": "Done in {s} s", "t.merged": "{n} unchanged frames were merged", "t.cancelled": "Cancelled"
+      },
+      ja: {
+        "t.title": "動画→GIF変換",
+        "t.desc": "短い動画をアニメーションGIFまたはWebPに変換します。処理はすべてブラウザ内。MP4・MOV・WebMなど、ブラウザで再生できる動画に対応。",
+        "t.dropTitle": "ここに動画をドロップ", "t.dropHint": "MP4・MOV・WebMなど、ブラウザで再生できる形式。アップロードはしません。",
+        "t.choose": "動画を選択", "t.change": "動画を変更",
+        "t.trim": "範囲", "t.start": "開始", "t.end": "終了", "t.setStart": "現在位置を開始に", "t.setEnd": "現在位置を終了に",
+        "t.output": "出力", "t.fps": "フレームレート", "t.width": "幅", "t.speed": "速度", "t.loop": "繰り返し再生",
+        "t.colors": "色数", "t.palette": "パレット", "t.palGlobal": "全体で共通", "t.palFrame": "コマごと",
+        "t.dither": "ディザ", "t.on": "あり", "t.off": "なし",
+        "t.gifHint": "色数を減らす・ディザなしにするとファイルが小さくなります。「コマごと」は色の多い映像で画質が上がりますが、ファイルは大きくなります。前のコマと同じ部分は自動で省きます。",
+        "t.quality": "画質", "t.convert": "変換", "t.cancel": "中止",
+        "t.result": "結果", "t.fileSize": "ファイルサイズ", "t.frames": "コマ数", "t.dims": "サイズ", "t.dur": "再生時間",
+        "t.download": "ダウンロード",
+        "t.noPlay": "このブラウザでは再生できない形式です。MP4（H.264）やWebMを試すか、別のブラウザで開いてください（SafariはHEVC・ProResを再生できます）。",
+        "t.badRange": "終了は開始より後にしてください", "t.badWidth": "幅は16〜1920pxにしてください",
+        "t.tooMany": "{n}コマあります（上限{max}）。範囲を短くするか、フレームレートを下げてください",
+        "t.tooBig": "全体の画素数が多すぎます。幅・長さ・フレームレートを下げてください",
+        "t.noWebP": "このブラウザはWebPの書き出しに対応していません（Safariなど）。GIFは使えます。",
+        "t.pExtract": "コマを取り出し中…", "t.pGIF": "GIFを作成中…", "t.pWebP": "WebPを作成中…",
+        "t.done": "{s}秒で完了", "t.merged": "変化のない{n}コマをまとめました", "t.cancelled": "中止しました"
+      }
+    },
+    onSettingsChange: update
+  });
+})();
+</script>
+</body>
+</html>
