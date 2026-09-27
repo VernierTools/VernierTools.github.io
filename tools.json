@@ -1558,18 +1558,22 @@
         "ja": "分度器"
       },
       "description": {
-        "en": "Draw a line, then rotate a second hand from a point on it to measure the angle between them.",
-        "ja": "線を引き、その上の点を中心にもう1本の線を時計の針のように回転させて角度を測定。"
+        "en": "Click points on an image to measure an angle at a corner, between two lines, or a tilt from horizontal.",
+        "ja": "画像上の点をクリックして、角の角度・2本の線の角度・水平からの傾きを測定。"
       },
       "keywords": [
         "protractor",
         "angle",
         "line",
-        "rotate",
+        "tilt",
+        "level",
+        "straighten",
         "measure",
         "分度器",
         "角度",
-        "回転"
+        "傾き",
+        "水平",
+        "測定"
       ],
       "added": "2026-08-05"
     },
