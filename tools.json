@@ -1293,8 +1293,8 @@
         "ja": "五度圏"
       },
       "description": {
-        "en": "Explore keys, diatonic chords, and related keys around the circle of fifths.",
-        "ja": "五度圏上でキーとダイアトニックコード、近親調を一覧表示。"
+        "en": "Explore keys, diatonic chords and related keys on the circle of fifths, and find pivot chords for a modulation.",
+        "ja": "五度圏上でキーの調号・ダイアトニックコード・近親調を表示し、転調に使える共通コードも探せる。"
       },
       "keywords": [
         "circle of fifths",
@@ -1303,7 +1303,15 @@
         "relative key",
         "五度圏",
         "近親調",
-        "ダイアトニック"
+        "ダイアトニック",
+        "modulation",
+        "pivot chord",
+        "key signature",
+        "転調",
+        "ピボットコード",
+        "調号",
+        "同主調",
+        "平行調"
       ],
       "added": "2026-08-05"
     },
