@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circle of fifths — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- 五度圏 ---- */
+  .wheel{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s3); }
+  .wheel svg{ display:block; width:100%; height:auto; max-width:520px; margin:0 auto; user-select:none; }
+  .seg path{ fill:var(--surface-2); stroke:var(--border-strong); stroke-width:1; transition:fill var(--tap); cursor:pointer; }
+  .seg:hover path{ fill:var(--border); }
+  .seg text{ fill:var(--text); pointer-events:none; font-family:var(--font-sans); }
+  .seg .sig{ fill:var(--text-3); font-family:var(--font-mono); }
+  .seg.is-dia path{ fill:var(--accent-tint); }
+  .seg.is-sel path{ fill:var(--accent); }
+  .seg.is-sel text, .seg.is-sel .sig{ fill:#fff; }
+  .seg:focus{ outline:none; }
+  .seg:focus-visible path{ stroke:var(--accent); stroke-width:3; }
+  .ring-rel{ fill:none; stroke:var(--pos); stroke-width:2.5; pointer-events:none; }
+  .ring-dim{ fill:none; stroke:var(--accent); stroke-width:1.5; stroke-dasharray:4 3; pointer-events:none; }
+  .ring-tgt{ fill:none; stroke:var(--neg); stroke-width:3; pointer-events:none; }
+  .hub{ fill:var(--surface); stroke:var(--border); }
+  .hub-name{ fill:var(--text); font-weight:600; font-family:var(--font-sans); }
+  .hub-sub{ fill:var(--text-3); font-family:var(--font-mono); }
+
+  .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; justify-content:center; margin-top:var(--s3); font-size:11.5px; color:var(--text-3); }
+  .legend i{ display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:6px; }
+  .lg-dia{ background:var(--accent-tint); border:1px solid var(--accent); }
+  .lg-rel{ border:2px solid var(--pos); }
+  .lg-tgt{ border:2px solid var(--neg); }
+
+  .opts{ display:flex; gap:var(--s4); flex-wrap:wrap; align-items:center; margin-top:var(--s4); }
+  .seg2{ display:inline-flex; border:1px solid var(--border-strong); border-radius:var(--r-sm); overflow:hidden; }
+  .seg2 button{ font:inherit; font-size:12.5px; padding:5px 10px; border:0; background:var(--surface); color:var(--text-2); cursor:pointer; }
+  .seg2 button + button{ border-left:1px solid var(--border-strong); }
+  .seg2 button[aria-pressed="true"]{ background:var(--accent); color:#fff; }
+  .check{ display:flex; align-items:center; gap:var(--s2); font-size:13px; color:var(--text-2); cursor:pointer; }
+  .check input{ width:16px; height:16px; accent-color:var(--accent); }
+  .enh{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3); font-size:12.5px; color:var(--text-2); }
+
+  /* ---- コード一覧 ---- */
+  .chords{ display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:var(--s2); }
+  .chordbtn{ display:flex; flex-direction:column; align-items:center; gap:2px; font:inherit; padding:var(--s2) var(--s1);
+    border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface); color:var(--text); cursor:pointer;
+    transition:border-color var(--tap), background var(--tap); }
+  .chordbtn:hover{ border-color:var(--accent); background:var(--accent-tint); }
+  .chordbtn .rn{ font-family:var(--font-mono); font-size:11.5px; color:var(--text-3); }
+  .chordbtn .nm{ font-size:15px; font-weight:600; }
+  .fn{ font-family:var(--font-mono); font-size:10.5px; font-weight:600; padding:0 6px; border-radius:100px; }
+  .fn-T{ color:var(--accent); background:var(--accent-tint); }
+  .fn-S{ color:var(--pos); background:var(--pos-tint); }
+  .fn-D{ color:var(--neg); background:var(--neg-tint); }
+  .chordbtn.is-harm{ border-style:dashed; }
+  .subh{ font-size:11px; color:var(--text-3); margin:var(--s4) 0 var(--s2); }
+  .notes{ display:flex; flex-wrap:wrap; gap:6px; }
+  .note{ font-family:var(--font-mono); font-size:14px; min-width:40px; height:32px; padding:0 8px; border:1px solid var(--border-strong);
+    border-radius:var(--r-sm); background:var(--surface-2); color:var(--text); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+  .note:hover{ border-color:var(--accent); }
+  .rel{ display:grid; grid-template-columns:1fr auto; gap:0; }
+  .rel button{ display:contents; }
+  .relrow{ display:flex; justify-content:space-between; align-items:center; width:100%; font:inherit; padding:var(--s2) 0;
+    border:0; border-top:1px solid var(--border); background:none; color:var(--text); cursor:pointer; text-align:left; }
+  .relrow:first-child{ border-top:0; }
+  .relrow:hover .relkey{ color:var(--accent); }
+  .relrow .rellbl{ font-size:12.5px; color:var(--text-2); }
+  .relrow .relkey{ font-size:14px; font-weight:600; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
+  .rrow__value--sm{ font-size:16px; }
+  .select{ width:100%; }
+  .pivots{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pivot{ font-size:13px; padding:4px 10px; border-radius:var(--r-sm); border:1px solid var(--border-strong); background:var(--surface);
+    cursor:pointer; font:inherit; color:var(--text); }
+  .pivot:hover{ border-color:var(--accent); }
+  .pivot small{ font-family:var(--font-mono); color:var(--text-3); margin-left:6px; font-size:11px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Circle of fifths</h1>
+    <p data-i18n="t.desc">Pick a key on the circle to see its signature, scale, diatonic chords and related keys. Compare two keys to find pivot chords for a modulation.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 五度圏 -->
+    <div>
+      <div class="wheel">
+        <svg id="wheel" viewBox="0 0 400 400" role="group" aria-label="Circle of fifths"></svg>
+        <div class="legend">
+          <span><i class="lg-dia"></i><span data-i18n="t.lgDia">Diatonic chords</span></span>
+          <span><i class="lg-rel"></i><span data-i18n="t.lgRel">Related keys</span></span>
+          <span><i class="lg-tgt"></i><span data-i18n="t.lgTgt">Modulation target</span></span>
+        </div>
+      </div>
+      <div class="opts">
+        <div class="seg2" role="group" aria-label="Key names" id="nameset">
+          <button type="button" data-names="en" aria-pressed="true">C major</button>
+          <button type="button" data-names="ja" aria-pressed="false">ハ長調</button>
+        </div>
+        <label class="check"><input type="checkbox" id="opt-rotate"><span data-i18n="t.rotate">Selected key at top</span></label>
+        <label class="check"><input type="checkbox" id="opt-seventh"><span data-i18n="t.sevenths">Seventh chords</span></label>
+      </div>
+      <div class="enh" id="enh" hidden>
+        <span data-i18n="t.spelling">Spelling</span>
+        <div class="seg2" id="enh-btns"></div>
+      </div>
+      <div class="hint" data-i18n="t.wheelHint">Outer ring: major keys. Inner ring: relative minor keys. Arrow keys move around the circle; Enter or click selects.</div>
+    </div>
+
+    <!-- 右: 選んだキーの情報 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.key">Key</span>
+          <button class="btn btn--secondary" id="play-scale" type="button" style="height:28px;padding:0 10px;font-size:12px">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" style="width:12px;height:12px"><path d="M7 4.5v15l12-7.5z"/></svg>
+            <span data-i18n="t.playScale">Play scale</span></button></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.keyName">Name</span><span class="rrow__value" id="ro-key">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.sig">Key signature</span><span class="rrow__value rrow__value--sm" id="ro-sig">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.relative">Relative key</span><span class="rrow__value rrow__value--sm" id="ro-rel">–</span></div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="card__title" data-i18n="t.scale">Scale</div>
+        <div class="notes" id="scale-notes"></div>
+        <div class="card__title" style="margin-top:var(--s5)" data-i18n="t.dia">Diatonic chords</div>
+        <div class="chords" id="chords"></div>
+        <div id="harm-wrap" hidden>
+          <div class="subh" data-i18n="t.harm">From harmonic minor (raised 7th)</div>
+          <div class="chords" id="chords-harm"></div>
+        </div>
+        <div class="hint" data-i18n="t.fnHint">T = tonic, S = subdominant, D = dominant. Function labels follow the common textbook reading; schools differ on iii/VI/VII. Click a chord to hear it.</div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="card__title" data-i18n="t.related">Related keys</div>
+        <div id="related"></div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="card__title" data-i18n="t.modulate">Modulation</div>
+        <div class="field">
+          <label class="label" for="tgt" data-i18n="t.target">Modulate to</label>
+          <select class="select" id="tgt"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="pick-tgt"><span data-i18n="t.pickTgt">Pick the target on the circle</span></label>
+        <div id="mod-out" style="margin-top:var(--s4)"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* =====================================================================
+     音名と調
+     音名 = { L: 文字(0=C … 6=B), a: 変化記号(+1=♯, −1=♭) }。綴りを保ったまま扱う。
+     ===================================================================== */
+  var LETTERS = "CDEFGAB", NAT = [0, 2, 4, 5, 7, 9, 11];
+  var JA_LETTERS = { C: "ハ", D: "ニ", E: "ホ", F: "ヘ", G: "ト", A: "イ", B: "ロ" };
+  function pc(n) { return ((NAT[n.L] + n.a) % 12 + 12) % 12; }
+  function acc(a) { return a === 0 ? "" : a === 1 ? "♯" : a === -1 ? "♭" : a === 2 ? "𝄪" : a === -2 ? "𝄫" : (a > 0 ? "♯" : "♭").repeat(Math.abs(a)); }
+  function noteName(n) { return LETTERS[n.L] + acc(n.a); }
+  function parse(s) { return { L: LETTERS.indexOf(s[0]), a: (s.match(/#/g) || []).length - (s.match(/b/g) || []).length }; }
+
+  // 調号（♯ 正・♭ 負）。長調 15・短調 15。五度圏の位置 = 調号 mod 12（同じ位置に異名同音が最大2つ）
+  var MAJOR = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, "F#": 6, "C#": 7, F: -1, Bb: -2, Eb: -3, Ab: -4, Db: -5, Gb: -6, Cb: -7 };
+  var MINOR = { A: 0, E: 1, B: 2, "F#": 3, "C#": 4, "G#": 5, "D#": 6, "A#": 7, D: -1, G: -2, C: -3, F: -4, Bb: -5, Eb: -6, Ab: -7 };
+  // 各位置の既定の綴り（一般的な表記）
+  var DEF_MAJ = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"];
+  var DEF_MIN = ["A", "E", "B", "F#", "C#", "G#", "Eb", "Bb", "F", "C", "G", "D"];
+  function keyOf(name, minor) { return { t: name, minor: minor, sig: (minor ? MINOR : MAJOR)[name] }; }
+  function posOf(k) { return ((k.sig % 12) + 12) % 12; }
+  function altsAt(pos, minor) {   // その位置にある綴りの候補
+    var tbl = minor ? MINOR : MAJOR;
+    return Object.keys(tbl).filter(function (n) { return ((tbl[n] % 12) + 12) % 12 === pos; })
+      .sort(function (a, b) { return Math.abs(tbl[a]) - Math.abs(tbl[b]); });
+  }
+
+  /* 調号に従って音階を綴る（自然短音階。harmonic で第7音を半音上げる） */
+  var SHARP_ORDER = [3, 0, 4, 1, 5, 2, 6], FLAT_ORDER = [6, 2, 5, 1, 4, 0, 3];
+  function sigAcc(sig) {
+    var a = [0, 0, 0, 0, 0, 0, 0];
+    if (sig > 0) for (var i = 0; i < sig; i++) a[SHARP_ORDER[i]] = 1;
+    if (sig < 0) for (var j = 0; j < -sig; j++) a[FLAT_ORDER[j]] = -1;
+    return a;
+  }
+  function sigLetters(sig) {
+    return (sig > 0 ? SHARP_ORDER.slice(0, sig).map(function (L) { return { L: L, a: 1 }; })
+                    : FLAT_ORDER.slice(0, -sig).map(function (L) { return { L: L, a: -1 }; }));
+  }
+  function scaleOf(k, harmonic) {
+    var tonic = parse(k.t), a = sigAcc(k.sig), out = [];
+    for (var i = 0; i < 7; i++) { var L = (tonic.L + i) % 7; out.push({ L: L, a: a[L] }); }
+    if (k.minor && harmonic) out[6] = { L: out[6].L, a: out[6].a + 1 };
+    return out;
+  }
+
+  /* ---- コード ---- */
+  var ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"];
+  var Q3 = { "4,7": ["", "", "maj"], "3,7": ["m", "", "min"], "3,6": ["dim", "°", "dim"], "4,8": ["aug", "+", "aug"] };
+  var Q4 = { "4,7,11": ["maj7", "maj7"], "4,7,10": ["7", "7"], "3,7,10": ["m7", "7"], "3,7,11": ["mM7", "(maj7)"],
+             "3,6,10": ["m7♭5", "ø7"], "3,6,9": ["dim7", "°7"], "4,8,11": ["augM7", "+maj7"] };
+  function chordAt(scale, d, seventh) {
+    var tones = [scale[d], scale[(d + 2) % 7], scale[(d + 4) % 7]];
+    if (seventh) tones.push(scale[(d + 6) % 7]);
+    var r = pc(tones[0]), iv = tones.slice(1).map(function (n) { return (pc(n) - r + 12) % 12; });
+    var q3 = Q3[iv[0] + "," + iv[1]] || ["?", "", "?"], upper = iv[0] === 4;
+    var rn = upper ? ROMAN[d] : ROMAN[d].toLowerCase(), name, rnS;
+    if (seventh) {
+      var q4 = Q4[iv.join(",")] || ["?", "?"];
+      name = noteName(tones[0]) + q4[0];
+      rnS = rn + q4[1];
+    } else {
+      name = noteName(tones[0]) + q3[0];
+      rnS = rn + q3[1];
+    }
+    return { name: name, rn: rnS, tones: tones, pcs: tones.map(pc), quality: q3[2] };
+  }
+  // 機能（T/S/D）: 広く教えられている分類。短調の VI・VII、長調の iii は流派差がある
+  var FN_MAJ = ["T", "S", "T", "S", "D", "T", "D"], FN_MIN = ["T", "S", "T", "S", "D", "S", "D"];
+  function diatonic(k, seventh) {
+    var sc = scaleOf(k, false), fns = k.minor ? FN_MIN : FN_MAJ;
+    var list = sc.map(function (_, d) { var c = chordAt(sc, d, seventh); c.fn = fns[d]; c.deg = d; return c; });
+    var harm = [];
+    if (k.minor) {                                    // 和声短音階の V（V7）と vii°（vii°7）
+      var hs = scaleOf(k, true);
+      [4, 6].forEach(function (d) { var c = chordAt(hs, d, seventh); c.fn = "D"; c.deg = d; c.harm = true; harm.push(c); });
+    }
+    return { list: list, harm: harm };
+  }
+
+  /* ---- 調の名前 ---- */
+  var names = "en";
+  function keyName(k) {
+    if (names === "ja") {
+      var n = parse(k.t), base = JA_LETTERS[LETTERS[n.L]];
+      var pre = n.a === 1 ? "嬰" : n.a === -1 ? "変" : "";
+      return pre + base + (k.minor ? "短調" : "長調");
+    }
+    return noteName(parse(k.t)) + (k.minor ? " minor" : " major");
+  }
+  function shortName(k) { return noteName(parse(k.t)) + (k.minor ? "m" : ""); }
+  function sigText(sig) {
+    if (sig === 0) return Shell.t("t.noAcc");
+    return (sig > 0 ? "♯" : "♭") + " " + Math.abs(sig) + " · " + sigLetters(sig).map(noteName).join(" ");
+  }
+
+  /* ---- 近親調 ---- */
+  function keyAtPos(pos, minor) {                 // 位置と長短から、現在の綴り設定に従った調
+    var pref = (minor ? enhMin : enhMaj)[pos];
+    return keyOf(pref || (minor ? DEF_MIN : DEF_MAJ)[pos], minor);
+  }
+  function parallelOf(k) {                        // 同主調（主音が同じ）。調号が 7 を超えるときは異名同音で表す
+    var tbl = k.minor ? MAJOR : MINOR;
+    if (tbl.hasOwnProperty(k.t)) return keyOf(k.t, !k.minor);
+    var p = pc(parse(k.t));
+    var alt = Object.keys(tbl).filter(function (n) { return pc(parse(n)) === p; }).sort(function (a, b) { return Math.abs(tbl[a]) - Math.abs(tbl[b]); })[0];
+    return keyOf(alt, !k.minor);
+  }
+  /* 調号から調を引く。調号が ±7 を超える（存在しない）ときは、五度圏の同じ位置の既定の綴りで表す */
+  function keyBySig(sig, minor) {
+    var tbl = minor ? MINOR : MAJOR;
+    for (var n in tbl) if (tbl[n] === sig) return keyOf(n, minor);
+    return keyAtPos(((sig % 12) + 12) % 12, minor);
+  }
+  /* 近親調は調号の足し引きで求める（属調 +1・下属調 −1・平行調は同じ調号）。
+     こうすると選んだキーの綴りの系統（♯系／♭系）がそろう（例: F♯ 長調の属調は C♯ 長調） */
+  function relatives(k) {
+    var m = k.minor, s = k.sig;
+    return [
+      { id: "dom", k: keyBySig(s + 1, m) }, { id: "sub", k: keyBySig(s - 1, m) }, { id: "rel", k: keyBySig(s, !m) },
+      { id: "par", k: parallelOf(k) },
+      { id: "domRel", k: keyBySig(s + 1, !m) }, { id: "subRel", k: keyBySig(s - 1, !m) }
+    ];
+  }
+
+  /* =====================================================================
+     状態
+     ===================================================================== */
+  var enhMaj = {}, enhMin = {};                    // 位置ごとの綴りの選択（未設定は既定）
+  var S = { key: keyOf("C", false), tgt: keyOf("G", false), rotate: false, seventh: false, pick: false };
+  var rot = 0, rotAnim = 0;
+
+  function readHash() {
+    var h = location.hash.replace(/^#/, ""), q = {};
+    h.split("&").forEach(function (kv) { var m = kv.split("="); if (m[0]) q[m[0]] = decodeURIComponent(m[1] || ""); });
+    function k(v) {
+      if (!v) return null;
+      var minor = /m$/.test(v), t = minor ? v.slice(0, -1) : v;
+      return ((minor ? MINOR : MAJOR).hasOwnProperty(t)) ? keyOf(t, minor) : null;
+    }
+    if (k(q.key)) S.key = k(q.key);
+    if (k(q.to)) S.tgt = k(q.to);
+    S.rotate = q.rot === "1"; S.seventh = q.sev === "1";
+    if (q.names === "ja" || q.names === "en") names = q.names;
+    [S.key, S.tgt].forEach(rememberSpelling);
+  }
+  function writeHash() {
+    var enc = function (k) { return k.t + (k.minor ? "m" : ""); };
+    history.replaceState(null, "", "#key=" + encodeURIComponent(enc(S.key)) + "&to=" + encodeURIComponent(enc(S.tgt)) +
+      "&rot=" + (S.rotate ? 1 : 0) + "&sev=" + (S.seventh ? 1 : 0) + "&names=" + names);
+  }
+  function rememberSpelling(k) { (k.minor ? enhMin : enhMaj)[posOf(k)] = k.t; }
+
+  /* =====================================================================
+     五度圏の描画（SVG）
+     ===================================================================== */
+  var SVGNS = "http://www.w3.org/2000/svg", CX = 200, CY = 200;
+  var R_OUT = 194, R_MID = 136, R_IN = 86;
+  function polar(r, deg) { var a = (deg - 90) * Math.PI / 180; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; }
+  function segPath(r0, r1, d0, d1) {
+    var a = polar(r1, d0), b = polar(r1, d1), c = polar(r0, d1), d = polar(r0, d0);
+    return "M" + a + "A" + r1 + "," + r1 + " 0 0 1 " + b + "L" + c + "A" + r0 + "," + r0 + " 0 0 0 " + d + "Z";
+  }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function drawWheel() {
+    var svg = $("wheel"); svg.innerHTML = "";
+    var diaMaj = {}, diaMin = {}, relSet = {}, p = posOf(S.key);
+    // ダイアトニックコードが並ぶ扇形: 位置 p−1〜p+1 の長三和音と短三和音（短調も平行長調と同じ扇形）、
+    // 減三和音は内周 p+2 の位置（長調の vii°／短調の ii°）
+    var base = p;
+    [-1, 0, 1].forEach(function (d) { diaMaj[(base + d + 12) % 12] = 1; diaMin[(base + d + 12) % 12] = 1; });
+    var dimPos = (base + 2) % 12;
+    relatives(S.key).forEach(function (r) { relSet[(r.k.minor ? "m" : "M") + posOf(r.k)] = 1; });
+
+    for (var i = 0; i < 12; i++) {
+      [false, true].forEach(function (minor) {
+        var k = keyAtPos(i, minor), deg = i * 30 - rot;
+        var g = el("g", { "class": "seg", role: "button", tabindex: "-1", "data-pos": i, "data-minor": minor ? 1 : 0,
+          "aria-label": keyName(k) }, svg);
+        var sel = S.key.minor === minor && posOf(S.key) === i;
+        if (sel) g.classList.add("is-sel"); else if ((minor ? diaMin : diaMaj)[i]) g.classList.add("is-dia");
+        if (sel) g.setAttribute("tabindex", "0");
+        el("path", { d: minor ? segPath(R_IN, R_MID, deg - 15, deg + 15) : segPath(R_MID, R_OUT, deg - 15, deg + 15) }, g);
+        // 併記は F♯/G♭（D♯m/E♭m）の位置だけ。他の位置は一般的な綴りを出し、選択時に切り替えられる
+        var alts = altsAt(i, minor), label = alts.length > 1 && i === 6 && !(minor ? enhMin : enhMaj)[i]
+          ? alts.map(function (n) { return noteName(parse(n)) + (minor ? "m" : ""); }).join("/")
+          : shortName(k);
+        var tp = polar(minor ? (R_IN + R_MID) / 2 : (R_MID + R_OUT) / 2 + 6, deg);
+        var t = el("text", { x: tp[0], y: tp[1], "text-anchor": "middle", "dominant-baseline": "central",
+          "font-size": minor ? (label.length > 5 ? 10 : 13) : (label.length > 4 ? 12 : 17), "font-weight": minor ? 500 : 600 }, g);
+        t.textContent = label;
+        if (!minor) {
+          var sp = polar(R_MID + 13, deg), sig = k.sig;
+          var s = el("text", { "class": "sig", x: sp[0], y: sp[1], "text-anchor": "middle", "dominant-baseline": "central", "font-size": 9.5 }, g);
+          s.textContent = sig === 0 ? "0" : (sig > 0 ? "♯" : "♭") + Math.abs(sig);
+        }
+        if (relSet[(minor ? "m" : "M") + i] && !sel) el("path", { "class": "ring-rel", d: minor ? segPath(R_IN + 3, R_MID - 3, deg - 13, deg + 13) : segPath(R_MID + 3, R_OUT - 3, deg - 13, deg + 13) }, svg);
+        if (minor && i === dimPos) el("path", { "class": "ring-dim", d: segPath(R_IN + 3, R_MID - 3, deg - 13, deg + 13) }, svg);
+        if (S.tgt.minor === minor && posOf(S.tgt) === i && !(S.tgt.minor === S.key.minor && posOf(S.tgt) === posOf(S.key)))
+          el("path", { "class": "ring-tgt", d: minor ? segPath(R_IN + 2, R_MID - 2, deg - 14, deg + 14) : segPath(R_MID + 2, R_OUT - 2, deg - 14, deg + 14) }, svg);
+      });
+    }
+    el("circle", { "class": "hub", cx: CX, cy: CY, r: R_IN - 2 }, svg);
+    var hn = el("text", { "class": "hub-name", x: CX, y: CY - 8, "text-anchor": "middle", "dominant-baseline": "central",
+      "font-size": names === "ja" ? 17 : 20 }, svg);
+    hn.textContent = names === "ja" ? keyName(S.key) : shortName(S.key);
+    var hs = el("text", { "class": "hub-sub", x: CX, y: CY + 16, "text-anchor": "middle", "dominant-baseline": "central", "font-size": 12 }, svg);
+    hs.textContent = S.key.sig === 0 ? Shell.t("t.noSig") : (S.key.sig > 0 ? "♯" : "♭") + " " + Math.abs(S.key.sig);
+  }
+
+  /* 選んだキーを上へ回す（アニメーション。動きを減らす設定では即時） */
+  function targetRot() { return S.rotate ? posOf(S.key) * 30 : 0; }
+  function animateRot() {
+    var to = targetRot(), from = rot, diff = ((to - from + 540) % 360) - 180;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || Math.abs(diff) < 0.5) { rot = to; drawWheel(); return; }
+    var t0 = performance.now(), dur = 320;
+    cancelAnimationFrame(rotAnim);
+    (function step(now) {
+      var f = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - f, 3);
+      rot = from + diff * e; drawWheel();
+      if (f < 1) rotAnim = requestAnimationFrame(step); else rot = to;
+    })(t0);
+  }
+
+  /* =====================================================================
+     右側の表示
+     ===================================================================== */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function chordBtn(c) {
+    return '<button type="button" class="chordbtn' + (c.harm ? " is-harm" : "") + '" data-pcs="' + c.pcs.join(",") + '" title="' +
+      esc(c.tones.map(noteName).join(" ")) + '"><span class="rn">' + esc(c.rn) + '</span><span class="nm">' + esc(c.name) +
+      '</span><span class="fn fn-' + c.fn + '">' + c.fn + "</span></button>";
+  }
+  function renderInfo() {
+    var k = S.key, rel = keyBySig(k.sig, !k.minor);
+    $("ro-key").textContent = keyName(k); $("ro-key").setAttribute("data-copy", keyName(k));
+    $("ro-sig").textContent = sigText(k.sig); $("ro-sig").setAttribute("data-copy", sigText(k.sig));
+    $("ro-rel").textContent = keyName(rel); $("ro-rel").setAttribute("data-copy", keyName(rel));
+    var sc = scaleOf(k, false);
+    $("scale-notes").innerHTML = sc.map(function (n, i) {
+      return '<button type="button" class="note" data-pc="' + pc(n) + '" data-deg="' + i + '">' + esc(noteName(n)) + "</button>";
+    }).join("");
+    var dia = diatonic(k, S.seventh);
+    $("chords").innerHTML = dia.list.map(chordBtn).join("");
+    $("harm-wrap").hidden = !dia.harm.length;
+    $("chords-harm").innerHTML = dia.harm.map(chordBtn).join("");
+    $("related").innerHTML = relatives(k).map(function (r) {
+      return '<button type="button" class="relrow" data-key="' + r.k.t + (r.k.minor ? "m" : "") + '"><span class="rellbl">' +
+        esc(Shell.t("t.r." + r.id)) + '</span><span class="relkey">' + esc(keyName(r.k)) + "</span></button>";
+    }).join("");
+    // 異名同音の切り替え（選んだ位置に綴りが2通りあるとき）
+    var alts = altsAt(posOf(k), k.minor);
+    $("enh").hidden = alts.length < 2;
+    $("enh-btns").innerHTML = alts.map(function (n) {
+      return '<button type="button" data-t="' + n + '" aria-pressed="' + (n === k.t) + '">' + esc(noteName(parse(n)) + (k.minor ? "m" : "")) + "</button>";
+    }).join("");
+    renderModulation();
+  }
+
+  /* ---- 転調 ---- */
+  function keyOptions() {
+    var opts = [];
+    [false, true].forEach(function (minor) {
+      Object.keys(minor ? MINOR : MAJOR).sort(function (a, b) { return (minor ? MINOR : MAJOR)[a] - (minor ? MINOR : MAJOR)[b]; })
+        .forEach(function (t) { opts.push(keyOf(t, minor)); });
+    });
+    return opts;
+  }
+  function renderTargetSelect() {
+    var sel = $("tgt"), cur = S.tgt.t + (S.tgt.minor ? "m" : "");
+    sel.innerHTML = keyOptions().map(function (k) {
+      var v = k.t + (k.minor ? "m" : "");
+      return '<option value="' + v + '"' + (v === cur ? " selected" : "") + ">" + esc(keyName(k)) + " (" + esc(sigText(k.sig).split(" · ")[0]) + ")</option>";
+    }).join("");
+  }
+  function renderModulation() {
+    var a = S.key, b = S.tgt;
+    // 五度圏上の距離（調号の差）。短調は平行長調と同じ位置として数える
+    var na = posOf(a), nb = posOf(b);
+    var steps = Math.min((na - nb + 12) % 12, (nb - na + 12) % 12);
+    var sa = scaleOf(a, false).map(pc), sb = scaleOf(b, false).map(pc);
+    var common = sa.filter(function (x) { return sb.indexOf(x) >= 0; }).length;
+    var relName = null;
+    relatives(a).forEach(function (r) { if (!relName && r.k.minor === b.minor && posOf(r.k) === posOf(b)) relName = Shell.t("t.r." + r.id); });
+    if (!relName && a.minor === b.minor && posOf(a) === posOf(b) && a.t !== b.t) relName = Shell.t("t.enharm");
+    // ピボットコード: 両方の調に含まれる三和音（短調は和声短音階の V・vii° も含める）
+    function set(k) { var d = diatonic(k, false); return d.list.concat(d.harm); }
+    var A = set(a), B = set(b), piv = [];
+    A.forEach(function (ca) {
+      B.forEach(function (cb) {
+        if (ca.pcs.join() === cb.pcs.join()) piv.push({ name: ca.name, ra: ca.rn, rb: cb.rn, pcs: ca.pcs, fnB: cb.fn });
+      });
+    });
+    var same = a.t === b.t && a.minor === b.minor;
+    var html = '<div class="readout">' +
+      row(Shell.t("t.steps"), same ? "0" : String(steps), Shell.t("t.stepsU")) +
+      row(Shell.t("t.common"), String(common), "/ 7") +
+      (relName ? row(Shell.t("t.relation"), relName, "") : "") + "</div>";
+    html += '<div class="subh">' + esc(Shell.t("t.pivots")) + "</div>";
+    html += piv.length ? '<div class="pivots">' + piv.map(function (p) {
+      return '<button type="button" class="pivot" data-pcs="' + p.pcs.join(",") + '">' + esc(p.name) + "<small>" +
+        esc(p.ra) + " → " + esc(p.rb) + "</small></button>";
+    }).join("") + "</div>" : '<div class="hint" style="margin-top:0">' + esc(Shell.t("t.noPivot")) + "</div>";
+    html += '<div class="hint">' + esc(Shell.t("t.pivotHint")) + "</div>";
+    $("mod-out").innerHTML = html;
+  }
+  function row(label, value, unit) {
+    return '<div class="rrow"><span class="rrow__label">' + esc(label) + '</span><span class="rrow__value rrow__value--sm" data-copy="' +
+      esc(value) + '">' + esc(value) + (unit ? '<span class="u">' + esc(unit) + "</span>" : "") + "</span></div>";
+  }
+
+  /* =====================================================================
+     音（Web Audio。外部の音源ファイルは使わない）
+     ===================================================================== */
+  var ac = null, master = null;
+  function audio() {
+    if (!ac) {
+      var C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+      ac = new C(); master = ac.createGain(); master.gain.value = 0.5;
+      var comp = ac.createDynamicsCompressor(); master.connect(comp); comp.connect(ac.destination);
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(midi, t0, dur, gain) {
+    var f = 440 * Math.pow(2, (midi - 69) / 12), g = ac.createGain();
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(gain * 0.35, t0 + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    g.connect(master);
+    [["triangle", 1, 1], ["sine", 2, 0.25]].forEach(function (o) {
+      var osc = ac.createOscillator(), og = ac.createGain();
+      osc.type = o[0]; osc.frequency.value = f * o[1]; og.gain.value = o[2];
+      osc.connect(og); og.connect(g); osc.start(t0); osc.stop(t0 + dur + 0.05);
+    });
+  }
+  function playChord(pcs) {
+    if (!audio()) return;
+    var t = ac.currentTime + 0.02, root = pcs[0], mids = [48 + root];     // ベースに根音
+    var prev = 59 + ((root - 59) % 12 + 12) % 12 - 12;                  // 上声部は C4 付近から積む
+    pcs.forEach(function (p) { var m = 60 + ((p - 60) % 12 + 12) % 12; while (m <= prev) m += 12; mids.push(m); prev = m; });
+    mids.forEach(function (m) { tone(m, t, 1.6, 0.16); });
+  }
+  function playScale() {
+    if (!audio()) return;
+    var sc = scaleOf(S.key, false).map(pc), t = ac.currentTime + 0.03;
+    var start = 60 + ((sc[0] - 60) % 12 + 12) % 12; if (start > 66) start -= 12;
+    var mids = sc.map(function (p) { return start + ((p - sc[0] + 12) % 12); });
+    mids.push(start + 12);
+    mids.forEach(function (m, i) { tone(m, t + i * 0.24, 0.5, 0.2); });
+  }
+
+  /* =====================================================================
+     操作
+     ===================================================================== */
+  function selectKey(k, fromPick) {
+    if (S.pick && !fromPick) { S.tgt = k; rememberSpelling(k); S.pick = false; $("pick-tgt").checked = false; renderTargetSelect(); }
+    else { S.key = k; rememberSpelling(k); }
+    writeHash(); renderInfo(); animateRot(); drawWheel();
+  }
+  $("wheel").addEventListener("click", function (e) {
+    var g = e.target.closest(".seg"); if (!g) return;
+    var pos = +g.getAttribute("data-pos"), minor = g.getAttribute("data-minor") === "1";
+    selectKey(keyAtPos(pos, minor));
+    var sel = $("wheel").querySelector('.seg[data-pos="' + pos + '"][data-minor="' + (minor ? 1 : 0) + '"]');
+    if (sel) sel.focus();
+  });
+  // キーボード: ←→ で円周方向、↑↓ で長調⇔短調、Enter/Space で選択
+  $("wheel").addEventListener("keydown", function (e) {
+    var g = e.target.closest(".seg"); if (!g) return;
+    var pos = +g.getAttribute("data-pos"), minor = g.getAttribute("data-minor") === "1";
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectKey(keyAtPos(pos, minor)); return; }
+    var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") { minor = e.key === "ArrowDown"; }
+    else if (!d) return;
+    e.preventDefault();
+    pos = (pos + d + 12) % 12;
+    if (!S.pick) { selectKey(keyAtPos(pos, minor)); }
+    var n = $("wheel").querySelector('.seg[data-pos="' + pos + '"][data-minor="' + (minor ? 1 : 0) + '"]');
+    if (n) { n.setAttribute("tabindex", "0"); n.focus(); }
+  });
+  document.addEventListener("click", function (e) {
+    var c = e.target.closest(".chordbtn, .pivot");
+    if (c) { playChord(c.getAttribute("data-pcs").split(",").map(Number)); return; }
+    var n = e.target.closest(".note");
+    if (n) { playChord([+n.getAttribute("data-pc")]); return; }
+    var r = e.target.closest(".relrow");
+    if (r) { var v = r.getAttribute("data-key"), minor = /m$/.test(v); selectKey(keyOf(minor ? v.slice(0, -1) : v, minor), true); return; }
+  });
+  $("play-scale").addEventListener("click", playScale);
+  $("enh-btns").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    selectKey(keyOf(b.getAttribute("data-t"), S.key.minor), true);
+  });
+  $("nameset").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    names = b.getAttribute("data-names"); syncOpts(); writeHash(); renderTargetSelect(); renderInfo(); drawWheel();
+  });
+  $("opt-rotate").addEventListener("change", function () { S.rotate = this.checked; writeHash(); animateRot(); });
+  $("opt-seventh").addEventListener("change", function () { S.seventh = this.checked; writeHash(); renderInfo(); });
+  $("pick-tgt").addEventListener("change", function () { S.pick = this.checked; });
+  $("tgt").addEventListener("change", function () {
+    var v = this.value, minor = /m$/.test(v); S.tgt = keyOf(minor ? v.slice(0, -1) : v, minor);
+    writeHash(); renderModulation(); drawWheel();
+  });
+  function syncOpts() {
+    $("nameset").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-names") === names)); });
+    $("opt-rotate").checked = S.rotate; $("opt-seventh").checked = S.seventh;
+  }
+
+  readHash();
+  rot = targetRot();
+  Shell.init({
+    id: "circle-of-fifths",
+    strings: {
+      en: {
+        "t.title": "Circle of fifths",
+        "t.desc": "Pick a key on the circle to see its signature, scale, diatonic chords and related keys. Compare two keys to find pivot chords for a modulation.",
+        "t.lgDia": "Diatonic chords", "t.lgRel": "Related keys", "t.lgTgt": "Modulation target",
+        "t.rotate": "Selected key at top", "t.sevenths": "Seventh chords", "t.spelling": "Spelling",
+        "t.wheelHint": "Outer ring: major keys. Inner ring: relative minor keys. Arrow keys move around the circle (↑↓ switch major/minor); click selects.",
+        "t.key": "Key", "t.keyName": "Name", "t.noSig": "No sharps or flats", "t.playScale": "Play scale", "t.sig": "Key signature", "t.relative": "Relative key", "t.noAcc": "None",
+        "t.scale": "Scale", "t.dia": "Diatonic chords", "t.harm": "From harmonic minor (raised 7th)",
+        "t.fnHint": "T = tonic, S = subdominant, D = dominant. Labels follow the common textbook reading; schools differ on iii (major) and VI / VII (minor). Click a chord or note to hear it.",
+        "t.related": "Related keys", "t.modulate": "Modulation", "t.target": "Modulate to", "t.pickTgt": "Pick the target on the circle",
+        "t.r.dom": "Dominant key", "t.r.sub": "Subdominant key", "t.r.rel": "Relative key", "t.r.par": "Parallel key",
+        "t.r.domRel": "Relative of the dominant", "t.r.subRel": "Relative of the subdominant", "t.enharm": "Enharmonic key",
+        "t.steps": "Distance on the circle", "t.stepsU": "steps", "t.common": "Shared scale notes", "t.relation": "Relation",
+        "t.pivots": "Pivot chords (in both keys)", "t.noPivot": "No triad is shared by both keys — consider a chromatic or direct modulation.",
+        "t.pivotHint": "Numerals read “in the current key → in the target key”. Minor keys include V and vii° from harmonic minor."
+      },
+      ja: {
+        "t.title": "五度圏",
+        "t.desc": "五度圏上でキーを選ぶと、調号・音階・ダイアトニックコード・近親調を表示します。2つのキーを比べて、転調に使える共通コード（ピボットコード）も探せます。",
+        "t.lgDia": "ダイアトニックコード", "t.lgRel": "近親調", "t.lgTgt": "転調先",
+        "t.rotate": "選んだキーを上にする", "t.sevenths": "四和音で表示", "t.spelling": "表記",
+        "t.wheelHint": "外周が長調、内周が平行調の短調です。矢印キーで円周を移動（↑↓で長調⇔短調）、クリックで選択します。",
+        "t.key": "キー", "t.keyName": "調名", "t.noSig": "調号なし", "t.playScale": "音階を再生", "t.sig": "調号", "t.relative": "平行調", "t.noAcc": "なし",
+        "t.scale": "音階", "t.dia": "ダイアトニックコード", "t.harm": "和声短音階から（第7音を半音上げる）",
+        "t.fnHint": "T＝トニック、S＝サブドミナント、D＝ドミナント。一般的な教科書の分類です。長調の iii、短調の VI・VII は流派によって扱いが異なります。コードや音をクリックすると鳴ります。",
+        "t.related": "近親調", "t.modulate": "転調", "t.target": "転調先", "t.pickTgt": "五度圏上で転調先を選ぶ",
+        "t.r.dom": "属調", "t.r.sub": "下属調", "t.r.rel": "平行調", "t.r.par": "同主調",
+        "t.r.domRel": "属調の平行調", "t.r.subRel": "下属調の平行調", "t.enharm": "異名同音調",
+        "t.steps": "五度圏上の距離", "t.stepsU": "ステップ", "t.common": "共通する音階の音", "t.relation": "関係",
+        "t.pivots": "ピボットコード（両方のキーに含まれるコード）", "t.noPivot": "両方のキーに共通する三和音はありません。半音階的な転調や直接転調を検討してください。",
+        "t.pivotHint": "ローマ数字は「今のキーでの役割 → 転調先での役割」です。短調には和声短音階の V・vii° も含めています。"
+      }
+    },
+    onSettingsChange: function () { syncOpts(); renderTargetSelect(); renderInfo(); drawWheel(); }
+  });
+})();
+</script>
+</body>
+</html>
