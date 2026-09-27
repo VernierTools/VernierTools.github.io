@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protractor — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ---- 入力（ドロップ領域）: average-color と同じ見た目 ---- */
+  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
+    display:flex; align-items:center; justify-content:center; min-height:320px; padding:var(--s5);
+    transition:border-color var(--tap), background var(--tap); }
+  .dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
+  .dropzone__empty{ text-align:center; max-width:36ch; }
+  .dropzone__icon{ width:48px; height:48px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-3); }
+  .dropzone__icon svg{ width:24px; height:24px; }
+  .dropzone__title{ font-size:15px; font-weight:600; }
+  .dropzone__hint{ color:var(--text-3); font-size:12.5px; margin-top:6px; }
+  .dropzone__actions{ display:flex; justify-content:center; margin-top:var(--s4); }
+  #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+
+  /* ---- 計測キャンバス ---- */
+  .stage{ position:relative; border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    background:var(--surface-2); touch-action:none; }
+  .stage canvas{ display:block; width:100%; cursor:crosshair; }
+  .stage canvas.is-grab{ cursor:grab; }
+  .stage canvas.is-grabbing{ cursor:grabbing; }
+  .stage canvas.is-handle{ cursor:move; }
+  .stage canvas:focus-visible{ outline:none; box-shadow:inset 0 0 0 3px var(--accent-ring); }
+  .stagebar{ display:flex; align-items:center; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+  .stagebar .btn{ height:32px; padding:0 12px; font-size:12.5px; }
+  .stagebar .sp{ flex:1; }
+  .zoomlbl{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-3); min-width:5ch; text-align:right; }
+  .step{ font-size:12.5px; color:var(--text-2); margin-top:var(--s3); min-height:1.5em; }
+  .step b{ color:var(--accent); font-weight:600; }
+
+  /* ---- モード選択 ---- */
+  .modes{ display:grid; gap:var(--s2); }
+  .mode{ display:flex; gap:var(--s3); align-items:flex-start; text-align:left; font:inherit; width:100%;
+    padding:var(--s3); border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
+    color:var(--text); cursor:pointer; transition:border-color var(--tap), background var(--tap); }
+  .mode:hover{ border-color:var(--text-3); }
+  .mode[aria-checked="true"]{ border-color:var(--accent); background:var(--accent-tint); }
+  .mode svg{ flex:0 0 28px; width:28px; height:28px; color:var(--accent); }
+  .mode__t{ display:block; font-size:13px; font-weight:600; }
+  .mode__d{ display:block; font-size:12px; color:var(--text-3); margin-top:2px; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
+  .hint kbd{ font-family:var(--font-mono); font-size:11px; padding:1px 5px; border:1px solid var(--border-strong);
+    border-radius:4px; background:var(--surface-2); color:var(--text-2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Protractor</h1>
+    <p data-i18n="t.desc">Load an image and click points to measure angles — between two edges, between two separate lines, or a tilt from horizontal.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 画像と計測 -->
+    <div>
+      <section class="card">
+        <div class="dropzone" id="dropzone">
+          <input id="file-input" type="file" accept="image/*">
+          <div class="dropzone__empty">
+            <div class="dropzone__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m3 16 5-5 4 4 2.5-2.5L21 19"/>
+              </svg>
+            </div>
+            <div class="dropzone__title" data-i18n="t.dropTitle">Drop an image here</div>
+            <div class="dropzone__hint" data-i18n="t.dropHint">or paste from the clipboard, or choose a file</div>
+            <div class="dropzone__actions">
+              <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose image</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="stagewrap" hidden>
+          <div class="stage" id="stage">
+            <canvas id="cv" tabindex="0" role="img" aria-label="Image with measurement lines"></canvas>
+          </div>
+          <div class="step" id="step" aria-live="polite"></div>
+          <div class="stagebar">
+            <button class="btn btn--secondary" id="btn-fit" type="button" data-i18n="t.fit">Fit</button>
+            <button class="btn btn--secondary" id="btn-100" type="button">100%</button>
+            <span class="zoomlbl" id="zoomlbl"></span>
+            <span class="sp"></span>
+            <button class="btn btn--secondary" id="btn-reset" type="button" data-i18n="t.reset">Clear points</button>
+            <button class="btn btn--ghost" id="btn-change" type="button" data-i18n="t.change">Change image</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 右: モードと出力 -->
+    <div>
+      <div class="card" style="margin-bottom:var(--s4)">
+        <div class="card__title" data-i18n="t.mode">Measure</div>
+        <div class="modes" id="modes" role="radiogroup">
+          <button class="mode" type="button" role="radio" aria-checked="true" data-mode="three">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 22h19M4 22 17 6"/><path d="M10.5 22a6.5 6.5 0 0 0-2.4-5" /><circle cx="4" cy="22" r="1.8" fill="currentColor"/></svg>
+            <span><span class="mode__t" data-i18n="t.m3">Angle at a corner</span><span class="mode__d" data-i18n="t.m3d">3 points: vertex, then one point on each edge</span></span>
+          </button>
+          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="two">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 20 12 18M16 8l8-5"/><path d="M12 18l6-1.3M16 8l-3 2" stroke-dasharray="2 2.5"/></svg>
+            <span><span class="mode__t" data-i18n="t.m2">Angle between two lines</span><span class="mode__d" data-i18n="t.m2d">4 points: two per line. The lines don't need to meet</span></span>
+          </button>
+          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="tilt">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19 24 11"/><path d="M4 19h20" stroke-dasharray="2 2.5"/></svg>
+            <span><span class="mode__t" data-i18n="t.mt">Tilt from horizontal</span><span class="mode__d" data-i18n="t.mtd">2 points along an edge that should be level or plumb</span></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="eyebrow" id="ro-mode"></span></div>
+        <div id="ro-rows"></div>
+      </div>
+      <div class="badges" id="badges"></div>
+      <div class="hint" id="hint-keys"></div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var cv = $("cv"), ctx = cv.getContext("2d"), stage = $("stage");
+
+  /* ---------------- 状態 ---------------- */
+  var NEED = { three: 3, two: 4, tilt: 2 };
+  var S = { mode: "three", img: null, iw: 0, ih: 0, name: "", pts: [], sel: -1,
+            view: { s: 1, ox: 0, oy: 0 }, cssW: 0, cssH: 0 };
+  try { var m0 = localStorage.getItem("vernier.protractor.mode"); if (NEED[m0]) S.mode = m0; } catch (e) {}
+
+  /* ---------------- 幾何 ----------------
+     画像座標は左上原点・y 下向き。角度は数学の向き（反時計回りが正、y 上向き）で表示する。 */
+  function ang(p, q) { return Math.atan2(-(q.y - p.y), q.x - p.x) * 180 / Math.PI; }     // p→q の向き（°）
+  function norm360(a) { a %= 360; return a < 0 ? a + 360 : a; }
+  function norm180(a) { a = norm360(a); return a > 180 ? a - 360 : a; }                    // (−180, 180]
+  function lineAng(a) { a = norm360(a) % 180; return a > 90 ? a - 180 : a; }              // 向きを無視した線の角度 (−90, 90]
+  function dist(p, q) { return Math.hypot(q.x - p.x, q.y - p.y); }
+  function intersect(a1, a2, b1, b2) {
+    var d = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x);
+    if (Math.abs(d) < 1e-9) return null;
+    var t = ((b1.x - a1.x) * (b2.y - b1.y) - (b1.y - a1.y) * (b2.x - b1.x)) / d;
+    return { x: a1.x + t * (a2.x - a1.x), y: a1.y + t * (a2.y - a1.y) };
+  }
+
+  /* 現在の点から計測値を求める（点が足りなければ null） */
+  function measure() {
+    var p = S.pts;
+    if (p.length < NEED[S.mode]) return null;
+    if (S.mode === "three") {
+      var a1 = ang(p[0], p[1]), a2 = ang(p[0], p[2]);
+      var theta = Math.abs(norm180(a2 - a1));
+      return { theta: theta, sup: 180 - theta, reflex: 360 - theta,
+               l1: lineAng(a1), l2: lineAng(a2), len1: dist(p[0], p[1]), len2: dist(p[0], p[2]) };
+    }
+    if (S.mode === "two") {
+      var b1 = ang(p[0], p[1]), b2 = ang(p[2], p[3]);
+      var d = Math.abs(lineAng(b2) - lineAng(b1));
+      var acute = d > 90 ? 180 - d : d;
+      return { acute: acute, obtuse: 180 - acute, l1: lineAng(b1), l2: lineAng(b2),
+               len1: dist(p[0], p[1]), len2: dist(p[2], p[3]), x: intersect(p[0], p[1], p[2], p[3]) };
+    }
+    var t = lineAng(ang(p[0], p[1]));
+    var fromV = t > 0 ? 90 - t : -90 - t;                     // 垂直からのずれ（符号付き）
+    return { tilt: t, fromV: fromV, len: dist(p[0], p[1]) };
+  }
+
+  /* ---------------- 表示（キャンバス） ---------------- */
+  function toScreen(p) { return { x: S.view.ox + p.x * S.view.s, y: S.view.oy + p.y * S.view.s }; }
+  function toImage(x, y) { return { x: (x - S.view.ox) / S.view.s, y: (y - S.view.oy) / S.view.s }; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function resize() {
+    if (!S.img) return;
+    var w = stage.clientWidth || 600;
+    var maxH = Math.max(360, Math.min(window.innerHeight * 0.72, 900));
+    var h = Math.round(Math.min(maxH, Math.max(360, w * S.ih / S.iw)));
+    var fit = S.cssW === 0;
+    S.cssW = w; S.cssH = h;
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px";
+    if (fit) fitView();
+    draw();
+  }
+  function fitView() {
+    var s = Math.min(S.cssW / S.iw, S.cssH / S.ih) * 0.96;
+    S.view = { s: s, ox: (S.cssW - S.iw * s) / 2, oy: (S.cssH - S.ih * s) / 2 };
+    draw();
+  }
+  function zoomAt(x, y, factor) {
+    var s = Math.min(64, Math.max(0.02, S.view.s * factor)), k = s / S.view.s;
+    S.view.ox = x - (x - S.view.ox) * k; S.view.oy = y - (y - S.view.oy) * k; S.view.s = s;
+    draw();
+  }
+
+  var raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; paint(); }); }
+  function paint() {
+    var dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = css("--surface-2"); ctx.fillRect(0, 0, S.cssW, S.cssH);
+    if (!S.img) return;
+    ctx.imageSmoothingEnabled = S.view.s < 4;                 // 拡大時はピクセルを正確に見せる
+    ctx.drawImage(S.img, S.view.ox, S.view.oy, S.iw * S.view.s, S.ih * S.view.s);
+    var acc = css("--accent"), p = S.pts.map(toScreen), m = measure();
+
+    function seg(a, b, dashed) {
+      ctx.setLineDash(dashed ? [6, 5] : []);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 4.5; line(a, b);   // 画像の明暗に関係なく見えるよう縁取り
+      ctx.strokeStyle = dashed ? "rgba(255,255,255,.9)" : acc; ctx.lineWidth = 2; line(a, b);
+      ctx.setLineDash([]);
+    }
+    function line(a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    function arc(c, a1, a2, r) {                                // a1→a2 の短い方の弧（数学の角度）
+      var d = norm180(a2 - a1), s = -a1 * Math.PI / 180, e = -(a1 + d) * Math.PI / 180;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, s, e, d > 0);
+      ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 4; ctx.stroke();
+      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.stroke();
+      return (a1 + d / 2) * Math.PI / 180;
+    }
+    function label(c, mid, r, text) {
+      var x = c.x + Math.cos(mid) * (r + 30), y = c.y - Math.sin(mid) * (r + 30);
+      ctx.font = "600 13px " + css("--font-mono");
+      var w = ctx.measureText(text).width + 12;
+      ctx.fillStyle = "rgba(16,17,20,.82)"; roundRect(x - w / 2, y - 11, w, 22, 6); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, x, y + 0.5);
+    }
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+    }
+    function extendThrough(a, b) {                              // a-b を画面の端まで延長した線分
+      var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, k = (S.cssW + S.cssH) * 2 / L;
+      return [{ x: a.x - dx * k, y: a.y - dy * k }, { x: a.x + dx * k, y: a.y + dy * k }];
+    }
+
+    if (S.mode === "three") {
+      if (p.length >= 2) seg(p[0], p[1]);
+      if (p.length >= 3) seg(p[0], p[2]);
+      if (m) {
+        var r = Math.max(18, Math.min(72, dist(p[0], p[1]) * 0.4, dist(p[0], p[2]) * 0.4));
+        var mid = arc(p[0], ang(S.pts[0], S.pts[1]), ang(S.pts[0], S.pts[2]), r);
+        label(p[0], mid, r, fmt(m.theta) + "°");
+      }
+    } else if (S.mode === "two") {
+      if (m && m.x) {
+        var X = toScreen(m.x), e1 = extendThrough(p[0], p[1]), e2 = extendThrough(p[2], p[3]);
+        seg(e1[0], e1[1], true); seg(e2[0], e2[1], true);
+        // 交点での弧は、各線の「点の側」の向きで描く（見やすい方）
+        var aa = ang(m.x, midpoint(S.pts[0], S.pts[1])), bb = ang(m.x, midpoint(S.pts[2], S.pts[3]));
+        if (Math.abs(norm180(bb - aa)) > 90) bb = norm360(bb + 180);
+        var mid2 = arc(X, aa, bb, 40);
+        label(X, mid2, 40, fmt(m.acute) + "°");
+      }
+      if (p.length >= 2) seg(p[0], p[1]);
+      if (p.length >= 4) seg(p[2], p[3]);
+    } else {
+      if (p.length >= 2) {
+        var ref = extendThrough(p[0], { x: p[0].x + 10, y: p[0].y });
+        seg(ref[0], ref[1], true);
+        seg(p[0], p[1]);
+        if (m) {
+          var a = ang(S.pts[0], S.pts[1]), base = Math.abs(norm180(a)) > 90 ? 180 : 0;
+          var mid3 = arc(p[0], base, a, 44);
+          label(p[0], mid3, 44, fmt(m.tilt) + "°");
+        }
+      }
+    }
+    // 点（ハンドル）
+    p.forEach(function (q, i) {
+      ctx.beginPath(); ctx.arc(q.x, q.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = i === S.sel ? acc : "#fff"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = i === S.sel ? "#fff" : acc; ctx.stroke();
+      ctx.beginPath(); ctx.arc(q.x, q.y, 1.4, 0, Math.PI * 2); ctx.fillStyle = i === S.sel ? "#fff" : acc; ctx.fill();
+    });
+    if (drag && drag.kind === "handle") loupe(S.pts[drag.i]);
+    $("zoomlbl").textContent = Math.round(S.view.s * 100) + "%";
+  }
+  function midpoint(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+  /* ドラッグ中の拡大鏡: 点の周囲を 8 倍で表示（点と反対側の上隅に置く） */
+  function loupe(pt) {
+    var R = 64, Z = 8, sp = toScreen(pt);
+    var cx = sp.x < S.cssW / 2 ? S.cssW - R - 12 : R + 12, cy = R + 12;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.closePath();
+    ctx.fillStyle = css("--surface"); ctx.fill(); ctx.clip();
+    ctx.imageSmoothingEnabled = false;
+    var src = R / Z;
+    ctx.drawImage(S.img, pt.x - src, pt.y - src, src * 2, src * 2, cx - R, cy - R, R * 2, R * 2);
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.lineWidth = 2; ctx.strokeStyle = css("--accent"); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.strokeRect(cx - 0.5, cy - 0.5, 1, 1);
+  }
+
+  /* ---------------- 操作（ポインター） ----------------
+     クリック（ほぼ動かさない押下）で点を追加、点の上からドラッグで移動、それ以外のドラッグで画像を移動。
+     2 本指はピンチで拡大縮小。ホイールでカーソル位置を中心に拡大縮小。 */
+  var drag = null, pointers = {}, pinch = null;
+  function local(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function hit(x, y) {
+    for (var i = S.pts.length - 1; i >= 0; i--) {
+      var q = toScreen(S.pts[i]); if (Math.hypot(q.x - x, q.y - y) <= 12) return i;
+    }
+    return -1;
+  }
+  cv.addEventListener("pointerdown", function (e) {
+    if (!S.img) return;
+    cv.setPointerCapture(e.pointerId);
+    pointers[e.pointerId] = local(e);
+    var ids = Object.keys(pointers);
+    if (ids.length === 2) {                                   // ピンチ開始
+      var a = pointers[ids[0]], b = pointers[ids[1]];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+      drag = null; return;
+    }
+    var l = pointers[e.pointerId], i = hit(l.x, l.y);
+    if (i >= 0 && e.button === 0) {
+      S.sel = i; drag = { kind: "handle", i: i, id: e.pointerId, start: l, grab: { dx: toScreen(S.pts[i]).x - l.x, dy: toScreen(S.pts[i]).y - l.y } };
+    } else {
+      drag = { kind: "pan", id: e.pointerId, start: l, ox: S.view.ox, oy: S.view.oy, moved: false, button: e.button };
+    }
+    cursor(); draw();
+  });
+  cv.addEventListener("pointermove", function (e) {
+    if (!S.img) return;
+    var l = local(e);
+    if (pointers[e.pointerId]) pointers[e.pointerId] = l;
+    if (pinch) {
+      var ids = Object.keys(pointers); if (ids.length < 2) return;
+      var a = pointers[ids[0]], b = pointers[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
+      var cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      S.view.ox += cx - pinch.cx; S.view.oy += cy - pinch.cy;
+      zoomAt(cx, cy, d / pinch.d);
+      pinch = { d: d, cx: cx, cy: cy }; return;
+    }
+    if (!drag || drag.id !== e.pointerId) { hoverCursor(l); return; }
+    if (drag.kind === "handle") {
+      var p = toImage(l.x + drag.grab.dx, l.y + drag.grab.dy);
+      if (e.shiftKey) p = snap(drag.i, p);
+      S.pts[drag.i] = clampPt(p);
+      update();
+    } else {
+      var dx = l.x - drag.start.x, dy = l.y - drag.start.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+      drag.moved = true;
+      S.view.ox = drag.ox + dx; S.view.oy = drag.oy + dy;
+      cursor(); draw();
+    }
+  });
+  function end(e) {
+    delete pointers[e.pointerId];
+    if (pinch) { if (Object.keys(pointers).length < 2) pinch = null; return; }
+    if (!drag || drag.id !== e.pointerId) return;
+    if (drag.kind === "pan" && !drag.moved && drag.button === 0 && e.type === "pointerup") addPoint(drag.start);
+    drag = null; cursor(); draw();
+  }
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+  cv.addEventListener("wheel", function (e) {
+    if (!S.img) return;
+    e.preventDefault();
+    var l = local(e);
+    zoomAt(l.x, l.y, Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)));
+  }, { passive: false });
+
+  function addPoint(l) {
+    if (S.pts.length >= NEED[S.mode]) return;              // 揃った後のクリックは無視（点はドラッグで直す）
+    S.pts.push(clampPt(toImage(l.x, l.y)));
+    S.sel = S.pts.length - 1;
+    update();
+  }
+  function clampPt(p) {                                     // 画像の外にも少しだけ置ける（辺の端を測るため）
+    var m = Math.max(S.iw, S.ih) * 0.5;
+    return { x: Math.min(S.iw + m, Math.max(-m, p.x)), y: Math.min(S.ih + m, Math.max(-m, p.y)) };
+  }
+  /* Shift: ドラッグ中の点を、相手の点から見て 15° 刻みにそろえる */
+  function snap(i, p) {
+    var anchor = S.mode === "three" ? (i === 0 ? null : S.pts[0])
+               : S.mode === "two" ? S.pts[i ^ 1] : S.pts[i ^ 1];
+    if (!anchor) return p;
+    var a = Math.round(ang(anchor, p) / 15) * 15 * Math.PI / 180, r = dist(anchor, p);
+    return { x: anchor.x + Math.cos(a) * r, y: anchor.y - Math.sin(a) * r };
+  }
+  function cursor() {
+    cv.classList.toggle("is-grabbing", !!drag && drag.kind === "pan" && drag.moved);
+    cv.classList.toggle("is-handle", !!drag && drag.kind === "handle");
+  }
+  function hoverCursor(l) {
+    var onHandle = hit(l.x, l.y) >= 0, full = S.pts.length >= NEED[S.mode];
+    cv.classList.toggle("is-handle", onHandle);
+    cv.classList.toggle("is-grab", !onHandle && full);
+  }
+
+  /* ---------------- キーボード ----------------
+     [ / ] で点を選択、矢印で 1px（Shift で 10px、Alt で 0.1px）動かす。+ / − で拡大縮小、0 で全体表示。 */
+  cv.addEventListener("keydown", function (e) {
+    if (!S.img) return;
+    var k = e.key, n = S.pts.length;
+    if ((k === "]" || k === "[") && n) {
+      S.sel = S.sel < 0 ? 0 : (S.sel + (k === "]" ? 1 : n - 1)) % n; e.preventDefault(); update(); return;
+    }
+    if (k === "+" || k === "=") { zoomAt(S.cssW / 2, S.cssH / 2, 1.25); e.preventDefault(); return; }
+    if (k === "-" || k === "_") { zoomAt(S.cssW / 2, S.cssH / 2, 0.8); e.preventDefault(); return; }
+    if (k === "0") { fitView(); e.preventDefault(); return; }
+    var dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
+    if (dir && S.sel >= 0 && S.sel < n) {
+      var st = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
+      S.pts[S.sel] = clampPt({ x: S.pts[S.sel].x + dir[0] * st, y: S.pts[S.sel].y + dir[1] * st });
+      e.preventDefault(); update();
+    }
+  });
+
+  /* ---------------- 出力 ---------------- */
+  function fmt(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+  function row(label, value, unit, hero) {
+    return '<div class="rrow' + (hero ? " rrow--hero" : "") + '"><span class="rrow__label">' + esc(label) +
+      '</span><span class="rrow__value" data-copy="' + value + '">' + value +
+      (unit ? '<span class="u">' + unit + "</span>" : "") + "</span></div>";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  var T = function (k) { return Shell.t(k); };
+
+  function update() {
+    var m = measure(), need = NEED[S.mode], n = S.pts.length, rows = "";
+    $("ro-mode").textContent = T(S.mode === "three" ? "t.m3" : S.mode === "two" ? "t.m2" : "t.mt");
+    if (!m) {
+      rows = '<div class="rrow"><span class="rrow__label">' + esc(S.img ? T("t.placeMore").replace("{n}", need - n) : T("t.noImage")) + "</span><span></span></div>";
+    } else if (S.mode === "three") {
+      rows = row(T("t.angle"), fmt(m.theta), "°", true) + row(T("t.supp"), fmt(m.sup), "°") + row(T("t.reflex"), fmt(m.reflex), "°") +
+        row(T("t.edge1"), fmt(m.l1), "°") + row(T("t.edge2"), fmt(m.l2), "°") +
+        row(T("t.len1"), fmt(m.len1), "px") + row(T("t.len2"), fmt(m.len2), "px");
+    } else if (S.mode === "two") {
+      rows = row(T("t.angle"), fmt(m.acute), "°", true) + row(T("t.supp"), fmt(m.obtuse), "°") +
+        row(T("t.line1"), fmt(m.l1), "°") + row(T("t.line2"), fmt(m.l2), "°") +
+        (m.x ? row(T("t.cross"), fmt(m.x.x) + ", " + fmt(m.x.y), "px") : row(T("t.cross"), T("t.parallel"), ""));
+    } else {
+      rows = row(T("t.tilt"), fmt(m.tilt), "°", true) + row(T("t.fromV"), fmt(m.fromV), "°") +
+        row(T("t.toLevel"), fmt(-m.tilt), "°") + row(T("t.toPlumb"), fmt(-m.fromV), "°") + row(T("t.len"), fmt(m.len), "px");
+    }
+    $("ro-rows").innerHTML = rows;
+
+    // 手順の案内
+    var steps = { three: ["t.s3a", "t.s3b", "t.s3c"], two: ["t.s2a", "t.s2b", "t.s2c", "t.s2d"], tilt: ["t.sta", "t.stb"] }[S.mode];
+    $("step").innerHTML = !S.img ? "" : n < need
+      ? "<b>" + (n + 1) + " / " + need + "</b>　" + esc(T(steps[n]))
+      : esc(T("t.done"));
+    var badges = [];
+    if (m && S.mode === "tilt" && m.tilt !== 0) badges.push('<span class="badge badge--muted"><span class="d" style="background:currentColor"></span>' +
+      esc(T(m.tilt > 0 ? "t.rotCW" : "t.rotCCW").replace("{v}", fmt(Math.abs(m.tilt)))) + "</span>");
+    if (m && S.mode === "two" && !m.x) badges.push('<span class="badge badge--muted"><span class="d" style="background:currentColor"></span>' + esc(T("t.parallel")) + "</span>");
+    $("badges").innerHTML = badges.join("");
+    $("hint-keys").innerHTML = T("t.keys");
+    draw();
+  }
+
+  /* ---------------- モード ---------------- */
+  $("modes").addEventListener("click", function (e) {
+    var b = e.target.closest(".mode"); if (!b) return;
+    setMode(b.getAttribute("data-mode"));
+  });
+  $("modes").addEventListener("keydown", function (e) {
+    var order = ["three", "two", "tilt"], i = order.indexOf(S.mode);
+    var d = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : (e.key === "ArrowUp" || e.key === "ArrowLeft") ? -1 : 0;
+    if (!d) return;
+    e.preventDefault(); setMode(order[(i + d + 3) % 3]);
+    document.querySelector('.mode[data-mode="' + S.mode + '"]').focus();
+  });
+  function setMode(m) {
+    if (!NEED[m] || m === S.mode) return;
+    // 共通する点は引き継ぐ（3点→傾き なら頂点と辺1、など）
+    S.pts = S.pts.slice(0, NEED[m]); S.sel = Math.min(S.sel, S.pts.length - 1);
+    S.mode = m;
+    try { localStorage.setItem("vernier.protractor.mode", m); } catch (e) {}
+    document.querySelectorAll(".mode").forEach(function (b) {
+      var on = b.getAttribute("data-mode") === m;
+      b.setAttribute("aria-checked", String(on)); b.tabIndex = on ? 0 : -1;
+    });
+    update();
+  }
+
+  /* ---------------- 画像の読み込み（ドロップ／貼り付け／選択） ---------------- */
+  function loadFile(file) {
+    if (!file || !/^image\//.test(file.type)) { showError(T("t.notImage")); return; }
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () {
+      S.img = img; S.iw = img.naturalWidth; S.ih = img.naturalHeight; S.name = file.name || "clipboard";
+      S.pts = []; S.sel = -1; S.cssW = 0;
+      $("dropzone").hidden = true; $("stagewrap").hidden = false;
+      resize(); update(); cv.focus({ preventScroll: true });
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); showError(T("t.loadFail")); };
+    img.src = url;
+  }
+  function showError(msg) { $("badges").innerHTML = '<span class="badge badge--neg"><span class="d" style="background:currentColor"></span>' + esc(msg) + "</span>"; }
+  var input = $("file-input"), dz = $("dropzone"), depth = 0;
+  $("choose").addEventListener("click", function () { input.click(); });
+  $("btn-change").addEventListener("click", function () { input.click(); });
+  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
+  dz.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; dz.classList.add("is-over"); });
+  dz.addEventListener("dragover", function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; });
+  dz.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; dz.classList.remove("is-over"); } });
+  dz.addEventListener("drop", function (e) { e.preventDefault(); depth = 0; dz.classList.remove("is-over"); loadFile(e.dataTransfer.files[0]); });
+  // 計測中の画像の上にドロップしても差し替えられるようにする
+  stage.addEventListener("dragover", function (e) { e.preventDefault(); });
+  stage.addEventListener("drop", function (e) { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+  document.addEventListener("paste", function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === "file" && /^image\//.test(items[i].type)) { loadFile(items[i].getAsFile()); e.preventDefault(); return; }
+    }
+  });
+
+  $("btn-fit").addEventListener("click", fitView);
+  $("btn-100").addEventListener("click", function () { zoomAt(S.cssW / 2, S.cssH / 2, 1 / S.view.s); });
+  $("btn-reset").addEventListener("click", function () { S.pts = []; S.sel = -1; update(); cv.focus({ preventScroll: true }); });
+  if (window.ResizeObserver) new ResizeObserver(function () { if (S.img) { var keep = S.cssW; resize(); if (!keep) fitView(); } }).observe(stage);
+  else window.addEventListener("resize", resize);
+
+  Shell.init({
+    id: "protractor",
+    strings: {
+      en: {
+        "t.title": "Protractor",
+        "t.desc": "Load an image and click points to measure angles — between two edges, between two separate lines, or a tilt from horizontal.",
+        "t.dropTitle": "Drop an image here", "t.dropHint": "or paste from the clipboard, or choose a file", "t.choose": "Choose image",
+        "t.fit": "Fit", "t.reset": "Clear points", "t.change": "Change image",
+        "t.mode": "Measure",
+        "t.m3": "Angle at a corner", "t.m3d": "3 points: vertex, then one point on each edge",
+        "t.m2": "Angle between two lines", "t.m2d": "4 points: two per line. The lines don't need to meet",
+        "t.mt": "Tilt from horizontal", "t.mtd": "2 points along an edge that should be level or plumb",
+        "t.output": "Output", "t.noImage": "Load an image to start", "t.placeMore": "Place {n} more point(s) on the image",
+        "t.angle": "Angle", "t.supp": "Supplement (180° − angle)", "t.reflex": "Reflex (360° − angle)",
+        "t.edge1": "Edge 1 from horizontal", "t.edge2": "Edge 2 from horizontal",
+        "t.line1": "Line 1 from horizontal", "t.line2": "Line 2 from horizontal",
+        "t.len1": "Edge 1 length", "t.len2": "Edge 2 length", "t.len": "Length",
+        "t.cross": "Intersection (x, y)", "t.parallel": "Parallel — no intersection",
+        "t.tilt": "Tilt from horizontal", "t.fromV": "Tilt from vertical",
+        "t.toLevel": "Rotate to level (counter-clockwise +)", "t.toPlumb": "Rotate to plumb (counter-clockwise +)",
+        "t.rotCW": "Rotate {v}° clockwise to level", "t.rotCCW": "Rotate {v}° counter-clockwise to level",
+        "t.s3a": "Click the vertex (where the two edges meet)", "t.s3b": "Click a point on the first edge", "t.s3c": "Click a point on the second edge",
+        "t.s2a": "Click the start of line 1", "t.s2b": "Click the end of line 1", "t.s2c": "Click the start of line 2", "t.s2d": "Click the end of line 2",
+        "t.sta": "Click one end of the edge", "t.stb": "Click the other end of the edge",
+        "t.done": "Drag points to fine-tune. Drag elsewhere to pan, scroll to zoom.",
+        "t.keys": "Scroll or pinch to zoom · drag to pan · <kbd>Shift</kbd>+drag snaps to 15° · <kbd>[</kbd> <kbd>]</kbd> select a point, arrow keys nudge it 1 px (<kbd>Shift</kbd> 10 px, <kbd>Alt</kbd> 0.1 px) · <kbd>0</kbd> fit. Angles are counter-clockwise positive; nothing leaves your browser.",
+        "t.notImage": "That file is not an image.", "t.loadFail": "Could not read the image."
+      },
+      ja: {
+        "t.title": "分度器",
+        "t.desc": "画像を読み込み、点をクリックして角度を測ります。2辺がなす角、離れた2本の線の角度、水平からの傾きに対応。",
+        "t.dropTitle": "ここに画像をドロップ", "t.dropHint": "クリップボードから貼り付け、またはファイルを選択", "t.choose": "画像を選択",
+        "t.fit": "全体表示", "t.reset": "点を消す", "t.change": "画像を変更",
+        "t.mode": "測り方",
+        "t.m3": "角の角度", "t.m3d": "3点: 頂点、それぞれの辺上の1点",
+        "t.m2": "2本の線の角度", "t.m2d": "4点: 線ごとに2点。線同士が交わっていなくても可",
+        "t.mt": "水平からの傾き", "t.mtd": "2点: 水平・垂直であるべき辺に沿って",
+        "t.output": "出力", "t.noImage": "画像を読み込んでください", "t.placeMore": "画像上にあと {n} 点置いてください",
+        "t.angle": "角度", "t.supp": "補角（180° − 角度）", "t.reflex": "優角（360° − 角度）",
+        "t.edge1": "辺1の水平からの角度", "t.edge2": "辺2の水平からの角度",
+        "t.line1": "線1の水平からの角度", "t.line2": "線2の水平からの角度",
+        "t.len1": "辺1の長さ", "t.len2": "辺2の長さ", "t.len": "長さ",
+        "t.cross": "交点（x, y）", "t.parallel": "平行です（交点なし）",
+        "t.tilt": "水平からの傾き", "t.fromV": "垂直からの傾き",
+        "t.toLevel": "水平にする回転量（反時計回りが＋）", "t.toPlumb": "垂直にする回転量（反時計回りが＋）",
+        "t.rotCW": "時計回りに {v}° 回すと水平になります", "t.rotCCW": "反時計回りに {v}° 回すと水平になります",
+        "t.s3a": "頂点（2辺が交わる点）をクリック", "t.s3b": "1本目の辺上の点をクリック", "t.s3c": "2本目の辺上の点をクリック",
+        "t.s2a": "線1の始点をクリック", "t.s2b": "線1の終点をクリック", "t.s2c": "線2の始点をクリック", "t.s2d": "線2の終点をクリック",
+        "t.sta": "辺の一方の端をクリック", "t.stb": "辺のもう一方の端をクリック",
+        "t.done": "点をドラッグして微調整できます。点以外をドラッグで移動、スクロールで拡大縮小。",
+        "t.keys": "スクロール／ピンチで拡大縮小・ドラッグで移動・<kbd>Shift</kbd>+ドラッグで15°刻み・<kbd>[</kbd> <kbd>]</kbd> で点を選び、矢印キーで1px移動（<kbd>Shift</kbd> 10px、<kbd>Alt</kbd> 0.1px）・<kbd>0</kbd> で全体表示。角度は反時計回りが＋です。画像はブラウザの外に送信されません。",
+        "t.notImage": "画像ファイルではありません。", "t.loadFail": "画像を読み込めませんでした。"
+      }
+    },
+    onSettingsChange: function () { setModeButtons(); update(); }
+  });
+  function setModeButtons() {
+    document.querySelectorAll(".mode").forEach(function (b) {
+      var on = b.getAttribute("data-mode") === S.mode;
+      b.setAttribute("aria-checked", String(on)); b.tabIndex = on ? 0 : -1;
+    });
+  }
+  setModeButtons(); update();
+})();
+</script>
+</body>
+</html>
