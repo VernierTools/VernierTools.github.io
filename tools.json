@@ -1328,16 +1328,24 @@
         "ja": "色相環比較"
       },
       "description": {
-        "en": "Compare the RYB (traditional) and RGB/HSV color wheels side by side.",
-        "ja": "RYB（伝統的）とRGB/HSVの色相環を並べて比較。"
+        "en": "Compare seven color wheels — RGB/HSV, CMY, RYB, OKLCH, CIELAB, opponent (NCS-style) and PCCS — and how complements and harmonies differ on each.",
+        "ja": "RGB/HSV・CMY・RYB・OKLCH・CIELAB・反対色（NCS風）・PCCSの7つの色相環を並べ、補色や配色の違いを比較。"
       },
       "keywords": [
+        "cmy",
         "color wheel",
-        "ryb",
-        "hsv",
         "complementary",
+        "harmony",
+        "hsv",
+        "lab",
+        "ncs",
+        "oklch",
+        "pccs",
+        "ryb",
+        "トライアド",
         "色相環",
-        "補色"
+        "補色",
+        "配色"
       ],
       "added": "2026-08-05"
     },

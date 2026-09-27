@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color wheel comparison — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .pick{ display:flex; gap:var(--s3); align-items:center; }
+  .pick input[type=color]{ width:52px; height:40px; padding:0; border:1px solid var(--border-strong); border-radius:var(--r); background:none; cursor:pointer; }
+  .pick .input{ font-family:var(--font-mono); text-transform:uppercase; max-width:130px; }
+  .harm{ display:flex; flex-wrap:wrap; gap:6px; }
+  .harm button{ font:inherit; font-size:12.5px; padding:6px 12px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .harm button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* ---- 色相環 ---- */
+  .wheels{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:var(--s4); }
+  .wh{ text-align:center; }
+  .wh__ring{ position:relative; width:100%; aspect-ratio:1; max-width:170px; margin:0 auto; cursor:crosshair; }
+  .wh__ring .grad{ position:absolute; inset:0; border-radius:50%;
+    -webkit-mask:radial-gradient(circle, transparent 54%, #000 55%); mask:radial-gradient(circle, transparent 54%, #000 55%); }
+  .wh__ring svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+  .wh__name{ font-size:12.5px; font-weight:600; margin-top:var(--s2); }
+  .wh__pos{ font-size:11px; color:var(--text-3); font-family:var(--font-mono); }
+  .wh__approx{ font-size:10px; color:var(--text-3); }
+
+  /* ---- 配色の結果 ---- */
+  .res{ padding:var(--s3) var(--s4); }
+  .res + .res{ border-top:1px solid var(--border); }
+  .res__head{ display:flex; justify-content:space-between; align-items:baseline; gap:var(--s2); }
+  .res__name{ font-size:13px; font-weight:600; }
+  .res__pos{ font-size:11px; font-family:var(--font-mono); color:var(--text-3); }
+  .sw{ display:flex; gap:6px; margin-top:var(--s2); }
+  .sw button{ flex:1; min-width:0; height:40px; border:1px solid var(--border); border-radius:var(--r-sm); cursor:pointer;
+    font-family:var(--font-mono); font-size:10.5px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px; }
+  .sw button.is-base{ outline:2px solid var(--text-3); outline-offset:1px; }
+
+  /* ---- 色相の対応帯 ---- */
+  .strips{ display:grid; grid-template-columns:auto 1fr; gap:6px var(--s3); align-items:center; }
+  .strips .lbl{ font-size:11.5px; color:var(--text-2); white-space:nowrap; }
+  .strip{ position:relative; height:18px; border-radius:4px; }
+  .strip i{ position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; background:var(--text); border-radius:1px; }
+  .strip b{ position:absolute; top:100%; font-size:9px; font-weight:500; color:var(--text-3); transform:translateX(-50%); margin-top:3px; font-family:var(--font-mono); }
+  .strips .gap{ height:10px; }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Color wheel comparison</h1>
+    <p data-i18n="t.desc">Pick a color and see where it sits on seven color wheels — and how its complement and other harmonies change from wheel to wheel.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 色の指定と色相環 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" for="in-hex" data-i18n="t.color">Color</label>
+          <div class="pick">
+            <input type="color" id="in-color" value="#e8322b" aria-label="Color">
+            <input class="input" id="in-hex" value="#E8322B" spellcheck="false" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.harmony">Harmony</label>
+          <div class="harm" id="harm" role="group"></div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="label" data-i18n="t.mode">Harmony colors</label>
+          <div class="harm" id="mode" role="group">
+            <button type="button" data-m="keep" aria-pressed="true" data-i18n="t.mKeep">Keep lightness &amp; saturation</button>
+            <button type="button" data-m="vivid" aria-pressed="false" data-i18n="t.mVivid">Most vivid</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.wheels">Wheels</div>
+        <div class="wheels" id="wheels"></div>
+        <div class="hint" data-i18n="t.wheelHint">Click a wheel to pick the color at that point. Dots show the harmony on each wheel; the ring marks your color.</div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.strips">How each wheel spaces the hues</div>
+        <div class="strips" id="strips"></div>
+        <div class="hint" data-i18n="t.stripHint">Each bar runs once around its wheel (0° → 360°). Ticks mark where pure red, yellow, green, cyan, blue and magenta land — RYB, for example, gives yellow-to-red far more room than RGB does.</div>
+      </div>
+    </div>
+
+    <!-- 右: 配色の結果 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" id="ro-harm"></span><span class="eyebrow" data-i18n="t.clickCopy">Click to copy HEX</span></div>
+        <div id="results"></div>
+      </div>
+      <div class="badges" id="badges"></div>
+      <div class="hint" data-i18n="t.notes">HSV, CMY, OKLCH and CIELAB follow their definitions exactly. RYB uses a common artist's mapping; the opponent (NCS-style) and PCCS wheels are screen approximations of systems defined by physical color samples. Harmonies keep your color's saturation/lightness and only turn the hue.</div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* =====================================================================
+     色の計算（sRGB・HSV・CIELAB(D65)・OKLab）
+     ===================================================================== */
+  function toLin(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function toSrgb(v) { var c = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return c * 255; }
+  function clamp255(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+  function hex(rgb) { return "#" + rgb.map(function (v) { return ("0" + clamp255(v).toString(16)).slice(-2); }).join("").toUpperCase(); }
+  function parseHex(s) {
+    s = String(s).trim().replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(s)) s = s.split("").map(function (c) { return c + c; }).join("");
+    if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+    return [0, 2, 4].map(function (i) { return parseInt(s.substr(i, 2), 16); });
+  }
+  function mod(a, n) { return ((a % n) + n) % n; }
+
+  function rgb2hsv(c) {
+    var r = c[0] / 255, g = c[1] / 255, b = c[2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+    if (d) h = mx === r ? mod((g - b) / d, 6) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, mx ? d / mx : 0, mx];
+  }
+  function hsv2rgb(h, s, v) {
+    h = mod(h, 360) / 60;
+    var c = v * s, x = c * (1 - Math.abs(mod(h, 2) - 1)), m = v - c, r, g, b;
+    var i = Math.floor(h);
+    r = [c, x, 0, 0, x, c][i]; g = [x, c, c, x, 0, 0][i]; b = [0, 0, x, c, c, x][i];
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+  }
+  // CIELAB（D65 白色点）
+  var WN = [0.95047, 1, 1.08883];
+  function rgb2lab(c) {
+    var r = toLin(c[0]), g = toLin(c[1]), b = toLin(c[2]);
+    var X = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b, Y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b,
+        Z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b;
+    var f = function (t) { return t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116; };
+    var fx = f(X / WN[0]), fy = f(Y / WN[1]), fz = f(Z / WN[2]);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function lab2lin(L, a, b) {
+    var fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
+    var inv = function (t) { var t3 = t * t * t; return t3 > 216 / 24389 ? t3 : (116 * t - 16) / (24389 / 27); };
+    var X = inv(fx) * WN[0], Y = inv(fy) * WN[1], Z = inv(fz) * WN[2];
+    return [3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z, -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z,
+            0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z];
+  }
+  // OKLab（Björn Ottosson）
+  function rgb2oklab(c) {
+    var r = toLin(c[0]), g = toLin(c[1]), b = toLin(c[2]);
+    var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+  }
+  function oklab2lin(L, a, b) {
+    var l = L + 0.3963377774 * a + 0.2158037573 * b, m = L - 0.1055613458 * a - 0.0638541728 * b, s = L - 0.0894841775 * a - 1.2914855480 * b;
+    l = l * l * l; m = m * m * m; s = s * s * s;
+    return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+  }
+  function toPolar(lab) { return [lab[0], Math.hypot(lab[1], lab[2]), mod(Math.atan2(lab[2], lab[1]) * 180 / Math.PI, 360)]; }
+  function inGamut(lin) { return lin.every(function (v) { return v >= -1e-5 && v <= 1 + 1e-5; }); }
+  /* L・C・h から sRGB。表示できないときは彩度（C）だけを下げて収める */
+  function polarToRgb(space, L, C, h) {
+    var conv = space === "ok" ? oklab2lin : lab2lin, hr = h * Math.PI / 180;
+    function at(c) { return conv(L, c * Math.cos(hr), c * Math.sin(hr)); }
+    var lin = at(C);
+    if (!inGamut(lin)) {
+      var lo = 0, hi = C;
+      for (var i = 0; i < 24; i++) { var mid = (lo + hi) / 2; if (inGamut(at(mid))) lo = mid; else hi = mid; }
+      lin = at(lo);
+    }
+    return lin.map(function (v) { return toSrgb(Math.max(0, Math.min(1, v))); });
+  }
+
+  /* その色相で最も鮮やかな色（明度を振って、表示できる最大の彩度が一番大きいところ） */
+  var cuspCache = {};
+  function cusp(space, h) {
+    var key = space + Math.round(h * 10);
+    if (cuspCache[key]) return cuspCache[key];
+    var conv = space === "ok" ? oklab2lin : lab2lin, hr = h * Math.PI / 180, lo = space === "ok" ? 0.3 : 30, hi = space === "ok" ? 0.97 : 97;
+    function maxC(L) {
+      var a = 0, b = space === "ok" ? 0.5 : 200;
+      for (var i = 0; i < 20; i++) { var m = (a + b) / 2; if (inGamut(conv(L, m * Math.cos(hr), m * Math.sin(hr)))) a = m; else b = m; }
+      return a;
+    }
+    var best = [lo, 0];
+    for (var k = 0; k <= 40; k++) { var L = lo + (hi - lo) * k / 40, c = maxC(L); if (c > best[1]) best = [L, c]; }
+    return (cuspCache[key] = polarToRgb(space, best[0], best[1], h));
+  }
+
+  /* =====================================================================
+     折れ線の対応表（色相環の角度 ⇔ 基準の色相）
+     ===================================================================== */
+  function interp(table, x, fromCol, toCol, period) {   // table: [[a,b],…]（fromCol が単調増加）
+    x = mod(x - table[0][fromCol], period) + table[0][fromCol];
+    for (var i = 0; i < table.length - 1; i++) {
+      var p = table[i], q = table[i + 1];
+      if (x >= p[fromCol] && x <= q[fromCol]) {
+        var t = (x - p[fromCol]) / (q[fromCol] - p[fromCol] || 1);
+        return p[toCol] + t * (q[toCol] - p[toCol]);
+      }
+    }
+    return table[table.length - 1][toCol];
+  }
+  // RYB（絵の具）: [RYB の角度, HSV の色相]。赤0・橙60・黄120・緑180・青240・紫300
+  var RYB = [[0, 0], [60, 35], [120, 60], [180, 120], [240, 225], [300, 275], [360, 360]];
+  // 反対色（NCS 風）: [NCS の角度, CIELAB の色相]。黄0→赤90→青180→緑270。純粋色の位置は近似値
+  var U = { R: 20.14, Y: 90, G: 164.25, B: 237.53 };
+  var NCS = [[0, U.Y], [90, U.R], [180, U.B - 360], [270, U.G - 360], [360, U.Y - 360]];
+  // PCCS 24 色相（ビビッドトーンの代表色。近似）
+  var PCCS_HEX = ["#D40045", "#EE0026", "#FD1A1C", "#FE4118", "#FF590B", "#FF7F00", "#FFCC00", "#FFE600", "#CCE700", "#99CF15",
+    "#66B82B", "#33A23D", "#008F62", "#008678", "#007A87", "#055D87", "#093F86", "#0F218B", "#1D1A88", "#281285",
+    "#340C81", "#56007D", "#770071", "#AF0065"];
+  var PCCS_SYM = ["pR", "R", "yR", "rO", "O", "yO", "rY", "Y", "gY", "YG", "yG", "G", "bG", "BG", "BG", "gB", "B", "B", "pB", "V", "bP", "P", "rP", "RP"];
+  // [PCCS の角度, CIELAB の色相（なめらかにつながるよう展開）]
+  var PCCS = (function () {
+    var t = [], prev = null;
+    PCCS_HEX.forEach(function (hx, i) {
+      var h = toPolar(rgb2lab(parseHex(hx)))[2];
+      if (prev !== null) while (h > prev + 180) h -= 360;
+      while (prev !== null && h < prev - 180) h += 360;
+      t.push([i * 15, h]); prev = h;
+    });
+    t.push([360, t[0][1] + (t[1][1] < t[0][1] ? -360 : 360)]);
+    return t;
+  })();
+  function invTable(table) { var t = table.map(function (r) { return [r[1], r[0]]; }); if (t[0][0] > t[t.length - 1][0]) t.reverse(); return t; }
+  var RYB_INV = invTable(RYB), NCS_INV = invTable(NCS), PCCS_INV = invTable(PCCS);
+
+  /* =====================================================================
+     色相環の定義
+       pos(rgb)            … その色が色相環のどの角度にあるか
+       color(angle, base)  … 角度 angle の色。base（選んだ色）の彩度・明度を保つ
+       ring(angle)         … 色相環そのものの描画色
+     ===================================================================== */
+  function labRing(h) { return polarToRgb("lab", 62, 58, h); }
+  // 配色の色の作り方: keep = 選んだ色の明度・彩度を保つ／vivid = その色相で最も鮮やかな色
+  function vivid() { return S.mode === "vivid"; }
+  function labColor(c, h) {
+    if (vivid(c)) return cusp("lab", mod(h, 360));
+    var p = toPolar(rgb2lab(c)); return polarToRgb("lab", p[0], p[1], h);
+  }
+  var WHEELS = [
+    { id: "hsv", name: "RGB / HSV", pos: function (c) { return rgb2hsv(c)[0]; },
+      color: function (a, c) { var v = vivid(c) ? [0, 1, 1] : rgb2hsv(c); return hsv2rgb(a, v[1], v[2]); },
+      ring: function (a) { return hsv2rgb(a, 1, 1); } },
+    { id: "cmy", name: "CMY", offset: 180,        // シアンを上に（色の並びは RGB と同じ）
+      pos: function (c) { return mod(rgb2hsv(c)[0] - 180, 360); },
+      color: function (a, c) { var v = vivid(c) ? [0, 1, 1] : rgb2hsv(c); return hsv2rgb(a + 180, v[1], v[2]); },
+      ring: function (a) { return hsv2rgb(a + 180, 1, 1); } },
+    { id: "ryb", name: "RYB", approx: true,
+      pos: function (c) { return interp(RYB_INV, rgb2hsv(c)[0], 0, 1, 360); },
+      color: function (a, c) { var v = vivid(c) ? [0, 1, 1] : rgb2hsv(c); return hsv2rgb(interp(RYB, mod(a, 360), 0, 1, 360), v[1], v[2]); },
+      ring: function (a) { return hsv2rgb(interp(RYB, a, 0, 1, 360), 1, 1); } },
+    { id: "oklch", name: "OKLCH",
+      pos: function (c) { return toPolar(rgb2oklab(c))[2]; },
+      color: function (a, c) { if (vivid(c)) return cusp("ok", mod(a, 360)); var p = toPolar(rgb2oklab(c)); return polarToRgb("ok", p[0], p[1], a); },
+      ring: function (a) { return polarToRgb("ok", 0.72, 0.13, a); } },
+    { id: "lab", name: "CIELAB LCh",
+      pos: function (c) { return toPolar(rgb2lab(c))[2]; },
+      color: function (a, c) { return labColor(c, a); },
+      ring: labRing },
+    { id: "ncs", approx: true,
+      pos: function (c) { return mod(interp(NCS_INV, toPolar(rgb2lab(c))[2], 0, 1, 360), 360); },
+      color: function (a, c) { return labColor(c, interp(NCS, mod(a, 360), 0, 1, 360)); },
+      ring: function (a) { return labRing(interp(NCS, a, 0, 1, 360)); } },
+    { id: "pccs", approx: true, steps: 24,
+      pos: function (c) { return mod(interp(PCCS_INV, toPolar(rgb2lab(c))[2], 0, 1, 360), 360); },
+      color: function (a, c) { return labColor(c, interp(PCCS, mod(a, 360), 0, 1, 360)); },
+      ring: function (a) { return parseHex(PCCS_HEX[Math.floor(mod(a + 7.5, 360) / 15) % 24]); } }
+  ];
+  var HARM = [
+    { id: "comp", offs: [180] }, { id: "split", offs: [150, 210] }, { id: "triad", offs: [120, 240] },
+    { id: "square", offs: [90, 180, 270] }, { id: "analog", offs: [-30, 30] }
+  ];
+
+  /* =====================================================================
+     状態・描画
+     ===================================================================== */
+  var S = { rgb: [232, 50, 43], harm: "comp", mode: "keep" };
+  function readHash() {
+    var q = {};
+    location.hash.replace(/^#/, "").split("&").forEach(function (kv) { var m = kv.split("="); if (m[0]) q[m[0]] = decodeURIComponent(m[1] || ""); });
+    var c = parseHex(q.c || ""); if (c) S.rgb = c;
+    if (HARM.some(function (h) { return h.id === q.h; })) S.harm = q.h;
+    if (q.m === "vivid") S.mode = "vivid";
+  }
+  function writeHash() { history.replaceState(null, "", "#c=" + hex(S.rgb).slice(1) + "&h=" + S.harm + "&m=" + S.mode); }
+  function wname(w) { return w.name || Shell.t("t.w." + w.id); }
+  function posText(w, a) {
+    if (w.id === "pccs") { var n = Math.round(mod(a, 360) / 15) % 24; return (n + 1) + ":" + PCCS_SYM[n]; }
+    return a.toFixed(1) + "°";
+  }
+  function isGray() { var v = rgb2hsv(S.rgb); return v[1] < 0.02 || v[2] < 0.02; }
+
+  function conic(w) {
+    if (w.steps) {                                          // 区切りのある色相環（PCCS）: 各区画を中心 ±7.5° で塗る
+      var seg = 360 / w.steps, parts = [];
+      for (var i = 0; i < w.steps; i++) parts.push(hex(w.ring(i * seg)) + " " + (i * seg) + "deg " + ((i + 1) * seg) + "deg");
+      return "conic-gradient(from " + (-seg / 2) + "deg, " + parts.join(", ") + ")";
+    }
+    var stops = [];
+    for (var j = 0; j <= 72; j++) stops.push(hex(w.ring(j * 5)) + " " + (j * 5) + "deg");
+    return "conic-gradient(from 0deg, " + stops.join(", ") + ")";
+  }
+  function buildWheels() {
+    $("wheels").innerHTML = WHEELS.map(function (w) {
+      return '<div class="wh"><div class="wh__ring" data-w="' + w.id + '" role="button" tabindex="0" aria-label="' + wname(w) + '">' +
+        '<div class="grad" style="background:' + conic(w) + '"></div><svg viewBox="-100 -100 200 200"></svg></div>' +
+        '<div class="wh__name">' + wname(w) + '</div><div class="wh__pos" id="pos-' + w.id + '"></div>' +
+        (w.approx ? '<div class="wh__approx" data-i18n="t.approx">' + Shell.t("t.approx") + "</div>" : "") + "</div>";
+    }).join("");
+    buildStrips();
+  }
+  function buildStrips() {
+    var keys = [["R", [255, 0, 0]], ["Y", [255, 255, 0]], ["G", [0, 255, 0]], ["C", [0, 255, 255]], ["B", [0, 0, 255]], ["M", [255, 0, 255]]];
+    $("strips").innerHTML = WHEELS.map(function (w) {
+      var stops = [];
+      for (var i = 0; i <= 72; i++) stops.push(hex(w.ring(i * 5)) + " " + (i / 72 * 100) + "%");
+      var ticks = keys.map(function (k) {
+        var p = mod(w.pos(k[1]), 360) / 360 * 100;
+        return '<i style="left:' + p + '%"></i><b style="left:' + p + '%">' + k[0] + "</b>";
+      }).join("");
+      return '<span class="lbl">' + wname(w) + '</span><div class="strip" style="background:linear-gradient(90deg,' + stops.join(",") + ')">' + ticks +
+        '</div><span class="gap"></span><span class="gap"></span>';
+    }).join("");
+  }
+  function marker(a, r, fill, big) {
+    var rad = (a - 90) * Math.PI / 180, x = Math.cos(rad) * r, y = Math.sin(rad) * r;
+    return '<circle cx="' + x.toFixed(2) + '" cy="' + y.toFixed(2) + '" r="' + (big ? 9 : 6.5) + '" fill="' + fill +
+      '" stroke="#fff" stroke-width="' + (big ? 3 : 2) + '"/><circle cx="' + x.toFixed(2) + '" cy="' + y.toFixed(2) + '" r="' + (big ? 10.5 : 7.8) +
+      '" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="1"/>';
+  }
+  function render() {
+    var h = HARM.filter(function (x) { return x.id === S.harm; })[0], gray = isGray();
+    $("in-color").value = hex(S.rgb).toLowerCase();
+    if (document.activeElement !== $("in-hex")) $("in-hex").value = hex(S.rgb);
+    $("harm").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-h") === S.harm)); });
+    $("mode").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-m") === S.mode)); });
+    $("ro-harm").textContent = Shell.t("t.h." + S.harm);
+    var rows = "";
+    WHEELS.forEach(function (w) {
+      var a = w.pos(S.rgb), cols = h.offs.map(function (o) { return { a: a + o, rgb: gray ? S.rgb : w.color(a + o, S.rgb) }; });
+      var svg = $("wheels").querySelector('[data-w="' + w.id + '"] svg');
+      var R = 77;                                              // リング中央の半径（viewBox 基準）
+      svg.innerHTML = (gray ? "" : cols.map(function (c) {
+        var rad1 = (a - 90) * Math.PI / 180, rad2 = (c.a - 90) * Math.PI / 180;
+        return '<line x1="' + (Math.cos(rad1) * 52).toFixed(1) + '" y1="' + (Math.sin(rad1) * 52).toFixed(1) + '" x2="' + (Math.cos(rad2) * 52).toFixed(1) +
+          '" y2="' + (Math.sin(rad2) * 52).toFixed(1) + '" stroke="var(--text-3)" stroke-width="1.2" stroke-dasharray="3 3"/>';
+      }).join("") + cols.map(function (c) { return marker(c.a, R, hex(c.rgb), false); }).join("")) +
+        (gray ? "" : marker(a, R, hex(S.rgb), true)) +
+        '<circle r="46" fill="' + hex(S.rgb) + '" stroke="var(--border)"/>';
+      $("pos-" + w.id).textContent = gray ? "—" : posText(w, a);
+      var sw = [{ rgb: S.rgb, base: true }].concat(cols).map(function (c) {
+        var hx = hex(c.rgb), lum = rgb2lab(c.rgb)[0];
+        return '<button type="button" class="' + (c.base ? "is-base" : "") + '" style="background:' + hx + ";color:" + (lum > 60 ? "#111" : "#fff") +
+          '" data-copy="' + hx + '" title="' + hx + " · rgb " + c.rgb.map(clamp255).join(", ") + '">' + hx + "</button>";
+      }).join("");
+      rows += '<div class="res"><div class="res__head"><span class="res__name">' + wname(w) + '</span><span class="res__pos">' +
+        (gray ? "—" : posText(w, a)) + '</span></div><div class="sw">' + sw + "</div></div>";
+    });
+    $("results").innerHTML = rows;
+    $("badges").innerHTML = gray ? '<span class="badge badge--muted"><span class="d" style="background:currentColor"></span>' + Shell.t("t.gray") + "</span>" : "";
+    writeHash();
+  }
+
+  /* ---- 操作 ---- */
+  function setRgb(c) { S.rgb = c.map(clamp255); render(); }
+  $("in-color").addEventListener("input", function () { var c = parseHex(this.value); if (c) setRgb(c); });
+  $("in-hex").addEventListener("input", function () { var c = parseHex(this.value); if (c) setRgb(c); });
+  $("in-hex").addEventListener("blur", function () { this.value = hex(S.rgb); });
+  $("harm").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; S.harm = b.getAttribute("data-h"); render(); });
+  $("mode").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; S.mode = b.getAttribute("data-m"); render(); });
+  // 色相環をクリックすると、その位置の色を選ぶ（選んだ色の彩度・明度を保つ）
+  function pickFrom(ring, clientX, clientY) {
+    var r = ring.getBoundingClientRect(), x = clientX - r.left - r.width / 2, y = clientY - r.top - r.height / 2;
+    var a = mod(Math.atan2(y, x) * 180 / Math.PI + 90, 360), w = WHEELS.filter(function (v) { return v.id === ring.getAttribute("data-w"); })[0];
+    var c = isGray() ? w.ring(a) : w.color(a, S.rgb);
+    setRgb(c);
+  }
+  $("wheels").addEventListener("click", function (e) { var ring = e.target.closest(".wh__ring"); if (ring) pickFrom(ring, e.clientX, e.clientY); });
+  // キーボード: ←→ で色相を 5° ずつ回す（その色相環の角度で）
+  $("wheels").addEventListener("keydown", function (e) {
+    var ring = e.target.closest(".wh__ring"); if (!ring) return;
+    var d = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0; if (!d) return;
+    e.preventDefault();
+    var w = WHEELS.filter(function (v) { return v.id === ring.getAttribute("data-w"); })[0];
+    if (!isGray()) setRgb(w.color(w.pos(S.rgb) + d, S.rgb));
+  });
+
+  function buildHarm() {
+    $("harm").innerHTML = HARM.map(function (h) {
+      return '<button type="button" data-h="' + h.id + '" aria-pressed="false">' + Shell.t("t.h." + h.id) + "</button>";
+    }).join("");
+  }
+
+  readHash();
+  Shell.init({
+    id: "color-wheel-compare",
+    strings: {
+      en: {
+        "t.title": "Color wheel comparison",
+        "t.desc": "Pick a color and see where it sits on seven color wheels — and how its complement and other harmonies change from wheel to wheel.",
+        "t.color": "Color", "t.harmony": "Harmony", "t.wheels": "Wheels",
+        "t.mode": "Harmony colors", "t.mKeep": "Keep lightness & saturation", "t.mVivid": "Most vivid",
+        "t.wheelHint": "Click a wheel (or focus it and use ← →) to change the hue on that wheel. Dots show the harmony; the big dot is your color.",
+        "t.strips": "How each wheel spaces the hues",
+        "t.stripHint": "Each bar runs once around its wheel (0° → 360°). Ticks mark where pure red, yellow, green, cyan, blue and magenta land — RYB, for example, gives yellow-to-red far more room than RGB does.",
+        "t.clickCopy": "Click to copy HEX",
+        "t.notes": "HSV, CMY, OKLCH and CIELAB follow their definitions exactly. RYB uses a common artist's mapping; the opponent (NCS-style) and PCCS wheels are screen approximations of systems defined by physical color samples. “Keep lightness & saturation” turns only the hue (so the complement of a bright yellow is a pale blue on perceptual wheels — that is the real answer); “Most vivid” uses the most saturated color the screen can show at each hue.",
+        "t.approx": "approximation",
+        "t.w.ncs": "Opponent (NCS-style)", "t.w.pccs": "PCCS (24 hues)",
+        "t.h.comp": "Complementary", "t.h.split": "Split complementary", "t.h.triad": "Triad", "t.h.square": "Square", "t.h.analog": "Analogous",
+        "t.gray": "This color has no hue (gray, black or white), so it has no position on the wheels."
+      },
+      ja: {
+        "t.title": "色相環比較",
+        "t.desc": "色を選ぶと、7種類の色相環のどこにあるかと、補色などの配色が色相環ごとにどう変わるかを並べて表示します。",
+        "t.color": "色", "t.harmony": "配色", "t.wheels": "色相環",
+        "t.mode": "配色の色の作り方", "t.mKeep": "明度・彩度を保つ", "t.mVivid": "鮮やかさ優先",
+        "t.wheelHint": "色相環をクリック（またはフォーカスして ← →）すると、その色相環の上で色相を変えられます。小さな点が配色、大きな点が選んだ色です。",
+        "t.strips": "色相環ごとの色相の割り振り",
+        "t.stripHint": "各帯は色相環を1周（0°→360°）したものです。目盛りは純色の赤・黄・緑・シアン・青・マゼンタの位置。たとえば RYB は、RGB よりも黄〜赤の範囲を広くとっています。",
+        "t.clickCopy": "クリックでHEXをコピー",
+        "t.notes": "HSV・CMY・OKLCH・CIELAB は定義どおりに計算しています。RYB は一般的な画材向けの対応表、反対色（NCS風）と PCCS は本来は実物の色見本で定義された体系を画面上で近似したものです。「明度・彩度を保つ」は色相だけを回します（知覚的な色相環では、明るい黄色の補色は淡い青になります。これが正しい答えです）。「鮮やかさ優先」は、その色相で画面が表示できる最も鮮やかな色を使います。",
+        "t.approx": "近似",
+        "t.w.ncs": "反対色（NCS風）", "t.w.pccs": "PCCS（24色相）",
+        "t.h.comp": "補色", "t.h.split": "分裂補色", "t.h.triad": "トライアド", "t.h.square": "スクエア", "t.h.analog": "類似色",
+        "t.gray": "この色は無彩色（グレー・黒・白）なので、色相環上の位置がありません。"
+      }
+    },
+    onSettingsChange: function () { buildHarm(); buildWheels(); render(); }
+  });
+})();
+</script>
+</body>
+</html>
