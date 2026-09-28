@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IOR table — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .pills{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pills button{ font:inherit; font-size:12.5px; padding:5px 11px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .pills button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .find{ margin-bottom:var(--s3); }
+
+  /* ---- 一覧表 ---- */
+  .tblwrap{ padding:0; overflow:hidden; }
+  table.ior{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.ior th{ font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3);
+    text-align:right; padding:10px 10px 8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.ior th:first-child{ text-align:left; padding-left:var(--s4); }
+  table.ior th button{ all:unset; cursor:pointer; }
+  table.ior th button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+  table.ior th .arr{ display:inline-block; width:.9em; }
+  table.ior td{ padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; vertical-align:top;
+    font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  table.ior td:first-child{ text-align:left; font-family:var(--font-sans); padding-left:var(--s4); }
+  table.ior td small{ display:block; font-size:10.5px; color:var(--text-3); line-height:1.35; margin-top:1px; }
+  table.ior tr.row{ cursor:pointer; }
+  table.ior tr.row:hover td{ background:var(--surface-2); }
+  table.ior tr.row:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+  table.ior tr.row[aria-selected="true"] td{ background:color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+  table.ior tr.grp td{ font-family:var(--font-sans); font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-3); background:var(--surface-2); padding:6px var(--s4); text-align:left; cursor:default; }
+  table.ior tr:last-child td{ border-bottom:0; }
+  table.ior td.dim{ color:var(--text-3); }
+  table.ior th:not(:first-child), table.ior td:not(:first-child){ width:1%; white-space:nowrap; }
+  table.ior.is-metal .c-f0, table.ior.is-metal .c-v{ display:none; }
+  @media (max-width:760px){ table.ior .c-f0{ display:none; } table.ior td, table.ior th{ padding-left:8px; padding-right:8px; } }
+  .sw{ display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid var(--border-strong); vertical-align:-2px; }
+  tr.inline > td{ padding:0 !important; background:var(--surface-2) !important; cursor:default; }
+  tr.inline .readout{ border:0; border-radius:0; box-shadow:none; background:transparent; }
+
+  /* ---- 詳細 ---- */
+  @media (min-width:761px){ .side{ position:sticky; top:89px; max-height:calc(100vh - 105px); overflow:auto; } }
+  .rtitle{ padding:var(--s3) var(--s4) 0; }
+  .rtitle h2{ font-size:16px; font-weight:600; margin:0; }
+  .rtitle .sub{ font-size:12px; color:var(--text-3); margin-top:2px; }
+  .vec{ display:flex; gap:10px; }
+  .vec span{ min-width:3.2em; text-align:right; }
+  .rrow__value.sm{ font-size:15px; }
+  .rrow--sw{ align-items:center; }
+  .bigsw{ width:56px; height:56px; border-radius:var(--r); border:1px solid var(--border-strong); flex:none; }
+  .srcline{ font-size:12px; color:var(--text-3); padding:var(--s3) var(--s4); border-top:1px solid var(--border); line-height:1.55; }
+  .srcline a{ color:var(--text-2); }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; }
+  .hint + .hint{ margin-top:var(--s2); }
+  .hintbox{ padding:0 var(--s4) var(--s3); }
+  .fmt{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+  .fmt .label{ margin:0; }
+  .actions{ padding:0 var(--s4) var(--s4); }
+
+  /* ---- 計算 ---- */
+  .medium{ display:grid; grid-template-columns:1fr 110px; gap:var(--s2); }
+  .swaprow{ display:flex; justify-content:center; margin:calc(var(--s2) * -1) 0 var(--s2); }
+  .notes{ margin-top:var(--s4); }
+  .notes li{ margin-bottom:var(--s2); }
+  .notes ul{ padding-left:1.2em; margin:0; }
+  @media (max-width:760px){ .work.is-calc .side{ display:none; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.3dcg">3DCG</span></div>
+    <h1 data-i18n="t.title">IOR table</h1>
+    <p data-i18n="t.desc">Refractive indices of common materials from measured data, with F0, Abbe number and metal values ready for Blender — plus calculators for boundaries between two materials and for IOR ⇔ F0.</p>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-list" aria-controls="p-list" aria-selected="true" data-tab="list" data-i18n="t.tabList">Table</button>
+    <button class="tab" role="tab" id="tab-iface" aria-controls="p-iface" aria-selected="false" data-tab="iface" data-i18n="t.tabIface">Boundary</button>
+    <button class="tab" role="tab" id="tab-conv" aria-controls="p-conv" aria-selected="false" data-tab="conv" data-i18n="t.tabConv">IOR ⇔ F0</button>
+  </div>
+
+  <div class="work work--wide" id="work">
+    <div>
+      <!-- 一覧 -->
+      <div role="tabpanel" id="p-list" aria-labelledby="tab-list">
+        <div class="card">
+          <div class="searchwrap find">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input class="search" id="q" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="t.search" placeholder="Search materials">
+          </div>
+          <div class="pills" id="cats" role="group"></div>
+        </div>
+        <div class="card tblwrap">
+          <table class="ior" id="tbl">
+            <thead><tr>
+              <th scope="col"><button type="button" data-sort="name"><span data-i18n="t.colName">Material</span> <span class="arr"></span></button></th>
+              <th scope="col"><button type="button" data-sort="n">IOR <span class="arr"></span></button></th>
+              <th scope="col" class="c-f0">F0</th>
+              <th scope="col" class="c-v"><button type="button" data-sort="v"><span data-i18n="t.colAbbe">Abbe</span> <span class="arr"></span></button></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="empty" hidden data-i18n="t.none">No matching materials.</div>
+        </div>
+        <div class="card notes">
+          <div class="card__title" data-i18n="t.aboutTitle">About the values</div>
+          <ul class="hint">
+            <li data-i18n="t.n1">IOR is the value at 589.3 nm (yellow sodium light), the usual reference wavelength. It shifts slightly with wavelength and temperature; conditions are noted when the source gives them, otherwise room temperature.</li>
+            <li data-i18n="t.n2">F0 is the reflectance of the surface seen head-on, against air. The Abbe number measures dispersion (the rainbow split in glass and gems): the smaller the number, the stronger the split.</li>
+            <li data-i18n="t.n3">Birefringent crystals (quartz, sapphire, calcite…) have two indices; the table shows the ordinary ray and lists the other one as “e”.</li>
+            <li data-i18n="t.n4">Natural gems vary from stone to stone, so they show a range and its middle as the representative value.</li>
+            <li data-i18n="t.n5">“CG presets” are not measurements of the material itself but the values Blender uses by default, and those of Gullstrand's model eye.</li>
+            <li data-i18n="t.n6">Metals: computed from spectral n and k (380–780 nm) under D65 into linear sRGB. Base Color is the head-on reflectance; Edge Tint is the reflectance at 82° divided by Schlick's approximation — how Blender defines its F82 Tint. IOR and Extinction are solved per R, G and B so that they give the same reflectance at 0° and 82°, so Physical Conductor and F82 Tint look nearly identical. Gold is more saturated than sRGB can show, so its red is clipped to 1.</li>
+            <li id="n7">Data: <a href="https://refractiveindex.info/" target="_blank" rel="noopener">refractiveindex.info</a> database (CC0), unless noted otherwise.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 境界の計算 -->
+      <div role="tabpanel" id="p-iface" aria-labelledby="tab-iface" hidden>
+        <div class="card">
+          <div class="field">
+            <label class="label" for="out-sel" data-i18n="t.outside">Outside (the side the light comes from)</label>
+            <div class="medium">
+              <select class="select" id="out-sel"></select>
+              <input class="input mono" id="out-n" type="number" step="any" min="0.01" inputmode="decimal" aria-label="IOR">
+            </div>
+          </div>
+          <div class="swaprow"><button type="button" class="btn btn--ghost" id="swap" data-i18n="t.swap">⇅ Swap</button></div>
+          <div class="field">
+            <label class="label" for="in-sel" data-i18n="t.inside">Inside (the object)</label>
+            <div class="medium">
+              <select class="select" id="in-sel"></select>
+              <input class="input mono" id="in-n" type="number" step="any" min="0.01" inputmode="decimal" aria-label="IOR">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label" data-i18n="t.examples">Examples</label>
+            <div class="pills" id="presets"></div>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="readout__head"><span class="eyebrow" data-i18n="t.result">Result</span><span class="eyebrow" data-i18n="t.clickCopy">Click a value to copy</span></div>
+          <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.rel">Relative IOR (inside ÷ outside)</span><span class="rrow__value" id="r-rel"></span></div>
+          <div class="rrow"><span class="rrow__label" data-i18n="t.f0b">Reflectance head-on (F0)</span><span class="rrow__value sm" id="r-f0"></span></div>
+          <div class="rrow"><span class="rrow__label" data-i18n="t.crit">Critical angle (total internal reflection)</span><span class="rrow__value sm" id="r-crit"></span></div>
+          <div class="rrow"><span class="rrow__label" data-i18n="t.brew">Brewster angle (from outside)</span><span class="rrow__value sm" id="r-brew"></span></div>
+          <div class="hintbox"><div class="hint" id="r-note"></div></div>
+        </div>
+        <div class="card notes">
+          <div class="hint" data-i18n="t.ifaceHelp1">A renderer's IOR assumes the object sits in air. Where two materials touch — a bubble in water, water in a glass — the surface between them should use the ratio of the two indices instead.</div>
+          <div class="hint" data-i18n="t.ifaceHelp2">A result below 1 is fine: it means the inside is optically thinner than the outside (an air bubble in water is 0.750).</div>
+          <div class="hint" data-i18n="t.ifaceHelp3">The critical angle applies to light travelling from the higher-index side toward the lower one; beyond it, all light is reflected. At the Brewster angle, reflected light is fully polarized.</div>
+        </div>
+      </div>
+
+      <!-- IOR ⇔ F0 -->
+      <div role="tabpanel" id="p-conv" aria-labelledby="tab-conv" hidden>
+        <div class="card">
+          <div class="field">
+            <label class="label" for="c-ior">IOR</label>
+            <input class="input mono" id="c-ior" type="number" step="any" min="1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label class="label" for="c-f0" data-i18n="t.cF0">F0 (reflectance head-on, 0–1)</label>
+            <input class="input mono" id="c-f0" type="number" step="any" min="0" max="0.999" inputmode="decimal">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label" for="c-spec" data-i18n="t.cSpec">Specular (F0 ÷ 0.08)</label>
+            <input class="input mono" id="c-spec" type="number" step="any" min="0" inputmode="decimal">
+          </div>
+        </div>
+        <div class="card notes">
+          <div class="hint" data-i18n="t.convHelp1">Edit any of the three; the others follow. F0 = ((IOR − 1) ÷ (IOR + 1))², for a surface in air.</div>
+          <div class="hint" data-i18n="t.convHelp2">“Specular” is the 0–1 slider used by Unreal Engine, the Disney BRDF and Blender's Principled BSDF before 4.0, where 0.5 means F0 = 0.04 (IOR 1.5). In Blender 4.0 and later, enter the IOR directly.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 詳細（選んだ素材） -->
+    <div class="side">
+      <div class="readout" id="detail"></div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  /* =====================================================================
+     データ（scratchpad の build.py で refractiveindex.info のデータベースから算出）
+     MATS:   [id, 分類, 英名, 和名, IOR(589.3nm), 表示桁, アッベ数, 異常光線, 範囲下限, 範囲上限, 条件(英), 条件(和), 出典]
+     METALS: [id, 英名, 和名, Base Color(リニア), Edge Tint, IOR n(RGB), Extinction k(RGB), 出典, 赤を切り詰めたか]
+     出典: [表記, URL] または "gem" / "def" / "bl-*" / "gullstrand"
+     ===================================================================== */
+  var MATS = [
+    ["vacuum", "gas", "Vacuum", "真空", 1, 0, null, null, null, null, null, null, "def"],
+    ["air", "gas", "Air", "空気", 1.000277, 6, null, null, null, null, "15 °C, 1 atm", "15 °C・1気圧", ["Ciddor (1996)", "https://doi.org/10.1364/AO.35.001566"]],
+    ["co2", "gas", "Carbon dioxide", "二酸化炭素", 1.000449, 6, null, null, null, null, "0 °C, 1 atm", "0 °C・1気圧", ["Bideau-Mehu et al. (1973)", "https://doi.org/10.1016/0030-4018(73)90289-7"]],
+    ["helium", "gas", "Helium", "ヘリウム", 1.000035, 6, null, null, null, null, "0 °C, 1 atm", "0 °C・1気圧", ["Mansfield & Peck (1969)", "https://doi.org/10.1364/JOSA.59.000199"]],
+    ["water", "liquid", "Water", "水", 1.3333, 4, 55.8, null, null, null, "20 °C", "20 °C", ["Daimon & Masumura (2007)", "https://doi.org/10.1364/AO.46.003811"]],
+    ["ethanol", "liquid", "Ethanol", "エタノール", 1.3616, 4, 59.4, null, null, null, "20 °C", "20 °C", ["Rheims et al. (1997)", "https://doi.org/10.1088/0957-0233/8/6/003"]],
+    ["methanol", "liquid", "Methanol", "メタノール", 1.3281, 4, null, null, null, null, "22 °C", "22 °C", ["Kozma et al. (2005)", "https://doi.org/10.1364/JOSAB.22.001479"]],
+    ["ipa", "liquid", "Isopropyl alcohol", "イソプロピルアルコール", 1.3768, 4, null, null, null, null, "22 °C", "22 °C", ["Kozma et al. (2005)", "https://doi.org/10.1364/JOSAB.22.001479"]],
+    ["acetone", "liquid", "Acetone", "アセトン", 1.3591, 4, 54.5, null, null, null, "20 °C", "20 °C", ["Rheims et al. (1997)", "https://doi.org/10.1088/0957-0233/8/6/003"]],
+    ["glycerol", "liquid", "Glycerol", "グリセリン", 1.4713, 4, 64.4, null, null, null, null, null, ["Gupta et al. (2022)", "https://doi.org/10.1002/adpr.202200152"]],
+    ["eglycol", "liquid", "Ethylene glycol (antifreeze)", "エチレングリコール（不凍液）", 1.4317, 4, 57.3, null, null, null, null, null, ["Sani & Dell'Oro (2014)", "https://doi.org/10.1016/j.optmat.2014.04.035"]],
+    ["oleic", "liquid", "Oleic acid (main part of olive oil)", "オレイン酸（オリーブ油の主成分）", 1.4694, 4, null, null, null, null, null, null, ["Jones et al. (2015)", "https://doi.org/10.1039/C4CC09835H"]],
+    ["benzene", "liquid", "Benzene", "ベンゼン", 1.4995, 4, 30.8, null, null, null, "22 °C", "22 °C", ["Chang et al. (2024)", "https://doi.org/10.1364/OME.519907"]],
+    ["toluene", "liquid", "Toluene", "トルエン", 1.4949, 4, 32.7, null, null, null, "22 °C", "22 °C", ["Chang et al. (2024)", "https://doi.org/10.1364/OME.519907"]],
+    ["cs2", "liquid", "Carbon disulfide", "二硫化炭素", 1.6281, 4, 17.9, null, null, null, "20 °C", "20 °C", ["Chemnitz et al. (2017)", "https://doi.org/10.1038/s41467-017-00033-5"]],
+    ["plasma", "bio", "Blood plasma", "血漿", 1.3472, 4, 47.8, null, null, null, null, null, ["Liu et al. (2019)", "https://doi.org/10.1117/1.JBO.24.3.035003"]],
+    ["fat", "bio", "Fat (adipose tissue)", "脂肪組織", 1.4676, 4, null, null, null, null, "23 °C", "23 °C", ["Yanina et al. (2018)", "https://doi.org/10.1364/AO.57.004839"]],
+    ["silk", "bio", "Silk (fibroin)", "絹（フィブロイン）", 1.5605, 4, null, null, null, null, null, null, ["Perotto et al. (2017)", "https://doi.org/10.1063/1.4998950"]],
+    ["sodalime", "glass", "Soda-lime glass (window, bottle)", "ソーダ石灰ガラス（窓・瓶）", 1.5233, 4, null, null, null, null, null, null, ["Rubin (1985)", "https://doi.org/10.1016/0165-1633(85)90052-8"]],
+    ["bk7", "glass", "Optical crown glass (N-BK7)", "光学クラウンガラス（N-BK7）", 1.5167, 4, 64.2, null, null, null, null, null, ["SCHOTT (2017)", "https://refractiveindex.info/download/data/2017/schott_2017-01-20b.agf"]],
+    ["silica", "glass", "Fused silica (quartz glass)", "石英ガラス", 1.4584, 4, 67.8, null, null, null, null, null, ["Malitson (1965)", "https://doi.org/10.1364/JOSA.55.001205"]],
+    ["borosilicate", "glass", "Borosilicate glass (heat-resistant)", "ホウケイ酸ガラス（耐熱ガラス）", 1.4714, 4, 66.0, null, null, null, null, null, ["SCHOTT BOROFLOAT 33 (2021)", "https://refractiveindex.info/download/data/2021/schott-BOROFLOAT-opticalproperties-datasheet-US_2021_06.pdf"]],
+    ["f2", "glass", "Flint glass (F2, contains lead)", "フリントガラス（F2・鉛入り）", 1.6199, 4, 36.4, null, null, null, null, null, ["SCHOTT (2017)", "https://refractiveindex.info/download/data/2017/schott_2017-01-20b.agf"]],
+    ["sf11", "glass", "Dense flint glass (N-SF11)", "高分散ガラス（N-SF11）", 1.7845, 4, 25.7, null, null, null, null, null, ["SCHOTT (2017)", "https://refractiveindex.info/download/data/2017/schott_2017-01-20b.agf"]],
+    ["lasf9", "glass", "High-index glass (N-LASF9)", "高屈折率ガラス（N-LASF9）", 1.85, 4, 32.2, null, null, null, null, null, ["SCHOTT (2017)", "https://refractiveindex.info/download/data/2017/schott_2017-01-20b.agf"]],
+    ["pmma", "plastic", "Acrylic (PMMA)", "アクリル（PMMA）", 1.4905, 4, 58.0, null, null, null, null, null, ["Szczurowski (2013)", "https://refractiveindex.info/download/data/2013/Szczurowski - n_PMMA_raw.png"]],
+    ["pc", "plastic", "Polycarbonate", "ポリカーボネート", 1.5846, 4, 27.9, null, null, null, null, null, ["Sultanova et al. (2009)", "http://przyrbwn.icm.edu.pl/APP/ABSTR/116/a116-4-42.html"]],
+    ["ps", "plastic", "Polystyrene", "ポリスチレン", 1.5915, 4, 29.5, null, null, null, null, null, ["Sultanova et al. (2009)", "http://przyrbwn.icm.edu.pl/APP/ABSTR/116/a116-4-42.html"]],
+    ["pet", "plastic", "PET", "PET（ペット）", 1.5691, 4, 27.9, null, null, null, null, null, ["Zhang et al. (2020)", "https://doi.org/10.1364/AO.383831"]],
+    ["pvc", "plastic", "PVC", "塩化ビニル（PVC）", 1.5424, 4, 53.9, null, null, null, null, null, ["Zhang et al. (2020)", "https://doi.org/10.1364/AO.383831"]],
+    ["cr39", "plastic", "CR-39 (eyeglass lenses)", "CR-39（眼鏡レンズ）", 1.498, 3, null, null, null, null, null, null, ["PPG Industries (2006)", "https://refractiveindex.info/download/data/2006/CR39.pdf"]],
+    ["pla", "plastic", "PLA (3D printing)", "PLA（3Dプリンター用）", 1.4585, 4, null, null, null, null, null, null, ["Bodurov et al. (2016)", "http://nsc-nt.ipc.bas.bg/page/en/details.php?article_id=524"]],
+    ["pdms", "plastic", "Silicone (PDMS, Sylgard 184)", "シリコーン（PDMS）", 1.4315, 4, 44.6, null, null, null, null, null, ["Schneider et al. (2009)", "https://doi.org/10.1016/j.sna.2009.01.026"]],
+    ["uvresin", "plastic", "UV-curing resin (NOA 61)", "UV硬化樹脂（NOA 61）", 1.5596, 4, 42.4, null, null, null, null, null, ["Norland Products", "https://www.norlandprod.com/adhesives/NOA%2061.html"]],
+    ["cellulose", "plastic", "Cellulose", "セルロース", 1.4701, 4, 54.0, null, null, null, null, null, ["Sultanova et al. (2009)", "http://przyrbwn.icm.edu.pl/APP/ABSTR/116/a116-4-42.html"]],
+    ["diamond", "gem", "Diamond", "ダイヤモンド", 2.4173, 4, 55.3, null, null, null, null, null, ["Peter (1923)", "https://doi.org/10.1007/BF01330487"]],
+    ["sapphire", "gem", "Sapphire, ruby (corundum)", "サファイア・ルビー（コランダム）", 1.7681, 4, 72.3, 1.76, null, null, null, null, ["Malitson & Dodge (1972)", "https://refractiveindex.info/?shelf=main&book=Al2O3&page=Malitson-o"]],
+    ["cz", "gem", "Cubic zirconia", "キュービックジルコニア", 2.1585, 4, 33.5, null, null, null, null, null, ["Wood & Nassau (1982)", "https://doi.org/10.1364/AO.21.002978"]],
+    ["moissanite", "gem", "Moissanite", "モアッサナイト", 2.6474, 4, 26.0, 2.689, null, null, null, null, ["Wang et al. (2013)", "https://doi.org/10.1002/lpor.201300068"]],
+    ["spinel", "gem", "Spinel", "スピネル", 1.7161, 4, 60.7, null, null, null, null, null, ["Tropf & Thomas (1991)", "https://refractiveindex.info/?shelf=main&book=MgAl2O4&page=Tropf"]],
+    ["quartz", "gem", "Quartz (rock crystal, amethyst, citrine)", "水晶（アメシスト・シトリン）", 1.5442, 4, 69.7, 1.5533, null, null, null, null, ["Ghosh (1999)", "https://doi.org/10.1016/S0030-4018(99)00091-7"]],
+    ["chrysoberyl", "gem", "Chrysoberyl (alexandrite)", "クリソベリル（アレキサンドライト）", 1.7484, 4, 72.8, null, 1.7408, null, null, null, ["Walling et al. (1980)", "https://doi.org/10.1109/JQE.1980.1070430"]],
+    ["emerald", "gem", "Emerald", "エメラルド", 1.583, 3, null, null, 1.565, 1.602, null, null, "gem"],
+    ["aquamarine", "gem", "Aquamarine", "アクアマリン", 1.58, 3, null, null, 1.577, 1.583, null, null, "gem"],
+    ["topaz", "gem", "Topaz", "トパーズ", 1.626, 3, null, null, 1.609, 1.643, null, null, "gem"],
+    ["peridot", "gem", "Peridot", "ペリドット", 1.672, 3, null, null, 1.654, 1.69, null, null, "gem"],
+    ["tourmaline", "gem", "Tourmaline", "トルマリン", 1.634, 3, null, null, 1.624, 1.644, null, null, "gem"],
+    ["almandine", "gem", "Garnet (almandine)", "ガーネット（アルマンディン）", 1.8, 3, null, null, 1.77, 1.83, null, null, "gem"],
+    ["pyrope", "gem", "Garnet (pyrope)", "ガーネット（パイロープ）", 1.745, 3, null, null, 1.73, 1.76, null, null, "gem"],
+    ["demantoid", "gem", "Garnet (demantoid)", "ガーネット（デマントイド）", 1.887, 3, null, null, 1.88, 1.895, null, null, "gem"],
+    ["zircon", "gem", "Zircon", "ジルコン", 1.954, 3, null, null, 1.925, 1.984, null, null, "gem"],
+    ["tanzanite", "gem", "Tanzanite", "タンザナイト", 1.696, 3, null, null, 1.691, 1.7, null, null, "gem"],
+    ["jadeite", "gem", "Jade (jadeite)", "翡翠（ジェダイト）", 1.671, 3, null, null, 1.654, 1.688, null, null, "gem"],
+    ["nephrite", "gem", "Jade (nephrite)", "軟玉（ネフライト）", 1.614, 3, null, null, 1.6, 1.627, null, null, "gem"],
+    ["moonstone", "gem", "Moonstone", "ムーンストーン", 1.522, 3, null, null, 1.518, 1.526, null, null, "gem"],
+    ["opal", "gem", "Opal", "オパール", 1.42, 3, null, null, 1.37, 1.47, null, null, "gem"],
+    ["amber", "gem", "Amber", "琥珀", 1.542, 3, null, null, 1.539, 1.545, null, null, "gem"],
+    ["obsidian", "gem", "Obsidian", "黒曜石", 1.495, 3, null, null, 1.48, 1.51, null, null, "gem"],
+    ["ice", "crystal", "Ice", "氷", 1.3097, 4, null, null, null, null, "−7 °C", "−7 °C", ["Warren & Brandt (2008)", "https://doi.org/10.1029/2007JD009744"]],
+    ["calcite", "crystal", "Calcite", "方解石", 1.6583, 4, 49.9, 1.4861, null, null, null, null, ["Ghosh (1999)", "https://doi.org/10.1016/S0030-4018(99)00091-7"]],
+    ["fluorite", "crystal", "Fluorite (CaF₂)", "蛍石（フッ化カルシウム）", 1.4338, 4, 95.3, null, null, null, null, null, ["Li (1980)", "https://doi.org/10.1063/1.555616"]],
+    ["halite", "crystal", "Rock salt (NaCl)", "岩塩（塩化ナトリウム）", 1.5441, 4, 42.9, null, null, null, null, null, ["Li (1976)", "https://doi.org/10.1063/1.555536"]],
+    ["rutile", "crystal", "Rutile (TiO₂)", "ルチル（酸化チタン）", 2.6129, 4, 9.9, 2.9086, null, null, null, null, ["Devore (1951)", "https://doi.org/10.1364/JOSA.41.000416"]],
+    ["yag", "crystal", "YAG (synthetic garnet)", "YAG（合成ガーネット）", 1.8326, 4, 52.6, null, null, null, null, null, ["Zelmon et al. (1998)", "https://doi.org/10.1364/AO.37.004933"]],
+    ["mgf2", "crystal", "MgF₂ (anti-reflection coating)", "フッ化マグネシウム（反射防止膜）", 1.3777, 4, 106.2, 1.3895, null, null, null, null, ["Dodge (1984)", "https://doi.org/10.1364/AO.23.001980"]],
+    ["skin", "cg", "Skin (subsurface)", "肌（サブサーフェス）", 1.4, 2, null, null, null, null, null, null, "bl-sss"],
+    ["hair", "cg", "Hair", "髪", 1.55, 2, null, null, null, null, null, null, "bl-hair"],
+    ["generic", "cg", "Generic plastic, paint clear coat", "一般的なプラスチック・塗装のクリア層", 1.5, 2, null, null, null, null, null, null, "bl-ior"],
+    ["cornea", "cg", "Cornea (eye)", "角膜（目）", 1.376, 3, null, null, null, null, null, null, "gullstrand"],
+    ["aqueous", "cg", "Aqueous / vitreous humor (eye)", "眼房水・硝子体（目）", 1.336, 3, null, null, null, null, null, null, "gullstrand"],
+    ["lens", "cg", "Crystalline lens (eye)", "水晶体（目）", 1.406, 3, null, null, 1.386, 1.406, null, null, "gullstrand"]
+  ];
+  var METALS = [
+    ["gold", "Gold", "金", [1.0, 0.7283, 0.3646], [0.9909, 1.0, 0.9814], [0.036, 0.503, 1.464], [3.64, 2.268, 1.773], ["Johnson & Christy (1972)", "https://doi.org/10.1103/PhysRevB.6.4370"], true],
+    ["silver", "Silver", "銀", [0.9894, 0.984, 0.9778], [0.9932, 0.9946, 0.9989], [0.056, 0.055, 0.043], [4.481, 3.543, 2.586], ["Johnson & Christy (1972)", "https://doi.org/10.1103/PhysRevB.6.4370"], false],
+    ["copper", "Copper", "銅", [0.9317, 0.6227, 0.5223], [0.9819, 0.9469, 0.9449], [0.211, 1.043, 1.294], [3.3, 2.624, 2.361], ["Johnson & Christy (1972)", "https://doi.org/10.1103/PhysRevB.6.4370"], false],
+    ["aluminium", "Aluminium", "アルミニウム", [0.9073, 0.9159, 0.9223], [0.8737, 0.903, 0.9327], [1.506, 0.985, 0.606], [7.663, 6.55, 5.35], ["Rakić (1995)", "https://doi.org/10.1364/AO.34.004755"], false],
+    ["iron", "Iron", "鉄", [0.5297, 0.5132, 0.4942], [0.7649, 0.7673, 0.8016], [2.923, 2.919, 2.546], [3.077, 2.937, 2.75], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["steel", "Stainless steel (austenitic)", "ステンレス鋼（オーステナイト系）", [0.6694, 0.6389, 0.5984], [0.7886, 0.8233, 0.8702], [2.414, 2.021, 1.652], [4.189, 3.642, 3.07], ["Karlsson & Ribbing (1982)", "https://doi.org/10.1063/1.331503"], false],
+    ["brass", "Brass (Cu 70 / Zn 30)", "真鍮（銅70・亜鉛30）", [0.9097, 0.7783, 0.4228], [0.9519, 0.9787, 1.0], [0.441, 0.522, 1.121], [4.176, 2.664, 1.808], ["Querry (1985)", "https://apps.dtic.mil/sti/citations/ADA158623"], false],
+    ["chromium", "Chromium", "クロム", [0.5496, 0.556, 0.5542], [0.7407, 0.7488, 0.8139], [3.247, 3.115, 2.286], [3.287, 3.336, 3.117], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["nickel", "Nickel", "ニッケル", [0.6971, 0.6405, 0.5633], [0.8152, 0.8341, 0.8707], [2.033, 1.903, 1.728], [4.201, 3.57, 2.895], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["titanium", "Titanium", "チタン", [0.6186, 0.5794, 0.5425], [0.7686, 0.7905, 0.8206], [2.748, 2.508, 2.24], [3.844, 3.397, 3.015], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["platinum", "Platinum", "プラチナ", [0.6779, 0.6377, 0.5837], [0.7925, 0.8187, 0.8534], [2.352, 2.075, 1.832], [4.239, 3.668, 3.095], ["Rakić et al. (1998)", "https://doi.org/10.1364/AO.37.005271"], false],
+    ["palladium", "Palladium", "パラジウム", [0.7327, 0.6969, 0.6524], [0.8316, 0.8519, 0.8869], [1.796, 1.621, 1.395], [4.365, 3.811, 3.212], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["rhodium", "Rhodium", "ロジウム", [0.797, 0.7646, 0.7425], [0.8079, 0.8182, 0.8367], [2.177, 1.961, 1.725], [5.728, 4.955, 4.401], ["Weaver et al. (1977)", "https://doi.org/10.1103/PhysRevB.15.4115"], false],
+    ["cobalt", "Cobalt", "コバルト", [0.683, 0.6552, 0.616], [0.799, 0.8197, 0.8588], [2.258, 2.035, 1.713], [4.228, 3.794, 3.238], ["Johnson & Christy (1974)", "https://doi.org/10.1103/PhysRevB.9.5056"], false],
+    ["tungsten", "Tungsten", "タングステン", [0.5185, 0.4939, 0.4689], [0.7156, 0.7327, 0.7411], [3.694, 3.442, 3.356], [2.942, 2.733, 2.51], ["Rakić et al. (1998)", "https://doi.org/10.1364/AO.37.005271"], false],
+    ["lead", "Lead", "鉛", [0.6569, 0.6608, 0.6928], [0.7757, 0.7793, 0.8134], [2.611, 2.555, 2.06], [4.171, 4.183, 4.178], ["Mathewson & Myers (1971)", "https://doi.org/10.1088/0031-8949/4/6/009"], false],
+    ["magnesium", "Magnesium", "マグネシウム", [0.9563, 0.9533, 0.9503], [0.9537, 0.964, 0.9769], [0.418, 0.308, 0.212], [6.018, 4.967, 3.949], ["Hagemann et al. (1975)", "https://doi.org/10.1364/JOSA.65.000742"], false],
+    ["mercury", "Mercury (liquid)", "水銀（液体）", [0.7814, 0.7795, 0.7784], [0.8132, 0.8517, 0.9022], [2.053, 1.519, 1.025], [5.315, 4.606, 3.795], ["Inagaki et al. (1981)", "https://doi.org/10.1103/PhysRevB.23.5246"], false]
+  ];
+  var CATS = ["all", "gas", "liquid", "glass", "plastic", "gem", "crystal", "bio", "cg", "metal"];
+  var LINKS = {
+    gem: "https://gemid-labs.com/reference/refractive-index/"
+  };
+  var items = MATS.map(function (r) {
+    return { id: r[0], cat: r[1], en: r[2], ja: r[3], n: r[4], d: r[5], v: r[6], ne: r[7], lo: r[8], hi: r[9], cen: r[10], cja: r[11], src: r[12] };
+  }).concat(METALS.map(function (r) {
+    return { id: r[0], cat: "metal", en: r[1], ja: r[2], f0: r[3], tint: r[4], nn: r[5], k: r[6], src: r[7], clip: r[8] };
+  }));
+  var byId = {}; items.forEach(function (it) { byId[it.id] = it; });
+
+  /* ---- 計算 ---- */
+  function f0(n1, n2) { var r = (n2 - n1) / (n2 + n1); return r * r; }
+  function iorFromF0(f) { var s = Math.sqrt(Math.min(Math.max(f, 0), 0.999)); return (1 + s) / (1 - s); }
+  function toSrgb(v) { v = Math.max(0, Math.min(1, v)); return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; }
+  function hex(lin) { return "#" + lin.map(function (v) { return ("0" + Math.round(toSrgb(v) * 255).toString(16)).slice(-2); }).join("").toUpperCase(); }
+  function fx(v, d) { return v.toFixed(d); }
+  function trim(s) { return s.indexOf(".") < 0 ? s : s.replace(/0+$/, "").replace(/\.$/, ""); }
+
+  /* ---- 状態 ---- */
+  var S = { tab: "list", cat: "all", sel: "water", sort: null, dir: 1, q: "", fmt: "plain" };
+  try { if (localStorage.getItem("vernier.ior.fmt") === "blender") S.fmt = "blender"; } catch (e) {}
+  function readHash() {
+    var q = {};
+    location.hash.replace(/^#/, "").split("&").forEach(function (kv) { var m = kv.split("="); if (m[0]) q[m[0]] = decodeURIComponent(m[1] || ""); });
+    if (byId[q.m]) S.sel = q.m;
+    if (CATS.indexOf(q.c) >= 0) S.cat = q.c;
+    if (["list", "iface", "conv"].indexOf(q.t) >= 0) S.tab = q.t;
+  }
+  function writeHash() { history.replaceState(null, "", "#t=" + S.tab + "&c=" + S.cat + "&m=" + S.sel); }
+
+  function nm(it) { return Shell.lang === "ja" ? it.ja : it.en; }
+  function other(it) { return Shell.lang === "ja" ? it.en : it.ja; }
+  function cond(it) { return Shell.lang === "ja" ? it.cja : it.cen; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function nStr(it) { return fx(it.n, it.d); }
+
+  /* ---- コピー形式（数値のみ／Blender に貼り付けられる [ ] 形式） ---- */
+  function vecCopy(v, isColor) {
+    var s = v.map(function (x) { return trim(fx(x, 4)); });
+    if (S.fmt === "blender") return "[" + s.concat(isColor ? ["1.0"] : []).join(", ") + "]";
+    return s.join(", ");
+  }
+  function vecHtml(v) { return '<span class="vec">' + v.map(function (x) { return "<span>" + fx(x, 3) + "</span>"; }).join("") + "</span>"; }
+
+  /* =====================================================================
+     一覧
+     ===================================================================== */
+  function matches(it) {
+    if (S.cat !== "all" && it.cat !== S.cat) return false;
+    if (!S.q) return true;
+    var hay = (it.en + " " + it.ja + " " + it.id + " " + Shell.t("t.c." + it.cat)).toLowerCase();
+    return S.q.toLowerCase().split(/\s+/).every(function (w) { return hay.indexOf(w) >= 0; });
+  }
+  function sortKey(it) {
+    if (S.sort === "name") return nm(it);
+    if (S.sort === "n") return it.cat === "metal" ? null : it.n;
+    return it.v == null ? null : it.v;
+  }
+  function rowHtml(it) {
+    var sel = it.id === S.sel ? "true" : "false", a = '<tr class="row" tabindex="0" data-id="' + it.id + '" aria-selected="' + sel + '">';
+    var sub = cond(it) || "";
+    if (it.cat === "metal") {
+      return a + "<td>" + esc(nm(it)) + "</td><td><span class=\"sw\" style=\"background:" + hex(it.f0) + '"></span></td>' +
+        '<td class="dim c-f0">—</td><td class="dim c-v">—</td></tr>';
+    }
+    var nsub = it.lo != null && it.hi != null ? fx(it.lo, it.d) + "–" + fx(it.hi, it.d)
+      : it.lo != null ? fx(it.lo, it.d) + "–" + nStr(it)
+      : it.ne != null ? "e " + fx(it.ne, it.d) : "";
+    return a + "<td>" + esc(nm(it)) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</td>" +
+      "<td>" + nStr(it) + (nsub ? "<small>" + nsub + "</small>" : "") + "</td>" +
+      '<td class="c-f0">' + fx(f0(1, it.n), 3) + "</td>" +
+      '<td class="c-v' + (it.v == null ? " dim" : "") + '">' + (it.v == null ? "—" : fx(it.v, 1)) + "</td></tr>";
+  }
+  function renderTable() {
+    var list = items.filter(matches), html = "";
+    if (S.sort) {
+      list = list.slice().sort(function (a, b) {
+        var x = sortKey(a), y = sortKey(b);
+        if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+        return (typeof x === "string" ? x.localeCompare(y, Shell.lang) : x - y) * S.dir;
+      });
+      html = list.map(rowHtml).join("");
+    } else {
+      var last = null;
+      list.forEach(function (it) {
+        if (S.cat === "all" && it.cat !== last) { html += '<tr class="grp"><td colspan="4">' + Shell.t("t.c." + it.cat) + "</td></tr>"; last = it.cat; }
+        html += rowHtml(it);
+      });
+    }
+    $("rows").innerHTML = html;
+    $("empty").hidden = list.length > 0;
+    $("tbl").hidden = !list.length;
+    $("tbl").classList.toggle("is-metal", S.cat === "metal");
+    document.querySelectorAll("th [data-sort]").forEach(function (b) {
+      var on = b.getAttribute("data-sort") === S.sort;
+      b.querySelector(".arr").textContent = on ? (S.dir > 0 ? "↑" : "↓") : "";
+      b.parentNode.setAttribute("aria-sort", on ? (S.dir > 0 ? "ascending" : "descending") : "none");
+    });
+    placeDetail();
+  }
+  function buildCats() {
+    $("cats").innerHTML = CATS.map(function (c) {
+      return '<button type="button" data-c="' + c + '" aria-pressed="' + (c === S.cat) + '">' + Shell.t("t.c." + c) + "</button>";
+    }).join("");
+  }
+
+  /* =====================================================================
+     詳細
+     ===================================================================== */
+  function srcHtml(it) {
+    var s = it.src, t;
+    if (s === "def") t = Shell.t("t.s.def");
+    else if (s === "gem") t = '<a href="' + LINKS.gem + '" target="_blank" rel="noopener">' + Shell.t("t.s.gem") + "</a>";
+    else if (typeof s === "string") t = Shell.t("t.s." + s);
+    else t = '<a href="' + s[1] + '" target="_blank" rel="noopener">' + esc(s[0]) + "</a>";
+    return '<div class="srcline">' + Shell.t("t.source") + " " + t + "</div>";
+  }
+  function row(label, value, copy, cls) {
+    return '<div class="rrow"><span class="rrow__label">' + label + '</span><span class="rrow__value ' + (cls || "sm") + '"' +
+      (copy != null ? ' data-copy="' + esc(copy) + '"' : "") + ">" + value + "</span></div>";
+  }
+  function renderDetail() {
+    var it = byId[S.sel], h = "";
+    h += '<div class="readout__head"><span class="eyebrow">' + Shell.t("t.c." + it.cat) + '</span><span class="eyebrow">' + Shell.t("t.clickCopy") + "</span></div>";
+    h += '<div class="rtitle"><h2>' + esc(nm(it)) + '</h2><div class="sub">' + esc(other(it)) + (cond(it) ? " · " + esc(cond(it)) : "") + "</div></div>";
+    if (it.cat === "metal") {
+      var hx = hex(it.f0);
+      h += '<div class="rrow rrow--sw"><span class="bigsw" style="background:' + hx + '"></span><span class="rrow__value" data-copy="' + hx + '">' + hx + "</span></div>";
+      h += row("Base Color <small>(" + Shell.t("t.linear") + ")</small>", vecHtml(it.f0), vecCopy(it.f0, true));
+      h += row("Edge Tint / Specular Tint", vecHtml(it.tint), vecCopy(it.tint, true));
+      h += row("IOR (n)", vecHtml(it.nn), vecCopy(it.nn, false));
+      h += row("Extinction (k)", vecHtml(it.k), vecCopy(it.k, false));
+      h += '<div class="hintbox">' +
+        '<div class="hint">' + Shell.t("t.metalUse1") + "</div>" +
+        '<div class="hint">' + Shell.t("t.metalUse2") + "</div>" +
+        (it.clip ? '<div class="hint">' + Shell.t("t.clipNote") + "</div>" : "") +
+        '<div class="fmt"><span class="label">' + Shell.t("t.fmt") + '</span><div class="pills" id="fmt">' +
+        '<button type="button" data-f="plain" aria-pressed="' + (S.fmt === "plain") + '">' + Shell.t("t.fmtPlain") + "</button>" +
+        '<button type="button" data-f="blender" aria-pressed="' + (S.fmt === "blender") + '">' + Shell.t("t.fmtBlender") + "</button></div></div>" +
+        '<div class="hint" style="margin-top:6px">' + Shell.t(S.fmt === "blender" ? "t.fmtBlenderHelp" : "t.fmtPlainHelp") + "</div>" +
+        "</div>";
+    } else {
+      h += '<div class="rrow rrow--hero"><span class="rrow__label">IOR</span><span class="rrow__value" data-copy="' + nStr(it) + '">' + nStr(it) + "</span></div>";
+      if (it.lo != null) h += row(Shell.t("t.range"), fx(it.lo, it.d) + " – " + fx(it.hi != null ? it.hi : it.n, it.d), null);
+      if (it.ne != null) h += row(Shell.t("t.extra"), fx(it.ne, it.d), fx(it.ne, it.d));
+      var F = f0(1, it.n);
+      h += row(Shell.t("t.f0"), fx(F, 4), fx(F, 4));
+      h += row(Shell.t("t.spec"), fx(F / 0.08, 3), fx(F / 0.08, 3));
+      h += row(Shell.t("t.abbe"), it.v == null ? "—" : fx(it.v, 1), it.v == null ? null : fx(it.v, 1));
+      if (it.lo != null && it.src === "gem") h += '<div class="hintbox"><div class="hint">' + Shell.t("t.gemNote") + "</div></div>";
+      if (it.v != null) h += '<div class="hintbox"><div class="hint">' + Shell.t("t.abbeNote") + "</div></div>";
+      h += '<div class="actions"><button type="button" class="btn btn--secondary" id="use-iface">' + Shell.t("t.useIface") + "</button></div>";
+    }
+    h += srcHtml(it);
+    $("detail").innerHTML = h;
+  }
+  /* 狭い画面では、選んだ行の直下に詳細を開く */
+  var narrow = window.matchMedia("(max-width:760px)");
+  function placeDetail() {
+    var d = $("detail"), old = document.querySelector("tr.inline");
+    if (narrow.matches && S.tab === "list") {
+      var tr = document.querySelector('tr.row[data-id="' + S.sel + '"]');
+      if (!tr) { if (old) old.parentNode.removeChild(old); document.querySelector(".side").appendChild(d); return; }
+      var host = old || document.createElement("tr");
+      host.className = "inline";
+      if (!old) host.innerHTML = '<td colspan="4"></td>';
+      tr.parentNode.insertBefore(host, tr.nextSibling);
+      host.firstChild.appendChild(d);
+    } else {
+      document.querySelector(".side").appendChild(d);
+      if (old) old.parentNode.removeChild(old);
+    }
+  }
+  function select(id, toggle) {
+    if (toggle && narrow.matches && id === S.sel && document.querySelector("tr.inline")) {
+      // スマホ: 同じ行をもう一度押すと閉じる
+      var old = document.querySelector("tr.inline"); document.querySelector(".side").appendChild($("detail")); old.parentNode.removeChild(old);
+      return;
+    }
+    S.sel = id;
+    document.querySelectorAll("tr.row").forEach(function (tr) { tr.setAttribute("aria-selected", tr.getAttribute("data-id") === id ? "true" : "false"); });
+    renderDetail(); placeDetail(); writeHash();
+  }
+
+  /* =====================================================================
+     境界の計算
+     ===================================================================== */
+  var dielectrics = items.filter(function (it) { return it.cat !== "metal"; });
+  function buildSelects() {
+    ["out-sel", "in-sel"].forEach(function (sid) {
+      var cur = $(sid).value, html = '<option value="">' + Shell.t("t.custom") + "</option>";
+      CATS.slice(1, -1).forEach(function (c) {
+        html += '<optgroup label="' + Shell.t("t.c." + c) + '">' + dielectrics.filter(function (it) { return it.cat === c; }).map(function (it) {
+          return '<option value="' + it.id + '">' + esc(nm(it)) + " — " + nStr(it) + "</option>";
+        }).join("") + "</optgroup>";
+      });
+      $(sid).innerHTML = html; $(sid).value = cur;
+    });
+  }
+  function setSide(side, id, n) {
+    $(side + "-sel").value = id || "";
+    $(side + "-n").value = id ? nStr(byId[id]) : n;
+  }
+  var PRESETS = [["bubble", "water", "air"], ["glasswater", "sodalime", "water"], ["icewater", "water", "ice"], ["gemwater", "water", "diamond"]];
+  function buildPresets() {
+    $("presets").innerHTML = PRESETS.map(function (p) { return '<button type="button" data-p="' + p[0] + '">' + Shell.t("t.p." + p[0]) + "</button>"; }).join("");
+  }
+  function calcIface() {
+    var a = parseFloat($("out-n").value), b = parseFloat($("in-n").value), ok = a > 0 && b > 0;
+    function put(id, txt, copy) { var el = $(id); el.textContent = txt; if (copy != null) el.setAttribute("data-copy", copy); else el.removeAttribute("data-copy"); }
+    if (!ok) { ["r-rel", "r-f0", "r-crit", "r-brew"].forEach(function (id) { put(id, "—"); }); $("r-note").textContent = ""; return; }
+    var rel = b / a, F = f0(a, b);
+    put("r-rel", fx(rel, 4), fx(rel, 4));
+    put("r-f0", fx(F, 4), fx(F, 4));
+    if (a === b) put("r-crit", "—");
+    else { var c = Math.asin(Math.min(a, b) / Math.max(a, b)) * 180 / Math.PI; put("r-crit", fx(c, 2) + "°", fx(c, 2)); }
+    var br = Math.atan(b / a) * 180 / Math.PI; put("r-brew", fx(br, 2) + "°", fx(br, 2));
+    $("r-note").textContent = a === b ? Shell.t("t.same") : Shell.t(b > a ? "t.critIn" : "t.critOut");
+  }
+
+  /* =====================================================================
+     IOR ⇔ F0
+     ===================================================================== */
+  function conv(from) {
+    var ior, F;
+    if (from === "ior") { ior = parseFloat($("c-ior").value); if (!(ior > 0)) return; F = f0(1, ior); }
+    else if (from === "f0") { F = parseFloat($("c-f0").value); if (!(F >= 0 && F < 1)) return; ior = iorFromF0(F); }
+    else { var s = parseFloat($("c-spec").value); if (!(s >= 0)) return; F = s * 0.08; if (F >= 1) return; ior = iorFromF0(F); }
+    if (from !== "ior") $("c-ior").value = trim(fx(ior, 4));
+    if (from !== "f0") $("c-f0").value = trim(fx(F, 5));
+    if (from !== "spec") $("c-spec").value = trim(fx(F / 0.08, 4));
+  }
+
+  /* =====================================================================
+     タブ・イベント
+     ===================================================================== */
+  function setTab(t) {
+    S.tab = t;
+    document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-tab") === t ? "true" : "false"); });
+    ["list", "iface", "conv"].forEach(function (k) { $("p-" + k).hidden = k !== t; });
+    $("work").classList.toggle("is-calc", t !== "list");
+    placeDetail(); writeHash();
+  }
+  document.querySelector(".tabs").addEventListener("click", function (e) { var b = e.target.closest(".tab"); if (b) setTab(b.getAttribute("data-tab")); });
+  document.querySelector(".tabs").addEventListener("keydown", function (e) {
+    var tabs = [].slice.call(document.querySelectorAll(".tab")), i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0; if (!d) return;
+    e.preventDefault(); var n = tabs[(i + d + tabs.length) % tabs.length]; n.focus(); setTab(n.getAttribute("data-tab"));
+  });
+  $("cats").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    S.cat = b.getAttribute("data-c");
+    $("cats").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    renderTable(); writeHash();
+  });
+  $("q").addEventListener("input", function () { S.q = this.value.trim(); renderTable(); });
+  document.querySelector("#tbl thead").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-sort]"); if (!b) return;
+    var k = b.getAttribute("data-sort");
+    if (S.sort !== k) { S.sort = k; S.dir = k === "name" ? 1 : -1; }
+    else if ((k === "name" ? S.dir > 0 : S.dir < 0)) S.dir = -S.dir;
+    else S.sort = null;                                   // 3回目で元の並び（分類ごと）に戻す
+    renderTable();
+  });
+  $("rows").addEventListener("click", function (e) { var tr = e.target.closest("tr.row"); if (tr) select(tr.getAttribute("data-id"), true); });
+  $("rows").addEventListener("keydown", function (e) {
+    var tr = e.target.closest("tr.row"); if (!tr) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(tr.getAttribute("data-id"), true); return; }
+    var d = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0; if (!d) return;
+    e.preventDefault();
+    var rows = [].slice.call(document.querySelectorAll("tr.row")), n = rows[rows.indexOf(tr) + d];
+    if (n) { n.focus(); select(n.getAttribute("data-id")); }
+  });
+  $("detail").addEventListener("click", function (e) {
+    var f = e.target.closest("[data-f]");
+    if (f) {
+      S.fmt = f.getAttribute("data-f");
+      try { localStorage.setItem("vernier.ior.fmt", S.fmt); } catch (err) {}
+      renderDetail(); return;
+    }
+    if (e.target.closest("#use-iface")) { setSide("in", S.sel); calcIface(); setTab("iface"); window.scrollTo(0, 0); }
+  });
+  ["out", "in"].forEach(function (side) {
+    $(side + "-sel").addEventListener("change", function () { if (this.value) setSide(side, this.value); calcIface(); });
+    $(side + "-n").addEventListener("input", function () { $(side + "-sel").value = ""; calcIface(); });
+  });
+  $("swap").addEventListener("click", function () {
+    var a = [$("out-sel").value, $("out-n").value], b = [$("in-sel").value, $("in-n").value];
+    setSide("out", b[0], b[1]); setSide("in", a[0], a[1]); calcIface();
+  });
+  $("presets").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-p]"); if (!b) return;
+    var p = PRESETS.filter(function (x) { return x[0] === b.getAttribute("data-p"); })[0];
+    setSide("out", p[1]); setSide("in", p[2]); calcIface();
+  });
+  ["ior", "f0", "spec"].forEach(function (k) { $("c-" + k).addEventListener("input", function () { conv(k); }); });
+  window.addEventListener("hashchange", function () {
+    readHash();
+    $("cats").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-c") === S.cat ? "true" : "false"); });
+    renderTable(); renderDetail(); setTab(S.tab);
+  });
+  narrow.addEventListener ? narrow.addEventListener("change", placeDetail) : narrow.addListener(placeDetail);
+
+  readHash();
+  Shell.init({
+    id: "ior-table",
+    strings: {
+      en: {
+        "t.title": "IOR table",
+        "t.desc": "Refractive indices of common materials from measured data, with F0, Abbe number and metal values ready for Blender — plus calculators for boundaries between two materials and for IOR ⇔ F0.",
+        "t.tabList": "Table", "t.tabIface": "Boundary", "t.tabConv": "IOR ⇔ F0",
+        "t.search": "Search materials", "t.colName": "Material", "t.colAbbe": "Abbe", "t.none": "No matching materials.",
+        "t.c.all": "All", "t.c.gas": "Gases", "t.c.liquid": "Liquids", "t.c.glass": "Glass", "t.c.plastic": "Plastics & resins",
+        "t.c.gem": "Gems", "t.c.crystal": "Crystals & minerals", "t.c.bio": "Biological", "t.c.cg": "CG presets", "t.c.metal": "Metals",
+        "t.clickCopy": "Click a value to copy", "t.result": "Result",
+        "t.range": "Range", "t.extra": "Extraordinary ray (e)", "t.f0": "F0 (reflectance head-on, in air)", "t.spec": "Specular (F0 ÷ 0.08)",
+        "t.abbe": "Abbe number", "t.linear": "linear",
+        "t.gemNote": "Natural stones vary; the IOR shown is the middle of the range.",
+        "t.abbeNote": "For renderers with a dispersion (Abbe number) input. Blender 5.2's built-in shaders have no dispersion input.",
+        "t.useIface": "Use in boundary calculator",
+        "t.metalUse1": "Metallic BSDF, F82 Tint: Base Color + Edge Tint. Physical Conductor: IOR + Extinction. Principled BSDF: Metallic 1, Base Color, Specular Tint.",
+        "t.metalUse2": "Colors are linear (scene-referred) values, as typed into Blender's number fields. The HEX value is the same color in sRGB; pasting it onto a Blender color field converts it back to linear.",
+        "t.clipNote": "Gold's red is beyond sRGB and has been clipped to 1.",
+        "t.fmt": "Copy as", "t.fmtPlain": "Numbers only", "t.fmtBlender": "For Blender",
+        "t.fmtPlainHelp": "Copies values separated by commas, e.g. 0.9317, 0.6227, 0.5223.",
+        "t.fmtBlenderHelp": "Copies in the [ ] form Blender accepts: hover over a color or vector field in Blender and press Ctrl+V (Cmd+V on Mac).",
+        "t.source": "Source:", "t.s.def": "definition", "t.s.gem": "GemID Labs refractive index chart (typical gemological values)",
+        "t.s.bl-sss": "Blender 5.2 default (Principled BSDF, Subsurface IOR)", "t.s.bl-hair": "Blender 5.2 default (Principled Hair BSDF, IOR)",
+        "t.s.bl-ior": "Blender 5.2 default (Principled BSDF, IOR and Coat IOR)", "t.s.gullstrand": "Gullstrand's schematic eye (standard textbook values)",
+        "t.aboutTitle": "About the values",
+        "t.n1": "IOR is the value at 589.3 nm (yellow sodium light), the usual reference wavelength. It shifts slightly with wavelength and temperature; conditions are noted when the source gives them, otherwise room temperature.",
+        "t.n2": "F0 is the reflectance of the surface seen head-on, against air. The Abbe number measures dispersion (the rainbow split in glass and gems): the smaller the number, the stronger the split.",
+        "t.n3": "Birefringent crystals (quartz, sapphire, calcite…) have two indices; the table shows the ordinary ray and lists the other one as “e”.",
+        "t.n4": "Natural gems vary from stone to stone, so they show a range and its middle as the representative value.",
+        "t.n5": "“CG presets” are not measurements of the material itself but the values Blender uses by default, and those of Gullstrand's model eye.",
+        "t.n6": "Metals: computed from spectral n and k (380–780 nm) under D65 into linear sRGB. Base Color is the head-on reflectance; Edge Tint is the reflectance at 82° divided by Schlick's approximation — how Blender defines its F82 Tint. IOR and Extinction are solved per R, G and B so that they give the same reflectance at 0° and 82°, so Physical Conductor and F82 Tint look nearly identical. Gold is more saturated than sRGB can show, so its red is clipped to 1.",
+        "t.n7": "Data: <a href=\"https://refractiveindex.info/\" target=\"_blank\" rel=\"noopener\">refractiveindex.info</a> database (CC0), unless noted otherwise.",
+        "t.outside": "Outside (the side the light comes from)", "t.inside": "Inside (the object)", "t.swap": "⇅ Swap", "t.custom": "Custom value",
+        "t.examples": "Examples",
+        "t.p.bubble": "Air bubble in water", "t.p.glasswater": "Water in a glass", "t.p.icewater": "Ice in water", "t.p.gemwater": "Diamond under water",
+        "t.rel": "Relative IOR (inside ÷ outside)", "t.f0b": "Reflectance head-on (F0)", "t.crit": "Critical angle (total internal reflection)", "t.brew": "Brewster angle (from outside)",
+        "t.critIn": "Total internal reflection happens for light inside the object hitting the surface beyond the critical angle.",
+        "t.critOut": "Total internal reflection happens for light coming from outside beyond the critical angle.",
+        "t.same": "Both sides have the same IOR, so the boundary is invisible.",
+        "t.ifaceHelp1": "A renderer's IOR assumes the object sits in air. Where two materials touch — a bubble in water, water in a glass — the surface between them should use the ratio of the two indices instead.",
+        "t.ifaceHelp2": "A result below 1 is fine: it means the inside is optically thinner than the outside (an air bubble in water is 0.750).",
+        "t.ifaceHelp3": "The critical angle applies to light travelling from the higher-index side toward the lower one; beyond it, all light is reflected. At the Brewster angle, reflected light is fully polarized.",
+        "t.cF0": "F0 (reflectance head-on, 0–1)", "t.cSpec": "Specular (F0 ÷ 0.08)",
+        "t.convHelp1": "Edit any of the three; the others follow. F0 = ((IOR − 1) ÷ (IOR + 1))², for a surface in air.",
+        "t.convHelp2": "“Specular” is the 0–1 slider used by Unreal Engine, the Disney BRDF and Blender's Principled BSDF before 4.0, where 0.5 means F0 = 0.04 (IOR 1.5). In Blender 4.0 and later, enter the IOR directly."
+      },
+      ja: {
+        "t.title": "屈折率（IOR）一覧",
+        "t.desc": "身近な素材の屈折率を実測データから一覧にし、F0・アッベ数・Blender 用の金属の値も表示します。2つの素材の境界の計算と、IOR ⇔ F0 の換算もできます。",
+        "t.tabList": "一覧", "t.tabIface": "境界の計算", "t.tabConv": "IOR ⇔ F0",
+        "t.search": "素材を検索", "t.colName": "素材", "t.colAbbe": "アッベ数", "t.none": "該当する素材がありません。",
+        "t.c.all": "すべて", "t.c.gas": "気体", "t.c.liquid": "液体", "t.c.glass": "ガラス", "t.c.plastic": "樹脂",
+        "t.c.gem": "宝石", "t.c.crystal": "結晶・鉱物", "t.c.bio": "生体", "t.c.cg": "CGの目安", "t.c.metal": "金属",
+        "t.clickCopy": "値をクリックでコピー", "t.result": "結果",
+        "t.range": "範囲", "t.extra": "異常光線（e）", "t.f0": "F0（正面から見た反射率・空気中）", "t.spec": "Specular（F0 ÷ 0.08）",
+        "t.abbe": "アッベ数", "t.linear": "リニア",
+        "t.gemNote": "天然石は個体差があるため、IOR は範囲の中央の値です。",
+        "t.abbeNote": "分散（アッベ数）を入力できるレンダラー向けの値です。Blender 5.2 の標準シェーダーには分散の入力はありません。",
+        "t.useIface": "境界の計算で使う",
+        "t.metalUse1": "Metallic BSDF の F82 Tint では Base Color と Edge Tint、Physical Conductor では IOR と Extinction に入力します。Principled BSDF では Metallic を 1 にして Base Color と Specular Tint に入力します。",
+        "t.metalUse2": "色はリニア（シーンリニア）の値で、Blender の数値欄にそのまま入力できます。HEX は同じ色を sRGB で表したもので、Blender の色の欄に貼り付けるとリニアに変換されます。",
+        "t.clipNote": "金の赤は sRGB の範囲を超えるため、1 に切り詰めています。",
+        "t.fmt": "コピー形式", "t.fmtPlain": "数値のみ", "t.fmtBlender": "Blender 貼り付け用",
+        "t.fmtPlainHelp": "0.9317, 0.6227, 0.5223 のようにカンマ区切りでコピーします。",
+        "t.fmtBlenderHelp": "Blender が受け付ける [ ] 形式でコピーします。Blender の色やベクトルの欄にマウスを乗せて Ctrl+V（Mac は Cmd+V）で貼り付けられます。",
+        "t.source": "出典:", "t.s.def": "定義", "t.s.gem": "GemID Labs の屈折率表（宝石学の一般的な値）",
+        "t.s.bl-sss": "Blender 5.2 の既定値（Principled BSDF の Subsurface IOR）", "t.s.bl-hair": "Blender 5.2 の既定値（Principled Hair BSDF の IOR）",
+        "t.s.bl-ior": "Blender 5.2 の既定値（Principled BSDF の IOR・Coat IOR）", "t.s.gullstrand": "Gullstrand 模型眼（教科書の標準値）",
+        "t.aboutTitle": "値について",
+        "t.n1": "IOR は、屈折率の基準として一般的な波長 589.3 nm（ナトリウムの黄色い光）での値です。波長や温度でわずかに変わります。出典に条件があるものは併記し、ないものは室温です。",
+        "t.n2": "F0 は、空気中で表面を正面から見たときの反射率です。アッベ数は分散（ガラスや宝石で光が虹色に分かれる度合い）の指標で、小さいほど強く分かれます。",
+        "t.n3": "複屈折する結晶（水晶・サファイア・方解石など）は屈折率を2つ持ちます。表には常光線の値を載せ、もう一方を「e」として併記しています。",
+        "t.n4": "天然の宝石は個体差があるため、範囲と、その中央を代表値として示しています。",
+        "t.n5": "「CGの目安」は素材そのものの実測値ではなく、Blender の既定値と Gullstrand 模型眼の値です。",
+        "t.n6": "金属は、波長ごとの n と k（380〜780 nm）から、D65 光源の下でのリニア sRGB の色を計算しています。Base Color は正面から見た反射率、Edge Tint は 82° での反射率を Schlick 近似で割った値です（Blender の F82 Tint の定義）。IOR と Extinction は、R・G・B それぞれで 0° と 82° の反射率が一致するように求めた値なので、Physical Conductor と F82 Tint のどちらを使ってもほぼ同じ見た目になります。金は sRGB で表せないほど鮮やかなため、赤を 1 に切り詰めています。",
+        "t.n7": "データ: 特記のないものは <a href=\"https://refractiveindex.info/\" target=\"_blank\" rel=\"noopener\">refractiveindex.info</a> のデータベース（CC0）。",
+        "t.outside": "外側（光が来る側）", "t.inside": "内側（物体）", "t.swap": "⇅ 入れ替え", "t.custom": "数値を入力",
+        "t.examples": "例",
+        "t.p.bubble": "水中の気泡", "t.p.glasswater": "グラスに入った水", "t.p.icewater": "水に浮かぶ氷", "t.p.gemwater": "水中のダイヤモンド",
+        "t.rel": "相対 IOR（内側 ÷ 外側）", "t.f0b": "境界の反射率（F0）", "t.crit": "臨界角（全反射）", "t.brew": "ブリュースター角（外側から）",
+        "t.critIn": "物体の内側から表面に当たる光が、臨界角より斜めだと全反射します。",
+        "t.critOut": "外側から来る光が、臨界角より斜めだと全反射します。",
+        "t.same": "両側の IOR が同じなので、境界は見えなくなります。",
+        "t.ifaceHelp1": "レンダラーの IOR は、物体が空気中にある前提の値です。水中の気泡やグラスの中の水のように2つの素材が接する面には、2つの屈折率の比を使います。",
+        "t.ifaceHelp2": "結果が 1 より小さくても問題ありません。内側のほうが屈折率が低いという意味です（水中の気泡は 0.750）。",
+        "t.ifaceHelp3": "臨界角は、屈折率の高い側から低い側へ進む光についての角度で、それより斜めに当たると光はすべて反射します。ブリュースター角では、反射光が完全に偏光します。",
+        "t.cF0": "F0（正面から見た反射率、0〜1）", "t.cSpec": "Specular（F0 ÷ 0.08）",
+        "t.convHelp1": "3つのどれを編集しても、残りが連動します。F0 = ((IOR − 1) ÷ (IOR + 1))²（空気中の表面）。",
+        "t.convHelp2": "「Specular」は Unreal Engine、Disney BRDF、Blender 4.0 より前の Principled BSDF で使われる 0〜1 のスライダーで、0.5 が F0 = 0.04（IOR 1.5）にあたります。Blender 4.0 以降は IOR を直接入力します。"
+      }
+    },
+    onSettingsChange: function () {
+      $("n7").innerHTML = Shell.t("t.n7"); buildCats(); buildSelects(); buildPresets(); renderTable(); renderDetail(); placeDetail(); calcIface();
+    }
+  });
+  // 初期値
+  setSide("out", "air"); setSide("in", "water"); calcIface();
+  $("c-ior").value = "1.5"; conv("ior");
+  setTab(S.tab);
+})();
+</script>
+</body>
+</html>

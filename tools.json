@@ -1844,6 +1844,49 @@
         "ランダム"
       ],
       "added": "2026-09-16"
+    },
+    {
+      "id": "ior-table",
+      "type": "web",
+      "path": "tools/ior-table/",
+      "categories": [
+        "3dcg"
+      ],
+      "name": {
+        "en": "IOR table",
+        "ja": "屈折率（IOR）一覧"
+      },
+      "description": {
+        "en": "Refractive indices of liquids, glass, plastics, gems and more from measured data, with F0 and Abbe numbers; metal colors and n/k for Blender; boundary and IOR ⇔ F0 calculators.",
+        "ja": "液体・ガラス・樹脂・宝石などの屈折率を実測データから一覧に。F0・アッベ数、Blender用の金属の色とn/k、境界の相対IORとIOR⇔F0の計算も。"
+      },
+      "keywords": [
+        "ior",
+        "index of refraction",
+        "refractive index",
+        "f0",
+        "fresnel",
+        "abbe",
+        "dispersion",
+        "metal",
+        "conductor",
+        "f82",
+        "edge tint",
+        "extinction",
+        "glass",
+        "water",
+        "diamond",
+        "屈折率",
+        "反射率",
+        "フレネル",
+        "アッベ数",
+        "分散",
+        "金属",
+        "ガラス",
+        "宝石",
+        "臨界角"
+      ],
+      "added": "2026-09-28"
     }
   ]
 }
