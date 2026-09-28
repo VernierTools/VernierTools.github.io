@@ -751,8 +751,8 @@
         "ja": "被写界深度計算機"
       },
       "description": {
-        "en": "Depth of field from aperture, focal length, and distance.",
-        "ja": "F値・焦点距離・距離から被写界深度を算出。"
+        "en": "Depth of field, hyperfocal distance and background blur in pixels.",
+        "ja": "被写界深度・過焦点距離と、背景のボケが何pxになるかを計算。"
       },
       "keywords": [
         "depth of field",

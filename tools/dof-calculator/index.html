@@ -27,6 +27,9 @@
   .inputgroup--pre .input{ border-radius:0 var(--r) var(--r) 0; }
 
   .badges .badge{ margin-top:var(--s2); }
+  .hint{ font-size:12px; color:var(--text-3); margin-top:6px; line-height:1.5; }
+  .rrow__label .sub{ display:block; font-size:11.5px; color:var(--text-3); margin-top:2px; }
+  .copyhint{ margin-top:var(--s2); }
 </style>
 </head>
 <body>
@@ -66,14 +69,50 @@
             <span class="unit" id="distance-unit">m</span>
           </div>
           <div class="chipsrow" id="distance-quick"></div>
+          <div class="chipsrow"><button type="button" class="chip" id="to-hyper" data-i18n="t.tohyper">Focus at hyperfocal distance</button></div>
         </div>
 
         <div class="field">
           <label class="label" data-i18n="t.sensor">Sensor format</label>
           <select class="select" id="in-sensor" aria-label="Sensor format"></select>
+          <div class="row2" id="custom-sensor" style="margin-top:8px" hidden>
+            <div class="inputgroup"><input class="input" id="in-sw" type="number" min="1" max="200" step="0.1" inputmode="decimal" aria-label="Sensor width"><span class="unit" data-i18n="t.w">W mm</span></div>
+            <div class="inputgroup"><input class="input" id="in-sh" type="number" min="1" max="200" step="0.1" inputmode="decimal" aria-label="Sensor height"><span class="unit" data-i18n="t.h">H mm</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.crit">Sharpness standard</label>
+          <div class="chipsrow" id="crit-quick" style="margin-top:0"></div>
+          <div class="inputgroup" id="custom-coc" style="margin-top:8px" hidden>
+            <input class="input" id="in-coc" type="number" min="0.001" max="0.2" step="0.001" inputmode="decimal" aria-label="Circle of confusion">
+            <span class="unit">mm</span>
+          </div>
+          <p class="hint" id="crit-hint"></p>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.res">Output width</label>
+          <div class="inputgroup">
+            <input class="input" id="in-res" type="number" min="100" max="20000" step="1" inputmode="numeric" aria-label="Output width in pixels">
+            <span class="unit">px</span>
+          </div>
+          <div class="chipsrow" id="res-quick"></div>
         </div>
 
         <div class="badges" id="badges"></div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4)">
+        <div class="field">
+          <label class="label" data-i18n="t.bg">Background (or foreground) distance</label>
+          <div class="inputgroup">
+            <input class="input" id="in-bg" type="number" min="0" step="0.1" inputmode="decimal" placeholder="∞" aria-label="Background distance">
+            <span class="unit" id="bg-unit">m</span>
+          </div>
+          <div class="chipsrow" id="bg-quick"></div>
+          <p class="hint" data-i18n="t.bghint">How much an object at this distance is blurred. Leave empty for infinity.</p>
+        </div>
       </div>
     </div>
 
@@ -112,8 +151,23 @@
           <span class="rrow__value" id="ro-far" data-copy="">—</span></div>
         <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.total">Total depth of field</span>
           <span class="rrow__value" id="ro-total" data-copy="">—</span></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+        <div class="rrow"><span class="rrow__label"><span data-i18n="t.hyper">Hyperfocal distance</span><span class="sub" id="ro-hyper-sub"></span></span>
+          <span class="rrow__value" id="ro-hyper" data-copy="">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.coc">Circle of confusion</span>
+          <span class="rrow__value" id="ro-coc" data-copy="">—</span></div>
       </div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.blurhead">Blur at that distance</span><span class="badge" id="blur-badge" hidden></span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label"><span data-i18n="t.blurpx">Blur diameter</span><span class="sub" id="ro-px-sub"></span></span>
+          <span class="rrow__value" id="ro-px" data-copy="">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.blurpct">Share of frame width</span>
+          <span class="rrow__value" id="ro-pct" data-copy="">—</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.blurmm">On the sensor</span>
+          <span class="rrow__value" id="ro-mm" data-copy="">—</span></div>
+      </div>
+      <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      <p class="hint" style="margin-top:var(--s3)" data-i18n="t.model">Thin-lens model. Distances are measured from the lens, not the sensor, so results drift below about 1 m and do not apply to macro work.</p>
     </div>
   </div>
 </main>
@@ -122,86 +176,126 @@
 <script>
 "use strict";
 (function () {
+  /* センサーは実寸（幅×高さ mm）で持ち、許容錯乱円はそこから求める */
   var SENSORS = [
-    { id: "ff",         coc: 0.030, label: { en: "Full frame (35mm, 36×24mm)",              ja: "フルサイズ（35mm判・36×24mm）" } },
-    { id: "apsc-canon", coc: 0.019, label: { en: "APS-C — Canon (1.6×)",                     ja: "APS-C（Canon・1.6倍）" } },
-    { id: "apsc",       coc: 0.020, label: { en: "APS-C — Nikon / Sony / Fuji (1.5×)",       ja: "APS-C（Nikon/Sony/Fuji・1.5倍）" } },
-    { id: "m43",        coc: 0.015, label: { en: "Micro Four Thirds (2.0×)",                 ja: "マイクロフォーサーズ（2.0倍）" } },
-    { id: "1inch",      coc: 0.011, label: { en: "1-inch (2.7×)",                            ja: "1インチ（2.7倍）" } },
-    { id: "mf44",       coc: 0.038, label: { en: "Medium format 44×33mm (0.79×)",            ja: "中判 44×33mm（0.79倍）" } }
+    { id: "ff",         w: 36,    h: 24,   label: { en: "Full frame (35mm, 36×24mm)",           ja: "フルサイズ（35mm判・36×24mm）" } },
+    { id: "s35",        w: 24.89, h: 14,   label: { en: "Super 35 video (24.9×14.0mm)",         ja: "Super 35 映像（24.9×14.0mm）" } },
+    { id: "apsc-canon", w: 22.3,  h: 14.9, label: { en: "APS-C — Canon (22.3×14.9mm)",          ja: "APS-C（Canon・22.3×14.9mm）" } },
+    { id: "apsc",       w: 23.5,  h: 15.6, label: { en: "APS-C — Nikon / Sony / Fuji (23.5×15.6mm)", ja: "APS-C（Nikon/Sony/Fuji・23.5×15.6mm）" } },
+    { id: "m43",        w: 17.3,  h: 13,   label: { en: "Micro Four Thirds (17.3×13mm)",        ja: "マイクロフォーサーズ（17.3×13mm）" } },
+    { id: "1inch",      w: 13.2,  h: 8.8,  label: { en: "1-inch (13.2×8.8mm)",                  ja: "1インチ（13.2×8.8mm）" } },
+    { id: "mf44",       w: 44,    h: 33,   label: { en: "Medium format (44×33mm)",              ja: "中判（44×33mm）" } },
+    { id: "custom",     w: 36,    h: 24,   label: { en: "Custom size…",                         ja: "サイズを指定…" } }
   ];
+  // ピントの基準（許容錯乱円の決め方）
+  var CRITS = ["d1500", "d3000", "px", "custom"];
   var FOCAL_PRESETS = [24, 35, 50, 85, 135, 200];
   var APERTURE_PRESETS = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
   var DISTANCE_PRESETS_M = [0.5, 1, 3, 10, 50];
+  var RES_PRESETS = [1920, 3840, 4096, 6000];
+  var BG_PRESETS_M = [5, 10, 30, Infinity];
   var FT_PER_M = 3.28084;
 
-  var state = { focal: 50, aperture: 2.8, distanceM: 3, sensorId: "ff" };
+  var state = { focal: 50, aperture: 2.8, distanceM: 3, sensorId: "ff", sw: 36, sh: 24,
+    crit: "d1500", cocCustom: 0.03, res: 3840, bgM: 10 };
 
   var $ = function (id) { return document.getElementById(id); };
   var inFocal = $("in-focal"), inAperture = $("in-aperture"), inDistance = $("in-distance");
   var distUnitEl = $("distance-unit"), selSensor = $("in-sensor"), badgesWrap = $("badges");
-  var roNear = $("ro-near"), roFar = $("ro-far"), roTotal = $("ro-total");
+  var inSw = $("in-sw"), inSh = $("in-sh"), inCoc = $("in-coc"), inRes = $("in-res"), inBg = $("in-bg");
 
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
   function isImperial() { return Shell.units.system === "imperial"; }
   function metersToDisplay(m) { return isImperial() ? m * FT_PER_M : m; }
   function displayToMeters(v) { return isImperial() ? v / FT_PER_M : v; }
   function sensorById(id) { for (var i = 0; i < SENSORS.length; i++) if (SENSORS[i].id === id) return SENSORS[i]; return SENSORS[0]; }
+  function sensorSize() { var sn = sensorById(state.sensorId); return sn.id === "custom" ? { w: state.sw, h: state.sh } : { w: sn.w, h: sn.h }; }
   function fmtLen(m) {
     if (!isFinite(m)) return "∞";
     var o = Shell.units.format(m, "length");
     return o.value + " " + o.unit;
   }
+  function fmtNum(v, dp) { return Number(v.toFixed(dp)).toString(); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function round(n, dp) { var m = Math.pow(10, dp); return Math.round(n * m) / m; }
+
+  // 許容錯乱円（mm）
+  function coc() {
+    var sz = sensorSize(), diag = Math.hypot(sz.w, sz.h);
+    if (state.crit === "d1500") return diag / 1500;
+    if (state.crit === "d3000") return diag / 3000;
+    if (state.crit === "px") return sz.w / state.res;
+    return state.cocCustom;
+  }
 
   /* ---- 動的に作る要素（言語切替のため関数化） ---- */
   function populateSensorSelect() {
-    var cur = selSensor.value || state.sensorId;
-    selSensor.innerHTML = SENSORS.map(function (s) {
-      return '<option value="' + s.id + '">' + esc(s.label[Shell.lang] || s.label.en) + '</option>';
+    selSensor.innerHTML = SENSORS.map(function (sn) {
+      return '<option value="' + sn.id + '">' + esc(sn.label[Shell.lang] || sn.label.en) + '</option>';
     }).join("");
-    selSensor.value = cur;
+    selSensor.value = state.sensorId;
   }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-
   function buildChips(container, values, fmt, isActive, onPick) {
-    container.innerHTML = values.map(function (v) {
-      return '<button type="button" class="chip" data-v="' + v + '">' + esc(fmt(v)) + '</button>';
+    container.innerHTML = values.map(function (v, i) {
+      return '<button type="button" class="chip" data-i="' + i + '">' + esc(fmt(v)) + '</button>';
     }).join("");
     container.querySelectorAll("button").forEach(function (b) {
-      b.addEventListener("click", function () { onPick(parseFloat(b.getAttribute("data-v"))); });
+      b.addEventListener("click", function () { onPick(values[+b.getAttribute("data-i")]); });
     });
     syncChips(container, values, isActive);
   }
   function syncChips(container, values, isActive) {
     container.querySelectorAll("button").forEach(function (b) {
-      var v = parseFloat(b.getAttribute("data-v"));
-      b.setAttribute("aria-pressed", String(isActive(v)));
+      b.setAttribute("aria-pressed", String(isActive(values[+b.getAttribute("data-i")])));
     });
   }
-
-  function refreshDistanceUnitLabel() {
-    distUnitEl.textContent = isImperial() ? "ft" : "m";
-    if (document.activeElement !== inDistance) inDistance.value = round(metersToDisplay(state.distanceM), 2);
+  function distFmt(v) { return isFinite(v) ? (isImperial() ? round(v * FT_PER_M, 0) + " ft" : v + " m") : "∞"; }
+  function initChips() {
+    buildChips($("focal-quick"), FOCAL_PRESETS, function (v) { return v + "mm"; },
+      function (v) { return v === state.focal; },
+      function (v) { state.focal = v; inFocal.value = v; render(); });
+    buildChips($("aperture-quick"), APERTURE_PRESETS, function (v) { return "f/" + v; },
+      function (v) { return v === state.aperture; },
+      function (v) { state.aperture = v; inAperture.value = v; render(); });
+    buildChips($("distance-quick"), DISTANCE_PRESETS_M, distFmt,
+      function (v) { return Math.abs(v - state.distanceM) < 1e-6; },
+      function (v) { state.distanceM = v; refreshUnitFields(); render(); });
+    buildChips($("crit-quick"), CRITS, function (v) { return Shell.t("t.crit." + v); },
+      function (v) { return v === state.crit; },
+      function (v) { state.crit = v; render(); });
+    buildChips($("res-quick"), RES_PRESETS, function (v) { return Shell.t("t.res." + v); },
+      function (v) { return v === state.res; },
+      function (v) { state.res = v; inRes.value = v; render(); });
+    buildChips($("bg-quick"), BG_PRESETS_M, distFmt,
+      function (v) { return v === state.bgM || (isFinite(v) && Math.abs(v - state.bgM) < 1e-6); },
+      function (v) { state.bgM = v; refreshUnitFields(); render(); });
   }
-  function round(n, dp) { var m = Math.pow(10, dp); return Math.round(n * m) / m; }
+
+  function refreshUnitFields() {
+    var u = isImperial() ? "ft" : "m";
+    distUnitEl.textContent = u; $("bg-unit").textContent = u;
+    if (document.activeElement !== inDistance) inDistance.value = round(metersToDisplay(state.distanceM), 2);
+    if (document.activeElement !== inBg) inBg.value = isFinite(state.bgM) ? round(metersToDisplay(state.bgM), 2) : "";
+  }
 
   /* ---- 入力イベント ---- */
-  inFocal.addEventListener("input", function () {
-    var v = parseFloat(inFocal.value); if (isNaN(v)) return;
-    state.focal = clamp(v, 1, 2000); render();
+  function num(el, fn) { el.addEventListener("input", function () { var v = parseFloat(el.value); if (!isNaN(v)) { fn(v); render(); } }); }
+  num(inFocal, function (v) { state.focal = clamp(v, 1, 2000); });
+  num(inAperture, function (v) { state.aperture = clamp(v, 0.5, 64); });
+  num(inDistance, function (v) { state.distanceM = Math.max(0, displayToMeters(v)); });
+  num(inSw, function (v) { state.sw = clamp(v, 1, 200); });
+  num(inSh, function (v) { state.sh = clamp(v, 1, 200); });
+  num(inCoc, function (v) { state.cocCustom = clamp(v, 0.001, 0.2); });
+  num(inRes, function (v) { state.res = clamp(Math.round(v), 100, 20000); });
+  inBg.addEventListener("input", function () {
+    var v = parseFloat(inBg.value);
+    state.bgM = inBg.value.trim() === "" || isNaN(v) ? Infinity : Math.max(0, displayToMeters(v)); render();
   });
-  inAperture.addEventListener("input", function () {
-    var v = parseFloat(inAperture.value); if (isNaN(v)) return;
-    state.aperture = clamp(v, 0.5, 64); render();
-  });
-  inDistance.addEventListener("input", function () {
-    var v = parseFloat(inDistance.value); if (isNaN(v)) return;
-    state.distanceM = Math.max(0, displayToMeters(v)); render();
-  });
-  inDistance.addEventListener("blur", function () {
-    inDistance.value = round(metersToDisplay(state.distanceM), 2);
-  });
+  [inDistance, inBg].forEach(function (el) { el.addEventListener("blur", refreshUnitFields); });
   selSensor.addEventListener("change", function () { state.sensorId = selSensor.value; render(); });
+  $("to-hyper").addEventListener("click", function () {
+    state.distanceM = hyperfocalMm() / 1000; refreshUnitFields(); render();
+  });
 
   /* ---- 図解（線形スケールの数直線） ---- */
   var svgAxis = $("axis"), svgBand = $("band"), nearTick = $("near-tick"), farTick = $("far-tick"),
@@ -251,83 +345,132 @@
     }
   }
 
-  /* ---- 本計算 ---- */
+  /* ---- 本計算（薄肉レンズ・距離はすべてレンズから、mm） ----
+     過焦点距離 H = f²/(N·c) + f
+     近点 Dn = s(H − f) / (H + s − 2f)、遠点 Df = s(H − f) / (H − s)（s ≥ H なら ∞）
+     距離 x にある物のボケの直径（センサー上）b = f² / (N(s − f)) · |x − s| / x */
+  function hyperfocalMm() { var f = state.focal; return f * f / (state.aperture * coc()) + f; }
+  function setRo(id, text) { var el = $(id); el.textContent = text; el.setAttribute("data-copy", text); }
+
   function render() {
-    var f = state.focal, n = state.aperture, c = sensorById(state.sensorId).coc;
+    var f = state.focal, n = state.aperture, c = coc(), sz = sensorSize();
     var minDistM = (f * 1.02) / 1000;
-    var distM = state.distanceM;
-    var effDistM = Math.max(distM, minDistM);
-    var clamped = effDistM > distM + 1e-9;
+    var effDistM = Math.max(state.distanceM, minDistM);
+    var clamped = effDistM > state.distanceM + 1e-9;
 
     var s = effDistM * 1000;
-    var H = (f * f) / (n * c) + f;
-    var ds = s - f;
-    var Dn = H * s / (H + ds);
+    var H = hyperfocalMm();
+    var Dn = s * (H - f) / (H + s - 2 * f);
     var infiniteFar = s >= H;
-    var Df = infiniteFar ? Infinity : H * s / (H - ds);
-    var dof = infiniteFar ? Infinity : (Df - Dn);
+    var Df = infiniteFar ? Infinity : s * (H - f) / (H - s);
 
-    var nearM = Dn / 1000, farM = infiniteFar ? Infinity : Df / 1000, dofM = infiniteFar ? Infinity : dof / 1000;
-
-    roNear.textContent = fmtLen(nearM); roNear.setAttribute("data-copy", fmtLen(nearM));
-    roFar.textContent = fmtLen(farM); roFar.setAttribute("data-copy", fmtLen(farM));
-    roTotal.textContent = fmtLen(dofM); roTotal.setAttribute("data-copy", fmtLen(dofM));
-
+    var nearM = Dn / 1000, farM = Df / 1000, dofM = infiniteFar ? Infinity : (Df - Dn) / 1000;
+    setRo("ro-near", fmtLen(nearM));
+    setRo("ro-far", fmtLen(farM));
+    setRo("ro-total", fmtLen(dofM));
+    setRo("ro-hyper", fmtLen(H / 1000));
+    $("ro-hyper-sub").textContent = Shell.t("t.hypersub").replace("{d}", fmtLen(H / 2000));
+    setRo("ro-coc", fmtNum(c, 4) + " mm");
     drawDiagram(effDistM, nearM, farM, infiniteFar);
+
+    // ボケの大きさ
+    var x = state.bgM * 1000, badge = $("blur-badge");
+    if (x <= f) {
+      ["ro-px", "ro-pct", "ro-mm"].forEach(function (id) { setRo(id, "—"); }); $("ro-px-sub").textContent = ""; badge.hidden = true;
+    } else {
+      var b = f * f / (n * (s - f)) * (isFinite(x) ? Math.abs(x - s) / x : 1);
+      setRo("ro-px", fmtNum(b / sz.w * state.res, 1) + " px");
+      $("ro-px-sub").textContent = Shell.t("t.pxsub").replace("{w}", state.res);
+      setRo("ro-pct", fmtNum(b / sz.w * 100, 2) + " %");
+      setRo("ro-mm", fmtNum(b, 3) + " mm");
+      var sharp = b <= c;
+      badge.hidden = false;
+      badge.className = "badge " + (sharp ? "badge--pos" : "badge--muted");
+      badge.innerHTML = '<span class="d"></span>' + esc(Shell.t(sharp ? "t.insharp" : "t.outsharp"));
+    }
 
     badgesWrap.innerHTML = clamped
       ? '<span class="badge badge--neg"><span class="d"></span>' + esc(Shell.t("t.warnclose")) + '</span>'
       : "";
+    $("custom-sensor").hidden = state.sensorId !== "custom";
+    $("custom-coc").hidden = state.crit !== "custom";
+    $("crit-hint").textContent = Shell.t("t.crithint." + state.crit);
 
     syncChips($("focal-quick"), FOCAL_PRESETS, function (v) { return v === state.focal; });
     syncChips($("aperture-quick"), APERTURE_PRESETS, function (v) { return v === state.aperture; });
     syncChips($("distance-quick"), DISTANCE_PRESETS_M, function (v) { return Math.abs(v - state.distanceM) < 1e-6; });
-  }
-
-  function initChips() {
-    buildChips($("focal-quick"), FOCAL_PRESETS, function (v) { return v + "mm"; },
-      function (v) { return v === state.focal; },
-      function (v) { state.focal = v; inFocal.value = v; render(); });
-    buildChips($("aperture-quick"), APERTURE_PRESETS, function (v) { return "f/" + v; },
-      function (v) { return v === state.aperture; },
-      function (v) { state.aperture = v; inAperture.value = v; render(); });
-    buildChips($("distance-quick"), DISTANCE_PRESETS_M, function (v) { return v + " m"; },
-      function (v) { return Math.abs(v - state.distanceM) < 1e-6; },
-      function (v) { state.distanceM = v; refreshDistanceUnitLabel(); render(); });
+    syncChips($("crit-quick"), CRITS, function (v) { return v === state.crit; });
+    syncChips($("res-quick"), RES_PRESETS, function (v) { return v === state.res; });
+    syncChips($("bg-quick"), BG_PRESETS_M, function (v) { return v === state.bgM || (isFinite(v) && Math.abs(v - state.bgM) < 1e-6); });
   }
 
   function onSettingsChange() {
     populateSensorSelect();
-    refreshDistanceUnitLabel();
+    initChips();
+    refreshUnitFields();
     render();
   }
 
   /* ---- 起動 ---- */
   inFocal.value = state.focal;
   inAperture.value = state.aperture;
-  populateSensorSelect(); selSensor.value = state.sensorId;
-  refreshDistanceUnitLabel();
-  initChips();
+  inSw.value = state.sw; inSh.value = state.sh; inCoc.value = state.cocCustom; inRes.value = state.res;
 
   Shell.init({
     id: "dof-calculator",
     strings: {
       en: {
         "t.title": "Depth of field calculator",
-        "t.desc": "Enter focal length, aperture, and focus distance to get the near limit, far limit, and total depth of field.",
+        "t.desc": "Enter focal length, aperture and focus distance to get the near and far limits, the hyperfocal distance, and how much the background blurs.",
         "t.focal": "Focal length", "t.aperture": "Aperture (f-number)", "t.distance": "Focus distance", "t.sensor": "Sensor format",
+        "t.w": "W mm", "t.h": "H mm",
+        "t.tohyper": "Focus at the hyperfocal distance",
+        "t.crit": "Sharpness standard",
+        "t.crit.d1500": "Standard", "t.crit.d3000": "Strict", "t.crit.px": "1 pixel", "t.crit.custom": "Custom",
+        "t.crithint.d1500": "Sensor diagonal ÷ 1500 — the traditional standard, for a print or screen seen as a whole.",
+        "t.crithint.d3000": "Sensor diagonal ÷ 3000 — for large screens and high-resolution viewing.",
+        "t.crithint.px": "One pixel at the output width below — sharp even when viewed at 100%.",
+        "t.crithint.custom": "Enter the circle of confusion directly.",
+        "t.res": "Output width", "t.res.1920": "HD 1920", "t.res.3840": "4K UHD 3840", "t.res.4096": "DCI 4K 4096", "t.res.6000": "24 MP 6000",
+        "t.bg": "Background (or foreground) distance",
+        "t.bghint": "How much an object at this distance blurs. Leave empty for infinity.",
         "t.near": "Near limit", "t.far": "Far limit", "t.total": "Total depth of field",
+        "t.hyper": "Hyperfocal distance", "t.hypersub": "Focus here: sharp from {d} to ∞",
+        "t.coc": "Circle of confusion",
         "t.near_short": "Near", "t.far_short": "Far",
-        "t.output": "Output", "t.copyhint": "Click any value to copy.",
+        "t.output": "Output",
+        "t.blurhead": "Blur at that distance", "t.blurpx": "Blur diameter", "t.pxsub": "At {w} px wide",
+        "t.blurpct": "Share of frame width", "t.blurmm": "On the sensor",
+        "t.insharp": "Within focus", "t.outsharp": "Out of focus",
+        "t.copyhint": "Click any value to copy.",
+        "t.model": "Thin-lens model. Distances are measured from the lens, not the sensor, so results drift below about 1 m and do not apply to macro work.",
         "t.warnclose": "Focus distance was too close for this focal length — adjusted to the closest calculable distance."
       },
       ja: {
         "t.title": "被写界深度計算機",
-        "t.desc": "焦点距離・絞り値・被写体までの距離を入力すると、ピントが合う近点・遠点と被写界深度の合計を算出します。",
+        "t.desc": "焦点距離・絞り値・被写体までの距離から、ピントが合う範囲、過焦点距離、背景がどれだけボケるかを計算します。",
         "t.focal": "焦点距離", "t.aperture": "絞り値（F値）", "t.distance": "被写体までの距離", "t.sensor": "センサーサイズ",
+        "t.w": "幅 mm", "t.h": "高さ mm",
+        "t.tohyper": "過焦点距離にピントを合わせる",
+        "t.crit": "ピントの基準",
+        "t.crit.d1500": "標準", "t.crit.d3000": "厳しめ", "t.crit.px": "1ピクセル", "t.crit.custom": "数値で指定",
+        "t.crithint.d1500": "センサーの対角線 ÷ 1500。プリントや画面を全体として見るときの、昔からの基準です。",
+        "t.crithint.d3000": "センサーの対角線 ÷ 3000。大きな画面や高解像度で見るとき向けです。",
+        "t.crithint.px": "下の出力解像度で1ピクセル。等倍で見てもボケないかの基準です。",
+        "t.crithint.custom": "許容錯乱円の大きさを直接入力します。",
+        "t.res": "出力解像度（横）", "t.res.1920": "HD 1920", "t.res.3840": "4K UHD 3840", "t.res.4096": "DCI 4K 4096", "t.res.6000": "2400万画素 6000",
+        "t.bg": "背景（または前景）までの距離",
+        "t.bghint": "この距離にある物がどれだけボケるかを計算します。空欄にすると無限遠です。",
         "t.near": "近点（手前側の限界）", "t.far": "遠点（奥側の限界）", "t.total": "被写界深度（合計）",
+        "t.hyper": "過焦点距離", "t.hypersub": "ここに合わせると {d} 〜 ∞ にピントが合う",
+        "t.coc": "許容錯乱円",
         "t.near_short": "近点", "t.far_short": "遠点",
-        "t.output": "出力", "t.copyhint": "数値をクリックでコピー。",
+        "t.output": "出力",
+        "t.blurhead": "その距離のボケ", "t.blurpx": "ボケの直径", "t.pxsub": "横 {w} px の画像で",
+        "t.blurpct": "画面の横幅に対して", "t.blurmm": "センサー上",
+        "t.insharp": "ピントの範囲内", "t.outsharp": "ピントの範囲外",
+        "t.copyhint": "数値をクリックでコピー。",
+        "t.model": "レンズを1枚の薄いレンズとみなした計算です。距離はセンサーではなくレンズから測るため、1m より近いと誤差が大きくなり、マクロ撮影には使えません。",
         "t.warnclose": "被写体距離が焦点距離に対して近すぎるため、計算可能な最小距離に調整しました。"
       }
     },
