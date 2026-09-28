@@ -142,7 +142,7 @@
             <div class="inputgroup"><input class="input input--mono" id="gen-pct" type="number" min="0" max="100" step="1" inputmode="decimal" value="10"><span class="unit">%</span></div>
           </div>
         </div>
-        <label class="check" style="margin-top:var(--s4)"><input type="checkbox" id="gen-blue"><span data-i18n="t.blue1">Write Blue = 1</span></label>
+        <label class="check" style="margin-top:var(--s4)"><input type="checkbox" id="gen-blue" checked><span data-i18n="t.blue1">Write Blue = 1</span></label>
         <div class="actions">
           <button class="btn btn--primary" id="gen-export" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
@@ -157,7 +157,7 @@
         <div class="card__title" data-i18n="t.howto">Using it in Blender / Nuke</div>
         <ul class="notes">
           <li data-i18n="t.n1">Blender: set the Image node's color space to Non-Color.</li>
-          <li data-i18n="t.n2">Map UV treats Blue as a validity mask, so tick “Blue = 1” above when using the map in Blender.</li>
+          <li data-i18n="t.n2">Blender’s Map UV treats Blue as a validity mask, so “Blue = 1” is on by default. Nuke’s STMap ignores Blue, so it does no harm there.</li>
           <li data-i18n="t.n3">Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.</li>
           <li data-i18n="t.n6">Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.</li>
           <li data-i18n="t.n4">Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).</li>
@@ -298,7 +298,7 @@ var I18N = {
     "t.osAmount": "Extra size", "t.export": "Export", "t.exporting": "Generating…",
     "t.howto": "Using it in Blender / Nuke",
     "t.n1": "Blender: set the Image node's color space to Non-Color.",
-    "t.n2": "Map UV treats Blue as a validity mask, so tick “Blue = 1” above when using the map in Blender.",
+    "t.n2": "Blender’s Map UV treats Blue as a validity mask, so “Blue = 1” is on by default. Nuke’s STMap ignores Blue, so it does no harm there.",
     "t.blue1": "Write Blue = 1",
     "t.n3": "Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.",
     "t.n6": "Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.",
@@ -350,7 +350,7 @@ var I18N = {
     "t.osAmount": "追加する大きさ", "t.export": "書き出す", "t.exporting": "生成中…",
     "t.howto": "Blender / Nuke で使うとき",
     "t.n1": "Blender: Imageノードのカラースペースは Non-Color にしてください。",
-    "t.n2": "Map UVはBチャンネルを有効範囲のマスクとして扱うため、Blenderで使うときは上の「B = 1」にチェックしてください。",
+    "t.n2": "BlenderのMap UVはBチャンネルを有効範囲のマスクとして扱うため、「B = 1」を最初からオンにしています。NukeのSTMapはBを使わないので、オンのままで問題ありません。",
     "t.blue1": "B = 1 で書き出す",
     "t.n3": "Blender 5.0以降: Map UVの補間は Bicubic か Bilinear にしてください。",
     "t.n6": "Blender: オーバースキャンを付けたときは、レンダー解像度を右の「出力サイズ」に合わせてください。合わせないと広げた部分が切り取られます。広げる量は左右・上下で均等なので、位置はずれません。",
@@ -401,7 +401,7 @@ var DEFAULT_K = { k1: 0, k2: 0, k3: 0, k4: 0, p1: 0, p2: 0 };
 /* ---------------- 状態（URL ハッシュに保存） ---------------- */
 var S = {
   tab: "gen",
-  gen: { model: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dir: "undistort", fmt: "exr-zip", os: "none", pct: 10, blue: false },
+  gen: { model: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dir: "undistort", fmt: "exr-zip", os: "none", pct: 10, blue: true },
   ana: { model: "blender-polynomial", dir: "auto", est: false },
   conv: { src: "blender-polynomial", k: Object.assign({}, DEFAULT_K), dst: "blender-nuke" }
 };
@@ -425,7 +425,7 @@ function readHash() {
   S.gen.model = model(q.gm, S.gen.model); ks(q.gk, S.gen.k);
   if (/^(undistort|redistort)$/.test(q.gd)) S.gen.dir = q.gd;
   if (/^(exr-zip|exr|png16)$/.test(q.gf)) S.gen.fmt = q.gf;
-  S.gen.blue = q.gb === "1";
+  if (q.gb === "0" || q.gb === "1") S.gen.blue = q.gb === "1";
   if (q.go === "auto" || q.go === "none") S.gen.os = q.go;
   else if (q.go && isFinite(+q.go)) { S.gen.os = "percent"; S.gen.pct = +q.go; }
   S.ana.model = model(q.am, S.ana.model);
