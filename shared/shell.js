@@ -350,9 +350,9 @@
     var state = { q:"", cat:"all" };
 
     mount.innerHTML =
-      '<div class="searchwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
+      '<div class="hubsentinel"></div><div class="hubbar"><div class="searchwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
       '<input class="search" data-i18n-ph="hub.search" placeholder="'+t("hub.search")+'"></div>'+
-      '<div class="filterchips"></div>'+
+      '<div class="filterchips"></div></div>'+
       '<div class="hub-sections"></div>'+
       '<div class="empty" data-i18n="hub.empty" hidden>'+t("hub.empty")+'</div>';
 
@@ -392,12 +392,26 @@
       sections.innerHTML = html;
       empty.hidden = anyShown;
     }
-    input.addEventListener("input", function(){ state.q = input.value; syncHash(); draw(); });
+    // 貼り付き状態の検出: 帯の直前の印がヘッダーの下に隠れたら .stuck
+    var bar = mount.querySelector(".hubbar"), sentinel = mount.querySelector(".hubsentinel");
+    function stickTop(){ return parseFloat(getComputedStyle(bar).top) || 0; }
+    function onScroll(){
+      var stuck = sentinel.getBoundingClientRect().top < stickTop();
+      bar.classList.toggle("stuck", stuck); document.body.classList.toggle("hub-stuck", stuck);
+    }
+    addEventListener("scroll", onScroll, { passive:true }); addEventListener("resize", onScroll); onScroll();
+    // 下までスクロールした状態で絞り込んだら、結果の先頭に戻す（帯は貼り付いたまま）
+    function toResults(){
+      var y = sentinel.getBoundingClientRect().top + scrollY - stickTop();
+      if (scrollY > y) scrollTo(0, y);
+    }
+    input.addEventListener("input", function(){ state.q = input.value; syncHash(); draw(); toResults(); });
     chipsBox.addEventListener("click", function(e){
       var b = e.target.closest(".fchip"); if (!b) return;
       state.cat = b.getAttribute("data-cat");
       chipsBox.querySelectorAll(".fchip").forEach(function(x){ x.setAttribute("aria-pressed", String(x===b)); });
-      syncHash(); draw();
+      b.scrollIntoView({ block:"nearest", inline:"nearest" });
+      syncHash(); draw(); toResults();
     });
     function syncHash(){
       var p = [];
