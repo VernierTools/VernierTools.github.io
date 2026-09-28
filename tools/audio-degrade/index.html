@@ -76,9 +76,15 @@
       </div>
 
       <div class="card">
-        <div class="card__title" data-i18n="t.listen">Listen</div>
+        <div class="choicerow">
+          <span class="card__title" style="margin:0" data-i18n="t.listen">Listen</span>
+          <div class="seg" id="plen" role="group">
+            <button type="button" data-v="30" aria-pressed="true" data-i18n="t.p30">30 s</button>
+            <button type="button" data-v="all" aria-pressed="false" data-i18n="t.pall">Whole file</button>
+          </div>
+        </div>
         <div class="wave" id="wave"><canvas id="wavec"></canvas><div class="empty" id="wave-empty" data-i18n="t.noAudio">Load a file to begin</div></div>
-        <div class="hint" data-i18n="t.waveHint">Click the waveform to choose the 10-second section you hear while adjusting. Export always processes the whole file.</div>
+        <div class="hint" id="wave-hint"></div>
         <div class="transport">
           <button type="button" class="playbtn" id="play" disabled aria-label="Play">
             <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -150,17 +156,17 @@
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var STORE = "vernier.degrade", PREVIEW = 10, PRE = 2.5, POST = 1;
+  var STORE = "vernier.degrade", PRE = 2.5, POST = 1;
   var ORDER = ["cassette", "vinyl", "sp", "vhs", "phone", "am"];
 
   /* ---- 状態 ---- */
-  var S = { medium: "cassette", params: {}, level: "std", gens: 1, match: true, seed: 1, bits: "24", view: "proc" };
+  var S = { plen: "30", medium: "cassette", params: {}, level: "std", gens: 1, match: true, seed: 1, bits: "24", view: "proc" };
   try {
     var sv = JSON.parse(localStorage.getItem(STORE));
-    if (sv && Degrade.MEDIA[sv.medium]) { S.medium = sv.medium; S.params = sv.params || {}; S.level = sv.level || ""; S.gens = sv.gens || 1; S.match = sv.match !== false; S.bits = sv.bits === "16" ? "16" : "24"; }
+    if (sv && Degrade.MEDIA[sv.medium]) { S.medium = sv.medium; S.params = sv.params || {}; S.level = sv.level || ""; S.gens = sv.gens || 1; S.match = sv.match !== false; S.bits = sv.bits === "16" ? "16" : "24"; S.plen = sv.plen === "all" ? "all" : "30"; }
   } catch (e) {}
   function params() { var p = Degrade.defaults(S.medium); Object.keys(S.params[S.medium] || {}).forEach(function (k) { if (k in p) p[k] = S.params[S.medium][k]; }); return p; }
-  function persist() { try { localStorage.setItem(STORE, JSON.stringify({ medium: S.medium, params: S.params, level: S.level, gens: S.gens, match: S.match, bits: S.bits })); } catch (e) {} }
+  function persist() { try { localStorage.setItem(STORE, JSON.stringify({ medium: S.medium, params: S.params, level: S.level, gens: S.gens, match: S.match, bits: S.bits, plen: S.plen })); } catch (e) {} }
   if (!S.params[S.medium]) S.params[S.medium] = {};
 
   /* =====================================================================
@@ -242,15 +248,60 @@
     if (!f) return;
     showErr("");
     $("fileinfo").textContent = f.name;
-    f.arrayBuffer().then(function (buf) { return actx().decodeAudioData(buf); }).then(function (ab) {
+    f.arrayBuffer().then(function (buf) {
+      // ブラウザの decodeAudioData は、使う AudioContext のサンプリング周波数に変換してしまう。
+      // ファイル本来の周波数を読み取り、その周波数の OfflineAudioContext で読み込む（分からない形式は 48 kHz）
+      var rate = sniffRate(buf) || 48000, Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      try { var oc = new Off(2, 1, rate); return decode(oc, buf); } catch (e) { return decode(actx(), buf); }
+    }).then(function (ab) {
       var ch = []; for (var c = 0; c < Math.min(2, ab.numberOfChannels); c++) ch.push(new Float32Array(ab.getChannelData(c)));
       setSource(ch, ab.sampleRate, f.name.replace(/\.[^.]+$/, ""));
       $("fileinfo").textContent = f.name + " · " + fmtTime(A.dur) + " · " + (ab.sampleRate / 1000) + " kHz · " + (ch.length === 1 ? "mono" : "stereo");
     }).catch(function () { showErr(Shell.t("t.decodeErr")); $("fileinfo").textContent = Shell.t("t.nofile"); });
   }
+  function decode(ctx, buf) {
+    return new Promise(function (res, rej) { var p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+  }
+  /* ファイルの先頭からサンプリング周波数を読む（WAV・AIFF・FLAC・MP4/M4A・MP3）。分からなければ 0 */
+  function sniffRate(buf) {
+    var u = new Uint8Array(buf), dv = new DataView(buf), tag = function (o) { return String.fromCharCode(u[o], u[o + 1], u[o + 2], u[o + 3]); };
+    try {
+      if (tag(0) === "RIFF" && tag(8) === "WAVE") {
+        for (var p = 12; p + 8 <= u.length;) { var sz = dv.getUint32(p + 4, true); if (tag(p) === "fmt ") return dv.getUint32(p + 12, true); p += 8 + sz + (sz & 1); }
+      }
+      if (tag(0) === "FORM" && (tag(8) === "AIFF" || tag(8) === "AIFC")) {
+        for (p = 12; p + 8 <= u.length;) {
+          sz = dv.getUint32(p + 4);
+          if (tag(p) === "COMM") {                              // 80 ビットの拡張精度浮動小数
+            var e = dv.getUint16(p + 16) & 0x7fff, m = dv.getUint32(p + 18);
+            return Math.round(m * Math.pow(2, e - 16383 - 31));
+          }
+          p += 8 + sz + (sz & 1);
+        }
+      }
+      if (tag(0) === "fLaC") return (u[18] << 12) | (u[19] << 4) | (u[20] >> 4);
+      if (tag(4) === "ftyp") {                                 // MP4 / M4A: 'mp4a' サンプルエントリーの周波数（16.16 固定小数）
+        for (p = 8; p + 32 < u.length; p++) if (u[p] === 0x6d && tag(p) === "mp4a") return dv.getUint32(p + 28) >>> 16;
+        return 0;
+      }
+      // MP3: 先頭が ID3 タグかフレームの同期語のときだけ調べる（他の形式のデータを取り違えないように）
+      var q = 0;
+      if (tag(0).slice(0, 3) === "ID3") q = 10 + ((u[6] & 127) << 21 | (u[7] & 127) << 14 | (u[8] & 127) << 7 | (u[9] & 127));
+      else if (!(u[0] === 0xff && (u[1] & 0xe0) === 0xe0)) return 0;
+      for (var lim = Math.min(u.length - 4, q + 8192); q < lim; q++) {
+        if (u[q] === 0xff && (u[q + 1] & 0xe0) === 0xe0) {
+          var ver = (u[q + 1] >> 3) & 3, ri = (u[q + 2] >> 2) & 3;
+          if (ver === 1 || ri === 3) continue;
+          var base = [44100, 48000, 32000][ri];
+          return ver === 3 ? base : ver === 2 ? base / 2 : base / 4;
+        }
+      }
+    } catch (err) {}
+    return 0;
+  }
   function setSource(ch, fs, name) {
     stop();
-    A.src = ch; A.fs = fs; A.name = name; A.dur = ch[0].length / fs; A.start = 0;
+    A.src = ch; A.fs = fs; A.name = name; A.dur = ch[0].length / fs; A.start = 0; P.cue = null;
     $("wave-empty").hidden = true; $("play").disabled = false; $("export").disabled = false;
     drawWave(); schedule();
   }
@@ -300,7 +351,7 @@
     var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
     if (!A.src) return;
     var css = getComputedStyle(document.documentElement), acc = css.getPropertyValue("--accent").trim(), txt = css.getPropertyValue("--text-3").trim();
-    var x0 = A.start / A.dur * W, x1 = Math.min(A.dur, A.start + PREVIEW) / A.dur * W;
+    var x0 = A.start / A.dur * W, x1 = Math.min(A.dur, A.start + plen()) / A.dur * W;
     g.fillStyle = acc; g.globalAlpha = 0.12; g.fillRect(x0, 0, x1 - x0, H); g.globalAlpha = 1;
     var n = A.src[0].length, step = n / W;
     for (var x = 0; x < W; x++) {
@@ -311,13 +362,19 @@
       g.fillStyle = x >= x0 && x <= x1 ? acc : txt;
       g.fillRect(x, H / 2 - mx * H / 2 * 0.95, 1, Math.max(1, (mx - mn) * H / 2 * 0.95));
     }
-    if (P.playing) { var pos = A.start + playPos(); g.fillStyle = acc; g.fillRect(pos / A.dur * W - 1, 0, 2, H); }
+    var pos = P.playing ? A.start + playPos() : P.cue != null ? A.start + P.cue : null;
+    if (pos != null) { g.fillStyle = acc; g.fillRect(pos / A.dur * W - 1, 0, 2, H); }
   }
   function fmtTime(s) { s = Math.max(0, s); var m = Math.floor(s / 60); return m + ":" + ("0" + Math.floor(s % 60)).slice(-2); }
   $("wave").addEventListener("pointerdown", function (e) {
     if (!A.src) return;
-    var r = $("wave").getBoundingClientRect(), t = (e.clientX - r.left) / r.width * A.dur;
-    A.start = Math.max(0, Math.min(Math.max(0, A.dur - PREVIEW), t - PREVIEW / 2));
+    var r = $("wave").getBoundingClientRect(), t = Math.max(0, Math.min(A.dur, (e.clientX - r.left) / r.width * A.dur));
+    if (S.plen === "all") {                                   // 全体: クリックした位置から再生
+      P.cue = t;
+      if (P.playing && P.proc) start(t); else drawWave();
+      return;
+    }
+    A.start = Math.max(0, Math.min(Math.max(0, A.dur - plen()), t - plen() / 2));
     var was = P.playing; stop(); drawWave(); schedule(was);
   });
   window.addEventListener("resize", function () { drawWave(); });
@@ -356,8 +413,8 @@
     pvTimer = setTimeout(function () { renderPreview(resume); }, 220);
   }
   function segment() {
-    var fs = A.fs, a = Math.max(0, A.start - PRE), b = Math.min(A.dur, A.start + PREVIEW + POST);
-    return { a: Math.floor(a * fs), b: Math.floor(b * fs), s0: Math.floor(A.start * fs), s1: Math.floor(Math.min(A.dur, A.start + PREVIEW) * fs) };
+    var fs = A.fs, a = Math.max(0, A.start - PRE), b = Math.min(A.dur, A.start + plen() + POST);
+    return { a: Math.floor(a * fs), b: Math.floor(b * fs), s0: Math.floor(A.start * fs), s1: Math.floor(Math.min(A.dur, A.start + plen()) * fs) };
   }
   function renderPreview(resume) {
     var tk = ++pvToken, sg = segment();
@@ -379,6 +436,18 @@
   }
 
   /* ---- 再生（元の音と劣化後を同時に鳴らし、音量だけ切り替える） ---- */
+  function plen() { return S.plen === "all" ? A.dur : 30; }
+  function waveHint() { $("wave-hint").textContent = Shell.t(S.plen === "all" ? "t.waveHintAll" : "t.waveHint30"); }
+  $("plen").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]"); if (!b || b.getAttribute("data-v") === S.plen) return;
+    S.plen = b.getAttribute("data-v"); persist();
+    $("plen").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    waveHint();
+    if (!A.src) return;
+    if (S.plen === "all") A.start = 0; else A.start = Math.max(0, Math.min(Math.max(0, A.dur - 30), A.start + (P.cue || 0)));
+    P.cue = null;
+    var was = P.playing; stop(); drawWave(); schedule(was);
+  });
   function playPos() { if (!P.playing) return 0; var d = P.orig.duration; return ((actx().currentTime - P.t0) % d + d) % d; }
   function start(offset) {
     var ctx = actx(); if (ctx.state === "suspended") ctx.resume();
@@ -408,7 +477,7 @@
   $("play").addEventListener("click", function () {
     if (P.playing) { stop(); return; }
     if (!P.proc) { schedule(true); return; }
-    start(0);
+    start(P.cue || 0); P.cue = null;
   });
   $("ab").addEventListener("click", function (e) {
     var b = e.target.closest("[data-v]"); if (!b) return;
@@ -467,7 +536,9 @@
         "t.dropb": "Click to choose a file", "t.dropor": "or drag & drop", "t.nofile": "No file selected", "t.local": "Files never leave your browser.",
         "t.sample": "Try with a sample", "t.sampleName": "Sample (piano, bass and drums, 20 s)", "t.decodeErr": "This file could not be read as audio by this browser.",
         "t.listen": "Listen", "t.noAudio": "Load a file to begin",
-        "t.waveHint": "Click the waveform to choose the 10-second section you hear while adjusting. Export always processes the whole file.",
+        "t.p30": "30 s", "t.pall": "Whole file",
+        "t.waveHint30": "Click the waveform to choose the 30-second section you hear while adjusting. Export always processes the whole file.",
+        "t.waveHintAll": "Click the waveform to play from there. Every change re-processes the whole file, so on long tracks the sound takes a few seconds to update.",
         "t.busy": "Processing…", "t.orig": "Original", "t.proc": "Degraded", "t.play": "Play", "t.stop": "Stop",
         "t.export": "Export", "t.format": "Format", "t.exportBtn": "Process the whole file and save", "t.saved": "Saved ({s} s).",
         "t.medium": "Medium", "t.amount": "Starting point", "t.light": "Light", "t.std": "Typical", "t.heavy": "Worn out",
@@ -499,7 +570,9 @@
         "t.dropb": "クリックしてファイルを選択", "t.dropor": "またはドラッグ＆ドロップ", "t.nofile": "ファイル未選択", "t.local": "ファイルはブラウザの外に送られません。",
         "t.sample": "サンプル音で試す", "t.sampleName": "サンプル（ピアノ・ベース・ドラム、20秒）", "t.decodeErr": "このファイルは、このブラウザでは音声として読み込めませんでした。",
         "t.listen": "試聴", "t.noAudio": "ファイルを読み込むと始められます",
-        "t.waveHint": "波形をクリックすると、調整中に聴く10秒の区間を選べます。書き出しは常にファイル全体を処理します。",
+        "t.p30": "30秒", "t.pall": "全体",
+        "t.waveHint30": "波形をクリックすると、調整中に聴く30秒の区間を選べます。書き出しは常にファイル全体を処理します。",
+        "t.waveHintAll": "波形をクリックすると、その位置から再生します。つまみを動かすたびにファイル全体を計算し直すため、長い曲では音が変わるまで数秒かかります。",
         "t.busy": "処理中…", "t.orig": "元の音", "t.proc": "劣化後", "t.play": "再生", "t.stop": "停止",
         "t.export": "書き出し", "t.format": "形式", "t.exportBtn": "ファイル全体を処理して保存", "t.saved": "保存しました（{s} 秒）。",
         "t.medium": "媒体", "t.amount": "劣化の程度", "t.light": "軽め", "t.std": "標準", "t.heavy": "強め",
@@ -526,10 +599,12 @@
         "t.c.tv.ntsc": "NTSC", "t.c.tv.pal": "PAL", "t.c.line.digital": "デジタル", "t.c.line.analog": "アナログ", "t.c.mains.50": "50 Hz", "t.c.mains.60": "60 Hz"
       }
     },
-    onSettingsChange: function () { buildMedia(); buildParams(); setPlayIcon(); }
+    onSettingsChange: function () { buildMedia(); buildParams(); setPlayIcon(); waveHint(); }
   });
   $("gens").value = S.gens; $("gens-val").textContent = S.gens; $("match").checked = S.match;
   $("bits").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === S.bits ? "true" : "false"); });
+  $("plen").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === S.plen ? "true" : "false"); });
+  waveHint();
 })();
 </script>
 </body>
