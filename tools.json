@@ -1696,8 +1696,8 @@
         "ja": "実測フレームレート測定"
       },
       "description": {
-        "en": "Measure a video's real playback frame rate by sampling, not just its declared metadata.",
-        "ja": "動画の申告fpsに頼らず、冒頭・中間・末尾のサンプリングで実測fpsを測定。"
+        "en": "Find the frame rate a video really moves at, like 24 fps inside a 60 fps file.",
+        "ja": "設定値に惑わされず、映像が実際に何fpsで動いているかを調べる。"
       },
       "keywords": [
         "frame rate",
