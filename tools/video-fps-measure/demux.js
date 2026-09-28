@@ -154,9 +154,11 @@
       while (idx < count) dtsArr[idx++] = dts;
       var ctsOff = new Array(count).fill(0), ctts = child(mb, stbl, "ctts");
       if (ctts) {
-        var cv1 = mb[ctts.data] === 1; n = u32(mb, ctts.data + 4); idx = 0;
+        // version 0 は本来「符号なし」だが、Apple の収録ファイルなどは負の値をそのまま入れている。
+        // 符号なしで読むと数十万秒ずれるので、どちらの版でも符号付きとして読む
+        n = u32(mb, ctts.data + 4); idx = 0;
         for (k = 0; k < n && idx < count; k++) {
-          var cc = u32(mb, ctts.data + 8 + k * 8), off = cv1 ? s32(mb, ctts.data + 12 + k * 8) : u32(mb, ctts.data + 12 + k * 8);
+          var cc = u32(mb, ctts.data + 8 + k * 8), off = s32(mb, ctts.data + 12 + k * 8);
           for (var jj = 0; jj < cc && idx < count; jj++) ctsOff[idx++] = off;
         }
       }
@@ -211,7 +213,7 @@
               if (fl & 0x100) { dur = u32(fb, r); r += 4; }
               if (fl & 0x200) { size = u32(fb, r); r += 4; }
               if (fl & 0x400) { flags = u32(fb, r); r += 4; }
-              if (fl & 0x800) { cto = ver ? s32(fb, r) : u32(fb, r); r += 4; }
+              if (fl & 0x800) { cto = s32(fb, r); r += 4; }   // ctts と同じ理由で常に符号付き
               samples.push({ pos: pos, size: size, dts: nextDts / timescale, pts: (nextDts + cto) / timescale, key: !(flags & 0x10000) });
               pos += size; nextDts += dur;
             }

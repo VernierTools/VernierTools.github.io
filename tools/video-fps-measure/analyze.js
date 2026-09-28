@@ -50,17 +50,20 @@
       if (gaps[i] > 0 && gaps[i] < minGap) minGap = gaps[i];
       if (gaps[i] > maxGap) maxGap = gaps[i];
     }
-    // 1 秒ごとのフレーム数（グラフ用）
+    // 1 秒ごとのフレーム数（グラフ用）。時刻が壊れていて極端に長いときは作らない
     var perSec = [], sec0 = t[0], bins = Math.max(1, Math.ceil(span + 1e-9));
-    for (i = 0; i < bins; i++) perSec.push(0);
-    for (i = 0; i < n; i++) { var k = Math.min(bins - 1, Math.floor(t[i] - sec0)); perSec[k]++; }
-    var full = perSec.slice(0, Math.floor(span));       // 最後の端数秒は除く
+    if (bins <= 400000) {
+      for (i = 0; i < bins; i++) perSec.push(0);
+      for (i = 0; i < n; i++) { var k = Math.min(bins - 1, Math.floor(t[i] - sec0)); perSec[k]++; }
+    }
+    var full = perSec.slice(0, Math.floor(span)), fMin = null, fMax = null;   // 最後の端数秒は除く
+    for (i = 0; i < full.length; i++) { if (fMin == null || full[i] < fMin) fMin = full[i]; if (fMax == null || full[i] > fMax) fMax = full[i]; }
     var ratio = irregular / gaps.length;
     return {
       frames: n, start: t[0], span: span, avgFps: avg, medianGap: med,
       minFps: maxGap > 0 ? 1 / maxGap : null, maxFps: isFinite(minGap) ? 1 / minGap : null,
       irregularRatio: ratio, vfr: ratio > 0.01,
-      perSec: perSec, perSecMin: full.length ? Math.min.apply(null, full) : null, perSecMax: full.length ? Math.max.apply(null, full) : null,
+      perSec: perSec, perSecMin: fMin, perSecMax: fMax,
       snapped: snap(avg, 0.002)
     };
   }

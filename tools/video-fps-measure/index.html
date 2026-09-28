@@ -476,7 +476,8 @@
     $("lgFile").style.background = cFile; $("lgContent").style.background = cCont;
     var full = ts.perSec.slice(0, Math.max(1, Math.floor(ts.span))), cont = S.cad && S.cad.perSec ? S.cad.perSec : [];
     var start0 = Math.floor(ts.start);
-    var maxV = Math.max.apply(null, full.concat(cont.map(function (p) { return p.n; })).concat([1]));
+    var maxV = 1;   // apply で大量の値を渡すと Safari は引数の数の上限でエラーになるので、ループで求める
+    full.forEach(function (v) { if (v > maxV) maxV = v; }); cont.forEach(function (p) { if (p.n > maxV) maxV = p.n; });
     var top = Math.ceil(maxV * 1.15 / 10) * 10, L = 34, R = 8, T = 8, B = 20, pw = W - L - R, ph = H - T - B, n = full.length;
     function X(i) { return L + (n > 1 ? i / (n - 1) : 0.5) * pw; }
     function Y(v) { return T + ph - v / top * ph; }
