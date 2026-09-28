@@ -199,8 +199,10 @@
   var CODE = { Calc: "LaunchApp2" };
   function makeKeys(p) { return PRESETS[p].map(function (k) { return { id: k[0], lg: k[1], code: CODE[k[0]] || k[0], c: k[2], r: k[3], w: k[4], h: k[5] }; }); }
   var COLORS = [null, "#FF453A", "#FF9F0A", "#FFD60A", "#30D158", "#64D2FF", "#0A84FF", "#BF5AF2", "#FF375F", "#98989D"];
-  var MODS = ["shift", "ctrl", "alt", "meta"];
+  var MODS = ["shift", "ctrl", "alt", "meta", "hold"];            // hold = 長押し
   var MODNAME = { shift: "Shift", ctrl: "Ctrl", alt: "Alt", meta: "Cmd" };
+  var HOLD_MS = 450;
+  function modLabel(m) { return m === "hold" ? Shell.t("t.hold") : MODNAME[m]; }
   var AVC = ["#0A84FF", "#30B0C7", "#34C759", "#FF9500", "#FF2D55", "#AF52DE", "#5856D6", "#A2845E"];
 
   /* =====================================================================
@@ -240,7 +242,7 @@
   var S = { layer: null, key: "Numpad5", edit: false, capture: false, img: "cur", bg: "light", menu: false };
   function prof() { return D.profiles.filter(function (p) { return p.id === D.active; })[0] || D.profiles[0]; }
   function layer() { var p = prof(); return p.layers.filter(function (l) { return l.id === S.layer; })[0] || p.layers[0]; }
-  function layerName(l) { return l.mod ? MODNAME[l.mod] : l.name || Shell.t("t.base"); }
+  function layerName(l) { return l.mod ? modLabel(l.mod) : l.name || Shell.t("t.base"); }
   function keys() { return D.device.keys; }
   function keyById(id) { return keys().filter(function (k) { return k.id === id; })[0]; }
   function dims() {
@@ -288,7 +290,7 @@
     }).join("");
     var used = prof().layers.map(function (l) { return l.mod; });
     var html = MODS.filter(function (m) { return used.indexOf(m) < 0; }).map(function (m) {
-      return '<button type="button" data-add="' + m + '">' + Shell.t("t.addLayer").replace("{m}", MODNAME[m]) + "</button>";
+      return '<button type="button" data-add="' + m + '">' + Shell.t("t.addLayer").replace("{m}", modLabel(m)) + "</button>";
     }).join("");
     if (cur.mod) html += (html ? "<hr>" : "") + '<button type="button" class="danger" data-rm="1">' + Shell.t("t.rmLayer").replace("{m}", layerName(cur)) + "</button>";
     $("layer-menu").innerHTML = html || '<div class="sub" style="padding:7px 10px">' + Shell.t("t.allLayers") + "</div>";
@@ -512,7 +514,7 @@
   }
   function fileBase() {
     var n = (prof().name || "numpad").replace(/[\\/:*?"<>|]+/g, "").trim() || "numpad";
-    return n + (S.img === "cur" && layer().mod ? "-" + MODNAME[layer().mod] : "");
+    return n + (S.img === "cur" && layer().mod ? "-" + (layer().mod === "hold" ? "hold" : MODNAME[layer().mod]) : "");
   }
   function download(blob, name) {
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
@@ -643,11 +645,25 @@
     if (!hit) return;
     if (e.code === "Tab" && t !== document.body) return;            // フォーカス移動の Tab は奪わない
     e.preventDefault();
+    if (e.repeat) return;                                           // 押しっぱなしの自動リピートは無視（長押しはタイマーで判定）
     var want = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : e.altKey ? "alt" : e.metaKey ? "meta" : "";
     var l = prof().layers.filter(function (x) { return x.mod === want; })[0];
     if (!S.edit && l && l.id !== layer().id) { S.layer = l.id; renderLayers(); renderPad(); }
     selectKey(hit.id, true);
+    // 長押し: 修飾キーなしで押し続けたら、長押しのレイヤーへ
+    clearTimeout(held.timer);
+    var hl = prof().layers.filter(function (x) { return x.mod === "hold"; })[0];
+    if (!S.edit && !want && hl) {
+      held.code = e.code;
+      held.timer = setTimeout(function () {
+        held.code = null;
+        S.layer = hl.id; renderLayers(); renderPad(); selectKey(hit.id, true);
+      }, HOLD_MS);
+    }
   });
+  var held = { code: null, timer: 0 };
+  document.addEventListener("keyup", function (e) { if (e.code === held.code) { clearTimeout(held.timer); held.code = null; } });
+  window.addEventListener("blur", function () { clearTimeout(held.timer); held.code = null; });
   function guessLegend(e) {
     var k = e.key || "";
     var names = { Escape: "Esc", Backspace: "⌫", Enter: "Enter", Tab: "Tab", " ": "Space", Delete: "Del" };
@@ -783,9 +799,9 @@
         "t.desc": "Using a numpad as a left-hand device? Note what each key does in each app, and save the layout as an image to paste into your notes.",
         "t.pAdd": "Add app", "t.pDup": "Duplicate app", "t.pDel": "Delete app", "t.appName": "Name", "t.untitled": "Untitled", "t.newApp": "New app", "t.copySuffix": " (copy)",
         "t.base": "No modifier", "t.layerMenu": "Layers", "t.addLayer": "Add {m} layer", "t.rmLayer": "Remove {m} layer",
-        "t.allLayers": "All layers added.",
+        "t.allLayers": "All layers added.", "t.hold": "Hold",
         "t.edit": "Edit layout", "t.done": "Done",
-        "t.hint": "Click a key — or press it on your numpad — to note what it does. Hold Shift, Ctrl, Alt or Cmd to jump to that layer.",
+        "t.hint": "Click a key — or press it on your numpad — to note what it does. Hold Shift, Ctrl, Alt or Cmd to jump to that layer; keep a key held down to jump to the Hold layer.",
         "t.hintEdit": "Drag keys to move them and the blue handle to resize. Click an empty slot to add a key.",
         "t.gKey": "Key", "t.gKeyEdit": "Key layout", "t.gDevice": "Numpad", "t.gApp": "App", "t.gImage": "Image", "t.gBackup": "Backup",
         "t.unassigned": "Not assigned", "t.keyN": "Key “{k}”", "t.detected": "Detected as {c}", "t.noCode": "No physical key registered",
@@ -809,10 +825,10 @@
         "t.title": "テンキー割り当てメモ",
         "t.desc": "テンキーを左手デバイスとして使うときの、ソフトごとのキーの割り当てをメモ。画像にしてメモアプリに貼り付けられます。",
         "t.pAdd": "ソフトを追加", "t.pDup": "このソフトを複製", "t.pDel": "このソフトを削除", "t.appName": "名前", "t.untitled": "名前なし", "t.newApp": "新しいソフト", "t.copySuffix": "のコピー",
-        "t.base": "単体", "t.layerMenu": "レイヤー", "t.addLayer": "{m} のレイヤーを追加", "t.rmLayer": "{m} のレイヤーを削除",
-        "t.allLayers": "すべてのレイヤーを追加済みです。",
+        "t.base": "単体", "t.layerMenu": "レイヤー", "t.addLayer": "{m}のレイヤーを追加", "t.rmLayer": "{m}のレイヤーを削除",
+        "t.allLayers": "すべてのレイヤーを追加済みです。", "t.hold": "長押し",
         "t.edit": "配列を編集", "t.done": "完了",
-        "t.hint": "キーをクリックするか、実機のテンキーを押すと、機能をメモできます。Shift・Ctrl・Alt・Cmd を押しながらだと、そのレイヤーに切り替わります。",
+        "t.hint": "キーをクリックするか、実機のテンキーを押すと、機能をメモできます。Shift・Ctrl・Alt・Cmd を押しながらだとそのレイヤーに、キーを押し続けると長押しのレイヤーに切り替わります。",
         "t.hintEdit": "キーをドラッグで移動、青い丸をドラッグで大きさを変更できます。空いたマスをクリックするとキーを追加します。",
         "t.gKey": "キー", "t.gKeyEdit": "キーの配置", "t.gDevice": "テンキー", "t.gApp": "ソフト", "t.gImage": "画像", "t.gBackup": "バックアップ",
         "t.unassigned": "未設定", "t.keyN": "「{k}」キー", "t.detected": "認識されるキー: {c}", "t.noCode": "実機のキーは未登録",
@@ -829,7 +845,7 @@
         "t.export": "書き出し", "t.import": "読み込み",
         "t.never": "まだ書き出していません。", "t.lastExport": "最後の書き出し: {d}", "t.changedSince": "（その後に変更あり）",
         "t.imported": "{n} 件のソフトを読み込みました。", "t.importFail": "このファイルはテンキー割り当てメモとして読み込めませんでした。",
-        "t.confirmDel": "「{n}」を削除しますか？", "t.confirmRmLayer": "{n} のレイヤーと、その中のメモを削除しますか？",
+        "t.confirmDel": "「{n}」を削除しますか？", "t.confirmRmLayer": "{n}のレイヤーと、その中のメモを削除しますか？",
         "t.sampleName": "DAW（例）", "t.s0": "再生", "t.s1": "コピー", "t.s2": "ペースト", "t.s4": "バウンス"
       }
     },
