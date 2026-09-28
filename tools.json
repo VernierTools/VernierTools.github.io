@@ -901,32 +901,6 @@
       "added": "2026-07-11"
     },
     {
-      "id": "stmap-setup-node",
-      "type": "blender",
-      "platform": "Blender",
-      "path": "tools/stmap-setup-node/",
-      "categories": [
-        "blender"
-      ],
-      "name": {
-        "en": "STMap Setup Node",
-        "ja": "STMap Setup Node"
-      },
-      "description": {
-        "en": "One-click STMap node setup. Blender add-on.",
-        "ja": "STMap適用ノードをワンクリック生成するアドオン（英語UI）。"
-      },
-      "keywords": [
-        "blender",
-        "stmap",
-        "uv",
-        "lens",
-        "distortion",
-        "アドオン"
-      ],
-      "added": "2026-07-11"
-    },
-    {
       "id": "material-less-counter",
       "type": "blender",
       "platform": "Blender",

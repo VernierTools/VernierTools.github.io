@@ -157,7 +157,7 @@
         <div class="card__title" data-i18n="t.howto">Using it in Blender / Nuke</div>
         <ul class="notes">
           <li data-i18n="t.n1">Blender: set the Image node's color space to Non-Color.</li>
-          <li data-i18n="t.n2">Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.</li>
+          <li data-i18n="t.n2">Map UV treats Blue as a validity mask, so tick “Blue = 1” above when using the map in Blender.</li>
           <li data-i18n="t.n3">Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.</li>
           <li data-i18n="t.n6">Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.</li>
           <li data-i18n="t.n4">Pixel-centered, bottom-left origin — the same convention as Nuke's STMap. Overscan is stored as the EXR data window (Nuke: bbox).</li>
@@ -298,7 +298,7 @@ var I18N = {
     "t.osAmount": "Extra size", "t.export": "Export", "t.exporting": "Generating…",
     "t.howto": "Using it in Blender / Nuke",
     "t.n1": "Blender: set the Image node's color space to Non-Color.",
-    "t.n2": "Map UV treats Blue as a validity mask, so set it to 1 — the STMap Setup Node add-on does this for you, or tick “Blue = 1” above.",
+    "t.n2": "Map UV treats Blue as a validity mask, so tick “Blue = 1” above when using the map in Blender.",
     "t.blue1": "Write Blue = 1",
     "t.n3": "Blender 5.0+: set Map UV interpolation to Bicubic or Bilinear.",
     "t.n6": "Blender: with overscan, set the render resolution to the output size shown on the right, or the extra area is cropped. Overscan is added evenly on both sides so the frame stays centered.",
@@ -350,7 +350,7 @@ var I18N = {
     "t.osAmount": "追加する大きさ", "t.export": "書き出す", "t.exporting": "生成中…",
     "t.howto": "Blender / Nuke で使うとき",
     "t.n1": "Blender: Imageノードのカラースペースは Non-Color にしてください。",
-    "t.n2": "Map UVはBチャンネルを有効範囲のマスクとして扱うため、1にする必要があります。STMap Setup Nodeアドオンを使えば自動で設定されます。アドオンなしで直接つなぐ場合は上の「B = 1」にチェックしてください。",
+    "t.n2": "Map UVはBチャンネルを有効範囲のマスクとして扱うため、Blenderで使うときは上の「B = 1」にチェックしてください。",
     "t.blue1": "B = 1 で書き出す",
     "t.n3": "Blender 5.0以降: Map UVの補間は Bicubic か Bilinear にしてください。",
     "t.n6": "Blender: オーバースキャンを付けたときは、レンダー解像度を右の「出力サイズ」に合わせてください。合わせないと広げた部分が切り取られます。広げる量は左右・上下で均等なので、位置はずれません。",
