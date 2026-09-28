@@ -99,6 +99,74 @@
     return ((c3 * f + c2) * f + c1) * f + x0;
   }
 
+  /* ---------------------------------------------------------------------
+     FFT と、任意の周波数特性のフィルター（直線位相 FIR・周波数サンプリング法）
+     --------------------------------------------------------------------- */
+  function fft(re, im, inv) {                    // 基数2・その場で計算（長さは 2 の累乗）
+    var n = re.length, i, j, k, len;
+    for (i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { var t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (len = 2; len <= n; len <<= 1) {
+      var ang = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (i = 0; i < n; i += len) {
+        var cr = 1, ci = 0;
+        for (k = 0; k < len / 2; k++) {
+          var a = i + k, b = a + len / 2, xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+          var nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+        }
+      }
+    }
+    if (inv) for (i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+  }
+  // H(f)（実数。負の値は位相の反転を表す）を満たす FIR を作り、各チャンネルに畳み込む（遅れは補正する）
+  function applyResponse(ch, fs, H, taps) {
+    var L = taps || 2047, M = 4096, re = new Float64Array(M), im = new Float64Array(M), i;
+    for (i = 0; i <= M / 2; i++) { re[i] = H(i * fs / M); if (i && i < M / 2) re[M - i] = re[i]; }
+    fft(re, im, true);                                         // ゼロ位相の応答
+    var h = new Float64Array(L), half = (L - 1) / 2;
+    for (i = 0; i < L; i++) {
+      var k = (i - half + M) % M, w = 0.5 - 0.5 * Math.cos(TAU * i / (L - 1));   // ハン窓
+      h[i] = re[k] * w;
+    }
+    var N = 8192, B = N - L + 1, hr = new Float64Array(N), hi = new Float64Array(N);
+    for (i = 0; i < L; i++) hr[i] = h[i];
+    fft(hr, hi, false);
+    ch.forEach(function (x) {
+      var n = x.length, out = new Float64Array(n + L), br = new Float64Array(N), bi = new Float64Array(N);
+      for (var s = 0; s < n; s += B) {
+        br.fill(0); bi.fill(0);
+        for (i = 0; i < B && s + i < n; i++) br[i] = x[s + i];
+        fft(br, bi, false);
+        for (i = 0; i < N; i++) { var r = br[i] * hr[i] - bi[i] * hi[i]; bi[i] = br[i] * hi[i] + bi[i] * hr[i]; br[i] = r; }
+        fft(br, bi, true);
+        for (i = 0; i < N && s + i < n + L; i++) out[s + i] += br[i];
+      }
+      for (i = 0; i < n; i++) x[i] = out[i + half];
+    });
+  }
+  function sinc(x) { return Math.abs(x) < 1e-9 ? 1 : Math.sin(x) / x; }
+
+  /* テープの再生ヘッドで起きる高域の損失。記録波長 λ = v / f に対して
+       すき間（スペーシング）損失: exp(-2π d / λ)                 … Wallace の式（1 波長あたり 54.6 dB）
+       ギャップ損失:               sin(1.11 π g / λ) / (1.11 π g / λ)
+       アジマス損失:               sin(π W tanθ / λ) / (π W tanθ / λ) … W = トラック幅、θ = ヘッドの傾き
+     o: { v: テープ速度 m/s, d: すき間 µm, g: ギャップ µm, W: トラック幅 mm, arcmin: 傾き（分）, pitch: 左右トラックの中心間隔 mm } */
+  function tapeHead(ch, fs, o) {
+    var v = o.v, d = o.d * 1e-6, g = o.g * 1e-6, wt = o.W * 1e-3 * Math.tan(o.arcmin / 60 * Math.PI / 180);
+    applyResponse(ch, fs, function (f) {
+      if (f <= 0) return 1;
+      var lam = v / f;
+      return Math.exp(-TAU * d / lam) * sinc(1.11 * Math.PI * g / lam) * sinc(Math.PI * wt / lam);
+    });
+    // 傾いたヘッドは、2本のトラックを読むタイミングがずれる: Δt = 中心間隔 × tanθ / v
+    if (ch.length > 1 && o.pitch) interDelay(ch, fs, o.pitch * 1e-3 * Math.tan(o.arcmin / 60 * Math.PI / 180) / v * 1e6);
+  }
+
   /* =====================================================================
      劣化の部品
      ===================================================================== */
@@ -303,40 +371,45 @@
       { id: "flutter", min: 0, max: 0.6, step: 0.01, def: 0.06, unit: "%" },
       { id: "drive", min: -6, max: 12, step: 0.5, def: 0, unit: "dB" },
       { id: "hiss", min: -90, max: -30, step: 1, def: -58, unit: "dB" },
-      { id: "hf", min: 3000, max: 18000, step: 100, def: 9500, unit: "Hz" },
+      { id: "spacing", min: 0, max: 2, step: 0.05, def: 0.2, unit: "µm" },
+      { id: "azimuth", min: 0, max: 30, step: 0.5, def: 5, unit: "′" },
+      { id: "hf", min: 3000, max: 20000, step: 100, def: 13000, unit: "Hz" },
       { id: "lo", min: 20, max: 200, step: 5, def: 60, unit: "Hz" },
-      { id: "azimuth", min: 0, max: 150, step: 1, def: 15, unit: "µs" },
       { id: "dropouts", min: 0, max: 30, step: 0.5, def: 1, unit: "/min" },
       { id: "print", min: -90, max: -30, step: 1, def: -66, unit: "dB" },
       { id: "sep", min: 10, max: 60, step: 1, def: 35, unit: "dB" }
     ],
     presets: {
-      light: { wow: 0.06, flutter: 0.03, drive: -3, hiss: -66, hf: 12500, lo: 40, azimuth: 5, dropouts: 0, print: -90, sep: 45 },
-      heavy: { speed: 1.5, wow: 0.45, flutter: 0.2, drive: 8, hiss: -46, hf: 6000, lo: 100, azimuth: 60, dropouts: 8, print: -48, sep: 22 }
+      light: { wow: 0.06, flutter: 0.03, drive: -3, hiss: -66, spacing: 0.05, azimuth: 1.5, hf: 16000, lo: 40, dropouts: 0, print: -90, sep: 45 },
+      heavy: { speed: 1.5, wow: 0.45, flutter: 0.2, drive: 8, hiss: -46, spacing: 0.8, azimuth: 18, hf: 9000, lo: 100, dropouts: 8, print: -48, sep: 22 }
     },
     process: function (ch, fs, p, seed) {
       tapeSaturate(ch, fs, p.drive);
       printThrough(ch, fs, p.print, 1.8);
       dropouts(ch, fs, p.dropouts, 24, rngFor(seed, "drop"));
       ch = varispeed(ch, fs, { speed: p.speed / 100, sines: [[1.1, p.wow / 100 * 0.6], [3.3, p.wow / 100 * 0.3]], drift: p.wow / 100 * 0.5, flutter: p.flutter / 100 }, rngFor(seed, "wow"));
+      // ヒスはテープの磁性体から出るので、音と同じく再生ヘッドの損失を受ける。録音レベルを上げるほど相対的に小さくなる
+      addNoise(ch, fs, p.hiss - Math.max(0, p.drive), "white", rngFor(seed, "hiss"), function (nz) { butter(nz, fs, "hp", 150, 2); }, 0);
+      // 再生ヘッド: テープ速度 4.76 cm/s、トラック幅 0.6 mm（左右の中心間隔 0.9 mm）、ギャップ 1 µm
+      tapeHead(ch, fs, { v: 0.0476, d: p.spacing, g: 1, W: 0.6, arcmin: p.azimuth, pitch: 0.9 });
+      // 機器（アンプ・スピーカー）の帯域と、再生ヘッドの低域の盛り上がり（ヘッドバンプ）の近似
       ch.forEach(function (x) { biquad(x, coef("peak", fs, 70, 1, 2.5)); butter(x, fs, "lp", p.hf, 2); butter(x, fs, "hp", p.lo, 2); });
-      interDelay(ch, fs, p.azimuth);
-      // 録音レベルを上げるほど、再生時に戻すぶんヒスは相対的に小さくなる
-      addNoise(ch, fs, p.hiss - Math.max(0, p.drive), "white", rngFor(seed, "hiss"), function (nz) { butter(nz, fs, "lp", Math.min(p.hf * 1.2, fs * 0.45), 2); butter(nz, fs, "hp", 150, 2); }, 0);
       crosstalk(ch, p.sep);
       return ch;
     }
   };
 
   /* ---- レコード（33⅓・45 回転） ---- */
-  function recordCommon(ch, fs, p, seed, rpm) {
-    hfDistort(ch, fs, p.distortion);
+  function recordCommon(ch, fs, p, seed, rpm, dist) {
+    hfDistort(ch, fs, dist == null ? p.distortion : dist);
     // 偏心: 1回転に1回、音程が上下する
     return varispeed(ch, fs, { sines: [[rpm / 60, p.wow / 100]], drift: p.wow / 100 * 0.2 }, rngFor(seed, "wow"));
   }
   MEDIA.vinyl = {
     params: [
       { id: "rpm", type: "choice", choices: ["33", "45"], def: "33" },
+      { id: "cart", type: "choice", choices: ["ceramic", "magnetic"], def: "ceramic" },
+      { id: "pos", min: 0, max: 1, step: 0.01, def: 0.5, unit: "" },
       { id: "crackle", min: 0, max: 60, step: 0.5, def: 5, unit: "/s" },
       { id: "crackleLv", min: -60, max: -10, step: 1, def: -34, unit: "dB" },
       { id: "pops", min: 0, max: 40, step: 0.5, def: 2, unit: "/min" },
@@ -344,18 +417,24 @@
       { id: "surface", min: -90, max: -30, step: 1, def: -58, unit: "dB" },
       { id: "rumble", min: -90, max: -30, step: 1, def: -62, unit: "dB" },
       { id: "wow", min: 0, max: 1, step: 0.01, def: 0.12, unit: "%" },
-      { id: "distortion", min: 0, max: 1, step: 0.01, def: 0.1, unit: "" },
+      { id: "distortion", min: 0, max: 0.3, step: 0.005, def: 0.04, unit: "" },
       { id: "hf", min: 5000, max: 20000, step: 100, def: 11000, unit: "Hz" },
       { id: "lo", min: 20, max: 200, step: 5, def: 50, unit: "Hz" },
       { id: "sep", min: 10, max: 45, step: 1, def: 20, unit: "dB" }
     ],
     presets: {
-      light: { crackle: 1, crackleLv: -42, pops: 0.5, surface: -66, rumble: -70, wow: 0.05, distortion: 0, hf: 14000, lo: 30, sep: 26 },
-      heavy: { crackle: 25, crackleLv: -24, pops: 10, scratch: -30, surface: -46, rumble: -50, wow: 0.4, distortion: 0.45, hf: 7500, lo: 90, sep: 14 }
+      light: { crackle: 1, crackleLv: -42, pops: 0.5, surface: -66, rumble: -70, wow: 0.05, distortion: 0.01, hf: 14000, lo: 30, sep: 26 },
+      heavy: { crackle: 25, crackleLv: -24, pops: 10, scratch: -30, surface: -46, rumble: -50, wow: 0.4, distortion: 0.12, pos: 0.85, hf: 7500, lo: 90, sep: 14 }
     },
     process: function (ch, fs, p, seed) {
       var rpm = p.rpm === "45" ? 45 : 100 / 3;
-      ch = recordCommon(ch, fs, p, seed, rpm);
+      // 溝の速度 v = 2πr × 回転数。LP（12インチ）は半径 146 mm（外周）→ 56 mm（内周）。
+      // シングル（7インチ・45回転）は外周の半径を 84 mm と仮定。内周ほど溝が遅く、同じ音でも波長が短く急なカーブになる。
+      // 針が追える最小の曲率半径は λ²/(4π²A) で、速度 V で刻まれた音では v²/(2πfV) → 歪みやすさは 1/v² に比例する
+      var r0 = p.rpm === "45" ? 0.084 : 0.146, r = r0 + (0.056 - r0) * p.pos, vg = TAU * r * rpm / 60, vOut = TAU * 0.146 * (100 / 3) / 60;
+      ch = recordCommon(ch, fs, p, seed, rpm, Math.min(1, p.distortion * (vOut / vg) * (vOut / vg)));
+      // カートリッジ: 家庭用に多いセラミック針は 15 kHz 付近に共鳴の山がある
+      if (p.cart === "ceramic") ch.forEach(function (x) { biquad(x, coef("peak", fs, 15000, 1.5, 3)); butter(x, fs, "lp", 18000, 2); });
       ch.forEach(function (x) { butter(x, fs, "lp", p.hf, 2); butter(x, fs, "hp", p.lo, 2); });
       crosstalk(ch, p.sep);
       addNoise(ch, fs, p.surface, "pink", rngFor(seed, "surf"), function (nz) { butter(nz, fs, "hp", 400, 2); butter(nz, fs, "lp", Math.min(p.hf, fs * 0.45), 2); }, 0.3);
@@ -407,9 +486,11 @@
     params: [
       { id: "mode", type: "choice", choices: ["linear", "hifi"], def: "linear" },
       { id: "tape", type: "choice", choices: ["sp", "ep"], def: "sp", show: isLinear },
-      { id: "tv", type: "choice", choices: ["ntsc", "pal"], def: "ntsc", show: isHifi },
+      { id: "tv", type: "choice", choices: ["ntsc", "pal"], def: "ntsc" },
       { id: "mono", type: "bool", def: true, show: isLinear },
       { id: "hiss", min: -90, max: -30, step: 1, def: -48, unit: "dB", show: isLinear },
+      { id: "spacing", min: 0, max: 2, step: 0.05, def: 0.1, unit: "µm", show: isLinear },
+      { id: "azimuth", min: 0, max: 30, step: 0.5, def: 2, unit: "′", show: isLinear },
       { id: "buzz", min: -90, max: -30, step: 1, def: -58, unit: "dB", show: isHifi },
       { id: "breathing", min: 0, max: 1, step: 0.01, def: 0.3, unit: "", show: isHifi },
       { id: "wow", min: 0, max: 1.5, step: 0.01, def: 0.15, unit: "%" },
@@ -417,8 +498,8 @@
       { id: "dropouts", min: 0, max: 30, step: 0.5, def: 2, unit: "/min" }
     ],
     presets: {
-      light: { wow: 0.08, flutter: 0.05, hiss: -56, dropouts: 0, buzz: -70, breathing: 0.1 },
-      heavy: { tape: "ep", wow: 0.35, flutter: 0.3, hiss: -40, dropouts: 10, buzz: -44, breathing: 0.7 }
+      light: { wow: 0.08, flutter: 0.05, hiss: -56, spacing: 0.05, azimuth: 1, dropouts: 0, buzz: -70, breathing: 0.1 },
+      heavy: { tape: "ep", wow: 0.35, flutter: 0.3, hiss: -40, spacing: 0.4, azimuth: 10, dropouts: 10, buzz: -44, breathing: 0.7 }
     },
     process: function (ch, fs, p, seed) {
       if (p.mode === "linear") {
@@ -427,9 +508,12 @@
         tapeSaturate(ch, fs, 2, 0.8);
         dropouts(ch, fs, p.dropouts, 20, rngFor(seed, "drop"));
         ch = varispeed(ch, fs, { sines: [[0.5, p.wow / 100 * 0.5]], drift: p.wow / 100 * 0.5, flutter: p.flutter / 100 }, rngFor(seed, "wow"));
-        var top = p.tape === "ep" ? 6000 : 10000;
-        ch.forEach(function (x) { butter(x, fs, "hp", 80, 2); butter(x, fs, "lp", top, 4); });
-        addNoise(ch, fs, p.hiss + (p.tape === "ep" ? 5 : 0), "white", rngFor(seed, "hiss"), function (nz) { butter(nz, fs, "lp", top, 4); butter(nz, fs, "hp", 200, 2); }, p.mono ? 1 : 0);
+        addNoise(ch, fs, p.hiss + (p.tape === "ep" ? 3 : 0), "white", rngFor(seed, "hiss"), function (nz) { butter(nz, fs, "hp", 200, 2); }, p.mono ? 1 : 0);
+        // 再生ヘッド: テープ速度は NTSC 標準 33.35 mm/s・3倍 11.12 mm/s、PAL 標準 23.39 mm/s・2倍 11.70 mm/s。
+        // トラック幅はモノラル 1.0 mm、ステレオ 0.35 mm×2（中心間隔は 0.65 mm と仮定）。ギャップはカセットと同じ 1 µm と仮定
+        var pal = p.tv === "pal", v = p.tape === "ep" ? (pal ? 0.011695 : 0.01112) : (pal ? 0.02339 : 0.03335);
+        tapeHead(ch, fs, { v: v, d: p.spacing, g: 1, W: p.mono ? 1.0 : 0.35, arcmin: p.azimuth, pitch: p.mono ? 0 : 0.65 });
+        ch.forEach(function (x) { butter(x, fs, "hp", 80, 2); butter(x, fs, "lp", 15000, 2); });
         return ch;
       }
       // Hi-Fi 音声（回転ヘッドで FM 記録）: 帯域は広いが、フィールドごとのヘッド切り替えでブーンという音が乗り、

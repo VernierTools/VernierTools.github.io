@@ -164,7 +164,7 @@
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var STORE = "vernier.degrade", PRE = 2.5, POST = 1;
+  var STORE = "vernier.degrade.v2", PRE = 2.5, POST = 1;
   var ORDER = ["cassette", "vinyl", "sp", "vhs", "phone", "am"];
 
   /* ---- 状態 ---- */
@@ -526,22 +526,23 @@
         "t.gens": "Generations (copies of copies)", "t.gensHint": "Runs the whole medium again for each copy, with a fresh tape or record each time — like dubbing a dub.",
         "t.match": "Keep the original loudness", "t.reseed": "Another random take",
         "t.m.cassette": "Cassette", "t.m.vinyl": "Vinyl", "t.m.sp": "78 rpm shellac", "t.m.vhs": "VHS", "t.m.phone": "Telephone", "t.m.am": "AM radio",
-        "t.md.cassette": "Recording-level tape saturation, hiss, head azimuth error, wow & flutter from the transport, dropouts where the oxide is thin, and print-through from the neighbouring layer of tape.",
-        "t.md.vinyl": "Crackle and pops from dust, a scratch that clicks once per turn, rumble (vertical, so out of phase between channels), pitch wobble from an off-centre hole, and tracing distortion.",
+        "t.md.cassette": "The high end is computed from the playback-head losses at 4.76 cm/s — the gap between head and tape (dirt, wear), the head gap and the azimuth error — plus recording-level saturation, hiss, wow & flutter, dropouts and print-through.",
+        "t.md.vinyl": "Crackle, pops, a scratch once per turn, rumble (vertical, so out of phase between channels), wobble from an off-centre hole, and tracing distortion that grows toward the inner grooves as the groove slows down. The ceramic cartridge common in home players has a resonance peak around 15 kHz.",
         "t.md.sp": "Shellac 78s: narrow bandwidth, horn resonances from acoustic-era recording, heavy surface noise and crackle, in mono.",
-        "t.md.vhs": "Normal (linear) track: slow tape, narrow and hissy. Hi-Fi: wide range, but a buzz at the field rate from the head switching, and noise that breathes with the music from the 1:2 compander.",
+        "t.md.vhs": "Normal (linear) track: the high end follows from the slow tape speed (NTSC SP 33.35 mm/s, EP 11.12 mm/s; PAL SP 23.39 mm/s) through the same playback-head losses as cassette, with plenty of hiss. Hi-Fi: wide range, but a buzz at the field rate from the head switching, and noise that breathes with the music from the 1:2 compander.",
         "t.md.phone": "Band-limited to the telephone band. Digital converts to 8 kHz μ-law (G.711) and back; analog adds carbon-microphone distortion and mains hum.",
         "t.md.am": "Computed as a real AM link: the audio amplitude-modulates a carrier, noise, static crashes and an interfering carrier are added, then an envelope detector and AGC recover the sound — so fades make the noise rise, and over-modulation distorts.",
         "t.p.speed": "Speed error", "t.p.wow": "Wow (slow wobble)", "t.p.flutter": "Flutter (fast wobble)", "t.p.drive": "Recording level", "t.p.hiss": "Hiss",
-        "t.p.hf": "High-frequency limit", "t.p.azimuth": "Head azimuth error (L/R offset)", "t.p.dropouts": "Dropouts", "t.p.print": "Print-through (pre/post echo)", "t.p.sep": "Channel separation",
+        "t.p.hf": "High-frequency limit", "t.p.cassette.hf": "Player's high-frequency limit", "t.p.vinyl.hf": "Player's high-frequency limit",
+        "t.p.azimuth": "Head azimuth error (1′ = 1/60°)", "t.p.spacing": "Head-to-tape gap (dirt, wear)", "t.p.cart": "Cartridge", "t.p.pos": "Stylus position (outer → inner)", "t.p.dropouts": "Dropouts", "t.p.print": "Print-through (pre/post echo)", "t.p.sep": "Channel separation",
         "t.p.rpm": "Speed", "t.p.crackle": "Crackle", "t.p.crackleLv": "Crackle level", "t.p.pops": "Pops", "t.p.scratch": "Scratch (once per turn)",
         "t.p.surface": "Surface noise", "t.p.rumble": "Rumble", "t.p.vinyl.wow": "Wobble (off-centre hole)", "t.p.sp.wow": "Wobble (off-centre hole)",
-        "t.p.distortion": "Tracing distortion", "t.p.phone.distortion": "Microphone distortion", "t.p.lo": "Low cut", "t.p.hi": "High-frequency limit", "t.p.horn": "Horn resonance",
+        "t.p.distortion": "Tracing distortion", "t.p.vinyl.distortion": "Tracing distortion (at the outer edge)", "t.p.phone.distortion": "Microphone distortion", "t.p.lo": "Low cut", "t.p.hi": "High-frequency limit", "t.p.horn": "Horn resonance",
         "t.p.mode": "Audio track", "t.p.tape": "Recording mode", "t.p.tv": "TV system", "t.p.mono": "Mono", "t.p.buzz": "Head-switching buzz", "t.p.breathing": "Noise breathing",
         "t.p.line": "Line", "t.p.hum": "Mains hum", "t.p.mains": "Mains frequency", "t.p.noise": "Line noise",
         "t.p.bw": "Bandwidth", "t.p.snr": "Signal strength (S/N)", "t.p.fade": "Fading", "t.p.fadeRate": "Fading speed", "t.p.static": "Static crashes",
         "t.p.whistle": "Interference whistle", "t.p.whistleHz": "Whistle pitch", "t.p.comp": "Broadcast compression", "t.p.mod": "Modulation depth",
-        "t.c.rpm.33": "33⅓ rpm", "t.c.rpm.45": "45 rpm", "t.c.mode.linear": "Normal", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "SP (standard)", "t.c.tape.ep": "EP (3×)",
+        "t.c.rpm.33": "33⅓ rpm", "t.c.rpm.45": "45 rpm", "t.c.mode.linear": "Normal", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "SP (standard)", "t.c.tape.ep": "Long play (EP / PAL LP)", "t.c.cart.ceramic": "Ceramic", "t.c.cart.magnetic": "Magnetic",
         "t.c.tv.ntsc": "NTSC", "t.c.tv.pal": "PAL", "t.c.line.digital": "Digital", "t.c.line.analog": "Analog", "t.c.mains.50": "50 Hz", "t.c.mains.60": "60 Hz"
       },
       ja: {
@@ -560,22 +561,23 @@
         "t.gens": "ダビング回数（コピーのコピー）", "t.gensHint": "コピーするたびに、別のテープ・別の盤で同じ劣化をもう一度かけます。",
         "t.match": "元の音量に合わせる", "t.reseed": "別のパターンにする",
         "t.m.cassette": "カセットテープ", "t.m.vinyl": "レコード", "t.m.sp": "SP盤（78回転）", "t.m.vhs": "VHS", "t.m.phone": "電話", "t.m.am": "AMラジオ",
-        "t.md.cassette": "録音レベルに応じたテープの飽和、ヒス、ヘッドの傾き、走行系のワウフラッター、磁性体が薄い所のドロップアウト、巻かれた隣の層からの転写を再現します。",
-        "t.md.vinyl": "ほこりによるプチプチ・パチッ、1回転ごとに鳴る傷、ゴロゴロ（針が上下に揺れるので左右は逆相）、中心の穴のずれによる音程の揺れ、内周の歪みを再現します。",
+        "t.md.cassette": "高域は、テープ速度 4.76cm/s での再生ヘッドの損失（ヘッドとテープのすき間＝汚れや摩耗、ヘッドのギャップ、ヘッドの傾き）から計算します。ほかに録音レベルに応じた飽和、ヒス、ワウフラッター、ドロップアウト、転写を再現します。",
+        "t.md.vinyl": "プチプチ・パチッ、1回転ごとに鳴る傷、ゴロゴロ（針が上下に揺れるので左右は逆相）、中心のずれによる揺れ、溝が遅くなる内周ほど強くなるトレース歪みを再現します。家庭用に多いセラミック針は 15kHz 付近に共鳴の山があります。",
         "t.md.sp": "シェラックの78回転盤。帯域が狭く、ラッパ吹き込み時代のホーンの共鳴、強い表面ノイズとプチプチがあり、モノラルです。",
-        "t.md.vhs": "ノーマル音声は、テープが遅いため帯域が狭くヒスが多い音。Hi-Fi 音声は帯域が広い代わりに、ヘッドの切り替えでフィールド周期のブーンという音が乗り、1:2 のコンパンダーで雑音が音楽につれて浮き沈みします。",
+        "t.md.vhs": "ノーマル音声は、遅いテープ速度（NTSC 標準 33.35mm/s・3倍 11.12mm/s、PAL 標準 23.39mm/s）から、カセットと同じ再生ヘッドの損失で高域が決まり、ヒスも多い音です。Hi-Fi 音声は帯域が広い代わりに、ヘッドの切り替えでフィールド周期のブーンという音が乗り、1:2 のコンパンダーで雑音が音楽につれて浮き沈みします。",
         "t.md.phone": "電話の帯域に絞ります。デジタルは 8kHz・μ-law（G.711）に変換して戻し、アナログは送話器（カーボンマイク）の歪みと電源のハムを加えます。",
         "t.md.am": "実際の AM 放送と同じ流れで計算します。音で搬送波を振幅変調し、雑音・空電・混信の搬送波を加え、受信機の包絡線検波と AGC で音に戻します。電波が弱まると雑音が浮き上がり、変調しすぎると歪みます。",
         "t.p.speed": "再生速度のずれ", "t.p.wow": "ワウ（ゆっくりした揺れ）", "t.p.flutter": "フラッター（細かい揺れ）", "t.p.drive": "録音レベル", "t.p.hiss": "ヒス",
-        "t.p.hf": "高域の上限", "t.p.azimuth": "ヘッドの傾き（左右のずれ）", "t.p.dropouts": "ドロップアウト", "t.p.print": "転写（前後に漏れる音）", "t.p.sep": "左右の分離",
+        "t.p.hf": "高域の上限", "t.p.cassette.hf": "機器の高域の上限", "t.p.vinyl.hf": "機器の高域の上限",
+        "t.p.azimuth": "ヘッドの傾き（1′ = 1/60度）", "t.p.spacing": "ヘッドとテープのすき間（汚れ・摩耗）", "t.p.cart": "カートリッジ", "t.p.pos": "針の位置（外周→内周）", "t.p.dropouts": "ドロップアウト", "t.p.print": "転写（前後に漏れる音）", "t.p.sep": "左右の分離",
         "t.p.rpm": "回転数", "t.p.crackle": "プチプチ（回数）", "t.p.crackleLv": "プチプチの大きさ", "t.p.pops": "パチッ（回数）", "t.p.scratch": "傷（1回転ごと）",
         "t.p.surface": "表面ノイズ", "t.p.rumble": "ゴロゴロ（ランブル）", "t.p.vinyl.wow": "揺れ（中心のずれ）", "t.p.sp.wow": "揺れ（中心のずれ）",
-        "t.p.distortion": "内周の歪み", "t.p.phone.distortion": "送話器の歪み", "t.p.lo": "低域の下限", "t.p.hi": "高域の上限", "t.p.horn": "ホーンの共鳴",
+        "t.p.distortion": "トレース歪み", "t.p.vinyl.distortion": "トレース歪み（外周での量）", "t.p.phone.distortion": "送話器の歪み", "t.p.lo": "低域の下限", "t.p.hi": "高域の上限", "t.p.horn": "ホーンの共鳴",
         "t.p.mode": "音声トラック", "t.p.tape": "録画モード", "t.p.tv": "方式", "t.p.mono": "モノラル", "t.p.buzz": "ヘッド切り替えのブーン", "t.p.breathing": "雑音の浮き沈み",
         "t.p.line": "回線", "t.p.hum": "ハム", "t.p.mains": "電源周波数", "t.p.noise": "回線ノイズ",
         "t.p.bw": "帯域", "t.p.snr": "電波の強さ（S/N）", "t.p.fade": "フェージング", "t.p.fadeRate": "フェージングの速さ", "t.p.static": "空電（雷などの雑音）",
         "t.p.whistle": "混信の笛音", "t.p.whistleHz": "笛音の高さ", "t.p.comp": "放送局のコンプレッサー", "t.p.mod": "変調度",
-        "t.c.rpm.33": "33⅓回転", "t.c.rpm.45": "45回転", "t.c.mode.linear": "ノーマル", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "標準（SP）", "t.c.tape.ep": "3倍（EP）",
+        "t.c.rpm.33": "33⅓回転", "t.c.rpm.45": "45回転", "t.c.mode.linear": "ノーマル", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "標準（SP）", "t.c.tape.ep": "長時間（3倍／PAL は2倍）", "t.c.cart.ceramic": "セラミック", "t.c.cart.magnetic": "マグネット",
         "t.c.tv.ntsc": "NTSC", "t.c.tv.pal": "PAL", "t.c.line.digital": "デジタル", "t.c.line.analog": "アナログ", "t.c.mains.50": "50 Hz", "t.c.mains.60": "60 Hz"
       }
     },
