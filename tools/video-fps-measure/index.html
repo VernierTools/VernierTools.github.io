@@ -164,7 +164,7 @@
 
     <div class="notes">
       <div class="notebox"><strong data-i18n="t.how.h">How it works</strong><br><span data-i18n="t.how.p">The frame list is read straight from the file, and frames are decoded without playing the video, so the display's refresh rate doesn't matter. When the same picture repeats (3-2-3-2… for 24 fps in 60 fps), the frame rate of the content is how often the picture actually changes.</span></div>
-      <div class="notebox"><strong data-i18n="t.lim.h">What it can't tell</strong><br><span data-i18n="t.lim.p">Scenes with no motion at all are skipped. Videos converted by blending or interpolating frames have no repeated pictures, so they read as the file's own rate. Animation drawn on twos shows the rate the drawings change. ProRes and some other codecs can't be decoded in a browser; only the timestamps are checked for those.</span></div>
+      <div class="notebox"><strong data-i18n="t.lim.h">What it can't tell</strong><br><span data-i18n="t.lim.p">Scenes with no motion at all are skipped. Videos converted by blending or interpolating frames have no repeated pictures, so they read as the file's own rate. Animation drawn on twos shows the rate the drawings change. ProRes, DNxHD, QuickTime Animation and some other codecs can't be decoded in a browser; only the timestamps are checked for those. MOV files with H.264, HEVC, PNG or Motion JPEG are fully analyzed.</span></div>
     </div>
 
     <div class="btnrow btnrow--reset">
@@ -271,6 +271,7 @@
   }
 
   async function decoderConfig(info) {
+    if (info.image) return typeof createImageBitmap === "function" ? { image: info.image } : { err: "t.err.codec" };
     if (typeof VideoDecoder === "undefined") return { err: "t.err.nowebcodecs" };
     if (!info.codec) return { err: "t.err.codec" };
     if (info.samples.some(function (s) { return s.laced; })) return { err: "t.err.codec" };
@@ -286,6 +287,17 @@
       if ("ondequeue" in dec) dec.addEventListener("dequeue", fin, { once: true });
       setTimeout(fin, 15);
     });
+  }
+
+  // PNG / Motion JPEG: どのフレームも 1 枚の画像なので、表示順に画像として読む
+  async function decodeImages(mime, win, onFrame) {
+    var list = S.info.samples.filter(function (s) { return s.pts >= win.start - 1e-6 && s.pts < win.end; })
+      .sort(function (a, b) { return a.pts - b.pts; });
+    for (var i = 0; i < list.length && !S.cancel; i++) {
+      var data = await S.reader.read(list[i].pos, list[i].size);
+      var bmp = await createImageBitmap(new Blob([data], { type: mime }));
+      try { onFrame(list[i].pts, frameLuma(bmp)); } finally { bmp.close(); }
+    }
   }
 
   async function decodeWindow(cfg, win, onFrame) {
@@ -327,7 +339,7 @@
       for (var k = 0; k < wins.length && !S.cancel; k++) {
         var w = { pts: [], diff: [] }, prev = null, lastTs = -Infinity;
         results.push(w);
-        await decodeWindow(dc.cfg, wins[k], function (ts, lum) {
+        await (dc.image ? decodeImages.bind(null, dc.image) : decodeWindow.bind(null, dc.cfg))(wins[k], function (ts, lum) {
           w.pts.push(ts);
           // 表示順で届く前提。万一戻ったら、その 1 枚は比べずに基準だけ更新する
           w.diff.push(prev && ts > lastTs ? frameDiff(prev, lum) : null);
@@ -471,7 +483,7 @@
         "t.how.h": "How it works",
         "t.how.p": "The frame list is read straight from the file, and frames are decoded without playing the video, so the display's refresh rate doesn't matter. When the same picture repeats (3-2-3-2… for 24 fps in 60 fps), the frame rate of the content is how often the picture actually changes.",
         "t.lim.h": "What it can't tell",
-        "t.lim.p": "Scenes with no motion at all are skipped. Videos converted by blending or interpolating frames have no repeated pictures, so they read as the file's own rate. Animation drawn on twos shows the rate the drawings change. ProRes and some other codecs can't be decoded in a browser; only the timestamps are checked for those.",
+        "t.lim.p": "Scenes with no motion at all are skipped. Videos converted by blending or interpolating frames have no repeated pictures, so they read as the file's own rate. Animation drawn on twos shows the rate the drawings change. ProRes, DNxHD, QuickTime Animation and some other codecs can't be decoded in a browser; only the timestamps are checked for those. MOV files with H.264, HEVC, PNG or Motion JPEG are fully analyzed.",
         "t.content": "Content frame rate", "t.contentfps": "Picture changes per second", "t.filefps": "File frame rate",
         "t.measured": "Measured {v} fps",
         "t.frompattern": "From the pattern and the file rate (measured {v} fps)",
@@ -515,7 +527,7 @@
         "t.how.h": "仕組み",
         "t.how.p": "ファイルの中のフレーム一覧を直接読み、動画を再生せずにフレームを展開して比べるので、画面の書き換え速度に左右されません。同じ絵が繰り返されていれば（60fps の中の 24fps なら 3・2・3・2…）、絵が実際に変わる頻度を中身のフレームレートとします。",
         "t.lim.h": "分からないこと",
-        "t.lim.p": "まったく動かない場面は除いて計算します。前後のフレームを混ぜたり補間したりして変換した動画は、同じ絵が並ばないため、ファイルの fps のまま出ます。2コマ打ちのアニメは、絵が変わる頻度が出ます。ProRes など、ブラウザで展開できないコーデックはタイムスタンプだけ調べます。",
+        "t.lim.p": "まったく動かない場面は除いて計算します。前後のフレームを混ぜたり補間したりして変換した動画は、同じ絵が並ばないため、ファイルの fps のまま出ます。2コマ打ちのアニメは、絵が変わる頻度が出ます。ProRes・DNxHD・QuickTime Animation など、ブラウザで展開できないコーデックはタイムスタンプだけ調べます。MOV でも中身が H.264・HEVC・PNG・Motion JPEG なら最後まで分析できます。",
         "t.content": "中身のフレームレート", "t.contentfps": "絵が変わる頻度", "t.filefps": "ファイル上のフレームレート",
         "t.measured": "実測 {v} fps",
         "t.frompattern": "並びとファイルの fps から算出（実測 {v} fps）",

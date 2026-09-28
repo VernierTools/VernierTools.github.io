@@ -6,6 +6,7 @@
 
    Demux.open(reader) → Promise<{
      container, codecName, codec, description, width, height,
+     image,               // PNG / Motion JPEG のように 1 フレームが 1 枚の画像なら、その MIME（画像として展開する）
      timebase,            // 時刻の最小刻み（秒）。MP4 は 1/timescale、WebM は TimecodeScale
      declaredFps,         // ファイルに書かれた fps（WebM の DefaultDuration）。無ければ null
      samples: [{ pos, size, pts, dts, key }]   // pts/dts は秒。並びはファイル（デコード）順
@@ -104,7 +105,8 @@
 
   var MP4_CODECS = { avc1: "H.264", avc3: "H.264", hvc1: "HEVC", hev1: "HEVC", vp09: "VP9", vp08: "VP8", av01: "AV1",
     apch: "ProRes 422 HQ", apcn: "ProRes 422", apcs: "ProRes 422 LT", apco: "ProRes 422 Proxy", ap4h: "ProRes 4444", ap4x: "ProRes 4444 XQ",
-    mp4v: "MPEG-4 Part 2", jpeg: "Motion JPEG", mjpa: "Motion JPEG", dvh1: "Dolby Vision", dvhe: "Dolby Vision", encv: "encrypted" };
+    mp4v: "MPEG-4 Part 2", jpeg: "Motion JPEG", mjpa: "Motion JPEG", "png ": "PNG", "rle ": "QuickTime Animation", AVdn: "DNxHD / DNxHR", AVdh: "DNxHR",
+    "raw ": "Uncompressed", v210: "Uncompressed 10-bit", "2vuy": "Uncompressed 8-bit", dvh1: "Dolby Vision", dvhe: "Dolby Vision", encv: "encrypted", cvid: "Cinepak", "SVQ3": "Sorenson Video 3" };
 
   async function openMp4(reader, tops) {
     var moovTop = tops.find(function (t) { return t.type === "moov"; });
@@ -121,7 +123,8 @@
     var timescale = u32(mb, mdhd.data + (v1 ? 20 : 12));
     var stbl = path(mb, trak, ["mdia", "minf", "stbl"]);
     var stsd = child(mb, stbl, "stsd"), entry = boxes(mb, stsd.data + 8, stsd.end)[0];
-    var fourcc = entry.type, info = { container: "MP4", codecName: MP4_CODECS[fourcc] || fourcc, codec: null, description: null,
+    var fourcc = entry.type, info = { container: "MP4", codecName: MP4_CODECS[fourcc] || fourcc.trim(), codec: null, description: null,
+      image: fourcc === "png " ? "image/png" : fourcc === "jpeg" ? "image/jpeg" : null,
       width: u16(mb, entry.data + 24), height: u16(mb, entry.data + 26), timebase: 1 / timescale, declaredFps: null };
     var sub = boxes(mb, entry.data + 78, entry.end), cfg = {};
     sub.forEach(function (x) { cfg[x.type] = mb.slice(x.data, x.end); });
@@ -296,6 +299,7 @@
     }
     if (!track) fail("novideo");
     var cid = track.codecId || "", info = { container: "WebM", codecName: MKV_CODECS[cid] || cid, codec: null, description: null,
+      image: cid === "V_MJPEG" ? "image/jpeg" : null,
       width: track.w || 0, height: track.h || 0, timebase: tcScale / 1e9, declaredFps: track.defDur ? 1e9 / track.defDur : null, samples: samples };
     if (docType !== "webm") info.container = "MKV";
     if (cid === "V_MPEG4/ISO/AVC" && track.priv) { info.codec = avcCodec(track.priv); info.description = track.priv; }
