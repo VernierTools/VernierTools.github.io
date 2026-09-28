@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Numpad shortcut notes — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .pills{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .pills button{ font:inherit; font-size:12.5px; padding:5px 11px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .pills button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .pills button.add{ border-style:dashed; }
+  .prow{ display:flex; gap:var(--s2); align-items:center; }
+  .prow .select{ flex:1; min-width:0; }
+  .iconbtn{ flex:none; width:38px; height:38px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+  .iconbtn svg{ width:17px; height:17px; }
+  .sub{ font-size:12px; color:var(--text-3); line-height:1.55; }
+  .between{ display:flex; justify-content:space-between; align-items:center; gap:var(--s2); flex-wrap:wrap; }
+
+  /* ---- テンキー ---- */
+  .padwrap{ display:flex; justify-content:center; padding:var(--s4) 0 var(--s2); }
+  .pad{ display:grid; grid-template-columns:repeat(4, minmax(0, 92px)); grid-auto-rows:78px; gap:8px; width:100%; max-width:400px; }
+  .key{ position:relative; font:inherit; text-align:center; cursor:pointer; border-radius:10px; padding:20px 6px 6px;
+    background:var(--surface-2); color:var(--text); border:1px solid var(--border-strong);
+    box-shadow:0 2px 0 var(--border-strong); display:flex; align-items:center; justify-content:center; overflow:hidden;
+    transition:transform 80ms ease, box-shadow 80ms ease; }
+  .key:hover{ border-color:var(--text-3); }
+  .key.is-sel{ outline:2px solid var(--accent); outline-offset:2px; }
+  .key.is-hit{ transform:translateY(2px); box-shadow:0 0 0 var(--border-strong); }
+  .key:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .key .lg{ position:absolute; top:5px; left:8px; font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+  .key .tx{ font-size:12.5px; font-weight:600; line-height:1.3; word-break:break-word; white-space:pre-line;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .key .tx:empty::before{ content:"＋"; color:var(--text-3); font-weight:400; opacity:.5; }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; text-align:center; }
+
+  /* ---- 色 ---- */
+  .swatches{ display:flex; flex-wrap:wrap; gap:6px; }
+  .swatches button{ width:28px; height:28px; border-radius:50%; cursor:pointer; border:1px solid var(--border-strong); padding:0; }
+  .swatches button[aria-pressed="true"]{ outline:2px solid var(--accent); outline-offset:2px; }
+  .swatches button.none{ background:linear-gradient(135deg, transparent 45%, var(--text-3) 45%, var(--text-3) 55%, transparent 55%), var(--surface); }
+  textarea.input{ height:auto; min-height:64px; padding:8px 12px; resize:vertical; line-height:1.45; }
+  #editor{ scroll-margin-top:88px; }
+  .keyname{ font-size:16px; font-weight:600; margin:0 0 var(--s3); }
+  .capture{ margin-top:var(--s2); }
+  .capture.is-on{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
+
+  /* ---- 画像 ---- */
+  .preview{ display:block; width:100%; max-width:340px; margin:0 auto; height:auto; border-radius:var(--r); border:1px solid var(--border); background:var(--surface-2); }
+  .warn{ font-size:12px; color:var(--neg); margin-top:var(--s2); }
+  .ok{ font-size:12px; color:var(--text-3); margin-top:var(--s2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
+    <h1 data-i18n="t.title">Numpad shortcut notes</h1>
+    <p data-i18n="t.desc">Using a numpad as a left-hand device? Note what each key does in each app, and save the layout as an image to paste into your notes.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: ソフト・レイヤー・テンキー -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" for="prof" data-i18n="t.app">App</label>
+          <div class="prow">
+            <select class="select" id="prof"></select>
+            <button type="button" class="btn btn--secondary iconbtn" id="p-add" data-i18n-title="t.pAdd" title="New app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" class="btn btn--secondary iconbtn" id="p-dup" data-i18n-title="t.pDup" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg></button>
+            <button type="button" class="btn btn--secondary iconbtn" id="p-del" data-i18n-title="t.pDel" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="pname" data-i18n="t.appName">App name</label>
+          <input class="input" id="pname" maxlength="60" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.layers">Layers (keys held together)</label>
+          <div class="pills" id="layers" role="group"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="padwrap"><div class="pad" id="pad" role="group" aria-label="Numpad"></div></div>
+        <div class="hint" data-i18n="t.padHint">Click a key — or press it on your numpad — to edit what it does.</div>
+      </div>
+    </div>
+
+    <!-- 右: キーの編集・画像・バックアップ -->
+    <div>
+      <div class="card" id="editor">
+        <p class="keyname" id="kname"></p>
+        <div class="field">
+          <label class="label" for="ktext" data-i18n="t.action">What it does</label>
+          <textarea class="input" id="ktext" rows="2" maxlength="60" data-i18n-ph="t.actionPh" placeholder="e.g. Play / Stop"></textarea>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.color">Color</label>
+          <div class="swatches" id="colors"></div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="klegend" data-i18n="t.legend">Key legend (shared by every app)</label>
+          <input class="input" id="klegend" maxlength="8" autocomplete="off">
+          <button type="button" class="btn btn--secondary btn--block capture" id="capture" data-i18n="t.capture">Detect the key by pressing it</button>
+          <div class="sub" id="kcode" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.image">Image</div>
+        <div class="field">
+          <label class="label" data-i18n="t.imgWhat">Include</label>
+          <div class="pills" id="img-what" role="group">
+            <button type="button" data-v="cur" aria-pressed="true" data-i18n="t.imgCur">This layer</button>
+            <button type="button" data-v="all" aria-pressed="false" data-i18n="t.imgAll">All layers</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" data-i18n="t.imgBg">Background</label>
+          <div class="pills" id="img-bg" role="group">
+            <button type="button" data-v="light" aria-pressed="true" data-i18n="t.light">Light</button>
+            <button type="button" data-v="dark" aria-pressed="false" data-i18n="t.dark">Dark</button>
+          </div>
+        </div>
+        <div class="field"><img class="preview" id="preview" alt=""></div>
+        <div class="btnrow">
+          <button type="button" class="btn btn--primary" id="img-copy" data-i18n="t.imgCopy">Copy image</button>
+          <button type="button" class="btn btn--secondary" id="img-save" data-i18n="t.imgSave">Save PNG</button>
+        </div>
+        <div class="sub" id="img-msg" style="margin-top:var(--s2)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.backup">Backup</div>
+        <div class="field">
+          <label class="label" data-i18n="t.device">Numpad</label>
+          <div class="pills" id="device" role="group">
+            <button type="button" data-v="17" aria-pressed="true" data-i18n="t.dev17">17 keys</button>
+            <button type="button" data-v="21" aria-pressed="false" data-i18n="t.dev21">21 keys (extra top row)</button>
+          </div>
+        </div>
+        <p class="sub" data-i18n="t.storeNote">Notes are saved in this browser only. Clearing site data erases them, so export a backup now and then.</p>
+        <div class="btnrow" style="margin-top:var(--s3)">
+          <button type="button" class="btn btn--secondary" id="exp" data-i18n="t.export">Export (JSON)</button>
+          <button type="button" class="btn btn--secondary" id="imp" data-i18n="t.import">Import</button>
+          <input type="file" id="impfile" accept=".json,application/json" hidden>
+        </div>
+        <div id="bkmsg"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var STORE = "vernier.keybind";
+
+  /* =====================================================================
+     テンキーの配置  [id(=KeyboardEvent.code), 刻印, 列, 行, 幅, 高さ]
+     21キーは 17キーの上に 4キーの段が付く（刻印と実機のキーは変更できる）
+     ===================================================================== */
+  var BASE = [
+    ["NumLock", "Num", 0, 0, 1, 1], ["NumpadDivide", "/", 1, 0, 1, 1], ["NumpadMultiply", "*", 2, 0, 1, 1], ["NumpadSubtract", "−", 3, 0, 1, 1],
+    ["Numpad7", "7", 0, 1, 1, 1], ["Numpad8", "8", 1, 1, 1, 1], ["Numpad9", "9", 2, 1, 1, 1], ["NumpadAdd", "+", 3, 1, 1, 2],
+    ["Numpad4", "4", 0, 2, 1, 1], ["Numpad5", "5", 1, 2, 1, 1], ["Numpad6", "6", 2, 2, 1, 1],
+    ["Numpad1", "1", 0, 3, 1, 1], ["Numpad2", "2", 1, 3, 1, 1], ["Numpad3", "3", 2, 3, 1, 1], ["NumpadEnter", "Enter", 3, 3, 1, 2],
+    ["Numpad0", "0", 0, 4, 2, 1], ["NumpadDecimal", ".", 2, 4, 1, 1]
+  ];
+  var TOP = [["X1", "Esc", "Escape"], ["X2", "Tab", "Tab"], ["X3", "=", "NumpadEqual"], ["X4", "⌫", "Backspace"]];
+  function layout() {
+    if (D.device.type !== "21") return BASE.map(function (k) { return { id: k[0], lg: k[1], c: k[2], r: k[3], w: k[4], h: k[5] }; });
+    return TOP.map(function (k, i) { return { id: k[0], lg: k[1], c: i, r: 0, w: 1, h: 1 }; })
+      .concat(BASE.map(function (k) { return { id: k[0], lg: k[1], c: k[2], r: k[3] + 1, w: k[4], h: k[5] }; }));
+  }
+  function legendOf(k) { return D.device.legends[k.id] != null && D.device.legends[k.id] !== "" ? D.device.legends[k.id] : k.lg; }
+  function codeOf(id) {
+    if (D.device.codes[id]) return D.device.codes[id];
+    for (var i = 0; i < TOP.length; i++) if (TOP[i][0] === id) return TOP[i][2];
+    return id;
+  }
+  var COLORS = [null, "#E5484D", "#F2994A", "#E2B93B", "#30A46C", "#12A594", "#3E7BFA", "#8E4EC6", "#8B8D98"];
+  var MODS = ["shift", "ctrl", "alt", "meta"];
+  var MODNAME = { shift: "Shift", ctrl: "Ctrl", alt: "Alt", meta: "Cmd" };
+
+  /* =====================================================================
+     データ（localStorage）
+       { v:1, device:{type, legends:{id:刻印}, codes:{id:code}},
+         active:<profile id>, profiles:[{id, name, layers:[{id, mod, name, map:{keyId:{t, c}}}]}],
+         exported:<最後に書き出した時刻>, changed:<最後に変更した時刻> }
+     ===================================================================== */
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function sample() {
+    return { id: uid(), name: Shell.t("t.sampleName"), layers: [{ id: uid(), mod: "", name: "", map: {
+      Numpad0: { t: Shell.t("t.s0"), c: 4 }, Numpad1: { t: Shell.t("t.s1"), c: 6 }, Numpad2: { t: Shell.t("t.s2"), c: 6 }, Numpad4: { t: Shell.t("t.s4"), c: 2 } } }] };
+  }
+  var D = null;
+  function load() {
+    try { var s = JSON.parse(localStorage.getItem(STORE)); if (valid(s)) return s; } catch (e) {}
+    return null;
+  }
+  function valid(s) { return s && s.device && Array.isArray(s.profiles) && s.profiles.length && s.profiles.every(function (p) { return p.id && Array.isArray(p.layers) && p.layers.length; }); }
+  function save(changed) {
+    if (changed !== false) D.changed = Date.now();
+    try { localStorage.setItem(STORE, JSON.stringify(D)); } catch (e) {}
+    backupMsg();
+  }
+  function prof() { return D.profiles.filter(function (p) { return p.id === D.active; })[0] || D.profiles[0]; }
+  var S = { layer: null, key: "Numpad5", capture: false, img: "cur", bg: "light" };
+  function layer() { var p = prof(); return p.layers.filter(function (l) { return l.id === S.layer; })[0] || p.layers[0]; }
+  function layerName(l) { return l.mod ? MODNAME[l.mod] : l.name || Shell.t("t.base"); }
+
+  /* =====================================================================
+     描画
+     ===================================================================== */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function tint(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  function renderProfiles() {
+    $("prof").innerHTML = D.profiles.map(function (p) { return '<option value="' + p.id + '">' + esc(p.name || Shell.t("t.untitled")) + "</option>"; }).join("");
+    $("prof").value = prof().id;
+    if (document.activeElement !== $("pname")) $("pname").value = prof().name;
+    $("p-del").disabled = D.profiles.length < 2;
+  }
+  function renderLayers() {
+    var p = prof(), cur = layer();
+    var used = p.layers.map(function (l) { return l.mod; });
+    var html = p.layers.map(function (l) {
+      return '<button type="button" data-l="' + l.id + '" aria-pressed="' + (l.id === cur.id) + '">' + esc(layerName(l)) + "</button>";
+    }).join("");
+    html += MODS.filter(function (m) { return used.indexOf(m) < 0; }).map(function (m) {
+      return '<button type="button" class="add" data-add="' + m + '">＋ ' + MODNAME[m] + "</button>";
+    }).join("");
+    if (cur.mod) html += '<button type="button" class="add" data-rm="1">' + Shell.t("t.rmLayer") + "</button>";
+    $("layers").innerHTML = html;
+  }
+  function renderPad() {
+    var map = layer().map, rows = D.device.type === "21" ? 6 : 5;
+    $("pad").style.gridTemplateRows = "repeat(" + rows + ", 78px)";
+    $("pad").innerHTML = layout().map(function (k) {
+      var e = map[k.id] || {}, col = COLORS[e.c] || null;
+      var style = "grid-column:" + (k.c + 1) + " / span " + k.w + ";grid-row:" + (k.r + 1) + " / span " + k.h + ";" +
+        (col ? "background:" + tint(col, 0.18) + ";border-color:" + col + ";box-shadow:0 2px 0 " + col + ";" : "");
+      return '<button type="button" class="key' + (k.id === S.key ? " is-sel" : "") + '" data-k="' + k.id + '" style="' + style + '"' +
+        ' aria-label="' + esc(legendOf(k) + (e.t ? ": " + e.t : "")) + '"><span class="lg">' + esc(legendOf(k)) + '</span><span class="tx">' + esc(e.t || "") + "</span></button>";
+    }).join("");
+  }
+  function renderEditor() {
+    var k = layout().filter(function (x) { return x.id === S.key; })[0];
+    if (!k) { S.key = "Numpad5"; k = layout().filter(function (x) { return x.id === S.key; })[0]; }
+    var e = layer().map[k.id] || {};
+    $("kname").textContent = Shell.t("t.key") + " " + legendOf(k) + (layer().mod ? "  ·  " + layerName(layer()) + " +" : "");
+    if (document.activeElement !== $("ktext")) $("ktext").value = e.t || "";
+    $("colors").innerHTML = COLORS.map(function (c, i) {
+      return '<button type="button" data-c="' + i + '" class="' + (c ? "" : "none") + '" aria-pressed="' + ((e.c || 0) === i) + '"' +
+        ' aria-label="' + Shell.t(c ? "t.colorN" : "t.noColor").replace("{n}", i) + '"' + (c ? ' style="background:' + c + '"' : "") + "></button>";
+    }).join("");
+    if (document.activeElement !== $("klegend")) $("klegend").value = D.device.legends[k.id] || "";
+    $("klegend").placeholder = k.lg;
+    var isTop = k.id.charAt(0) === "X";
+    $("capture").hidden = !isTop;
+    $("capture").classList.toggle("is-on", S.capture);
+    $("capture").textContent = Shell.t(S.capture ? "t.capturing" : "t.capture");
+    $("kcode").textContent = isTop ? Shell.t("t.code").replace("{c}", codeOf(k.id)) : "";
+  }
+  function renderAll() { renderProfiles(); renderLayers(); renderPad(); renderEditor(); renderDevice(); schedulePreview(); }
+  function renderDevice() { $("device").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === D.device.type ? "true" : "false"); }); }
+
+  /* =====================================================================
+     画像（canvas）
+     ===================================================================== */
+  var U = 84, G = 8, PAD = 28;
+  function wrap(ctx, text, maxW) {
+    var out = [];
+    String(text).split("\n").forEach(function (para) {
+      var line = "";
+      // 英単語はなるべく途中で切らない（空白で区切れる所で折り返す）。日本語は1文字ずつ
+      var tokens = para.match(/[\x21-\x7e]+|\s+|[^\x21-\x7e\s]/g) || [""];
+      tokens.forEach(function (tk) {
+        if (ctx.measureText(line + tk).width <= maxW || !line) {
+          if (ctx.measureText(tk).width > maxW && !line) {             // 1語で幅を超える: 文字単位
+            tk.split("").forEach(function (ch) { if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch; });
+          } else line += tk;
+        } else { out.push(line.trim()); line = tk.trim(); }
+      });
+      out.push(line.trim());
+    });
+    return out;
+  }
+  function rrect(ctx, x, y, w, h, r) {
+    if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function drawPanel(ctx, x0, y0, lay, th, font) {
+    var keys = layout();
+    ctx.font = "600 14px " + font; ctx.fillStyle = th.sub; ctx.textBaseline = "alphabetic";
+    ctx.fillText(layerName(lay), x0, y0 + 14);
+    y0 += 26;
+    keys.forEach(function (k) {
+      var x = x0 + k.c * (U + G), y = y0 + k.r * (U + G), w = k.w * U + (k.w - 1) * G, h = k.h * U + (k.h - 1) * G;
+      var e = lay.map[k.id] || {}, col = COLORS[e.c] || null;
+      ctx.beginPath(); rrect(ctx, x, y, w, h, 10);
+      ctx.fillStyle = col ? mix(th.key, col, th.dark ? 0.32 : 0.2) : th.key; ctx.fill();
+      ctx.lineWidth = col ? 2 : 1; ctx.strokeStyle = col || th.line; ctx.stroke();
+      ctx.font = "500 11px " + font; ctx.fillStyle = th.sub; ctx.textBaseline = "top"; ctx.textAlign = "left";
+      ctx.fillText(legendOf(k), x + 8, y + 7);
+      if (!e.t) return;
+      var maxW = w - 12, avail = h - 26, size = 15, lines;
+      for (; size >= 10; size--) {
+        ctx.font = "600 " + size + "px " + font;
+        lines = wrap(ctx, e.t, maxW);
+        if (lines.length * size * 1.25 <= avail) break;
+      }
+      var lh = size * 1.25, maxLines = Math.max(1, Math.floor(avail / lh));
+      if (lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, "…"); }
+      ctx.fillStyle = th.text; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      var cy = y + 20 + avail / 2 - (lines.length - 1) * lh / 2;
+      lines.forEach(function (ln, i) { ctx.fillText(ln, x + w / 2, cy + i * lh); });
+      ctx.textAlign = "left";
+    });
+  }
+  function mix(a, b, t) {
+    var p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16);
+    var r = Math.round((p >> 16) * (1 - t) + (q >> 16) * t), g = Math.round(((p >> 8) & 255) * (1 - t) + ((q >> 8) & 255) * t),
+        bl = Math.round((p & 255) * (1 - t) + (q & 255) * t);
+    return "rgb(" + r + "," + g + "," + bl + ")";
+  }
+  function drawImage() {
+    var dark = S.bg === "dark";
+    var th = dark ? { bg: "#17181C", key: "#23252B", line: "#3A3D45", text: "#F2F3F5", sub: "#9A9EA8", dark: true }
+                  : { bg: "#FFFFFF", key: "#F6F7F9", line: "#D5D8DE", text: "#1A1C21", sub: "#6B7080", dark: false };
+    var lays = S.img === "all" ? prof().layers : [layer()];
+    var rows = D.device.type === "21" ? 6 : 5, pw = 4 * U + 3 * G, ph = rows * U + (rows - 1) * G + 26;
+    var W = PAD * 2 + lays.length * pw + (lays.length - 1) * 36, H = PAD * 2 + 34 + ph, SC = 2;
+    var cv = document.createElement("canvas"); cv.width = W * SC; cv.height = H * SC;
+    var ctx = cv.getContext("2d"); ctx.scale(SC, SC);
+    var font = getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = th.bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = th.text; ctx.font = "700 20px " + font; ctx.textBaseline = "alphabetic";
+    ctx.fillText(prof().name || Shell.t("t.untitled"), PAD, PAD + 18);
+    lays.forEach(function (l, i) { drawPanel(ctx, PAD + i * (pw + 36), PAD + 34, l, th, font); });
+    return cv;
+  }
+  var pvTimer = 0;
+  function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(function () { $("preview").src = drawImage().toDataURL("image/png"); }, 120); }
+  function fileBase() {
+    var n = (prof().name || "numpad").replace(/[\\/:*?"<>|]+/g, "").trim() || "numpad";
+    return n + (S.img === "cur" && layer().mod ? "-" + MODNAME[layer().mod] : "");
+  }
+  function download(blob, name) {
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  /* =====================================================================
+     バックアップ
+     ===================================================================== */
+  function backupMsg() {
+    var el = $("bkmsg");
+    if (!D.exported) { el.className = D.changed ? "warn" : "ok"; el.textContent = Shell.t("t.never"); return; }
+    var days = Math.floor((Date.now() - D.exported) / 864e5);
+    var stale = D.changed > D.exported && days >= 14;
+    el.className = stale ? "warn" : "ok";
+    el.textContent = Shell.t("t.lastExport").replace("{d}", new Date(D.exported).toLocaleDateString(Shell.lang)) +
+      (D.changed > D.exported ? " " + Shell.t("t.changedSince") : "");
+  }
+  function importData(obj) {
+    if (!valid(obj)) throw new Error("bad");
+    var names = D.profiles.map(function (p) { return p.name; });
+    obj.profiles.forEach(function (p) {
+      p = JSON.parse(JSON.stringify(p)); p.id = uid();
+      p.layers.forEach(function (l) { l.id = uid(); if (MODS.indexOf(l.mod) < 0) l.mod = ""; l.map = l.map || {}; });
+      var base = p.name || Shell.t("t.untitled"), n = base, i = 2;
+      while (names.indexOf(n) >= 0) n = base + " (" + (i++) + ")";
+      p.name = n; names.push(n); D.profiles.push(p);
+    });
+    // 刻印・キーの登録は、読み込むデータのほうに設定があれば引き継ぐ
+    if (obj.device) {
+      if (obj.device.type === "17" || obj.device.type === "21") D.device.type = obj.device.type;
+      ["legends", "codes"].forEach(function (k) { if (obj.device[k]) Object.keys(obj.device[k]).forEach(function (id) { D.device[k][id] = String(obj.device[k][id]); }); });
+    }
+    return obj.profiles.length;
+  }
+
+  /* =====================================================================
+     操作
+     ===================================================================== */
+  function selectKey(id, flash) {
+    S.key = id; S.capture = false;
+    document.querySelectorAll(".key").forEach(function (b) { b.classList.toggle("is-sel", b.getAttribute("data-k") === id); });
+    if (flash) {
+      var el = document.querySelector('.key[data-k="' + id + '"]');
+      if (el) { el.classList.add("is-hit"); setTimeout(function () { el.classList.remove("is-hit"); }, 120); }
+    }
+    renderEditor();
+  }
+  function setEntry(fn) {
+    var m = layer().map, e = m[S.key] || { t: "", c: 0 };
+    fn(e);
+    if (!e.t && !e.c) delete m[S.key]; else m[S.key] = e;
+    save(); renderPad(); schedulePreview();
+  }
+  $("pad").addEventListener("click", function (e) {
+    var b = e.target.closest(".key"); if (!b) return;
+    selectKey(b.getAttribute("data-k"));
+    // 1列表示では編集欄が図の下にあるので、そこまで送る
+    if (window.matchMedia("(max-width:760px)").matches) $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("ktext").addEventListener("input", function () { var v = this.value; setEntry(function (e) { e.t = v; }); });
+  $("colors").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-c]"); if (!b) return;
+    var c = +b.getAttribute("data-c"); setEntry(function (x) { x.c = c; }); renderEditor();
+  });
+  $("klegend").addEventListener("input", function () {
+    var v = this.value.trim(); if (v) D.device.legends[S.key] = v; else delete D.device.legends[S.key];
+    save(); renderPad(); schedulePreview();
+    $("kname").textContent = Shell.t("t.key") + " " + legendOf(layout().filter(function (x) { return x.id === S.key; })[0]);
+  });
+  $("capture").addEventListener("click", function () { S.capture = !S.capture; renderEditor(); });
+
+  // 実機のキー: テンキーを押すと、そのキーを選ぶ（押したまま Shift 等があれば対応するレイヤーへ）
+  document.addEventListener("keydown", function (e) {
+    var t = e.target, tag = t && t.tagName;
+    if (S.capture) {
+      if (["Shift", "Control", "Alt", "Meta"].indexOf(e.key) >= 0) return;
+      e.preventDefault();
+      if (e.code !== "Escape" || codeOf(S.key) === "Escape") { D.device.codes[S.key] = e.code; save(); }
+      S.capture = false; renderEditor(); return;
+    }
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+    var hit = layout().filter(function (k) { return codeOf(k.id) === e.code || (codeOf(k.id) === "NumpadEqual" && e.code === "Equal"); })[0];
+    if (!hit) return;
+    if (e.code === "Tab" && t !== document.body) return;            // フォーカス移動の Tab は奪わない
+    e.preventDefault();
+    var want = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : e.altKey ? "alt" : e.metaKey ? "meta" : "";
+    var l = prof().layers.filter(function (x) { return x.mod === want; })[0];
+    if (l && l.id !== layer().id) { S.layer = l.id; renderLayers(); renderPad(); schedulePreview(); }
+    selectKey(hit.id, true);
+  });
+
+  $("prof").addEventListener("change", function () { D.active = this.value; S.layer = null; save(false); renderAll(); });
+  $("pname").addEventListener("input", function () {
+    prof().name = this.value; save();
+    var o = $("prof").querySelector('option[value="' + prof().id + '"]'); if (o) o.textContent = this.value || Shell.t("t.untitled");
+    schedulePreview();
+  });
+  $("p-add").addEventListener("click", function () {
+    var p = { id: uid(), name: Shell.t("t.newApp"), layers: [{ id: uid(), mod: "", name: "", map: {} }] };
+    D.profiles.push(p); D.active = p.id; S.layer = null; save(); renderAll();
+    $("pname").focus(); $("pname").select();
+  });
+  $("p-dup").addEventListener("click", function () {
+    var p = JSON.parse(JSON.stringify(prof())); p.id = uid(); p.name = p.name + Shell.t("t.copySuffix");
+    p.layers.forEach(function (l) { l.id = uid(); });
+    D.profiles.push(p); D.active = p.id; S.layer = null; save(); renderAll();
+  });
+  $("p-del").addEventListener("click", function () {
+    if (D.profiles.length < 2) return;
+    if (!confirm(Shell.t("t.confirmDel").replace("{n}", prof().name || Shell.t("t.untitled")))) return;
+    D.profiles = D.profiles.filter(function (p) { return p.id !== D.active; });
+    D.active = D.profiles[0].id; S.layer = null; save(); renderAll();
+  });
+  $("layers").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var p = prof();
+    if (b.hasAttribute("data-l")) S.layer = b.getAttribute("data-l");
+    else if (b.hasAttribute("data-add")) {
+      var l = { id: uid(), mod: b.getAttribute("data-add"), name: "", map: {} };
+      var order = [""].concat(MODS);
+      p.layers.push(l); p.layers.sort(function (a, c) { return order.indexOf(a.mod) - order.indexOf(c.mod); });
+      S.layer = l.id; save();
+    } else if (b.hasAttribute("data-rm")) {
+      var cur = layer();
+      if (Object.keys(cur.map).length && !confirm(Shell.t("t.confirmRmLayer").replace("{n}", layerName(cur)))) return;
+      p.layers = p.layers.filter(function (x) { return x.id !== cur.id; }); S.layer = null; save();
+    }
+    renderLayers(); renderPad(); renderEditor(); schedulePreview();
+  });
+  $("device").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]"); if (!b) return;
+    D.device.type = b.getAttribute("data-v"); save(); renderAll();
+  });
+  function pillGroup(id, key) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("[data-v]"); if (!b) return;
+      S[key] = b.getAttribute("data-v");
+      $(id).querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      try { localStorage.setItem(STORE + ".img", JSON.stringify({ img: S.img, bg: S.bg })); } catch (err) {}
+      schedulePreview();
+    });
+  }
+  pillGroup("img-what", "img"); pillGroup("img-bg", "bg");
+  $("img-save").addEventListener("click", function () {
+    drawImage().toBlob(function (b) { download(b, fileBase() + ".png"); });
+  });
+  $("img-copy").addEventListener("click", function () {
+    var msg = $("img-msg");
+    msg.textContent = "";
+    try {
+      // Safari は Promise を渡す形でないと、クリック直後の扱いにならない
+      var blob = new Promise(function (res) { drawImage().toBlob(res, "image/png"); });
+      navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(function () {
+        msg.textContent = ""; toastCopied();
+      }, function () { msg.textContent = Shell.t("t.copyFail"); });
+    } catch (err) { msg.textContent = Shell.t("t.copyFail"); }
+  });
+  function toastCopied() {
+    // Shell.copy は文字列用なので、画像のときは同じ見た目のトースト（.tb-copied）を自前で出す
+    var t = document.querySelector(".tb-copied");
+    if (!t) { t = document.createElement("div"); t.className = "tb-copied"; document.body.appendChild(t); }
+    t.textContent = Shell.t("copied"); t.classList.add("show");
+    clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("show"); }, 1100);
+  }
+  $("exp").addEventListener("click", function () {
+    D.exported = Date.now(); save(false);
+    var out = { app: "vernier-keybind-notes", v: 1, device: D.device, profiles: D.profiles };
+    var d = new Date(), pad = function (n) { return ("0" + n).slice(-2); };
+    download(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }),
+      "numpad-notes-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json");
+  });
+  $("imp").addEventListener("click", function () { $("impfile").click(); });
+  $("impfile").addEventListener("change", function () {
+    var f = this.files[0]; this.value = ""; if (!f) return;
+    f.text().then(function (txt) {
+      var n = importData(JSON.parse(txt)); save(); renderAll();
+      $("bkmsg").className = "ok"; $("bkmsg").textContent = Shell.t("t.imported").replace("{n}", n);
+    }).catch(function () { $("bkmsg").className = "warn"; $("bkmsg").textContent = Shell.t("t.importFail"); });
+  });
+
+  Shell.init({
+    id: "keybind-notes",
+    strings: {
+      en: {
+        "t.title": "Numpad shortcut notes",
+        "t.desc": "Using a numpad as a left-hand device? Note what each key does in each app, and save the layout as an image to paste into your notes.",
+        "t.app": "App", "t.appName": "App name", "t.pAdd": "New app", "t.pDup": "Duplicate", "t.pDel": "Delete",
+        "t.layers": "Layers (keys held together)", "t.base": "No modifier", "t.rmLayer": "Remove this layer",
+        "t.padHint": "Click a key — or press it on your numpad — to edit what it does. Holding Shift, Ctrl, Alt or Cmd jumps to that layer if you have added it.",
+        "t.key": "Key", "t.action": "What it does", "t.actionPh": "e.g. Play / Stop", "t.color": "Color", "t.noColor": "No color", "t.colorN": "Color {n}",
+        "t.legend": "Key legend (shared by every app)", "t.capture": "Detect the key by pressing it", "t.capturing": "Press the key on your numpad…",
+        "t.code": "Detected as: {c}",
+        "t.image": "Image", "t.imgWhat": "Include", "t.imgCur": "This layer", "t.imgAll": "All layers", "t.imgBg": "Background",
+        "t.light": "Light", "t.dark": "Dark", "t.imgCopy": "Copy image", "t.imgSave": "Save PNG",
+        "t.copyFail": "This browser could not copy the image. Use “Save PNG” instead.",
+        "t.backup": "Numpad & backup", "t.device": "Numpad", "t.dev17": "17 keys", "t.dev21": "21 keys (extra top row)",
+        "t.storeNote": "Notes are saved in this browser only. Clearing site data erases them, so export a backup now and then. Importing adds the apps in the file; it never deletes what you have.",
+        "t.export": "Export (JSON)", "t.import": "Import",
+        "t.never": "Not exported yet.", "t.lastExport": "Last exported {d}.", "t.changedSince": "Changed since then.",
+        "t.imported": "Imported {n} app(s).", "t.importFail": "That file could not be read as numpad notes.",
+        "t.untitled": "Untitled", "t.newApp": "New app", "t.copySuffix": " (copy)",
+        "t.confirmDel": "Delete “{n}”?", "t.confirmRmLayer": "Remove the {n} layer and its notes?",
+        "t.sampleName": "DAW (example)", "t.s0": "Play", "t.s1": "Copy", "t.s2": "Paste", "t.s4": "Bounce"
+      },
+      ja: {
+        "t.title": "テンキー割り当てメモ",
+        "t.desc": "テンキーを左手デバイスとして使うときの、ソフトごとのキーの割り当てをメモ。画像にしてメモアプリに貼り付けられます。",
+        "t.app": "ソフト", "t.appName": "ソフト名", "t.pAdd": "ソフトを追加", "t.pDup": "複製", "t.pDel": "削除",
+        "t.layers": "レイヤー（同時に押すキー）", "t.base": "単体", "t.rmLayer": "このレイヤーを削除",
+        "t.padHint": "キーをクリックするか、実機のテンキーを押すと編集できます。Shift・Ctrl・Alt・Cmd を押しながらだと、追加済みのそのレイヤーに切り替わります。",
+        "t.key": "キー", "t.action": "機能", "t.actionPh": "例: 再生／停止", "t.color": "色", "t.noColor": "色なし", "t.colorN": "色 {n}",
+        "t.legend": "キーの刻印（全ソフト共通）", "t.capture": "実機のキーを押して登録", "t.capturing": "テンキーのキーを押してください…",
+        "t.code": "認識されるキー: {c}",
+        "t.image": "画像", "t.imgWhat": "内容", "t.imgCur": "このレイヤー", "t.imgAll": "すべてのレイヤー", "t.imgBg": "背景",
+        "t.light": "明るい", "t.dark": "暗い", "t.imgCopy": "画像をコピー", "t.imgSave": "PNG を保存",
+        "t.copyFail": "このブラウザでは画像をコピーできませんでした。「PNG を保存」を使ってください。",
+        "t.backup": "テンキーとバックアップ", "t.device": "テンキー", "t.dev17": "17キー", "t.dev21": "21キー（上段つき）",
+        "t.storeNote": "メモはこのブラウザの中にだけ保存されます。サイトのデータを消去すると消えるので、ときどき書き出してバックアップしてください。読み込むと、ファイル内のソフトが追加されます（今あるデータは消えません）。",
+        "t.export": "書き出し（JSON）", "t.import": "読み込み",
+        "t.never": "まだ書き出していません。", "t.lastExport": "最後の書き出し: {d}", "t.changedSince": "（その後に変更あり）",
+        "t.imported": "{n} 件のソフトを読み込みました。", "t.importFail": "このファイルはテンキー割り当てメモとして読み込めませんでした。",
+        "t.untitled": "名前なし", "t.newApp": "新しいソフト", "t.copySuffix": "のコピー",
+        "t.confirmDel": "「{n}」を削除しますか？", "t.confirmRmLayer": "{n} のレイヤーと、その中のメモを削除しますか？",
+        "t.sampleName": "DAW（例）", "t.s0": "再生", "t.s1": "コピー", "t.s2": "ペースト", "t.s4": "バウンス"
+      }
+    },
+    onSettingsChange: function () { if (D) { renderAll(); backupMsg(); } }
+  });
+
+  // 初期化（サンプルの文言に Shell.t を使うため init の後）
+  D = load();
+  if (!D) { var p = sample(); D = { v: 1, device: { type: "17", legends: {}, codes: {} }, active: p.id, profiles: [p], exported: 0, changed: 0 }; save(false); }
+  try {
+    var im = JSON.parse(localStorage.getItem(STORE + ".img"));
+    if (im) { if (im.img === "all") S.img = "all"; if (im.bg === "dark") S.bg = "dark"; }
+  } catch (e) {}
+  ["img-what", "img-bg"].forEach(function (id) {
+    var v = id === "img-what" ? S.img : S.bg;
+    $(id).querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === v ? "true" : "false"); });
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(function (el) { el.title = Shell.t(el.getAttribute("data-i18n-title")); el.setAttribute("aria-label", el.title); });
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) $("img-copy").hidden = true;
+  renderAll(); backupMsg();
+})();
+</script>
+</body>
+</html>

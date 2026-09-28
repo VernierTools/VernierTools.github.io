@@ -1357,21 +1357,29 @@
         "general"
       ],
       "name": {
-        "en": "Keybind & shortcut notes",
-        "ja": "キー配列・ショートカットメモ"
+        "en": "Numpad shortcut notes",
+        "ja": "テンキー割り当てメモ"
       },
       "description": {
-        "en": "Save your custom keybindings and shortcuts locally, with export/import backup.",
-        "ja": "自分用のキー配列やショートカットを保存。書き出し/読み込みでバックアップ可能。"
+        "en": "Note what each numpad key does in each app when you use it as a left-hand device — with Shift/Ctrl layers, image export and JSON backup.",
+        "ja": "テンキーを左手デバイスにしたときの、ソフトごとのキー割り当てを図でメモ。Shift等のレイヤー、画像出力、JSONでバックアップ。"
       },
       "keywords": [
-        "keybind",
+        "numpad",
+        "keypad",
+        "left-hand device",
+        "macro",
         "shortcut",
+        "keybind",
         "hotkey",
+        "daw",
         "backup",
         "export",
         "import",
+        "テンキー",
+        "左手デバイス",
         "ショートカット",
+        "キー割り当て",
         "キー配列",
         "バックアップ"
       ],
