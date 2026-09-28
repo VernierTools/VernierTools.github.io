@@ -1441,8 +1441,8 @@
         "ja": "音声劣化シミュレーター"
       },
       "description": {
-        "en": "Simulate tape, vinyl, and VHS audio degradation with physically-based models.",
-        "ja": "テープ・レコード・VHS等の音声劣化を原理ベースでシミュレート。"
+        "en": "Make audio sound like cassette, vinyl, 78 rpm shellac, VHS, telephone or AM radio — each modeled on how the medium actually degrades sound, with A/B preview and WAV export.",
+        "ja": "カセット・レコード・SP盤・VHS・電話・AMラジオを通したような音に。劣化の仕組みに沿って計算し、元の音と聴き比べてWAVで書き出し。"
       },
       "keywords": [
         "tape",
@@ -1454,7 +1454,21 @@
         "crackle",
         "劣化",
         "テープ",
-        "レコード"
+        "レコード",
+        "cassette",
+        "record",
+        "78 rpm",
+        "shellac",
+        "telephone",
+        "am radio",
+        "lo-fi",
+        "dub",
+        "カセット",
+        "SP盤",
+        "電話",
+        "AMラジオ",
+        "ダビング",
+        "ノイズ"
       ],
       "added": "2026-08-05"
     },

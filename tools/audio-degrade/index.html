@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio degradation simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .pills{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pills button{ font:inherit; font-size:12.5px; padding:6px 12px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .pills button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; flex-wrap:wrap; }
+  .seg button{ appearance:none; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--text-2);
+    padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
+  .seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); font-weight:500; }
+  .seg button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; margin-top:6px; }
+  .mdesc{ font-size:12.5px; color:var(--text-2); line-height:1.6; margin-top:var(--s3); }
+  .sliderrow .val{ min-width:78px; text-align:right; }
+  .prow{ margin-bottom:var(--s3); }
+  .prow:last-child{ margin-bottom:0; }
+  .prow .label{ display:flex; justify-content:space-between; gap:8px; }
+  .choicerow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s3); flex-wrap:wrap; }
+  .choicerow .label{ margin:0; }
+  .between{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); flex-wrap:wrap; }
+
+  /* ---- 波形と再生 ---- */
+  .wave{ position:relative; height:120px; border-radius:var(--r); background:var(--surface-2); border:1px solid var(--border); overflow:hidden; cursor:pointer; touch-action:none; }
+  .wave canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  .wave .empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:var(--text-3); padding:0; }
+  .transport{ display:flex; align-items:center; gap:var(--s3); margin-top:var(--s3); flex-wrap:wrap; }
+  .playbtn{ width:44px; height:44px; border-radius:50%; border:0; background:var(--accent); color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
+  .playbtn:disabled{ opacity:.4; cursor:default; }
+  .playbtn svg{ width:18px; height:18px; }
+  .time{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); }
+  .busy{ font-size:12px; color:var(--text-3); display:inline-flex; align-items:center; gap:6px; }
+  .busy::before{ content:""; width:10px; height:10px; border-radius:50%; border:2px solid var(--accent); border-right-color:transparent; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .ab{ margin-left:auto; }
+  .progress{ height:6px; border-radius:3px; background:var(--surface-2); overflow:hidden; margin-top:var(--s3); }
+  .progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .15s; }
+  .err{ margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Audio degradation simulator</h1>
+    <p data-i18n="t.desc">Make audio sound like it came off a cassette, a record, a 78, a VHS tape, a phone line or AM radio — each built from how that medium actually degrades sound.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 読み込み・試聴 -->
+    <div>
+      <div class="card">
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <b data-i18n="t.dropb">Click to choose a file</b> <span data-i18n="t.dropor">or drag &amp; drop</span>
+          <small id="fileinfo" data-i18n="t.nofile">No file selected</small>
+        </div>
+        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
+        <div class="between" style="margin-top:var(--s3)">
+          <span class="hint" style="margin:0" data-i18n="t.local">Files never leave your browser.</span>
+          <button type="button" class="btn btn--ghost" id="sample" data-i18n="t.sample">Try with a sample</button>
+        </div>
+        <div class="badge badge--neg err" id="err" hidden></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.listen">Listen</div>
+        <div class="wave" id="wave"><canvas id="wavec"></canvas><div class="empty" id="wave-empty" data-i18n="t.noAudio">Load a file to begin</div></div>
+        <div class="hint" data-i18n="t.waveHint">Click the waveform to choose the 10-second section you hear while adjusting. Export always processes the whole file.</div>
+        <div class="transport">
+          <button type="button" class="playbtn" id="play" disabled aria-label="Play">
+            <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+          <span class="time" id="time">0:00</span>
+          <span class="busy" id="busy" hidden data-i18n="t.busy">Processing…</span>
+          <div class="seg ab" id="ab" role="group">
+            <button type="button" data-v="orig" aria-pressed="false" data-i18n="t.orig">Original</button>
+            <button type="button" data-v="proc" aria-pressed="true" data-i18n="t.proc">Degraded</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.export">Export</div>
+        <div class="choicerow">
+          <span class="label" data-i18n="t.format">Format</span>
+          <div class="seg" id="bits" role="group">
+            <button type="button" data-v="16" aria-pressed="false">WAV 16-bit</button>
+            <button type="button" data-v="24" aria-pressed="true">WAV 24-bit</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn--primary btn--block" id="export" disabled data-i18n="t.exportBtn">Process the whole file and save</button>
+        <div class="progress" id="prog" hidden><i id="prog-bar"></i></div>
+        <div class="hint" id="exp-msg"></div>
+      </div>
+    </div>
+
+    <!-- 右: 媒体と設定 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" data-i18n="t.medium">Medium</label>
+          <div class="pills" id="media" role="group"></div>
+          <div class="mdesc" id="mdesc"></div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="label" data-i18n="t.amount">Starting point</label>
+          <div class="seg" id="levels" role="group">
+            <button type="button" data-v="light" aria-pressed="false" data-i18n="t.light">Light</button>
+            <button type="button" data-v="std" aria-pressed="false" data-i18n="t.std">Typical</button>
+            <button type="button" data-v="heavy" aria-pressed="false" data-i18n="t.heavy">Worn out</button>
+          </div>
+          <div class="hint" data-i18n="t.amountHint">Sets every control below; fine-tune from there.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.params">Settings</div>
+        <div id="params"></div>
+      </div>
+
+      <div class="card">
+        <div class="prow">
+          <label class="label" for="gens"><span data-i18n="t.gens">Generations (copies of copies)</span></label>
+          <div class="sliderrow"><input type="range" class="slider" id="gens" min="1" max="5" step="1" value="1"><span class="val mono" id="gens-val">1</span></div>
+          <div class="hint" data-i18n="t.gensHint">Runs the whole medium again for each copy, with a fresh tape or record each time — like dubbing a dub.</div>
+        </div>
+        <div class="between" style="margin-top:var(--s4)">
+          <label class="toggle"><input type="checkbox" id="match" checked><span class="track"></span><span data-i18n="t.match">Keep the original loudness</span></label>
+          <button type="button" class="btn btn--ghost" id="reseed" data-i18n="t.reseed">Another random take</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="dsp.js"></script>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var STORE = "vernier.degrade", PREVIEW = 10, PRE = 2.5, POST = 1;
+  var ORDER = ["cassette", "vinyl", "sp", "vhs", "phone", "am"];
+
+  /* ---- 状態 ---- */
+  var S = { medium: "cassette", params: {}, level: "std", gens: 1, match: true, seed: 1, bits: "24", view: "proc" };
+  try {
+    var sv = JSON.parse(localStorage.getItem(STORE));
+    if (sv && Degrade.MEDIA[sv.medium]) { S.medium = sv.medium; S.params = sv.params || {}; S.level = sv.level || ""; S.gens = sv.gens || 1; S.match = sv.match !== false; S.bits = sv.bits === "16" ? "16" : "24"; }
+  } catch (e) {}
+  function params() { var p = Degrade.defaults(S.medium); Object.keys(S.params[S.medium] || {}).forEach(function (k) { if (k in p) p[k] = S.params[S.medium][k]; }); return p; }
+  function persist() { try { localStorage.setItem(STORE, JSON.stringify({ medium: S.medium, params: S.params, level: S.level, gens: S.gens, match: S.match, bits: S.bits })); } catch (e) {} }
+  if (!S.params[S.medium]) S.params[S.medium] = {};
+
+  /* =====================================================================
+     設定の画面（媒体ごとの定義 Degrade.MEDIA[m].params から組み立てる）
+     ===================================================================== */
+  function label(id) { var k = "t.p." + S.medium + "." + id; var s = Shell.t(k); return s !== k ? s : Shell.t("t.p." + id); }
+  function choiceLabel(id, v) { var k = "t.c." + id + "." + v; var s = Shell.t(k); return s !== k ? s : v; }
+  function fmt(q, v) {
+    if (q.unit === "dB" && q.min === -90 && v <= -90) return Shell.t("t.off");
+    var dec = (String(q.step).split(".")[1] || "").length;
+    if (q.unit === "") return (+v).toFixed(dec);
+    return (+v).toFixed(dec) + " " + q.unit;
+  }
+  function buildMedia() {
+    $("media").innerHTML = ORDER.map(function (m) { return '<button type="button" data-m="' + m + '" aria-pressed="' + (m === S.medium) + '">' + Shell.t("t.m." + m) + "</button>"; }).join("");
+    $("mdesc").textContent = Shell.t("t.md." + S.medium);
+    $("levels").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === S.level ? "true" : "false"); });
+  }
+  function buildParams() {
+    var p = params(), html = "";
+    Degrade.MEDIA[S.medium].params.forEach(function (q) {
+      if (q.show && !q.show(p)) return;
+      if (q.type === "choice") {
+        html += '<div class="choicerow"><span class="label">' + label(q.id) + '</span><div class="seg" data-q="' + q.id + '">' + q.choices.map(function (c) {
+          return '<button type="button" data-v="' + c + '" aria-pressed="' + (String(p[q.id]) === c) + '">' + choiceLabel(q.id, c) + "</button>";
+        }).join("") + "</div></div>";
+      } else if (q.type === "bool") {
+        html += '<div class="choicerow"><label class="toggle"><input type="checkbox" data-q="' + q.id + '"' + (p[q.id] ? " checked" : "") + '><span class="track"></span><span>' + label(q.id) + "</span></label></div>";
+      } else {
+        html += '<div class="prow"><label class="label" for="q-' + q.id + '">' + label(q.id) + '</label><div class="sliderrow">' +
+          '<input type="range" class="slider" id="q-' + q.id + '" data-q="' + q.id + '" min="' + q.min + '" max="' + q.max + '" step="' + q.step + '" value="' + p[q.id] + '">' +
+          '<span class="val mono" id="v-' + q.id + '">' + fmt(q, p[q.id]) + "</span></div></div>";
+      }
+    });
+    $("params").innerHTML = html;
+  }
+  function setParam(id, v) {
+    S.params[S.medium] = S.params[S.medium] || {};
+    S.params[S.medium][id] = v; S.level = "";
+    $("levels").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+    persist(); schedule();
+  }
+  $("params").addEventListener("input", function (e) {
+    var el = e.target, id = el.getAttribute("data-q"); if (!id || el.type !== "range") return;
+    var q = Degrade.MEDIA[S.medium].params.filter(function (x) { return x.id === id; })[0];
+    $("v-" + id).textContent = fmt(q, +el.value);
+    setParam(id, +el.value);
+  });
+  $("params").addEventListener("change", function (e) {
+    var el = e.target, id = el.getAttribute("data-q"); if (!id || el.type !== "checkbox") return;
+    setParam(id, el.checked); buildParams();
+  });
+  $("params").addEventListener("click", function (e) {
+    var b = e.target.closest(".seg[data-q] button"); if (!b) return;
+    setParam(b.parentNode.getAttribute("data-q"), b.getAttribute("data-v")); buildParams();
+  });
+  $("media").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-m]"); if (!b) return;
+    S.medium = b.getAttribute("data-m"); if (!S.params[S.medium]) { S.params[S.medium] = {}; S.level = "std"; } else S.level = "";
+    persist(); buildMedia(); buildParams(); schedule();
+  });
+  $("levels").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]"); if (!b) return;
+    S.level = b.getAttribute("data-v");
+    S.params[S.medium] = Degrade.preset(S.medium, S.level);
+    persist(); buildMedia(); buildParams(); schedule();
+  });
+  $("gens").addEventListener("input", function () { S.gens = +this.value; $("gens-val").textContent = S.gens; persist(); schedule(); });
+  $("match").addEventListener("change", function () { S.match = this.checked; persist(); schedule(); });
+  $("reseed").addEventListener("click", function () { S.seed = (Math.random() * 4294967295) >>> 0; schedule(); });
+
+  /* =====================================================================
+     音声の読み込み
+     ===================================================================== */
+  var A = { ctx: null, src: null, name: "", fs: 48000, dur: 0, start: 0 };   // src: [Float32Array, …]
+  function actx() { if (!A.ctx) A.ctx = new (window.AudioContext || window.webkitAudioContext)(); return A.ctx; }
+  function showErr(msg) { $("err").textContent = msg; $("err").hidden = !msg; }
+  function loadFile(f) {
+    if (!f) return;
+    showErr("");
+    $("fileinfo").textContent = f.name;
+    f.arrayBuffer().then(function (buf) { return actx().decodeAudioData(buf); }).then(function (ab) {
+      var ch = []; for (var c = 0; c < Math.min(2, ab.numberOfChannels); c++) ch.push(new Float32Array(ab.getChannelData(c)));
+      setSource(ch, ab.sampleRate, f.name.replace(/\.[^.]+$/, ""));
+      $("fileinfo").textContent = f.name + " · " + fmtTime(A.dur) + " · " + (ab.sampleRate / 1000) + " kHz · " + (ch.length === 1 ? "mono" : "stereo");
+    }).catch(function () { showErr(Shell.t("t.decodeErr")); $("fileinfo").textContent = Shell.t("t.nofile"); });
+  }
+  function setSource(ch, fs, name) {
+    stop();
+    A.src = ch; A.fs = fs; A.name = name; A.dur = ch[0].length / fs; A.start = 0;
+    $("wave-empty").hidden = true; $("play").disabled = false; $("export").disabled = false;
+    drawWave(); schedule();
+  }
+  $("drop").addEventListener("click", function () { $("file-input").click(); });
+  $("drop").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file-input").click(); } });
+  $("file-input").addEventListener("change", function () { loadFile(this.files[0]); this.value = ""; });
+  ["dragenter", "dragover"].forEach(function (t) { $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.add("dragover"); }); });
+  ["dragleave", "drop"].forEach(function (t) { $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.remove("dragover"); }); });
+  $("drop").addEventListener("drop", function (e) { loadFile(e.dataTransfer.files[0]); });
+
+  // サンプル音（ピアノ風の和音・ベース・ドラム、20 秒）
+  $("sample").addEventListener("click", function () {
+    var fs = 48000, n = fs * 20, L = new Float32Array(n), R = new Float32Array(n), bpm = 96, beat = 60 / bpm, seed = 12345;
+    function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 * 2 - 1; }
+    function note(buf, t0, f, dur, amp, pan) {
+      var i0 = Math.floor(t0 * fs), len = Math.min(Math.floor(dur * fs), n - i0);
+      for (var j = 0; j < len; j++) {
+        var t = j / fs, v = 0;
+        for (var h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * f * h * t) * Math.exp(-t * (1.5 + h * 1.2)) / h;
+        v *= amp * Math.min(1, j / 40);
+        L[i0 + j] += v * (1 - pan); R[i0 + j] += v * (1 + pan);
+      }
+    }
+    var chords = [[261.63, 329.63, 392], [220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66]], bass = [65.41, 55, 43.65, 49];
+    for (var bar = 0; bar < 8; bar++) {
+      var t0 = bar * 4 * beat, c = chords[bar % 4];
+      c.forEach(function (f, k) { note(L, t0, f, 4 * beat, 0.09, (k - 1) * 0.3); note(L, t0 + 2 * beat, f * 2, 2 * beat, 0.03, (k - 1) * 0.3); });
+      note(L, t0, bass[bar % 4], 2 * beat, 0.22, 0); note(L, t0 + 2 * beat, bass[bar % 4], 2 * beat, 0.18, 0);
+      for (var b = 0; b < 4; b++) {
+        var tb = t0 + b * beat, ik = Math.floor(tb * fs);
+        for (var j = 0; j < fs * 0.25 && ik + j < n; j++) { var t = j / fs, v = 0.35 * Math.sin(2 * Math.PI * (50 * t + 70 * (1 - Math.exp(-t * 30)) / 30)) * Math.exp(-t * 14); L[ik + j] += v; R[ik + j] += v; }
+        if (b % 2) for (j = 0; j < fs * 0.18 && ik + j < n; j++) { var s = rnd() * 0.16 * Math.exp(-j / fs * 22); L[ik + j] += s; R[ik + j] += s; }
+        var ih = Math.floor((tb + beat / 2) * fs), hp = 0, prev = 0;
+        for (j = 0; j < fs * 0.05 && ih + j < n; j++) { var w = rnd(); hp = 0.6 * (hp + w - prev); prev = w; var hv = hp * 0.07 * Math.exp(-j / fs * 80); L[ih + j] += hv * 0.6; R[ih + j] += hv * 1.4; }
+      }
+    }
+    var pk = 0; for (var i = 0; i < n; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
+    for (i = 0; i < n; i++) { L[i] *= 0.8 / pk; R[i] *= 0.8 / pk; }
+    setSource([L, R], fs, "sample");
+    $("fileinfo").textContent = Shell.t("t.sampleName");
+  });
+
+  /* ---- 波形 ---- */
+  function drawWave() {
+    var cv = $("wavec"), box = $("wave"), dpr = window.devicePixelRatio || 1, W = box.clientWidth, H = box.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    if (!A.src) return;
+    var css = getComputedStyle(document.documentElement), acc = css.getPropertyValue("--accent").trim(), txt = css.getPropertyValue("--text-3").trim();
+    var x0 = A.start / A.dur * W, x1 = Math.min(A.dur, A.start + PREVIEW) / A.dur * W;
+    g.fillStyle = acc; g.globalAlpha = 0.12; g.fillRect(x0, 0, x1 - x0, H); g.globalAlpha = 1;
+    var n = A.src[0].length, step = n / W;
+    for (var x = 0; x < W; x++) {
+      var a = Math.floor(x * step), b = Math.floor((x + 1) * step), mn = 0, mx = 0;
+      for (var i = a; i < b; i += Math.max(1, Math.floor((b - a) / 200))) {
+        for (var c = 0; c < A.src.length; c++) { var v = A.src[c][i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+      }
+      g.fillStyle = x >= x0 && x <= x1 ? acc : txt;
+      g.fillRect(x, H / 2 - mx * H / 2 * 0.95, 1, Math.max(1, (mx - mn) * H / 2 * 0.95));
+    }
+    if (P.playing) { var pos = A.start + playPos(); g.fillStyle = acc; g.fillRect(pos / A.dur * W - 1, 0, 2, H); }
+  }
+  function fmtTime(s) { s = Math.max(0, s); var m = Math.floor(s / 60); return m + ":" + ("0" + Math.floor(s % 60)).slice(-2); }
+  $("wave").addEventListener("pointerdown", function (e) {
+    if (!A.src) return;
+    var r = $("wave").getBoundingClientRect(), t = (e.clientX - r.left) / r.width * A.dur;
+    A.start = Math.max(0, Math.min(Math.max(0, A.dur - PREVIEW), t - PREVIEW / 2));
+    var was = P.playing; stop(); drawWave(); schedule(was);
+  });
+  window.addEventListener("resize", function () { drawWave(); });
+
+  /* =====================================================================
+     処理（Worker。使えない環境ではメインスレッド）
+     ===================================================================== */
+  var worker = null, jobs = {}, jobId = 0;
+  try {
+    worker = new Worker("worker.js");
+    worker.onmessage = function (e) {
+      var d = e.data, j = jobs[d.id]; if (!j) return;
+      if (d.progress != null) { if (j.progress) j.progress(d.progress); return; }
+      delete jobs[d.id];
+      if (d.error) j.reject(new Error(d.error)); else j.resolve(d.result.map(function (b) { return new Float32Array(b); }));
+    };
+    worker.onerror = function () { worker = null; };
+  } catch (e) { worker = null; }
+  function run(channels, onProgress) {
+    var opts = { seed: S.seed, generations: S.gens, matchLevel: S.match };
+    if (!worker) {
+      return new Promise(function (res) { setTimeout(function () { res(Degrade.render(channels, A.fs, S.medium, params(), opts)); }, 20); });
+    }
+    return new Promise(function (resolve, reject) {
+      var id = ++jobId, bufs = channels.map(function (x) { return x.buffer; });
+      jobs[id] = { resolve: resolve, reject: reject, progress: onProgress };
+      worker.postMessage({ id: id, channels: bufs, fs: A.fs, medium: S.medium, params: params(), seed: opts.seed, generations: opts.generations, matchLevel: opts.matchLevel }, bufs);
+    });
+  }
+
+  /* ---- 試聴区間の処理（前後に余白を付けて処理し、切り出す） ---- */
+  var pvTimer = 0, pvToken = 0, P = { playing: false, orig: null, proc: null, t0: 0, nodes: [] };
+  function schedule(resume) {
+    if (!A.src) return;
+    clearTimeout(pvTimer);
+    pvTimer = setTimeout(function () { renderPreview(resume); }, 220);
+  }
+  function segment() {
+    var fs = A.fs, a = Math.max(0, A.start - PRE), b = Math.min(A.dur, A.start + PREVIEW + POST);
+    return { a: Math.floor(a * fs), b: Math.floor(b * fs), s0: Math.floor(A.start * fs), s1: Math.floor(Math.min(A.dur, A.start + PREVIEW) * fs) };
+  }
+  function renderPreview(resume) {
+    var tk = ++pvToken, sg = segment();
+    $("busy").hidden = false;
+    var input = A.src.map(function (x) { return x.slice(sg.a, sg.b); });
+    run(input).then(function (out) {
+      if (tk !== pvToken) return;
+      $("busy").hidden = true;
+      var off = sg.s0 - sg.a, len = sg.s1 - sg.s0;
+      P.orig = toBuffer(A.src.map(function (x) { return x.subarray(sg.s0, sg.s1); }));
+      P.proc = toBuffer(out.map(function (x) { return x.subarray(off, Math.min(x.length, off + len)); }));
+      if (P.playing || resume) restartKeepingPosition();
+    }).catch(function (err) { $("busy").hidden = true; showErr(String(err.message || err)); });
+  }
+  function toBuffer(ch) {
+    var ctx = actx(), b = ctx.createBuffer(ch.length, Math.max(1, ch[0].length), A.fs);
+    ch.forEach(function (x, c) { b.copyToChannel(x, c); });
+    return b;
+  }
+
+  /* ---- 再生（元の音と劣化後を同時に鳴らし、音量だけ切り替える） ---- */
+  function playPos() { if (!P.playing) return 0; var d = P.orig.duration; return ((actx().currentTime - P.t0) % d + d) % d; }
+  function start(offset) {
+    var ctx = actx(); if (ctx.state === "suspended") ctx.resume();
+    stopNodes();
+    [["orig", P.orig], ["proc", P.proc]].forEach(function (it) {
+      var s = ctx.createBufferSource(), g = ctx.createGain();
+      s.buffer = it[1]; s.loop = true; g.gain.value = S.view === it[0] ? 1 : 0;
+      s.connect(g); g.connect(ctx.destination);
+      s.start(0, Math.min(offset, it[1].duration - 0.01));
+      P.nodes.push({ kind: it[0], src: s, gain: g });
+    });
+    P.t0 = ctx.currentTime - offset; P.playing = true; setPlayIcon(); tick();
+  }
+  function restartKeepingPosition() { var pos = P.playing ? playPos() : 0; start(pos); }
+  function stopNodes() { P.nodes.forEach(function (n) { try { n.src.stop(); } catch (e) {} n.src.disconnect(); }); P.nodes = []; }
+  function stop() { stopNodes(); P.playing = false; setPlayIcon(); drawWave(); }
+  function setPlayIcon() {
+    $("play-ico").innerHTML = P.playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    $("play").setAttribute("aria-label", Shell.t(P.playing ? "t.stop" : "t.play"));
+  }
+  function tick() {
+    if (!P.playing) return;
+    $("time").textContent = fmtTime(A.start + playPos()) + " / " + fmtTime(A.dur);
+    drawWave();
+    requestAnimationFrame(tick);
+  }
+  $("play").addEventListener("click", function () {
+    if (P.playing) { stop(); return; }
+    if (!P.proc) { schedule(true); return; }
+    start(0);
+  });
+  $("ab").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]"); if (!b) return;
+    S.view = b.getAttribute("data-v");
+    $("ab").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    var now = actx().currentTime;
+    P.nodes.forEach(function (n) { n.gain.gain.setTargetAtTime(S.view === n.kind ? 1 : 0, now, 0.008); });
+  });
+
+  /* =====================================================================
+     書き出し（WAV）
+     ===================================================================== */
+  function wav(ch, fs, bits) {
+    var n = ch[0].length, C = ch.length, B = bits / 8, size = n * C * B, buf = new ArrayBuffer(44 + size), dv = new DataView(buf), p = 0;
+    function str(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+    str("RIFF"); dv.setUint32(p, 36 + size, true); p += 4; str("WAVE"); str("fmt ");
+    dv.setUint32(p, 16, true); p += 4; dv.setUint16(p, 1, true); p += 2; dv.setUint16(p, C, true); p += 2;
+    dv.setUint32(p, fs, true); p += 4; dv.setUint32(p, fs * C * B, true); p += 4; dv.setUint16(p, C * B, true); p += 2; dv.setUint16(p, bits, true); p += 2;
+    str("data"); dv.setUint32(p, size, true); p += 4;
+    var max = bits === 16 ? 32767 : 8388607, seed = 1;
+    for (var i = 0; i < n; i++) for (var c = 0; c < C; c++) {
+      var v = ch[c][i] * max;
+      if (bits === 16) { seed = (seed * 1664525 + 1013904223) >>> 0; var r1 = seed / 4294967296; seed = (seed * 1664525 + 1013904223) >>> 0; v += r1 - seed / 4294967296; }   // TPDF ディザ
+      v = Math.max(-max - 1, Math.min(max, Math.round(v)));
+      if (bits === 16) { dv.setInt16(p, v, true); p += 2; }
+      else { dv.setUint8(p++, v & 255); dv.setUint8(p++, (v >> 8) & 255); dv.setUint8(p++, (v >> 16) & 255); }
+    }
+    return new Blob([buf], { type: "audio/wav" });
+  }
+  $("bits").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]"); if (!b) return;
+    S.bits = b.getAttribute("data-v"); persist();
+    $("bits").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+  });
+  $("export").addEventListener("click", function () {
+    if (!A.src) return;
+    var btn = $("export"); btn.disabled = true; $("prog").hidden = false; $("prog-bar").style.width = "3%"; $("exp-msg").textContent = Shell.t("t.busy");
+    var t0 = Date.now();
+    run(A.src.map(function (x) { return x.slice(); }), function (f) { $("prog-bar").style.width = Math.max(3, f * 90) + "%"; }).then(function (out) {
+      $("prog-bar").style.width = "100%";
+      var blob = wav(out, A.fs, +S.bits), a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = A.name + "_" + S.medium + ".wav";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      $("exp-msg").textContent = Shell.t("t.saved").replace("{s}", ((Date.now() - t0) / 1000).toFixed(1));
+    }).catch(function (err) { $("exp-msg").textContent = String(err.message || err); })
+      .then(function () { btn.disabled = false; setTimeout(function () { $("prog").hidden = true; }, 800); });
+  });
+
+  Shell.init({
+    id: "audio-degrade",
+    strings: {
+      en: {
+        "t.title": "Audio degradation simulator",
+        "t.desc": "Make audio sound like it came off a cassette, a record, a 78, a VHS tape, a phone line or AM radio — each built from how that medium actually degrades sound.",
+        "t.dropb": "Click to choose a file", "t.dropor": "or drag & drop", "t.nofile": "No file selected", "t.local": "Files never leave your browser.",
+        "t.sample": "Try with a sample", "t.sampleName": "Sample (piano, bass and drums, 20 s)", "t.decodeErr": "This file could not be read as audio by this browser.",
+        "t.listen": "Listen", "t.noAudio": "Load a file to begin",
+        "t.waveHint": "Click the waveform to choose the 10-second section you hear while adjusting. Export always processes the whole file.",
+        "t.busy": "Processing…", "t.orig": "Original", "t.proc": "Degraded", "t.play": "Play", "t.stop": "Stop",
+        "t.export": "Export", "t.format": "Format", "t.exportBtn": "Process the whole file and save", "t.saved": "Saved ({s} s).",
+        "t.medium": "Medium", "t.amount": "Starting point", "t.light": "Light", "t.std": "Typical", "t.heavy": "Worn out",
+        "t.amountHint": "Sets every control below; fine-tune from there.", "t.params": "Settings", "t.off": "Off",
+        "t.gens": "Generations (copies of copies)", "t.gensHint": "Runs the whole medium again for each copy, with a fresh tape or record each time — like dubbing a dub.",
+        "t.match": "Keep the original loudness", "t.reseed": "Another random take",
+        "t.m.cassette": "Cassette", "t.m.vinyl": "Vinyl", "t.m.sp": "78 rpm shellac", "t.m.vhs": "VHS", "t.m.phone": "Telephone", "t.m.am": "AM radio",
+        "t.md.cassette": "Recording-level tape saturation, hiss, head azimuth error, wow & flutter from the transport, dropouts where the oxide is thin, and print-through from the neighbouring layer of tape.",
+        "t.md.vinyl": "Crackle and pops from dust, a scratch that clicks once per turn, rumble (vertical, so out of phase between channels), pitch wobble from an off-centre hole, and tracing distortion.",
+        "t.md.sp": "Shellac 78s: narrow bandwidth, horn resonances from acoustic-era recording, heavy surface noise and crackle, in mono.",
+        "t.md.vhs": "Normal (linear) track: slow tape, narrow and hissy. Hi-Fi: wide range, but a buzz at the field rate from the head switching, and noise that breathes with the music from the 1:2 compander.",
+        "t.md.phone": "Band-limited to the telephone band. Digital converts to 8 kHz μ-law (G.711) and back; analog adds carbon-microphone distortion and mains hum.",
+        "t.md.am": "Computed as a real AM link: the audio amplitude-modulates a carrier, noise, static crashes and an interfering carrier are added, then an envelope detector and AGC recover the sound — so fades make the noise rise, and over-modulation distorts.",
+        "t.p.speed": "Speed error", "t.p.wow": "Wow (slow wobble)", "t.p.flutter": "Flutter (fast wobble)", "t.p.drive": "Recording level", "t.p.hiss": "Hiss",
+        "t.p.hf": "High-frequency limit", "t.p.azimuth": "Head azimuth error (L/R offset)", "t.p.dropouts": "Dropouts", "t.p.print": "Print-through (pre/post echo)", "t.p.sep": "Channel separation",
+        "t.p.rpm": "Speed", "t.p.crackle": "Crackle", "t.p.crackleLv": "Crackle level", "t.p.pops": "Pops", "t.p.scratch": "Scratch (once per turn)",
+        "t.p.surface": "Surface noise", "t.p.rumble": "Rumble", "t.p.vinyl.wow": "Wobble (off-centre hole)", "t.p.sp.wow": "Wobble (off-centre hole)",
+        "t.p.distortion": "Tracing distortion", "t.p.phone.distortion": "Microphone distortion", "t.p.lo": "Low cut", "t.p.hi": "High-frequency limit", "t.p.horn": "Horn resonance",
+        "t.p.mode": "Audio track", "t.p.tape": "Recording mode", "t.p.tv": "TV system", "t.p.mono": "Mono", "t.p.buzz": "Head-switching buzz", "t.p.breathing": "Noise breathing",
+        "t.p.line": "Line", "t.p.hum": "Mains hum", "t.p.mains": "Mains frequency", "t.p.noise": "Line noise",
+        "t.p.bw": "Bandwidth", "t.p.snr": "Signal strength (S/N)", "t.p.fade": "Fading", "t.p.fadeRate": "Fading speed", "t.p.static": "Static crashes",
+        "t.p.whistle": "Interference whistle", "t.p.whistleHz": "Whistle pitch", "t.p.comp": "Broadcast compression", "t.p.mod": "Modulation depth",
+        "t.c.rpm.33": "33⅓ rpm", "t.c.rpm.45": "45 rpm", "t.c.mode.linear": "Normal", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "SP (standard)", "t.c.tape.ep": "EP (3×)",
+        "t.c.tv.ntsc": "NTSC", "t.c.tv.pal": "PAL", "t.c.line.digital": "Digital", "t.c.line.analog": "Analog", "t.c.mains.50": "50 Hz", "t.c.mains.60": "60 Hz"
+      },
+      ja: {
+        "t.title": "音声劣化シミュレーター",
+        "t.desc": "音声を、カセット・レコード・SP盤・VHS・電話・AMラジオを通したような音にします。それぞれの媒体で実際に劣化が起きる仕組みに沿って計算します。",
+        "t.dropb": "クリックしてファイルを選択", "t.dropor": "またはドラッグ＆ドロップ", "t.nofile": "ファイル未選択", "t.local": "ファイルはブラウザの外に送られません。",
+        "t.sample": "サンプル音で試す", "t.sampleName": "サンプル（ピアノ・ベース・ドラム、20秒）", "t.decodeErr": "このファイルは、このブラウザでは音声として読み込めませんでした。",
+        "t.listen": "試聴", "t.noAudio": "ファイルを読み込むと始められます",
+        "t.waveHint": "波形をクリックすると、調整中に聴く10秒の区間を選べます。書き出しは常にファイル全体を処理します。",
+        "t.busy": "処理中…", "t.orig": "元の音", "t.proc": "劣化後", "t.play": "再生", "t.stop": "停止",
+        "t.export": "書き出し", "t.format": "形式", "t.exportBtn": "ファイル全体を処理して保存", "t.saved": "保存しました（{s} 秒）。",
+        "t.medium": "媒体", "t.amount": "劣化の程度", "t.light": "軽め", "t.std": "標準", "t.heavy": "強め",
+        "t.amountHint": "下の設定をまとめて切り替えます。そこから細かく調整できます。", "t.params": "設定", "t.off": "オフ",
+        "t.gens": "ダビング回数（コピーのコピー）", "t.gensHint": "コピーするたびに、別のテープ・別の盤で同じ劣化をもう一度かけます。",
+        "t.match": "元の音量に合わせる", "t.reseed": "別のパターンにする",
+        "t.m.cassette": "カセットテープ", "t.m.vinyl": "レコード", "t.m.sp": "SP盤（78回転）", "t.m.vhs": "VHS", "t.m.phone": "電話", "t.m.am": "AMラジオ",
+        "t.md.cassette": "録音レベルに応じたテープの飽和、ヒス、ヘッドの傾き、走行系のワウフラッター、磁性体が薄い所のドロップアウト、巻かれた隣の層からの転写を再現します。",
+        "t.md.vinyl": "ほこりによるプチプチ・パチッ、1回転ごとに鳴る傷、ゴロゴロ（針が上下に揺れるので左右は逆相）、中心の穴のずれによる音程の揺れ、内周の歪みを再現します。",
+        "t.md.sp": "シェラックの78回転盤。帯域が狭く、ラッパ吹き込み時代のホーンの共鳴、強い表面ノイズとプチプチがあり、モノラルです。",
+        "t.md.vhs": "ノーマル音声は、テープが遅いため帯域が狭くヒスが多い音。Hi-Fi 音声は帯域が広い代わりに、ヘッドの切り替えでフィールド周期のブーンという音が乗り、1:2 のコンパンダーで雑音が音楽につれて浮き沈みします。",
+        "t.md.phone": "電話の帯域に絞ります。デジタルは 8kHz・μ-law（G.711）に変換して戻し、アナログは送話器（カーボンマイク）の歪みと電源のハムを加えます。",
+        "t.md.am": "実際の AM 放送と同じ流れで計算します。音で搬送波を振幅変調し、雑音・空電・混信の搬送波を加え、受信機の包絡線検波と AGC で音に戻します。電波が弱まると雑音が浮き上がり、変調しすぎると歪みます。",
+        "t.p.speed": "再生速度のずれ", "t.p.wow": "ワウ（ゆっくりした揺れ）", "t.p.flutter": "フラッター（細かい揺れ）", "t.p.drive": "録音レベル", "t.p.hiss": "ヒス",
+        "t.p.hf": "高域の上限", "t.p.azimuth": "ヘッドの傾き（左右のずれ）", "t.p.dropouts": "ドロップアウト", "t.p.print": "転写（前後に漏れる音）", "t.p.sep": "左右の分離",
+        "t.p.rpm": "回転数", "t.p.crackle": "プチプチ（回数）", "t.p.crackleLv": "プチプチの大きさ", "t.p.pops": "パチッ（回数）", "t.p.scratch": "傷（1回転ごと）",
+        "t.p.surface": "表面ノイズ", "t.p.rumble": "ゴロゴロ（ランブル）", "t.p.vinyl.wow": "揺れ（中心のずれ）", "t.p.sp.wow": "揺れ（中心のずれ）",
+        "t.p.distortion": "内周の歪み", "t.p.phone.distortion": "送話器の歪み", "t.p.lo": "低域の下限", "t.p.hi": "高域の上限", "t.p.horn": "ホーンの共鳴",
+        "t.p.mode": "音声トラック", "t.p.tape": "録画モード", "t.p.tv": "方式", "t.p.mono": "モノラル", "t.p.buzz": "ヘッド切り替えのブーン", "t.p.breathing": "雑音の浮き沈み",
+        "t.p.line": "回線", "t.p.hum": "ハム", "t.p.mains": "電源周波数", "t.p.noise": "回線ノイズ",
+        "t.p.bw": "帯域", "t.p.snr": "電波の強さ（S/N）", "t.p.fade": "フェージング", "t.p.fadeRate": "フェージングの速さ", "t.p.static": "空電（雷などの雑音）",
+        "t.p.whistle": "混信の笛音", "t.p.whistleHz": "笛音の高さ", "t.p.comp": "放送局のコンプレッサー", "t.p.mod": "変調度",
+        "t.c.rpm.33": "33⅓回転", "t.c.rpm.45": "45回転", "t.c.mode.linear": "ノーマル", "t.c.mode.hifi": "Hi-Fi", "t.c.tape.sp": "標準（SP）", "t.c.tape.ep": "3倍（EP）",
+        "t.c.tv.ntsc": "NTSC", "t.c.tv.pal": "PAL", "t.c.line.digital": "デジタル", "t.c.line.analog": "アナログ", "t.c.mains.50": "50 Hz", "t.c.mains.60": "60 Hz"
+      }
+    },
+    onSettingsChange: function () { buildMedia(); buildParams(); setPlayIcon(); }
+  });
+  $("gens").value = S.gens; $("gens-val").textContent = S.gens; $("match").checked = S.match;
+  $("bits").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === S.bits ? "true" : "false"); });
+})();
+</script>
+</body>
+</html>
