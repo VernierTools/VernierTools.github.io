@@ -369,32 +369,6 @@
       "added": "2026-07-04"
     },
     {
-      "id": "vse-silence-cutter",
-      "type": "blender",
-      "platform": "Blender",
-      "path": "tools/vse-silence-cutter/",
-      "categories": [
-        "blender"
-      ],
-      "name": {
-        "en": "VSE Silence Cutter",
-        "ja": "VSE Silence Cutter"
-      },
-      "description": {
-        "en": "Auto-cut silent parts in Blender's VSE. Blender add-on.",
-        "ja": "BlenderのVSEで無音部分を自動カットするアドオン（英語UI）。"
-      },
-      "keywords": [
-        "blender",
-        "vse",
-        "silence",
-        "cut",
-        "無音",
-        "アドオン"
-      ],
-      "added": "2026-07-04"
-    },
-    {
       "id": "spectrum-stereo",
       "type": "web",
       "path": "tools/spectrum-stereo/",
