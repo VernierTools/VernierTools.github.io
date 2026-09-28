@@ -68,10 +68,7 @@
           <small id="fileinfo" data-i18n="t.nofile">No file selected</small>
         </div>
         <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
-        <div class="between" style="margin-top:var(--s3)">
-          <span class="hint" style="margin:0" data-i18n="t.local">Files never leave your browser.</span>
-          <button type="button" class="btn btn--ghost" id="sample" data-i18n="t.sample">Try with a sample</button>
-        </div>
+        <div class="hint" data-i18n="t.local">Files never leave your browser.</div>
         <div class="badge badge--neg err" id="err" hidden></div>
       </div>
 
@@ -312,38 +309,6 @@
   ["dragleave", "drop"].forEach(function (t) { $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.remove("dragover"); }); });
   $("drop").addEventListener("drop", function (e) { loadFile(e.dataTransfer.files[0]); });
 
-  // サンプル音（ピアノ風の和音・ベース・ドラム、20 秒）
-  $("sample").addEventListener("click", function () {
-    var fs = 48000, n = fs * 20, L = new Float32Array(n), R = new Float32Array(n), bpm = 96, beat = 60 / bpm, seed = 12345;
-    function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 * 2 - 1; }
-    function note(buf, t0, f, dur, amp, pan) {
-      var i0 = Math.floor(t0 * fs), len = Math.min(Math.floor(dur * fs), n - i0);
-      for (var j = 0; j < len; j++) {
-        var t = j / fs, v = 0;
-        for (var h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * f * h * t) * Math.exp(-t * (1.5 + h * 1.2)) / h;
-        v *= amp * Math.min(1, j / 40);
-        L[i0 + j] += v * (1 - pan); R[i0 + j] += v * (1 + pan);
-      }
-    }
-    var chords = [[261.63, 329.63, 392], [220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66]], bass = [65.41, 55, 43.65, 49];
-    for (var bar = 0; bar < 8; bar++) {
-      var t0 = bar * 4 * beat, c = chords[bar % 4];
-      c.forEach(function (f, k) { note(L, t0, f, 4 * beat, 0.09, (k - 1) * 0.3); note(L, t0 + 2 * beat, f * 2, 2 * beat, 0.03, (k - 1) * 0.3); });
-      note(L, t0, bass[bar % 4], 2 * beat, 0.22, 0); note(L, t0 + 2 * beat, bass[bar % 4], 2 * beat, 0.18, 0);
-      for (var b = 0; b < 4; b++) {
-        var tb = t0 + b * beat, ik = Math.floor(tb * fs);
-        for (var j = 0; j < fs * 0.25 && ik + j < n; j++) { var t = j / fs, v = 0.35 * Math.sin(2 * Math.PI * (50 * t + 70 * (1 - Math.exp(-t * 30)) / 30)) * Math.exp(-t * 14); L[ik + j] += v; R[ik + j] += v; }
-        if (b % 2) for (j = 0; j < fs * 0.18 && ik + j < n; j++) { var s = rnd() * 0.16 * Math.exp(-j / fs * 22); L[ik + j] += s; R[ik + j] += s; }
-        var ih = Math.floor((tb + beat / 2) * fs), hp = 0, prev = 0;
-        for (j = 0; j < fs * 0.05 && ih + j < n; j++) { var w = rnd(); hp = 0.6 * (hp + w - prev); prev = w; var hv = hp * 0.07 * Math.exp(-j / fs * 80); L[ih + j] += hv * 0.6; R[ih + j] += hv * 1.4; }
-      }
-    }
-    var pk = 0; for (var i = 0; i < n; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
-    for (i = 0; i < n; i++) { L[i] *= 0.8 / pk; R[i] *= 0.8 / pk; }
-    setSource([L, R], fs, "sample");
-    $("fileinfo").textContent = Shell.t("t.sampleName");
-  });
-
   /* ---- 波形 ---- */
   function drawWave() {
     var cv = $("wavec"), box = $("wave"), dpr = window.devicePixelRatio || 1, W = box.clientWidth, H = box.clientHeight;
@@ -534,7 +499,7 @@
         "t.title": "Audio degradation simulator",
         "t.desc": "Make audio sound like it came off a cassette, a record, a 78, a VHS tape, a phone line or AM radio — each built from how that medium actually degrades sound.",
         "t.dropb": "Click to choose a file", "t.dropor": "or drag & drop", "t.nofile": "No file selected", "t.local": "Files never leave your browser.",
-        "t.sample": "Try with a sample", "t.sampleName": "Sample (piano, bass and drums, 20 s)", "t.decodeErr": "This file could not be read as audio by this browser.",
+        "t.decodeErr": "This file could not be read as audio by this browser.",
         "t.listen": "Listen", "t.noAudio": "Load a file to begin",
         "t.p30": "30 s", "t.pall": "Whole file",
         "t.waveHint30": "Click the waveform to choose the 30-second section you hear while adjusting. Export always processes the whole file.",
@@ -568,7 +533,7 @@
         "t.title": "音声劣化シミュレーター",
         "t.desc": "音声を、カセット・レコード・SP盤・VHS・電話・AMラジオを通したような音にします。それぞれの媒体で実際に劣化が起きる仕組みに沿って計算します。",
         "t.dropb": "クリックしてファイルを選択", "t.dropor": "またはドラッグ＆ドロップ", "t.nofile": "ファイル未選択", "t.local": "ファイルはブラウザの外に送られません。",
-        "t.sample": "サンプル音で試す", "t.sampleName": "サンプル（ピアノ・ベース・ドラム、20秒）", "t.decodeErr": "このファイルは、このブラウザでは音声として読み込めませんでした。",
+        "t.decodeErr": "このファイルは、このブラウザでは音声として読み込めませんでした。",
         "t.listen": "試聴", "t.noAudio": "ファイルを読み込むと始められます",
         "t.p30": "30秒", "t.pall": "全体",
         "t.waveHint30": "波形をクリックすると、調整中に聴く30秒の区間を選べます。書き出しは常にファイル全体を処理します。",
