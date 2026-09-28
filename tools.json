@@ -153,8 +153,8 @@
         "ja": "テキスト整形ツール"
       },
       "description": {
-        "en": "Convert full-width digits and spaces to half-width in one click. Also fixes repeated punctuation and kanji/Arabic numerals in place.",
-        "ja": "全角数字・スペースを一括で半角に変換。句読点の重複や漢数字↔算用数字もその場で修正。"
+        "en": "Convert full-width digits and spaces to half-width, and fix repeated punctuation and kanji/Arabic numerals.",
+        "ja": "全角数字・スペースを半角に。句読点の重複や漢数字↔算用数字も修正。"
       },
       "keywords": [
         "cleanup",
@@ -307,8 +307,8 @@
         "ja": "Project Save Overwrite Warning"
       },
       "description": {
-        "en": "Warn before overwriting a saved .blend file. .",
-        "ja": "プロジェクトファイルの上書き保存の前に警告を出すBlenderアドオン（英語UI）。"
+        "en": "Blender add-on that warns before overwriting a saved .blend file.",
+        "ja": "上書き保存の前に警告を出すBlenderアドオン（英語UI）。"
       },
       "keywords": [
         "blender",
@@ -332,8 +332,8 @@
         "ja": "Parent and Reveal Folder"
       },
       "description": {
-        "en": "Adds a Parent button to Blender's File Browser that keeps your previous folder selected. Add-on.",
-        "ja": "Blenderのファイルブラウザに、直前のフォルダを選択したまま親階層へ戻るParentボタンを追加するアドオン（英語UI）。"
+        "en": "Blender add-on: go to the parent folder with the previous folder still selected.",
+        "ja": "直前のフォルダを選んだまま親階層へ戻るBlenderアドオン（英語UI）。"
       },
       "keywords": [
         "blender",
@@ -854,8 +854,8 @@
         "ja": "テクスチャマップ生成"
       },
       "description": {
-        "en": "Generate roughness, specular, alpha, displacement, approximate metallic, cavity (pseudo AO), and normal maps from one texture.",
-        "ja": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・カビティ(疑似AO)・ノーマルマップを1枚のテクスチャから生成。"
+        "en": "Generate roughness, normal and five other maps from one texture.",
+        "ja": "1枚のテクスチャからラフネス・ノーマルなど7種のマップを生成。"
       },
       "keywords": [
         "normal map",
@@ -1083,8 +1083,8 @@
         "ja": "AIF→MIDコンバーター"
       },
       "description": {
-        "en": "Extract the MIDI data embedded in .aif files such as Apple Loops and save it as .mid.",
-        "ja": "Apple Loopsなどの.aifファイルに埋め込まれたMIDIデータを取り出して.midとして保存。"
+        "en": "Extract the MIDI embedded in .aif files such as Apple Loops as .mid.",
+        "ja": "Apple Loopsなどの.aifに埋め込まれたMIDIを.midで取り出す。"
       },
       "keywords": [
         "aif",
@@ -1278,8 +1278,8 @@
         "ja": "五度圏"
       },
       "description": {
-        "en": "Explore keys, diatonic chords and related keys on the circle of fifths, and find pivot chords for a modulation.",
-        "ja": "五度圏上でキーの調号・ダイアトニックコード・近親調を表示し、転調に使える共通コードも探せる。"
+        "en": "Keys, diatonic chords, related keys and pivot chords on the circle of fifths.",
+        "ja": "五度圏で調号・ダイアトニックコード・近親調と転調の共通コードを確認。"
       },
       "keywords": [
         "circle of fifths",
@@ -1313,8 +1313,8 @@
         "ja": "色相環比較"
       },
       "description": {
-        "en": "Compare seven color wheels — RGB/HSV, CMY, RYB, OKLCH, CIELAB, opponent (NCS-style) and PCCS — and how complements and harmonies differ on each.",
-        "ja": "RGB/HSV・CMY・RYB・OKLCH・CIELAB・反対色（NCS風）・PCCSの7つの色相環を並べ、補色や配色の違いを比較。"
+        "en": "Compare seven color wheels, such as RGB, RYB and OKLCH, and their complements and harmonies.",
+        "ja": "RGB・RYB・OKLCHなど7つの色相環を並べ、補色や配色を比較。"
       },
       "keywords": [
         "cmy",
@@ -1346,8 +1346,8 @@
         "ja": "テンキー割り当てメモ"
       },
       "description": {
-        "en": "Note what each numpad key does in each app when you use it as a left-hand device — editable key layout, Shift/Ctrl layers, image export and JSON backup.",
-        "ja": "テンキーを左手デバイスにしたときの、ソフトごとのキー割り当てを図でメモ。配列の編集、Shift等のレイヤー、画像出力、JSONでバックアップ。"
+        "en": "Map each numpad key per app as a diagram, and export it as an image.",
+        "ja": "テンキーのキー割り当てをソフトごとに図でメモし、画像で出力。"
       },
       "keywords": [
         "numpad",
@@ -1384,8 +1384,8 @@
         "ja": "STMapジェネレーター"
       },
       "description": {
-        "en": "Convert lens distortion coefficients to and from STMaps (32-bit EXR). Blender's four distortion models, with cross-model conversion.",
-        "ja": "レンズ歪み係数とSTMap（32bit EXR）を双方向に変換。Blenderの4つの歪みモデルに対応し、モデル間の係数変換も。"
+        "en": "Convert lens distortion coefficients to and from STMaps (EXR), for Blender's four models.",
+        "ja": "レンズ歪み係数とSTMap（EXR）を相互変換。Blenderの4モデルに対応。"
       },
       "keywords": [
         "stmap",
@@ -1426,8 +1426,8 @@
         "ja": "音声劣化シミュレーター"
       },
       "description": {
-        "en": "Make audio sound like cassette, vinyl, 78 rpm shellac, VHS, telephone or AM radio — each modeled on how the medium actually degrades sound, with A/B preview and WAV export.",
-        "ja": "カセット・レコード・SP盤・VHS・電話・AMラジオを通したような音に。劣化の仕組みに沿って計算し、元の音と聴き比べてWAVで書き出し。"
+        "en": "Make audio sound like cassette, vinyl, telephone and more, and export as WAV.",
+        "ja": "カセット・レコード・電話などを通したような音に加工し、WAVで書き出し。"
       },
       "keywords": [
         "tape",
@@ -1639,8 +1639,8 @@
         "ja": "動画→GIF変換"
       },
       "description": {
-        "en": "Turn a short clip (MP4, MOV, WebM) into an animated GIF or WebP, entirely in the browser.",
-        "ja": "短い動画（MP4・MOV・WebM）をアニメーションGIFまたはWebPに、ブラウザ内だけで変換。"
+        "en": "Turn a short video into an animated GIF or WebP, entirely in the browser.",
+        "ja": "短い動画をGIFやWebPのアニメに、ブラウザ内だけで変換。"
       },
       "keywords": [
         "gif",
@@ -1724,8 +1724,8 @@
         "ja": "色の混合"
       },
       "description": {
-        "en": "Mix multiple colors by weight, switching between additive (light) and subtractive (paint) models.",
-        "ja": "複数の色を比率指定で混合。光の混色（加法）と絵の具の混色（減法近似）を切り替え可能。"
+        "en": "Mix colors by weight, as light (additive) or paint (subtractive).",
+        "ja": "複数の色を比率で混合。光の混色と絵の具の混色を切り替え。"
       },
       "keywords": [
         "color mixing",
@@ -1834,8 +1834,8 @@
         "ja": "HSVカラーランダマイザー"
       },
       "description": {
-        "en": "Group pixel colors by hue/saturation/value tolerance and reassign each group a random full-saturation, full-brightness color.",
-        "ja": "色相・彩度・明度の許容誤差で画像内の色をグループ化し、各グループに彩度・明度が最大のランダムな色を割り当てる。"
+        "en": "Group similar colors in an image and replace each group with a random vivid color.",
+        "ja": "画像内の似た色をまとめ、グループごとに鮮やかなランダム色に置き換え。"
       },
       "keywords": [
         "hsv",
@@ -1864,8 +1864,8 @@
         "ja": "屈折率（IOR）一覧"
       },
       "description": {
-        "en": "Refractive indices of liquids, glass, plastics, gems and more from measured data, with F0 and Abbe numbers; metal colors and n/k for Blender; boundary and IOR ⇔ F0 calculators.",
-        "ja": "液体・ガラス・樹脂・宝石などの屈折率を実測データから一覧に。F0・アッベ数、Blender用の金属の色とn/k、境界の相対IORとIOR⇔F0の計算も。"
+        "en": "Refractive indices and F0 for liquids, glass, gems, metals and more, with Blender values.",
+        "ja": "液体・ガラス・宝石・金属などの屈折率とF0の一覧。Blender用の値も。"
       },
       "keywords": [
         "ior",
