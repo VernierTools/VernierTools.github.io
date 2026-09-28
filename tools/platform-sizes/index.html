@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform preview — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .seg{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; flex-wrap:wrap; }
+  .seg button{ appearance:none; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--text-2);
+    padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
+  .seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); font-weight:500; }
+  .seg button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; }
+  .inputs{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s4) var(--s5); }
+  @media (max-width:760px){ .inputs{ grid-template-columns:1fr; } }
+  .thumbs{ display:flex; gap:var(--s2); flex-wrap:wrap; }
+  .tslot{ position:relative; width:128px; aspect-ratio:16/9; border-radius:8px; border:1.5px dashed var(--border-strong); background:var(--surface-2) center/cover no-repeat;
+    display:flex; align-items:center; justify-content:center; font-size:11.5px; color:var(--text-3); cursor:pointer; text-align:center; padding:4px; }
+  .tslot.v{ width:72px; aspect-ratio:9/16; }
+  .tslot.has{ border-style:solid; color:transparent; }
+  .tslot .lbl{ position:absolute; left:4px; top:4px; font-size:10px; font-weight:700; color:#fff; background:rgba(0,0,0,.6); border-radius:4px; padding:0 5px; }
+  .tslot .x{ position:absolute; right:3px; top:3px; width:20px; height:20px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font-size:12px; line-height:20px; padding:0; cursor:pointer; }
+  .tslot.dragover{ border-color:var(--accent); }
+  .row{ display:flex; gap:var(--s2); align-items:center; flex-wrap:wrap; }
+  .fieldrow{ display:grid; grid-template-columns:1fr 110px; gap:var(--s2); }
+
+  /* ---- ステージ ---- */
+  .bar{ display:flex; gap:var(--s2) var(--s3); align-items:center; flex-wrap:wrap; margin-bottom:var(--s3); }
+  .bar .sp{ flex:1; }
+  .stagewrap{ border-radius:var(--r-lg); border:1px solid var(--border); overflow:hidden; background:var(--surface-2); }
+  .stagebox{ position:relative; overflow:hidden; margin:0 auto; }
+  .scene{ position:absolute; left:0; top:0; transform-origin:0 0; font-family:Roboto, Arial, sans-serif; }
+  .scene *{ box-sizing:border-box; }
+  .scene .a{ position:absolute; }
+  .scene .th{ position:absolute; background:#888 center/cover no-repeat; overflow:hidden; }
+  .scene .badge{ position:absolute; font-size:12px; line-height:18px; font-weight:500; color:#fff; background:rgba(0,0,0,.6); border-radius:4px; padding:1px 4px; white-space:nowrap; }
+  .scene .t{ position:absolute; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; word-break:break-word; }
+  .scene .one{ position:absolute; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .scene .av{ position:absolute; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:500; background-size:cover; }
+  .scene .sk{ position:absolute; border-radius:4px; }
+  .scene .pill{ position:absolute; border-radius:999px; font-weight:500; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
+  .scene .tag{ position:absolute; font:700 12px/18px system-ui, sans-serif; color:#fff; background:#5457E5; border-radius:4px; padding:0 6px; }
+  .scene .zone{ position:absolute; background:rgba(255,40,40,.28); outline:1.5px dashed rgba(255,60,60,.95); outline-offset:-1.5px; }
+  .scene .zone span{ position:absolute; left:4px; top:2px; font:700 11px/16px system-ui, sans-serif; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8); }
+  .readout table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .readout th{ text-align:left; font-weight:600; color:var(--text-2); padding:8px var(--s4); border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:top; }
+  .readout td{ padding:8px var(--s4) 8px 0; border-bottom:1px solid var(--border); vertical-align:top; line-height:1.5; }
+  .readout tr:last-child th, .readout tr:last-child td{ border-bottom:0; }
+  .readout .cut{ color:var(--neg); font-weight:600; }
+  .readout .ok{ color:var(--text-3); }
+  .readout .spec{ font-size:11px; color:var(--text-3); display:block; font-weight:400; }
+  .measured{ font-size:11.5px; color:var(--text-3); margin-top:var(--s2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.general">General</span><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Platform preview</h1>
+    <p data-i18n="t.desc">See your thumbnail, title and channel name at their real size on YouTube's home feed, watch page, search results and related videos — for regular videos and Shorts, on desktop and phone.</p>
+  </div>
+
+  <!-- 入力 -->
+  <div class="card">
+    <div class="field">
+      <div class="seg" id="kind" role="group">
+        <button type="button" data-v="video" aria-pressed="true" data-i18n="t.kVideo">Video</button>
+        <button type="button" data-v="shorts" aria-pressed="false" data-i18n="t.kShorts">Shorts</button>
+      </div>
+    </div>
+    <div class="inputs">
+      <div>
+        <label class="label" data-i18n="t.thumbs">Thumbnails (up to 3 to compare)</label>
+        <div class="thumbs" id="thumbs"></div>
+        <div class="hint" id="thumb-hint" style="margin-top:6px"></div>
+        <div id="frame-field" hidden style="margin-top:var(--s3)">
+          <label class="label" data-i18n="t.frame">Frame from the Short (for the player)</label>
+          <div class="thumbs" id="frames"></div>
+          <div class="hint" data-i18n="t.frameHint" style="margin-top:6px">A 9:16 still from the video. Without it, the thumbnail is used.</div>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+      <div>
+        <div class="field">
+          <label class="label" for="in-title" data-i18n="t.vtitle">Title</label>
+          <input class="input" id="in-title" maxlength="100" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" for="in-channel" data-i18n="t.channel">Channel name</label>
+          <div class="fieldrow">
+            <input class="input" id="in-channel" maxlength="60" autocomplete="off">
+            <input class="input mono" id="in-dur" maxlength="8" autocomplete="off" aria-label="Duration" data-i18n-ph="t.durPh" placeholder="12:34">
+          </div>
+          <div class="hint" id="dur-hint" style="margin-top:6px" data-i18n="t.durHint">Right box: the video length shown on the thumbnail.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- プレビュー -->
+  <div class="card">
+    <div class="bar">
+      <div class="seg" id="scenes" role="group"></div>
+      <span class="sp"></span>
+      <div class="seg" id="device" role="group">
+        <button type="button" data-v="pc" aria-pressed="true" data-i18n="t.pc">Desktop</button>
+        <button type="button" data-v="phone" aria-pressed="false" data-i18n="t.phone">Phone</button>
+      </div>
+      <div class="seg" id="theme" role="group">
+        <button type="button" data-v="light" aria-pressed="true" data-i18n="t.light">Light</button>
+        <button type="button" data-v="dark" aria-pressed="false" data-i18n="t.dark">Dark</button>
+      </div>
+    </div>
+    <div class="bar" style="margin-top:-4px">
+      <label class="toggle" id="zone-wrap" hidden><input type="checkbox" id="zones" checked><span class="track"></span><span data-i18n="t.zones">Show areas covered by the player UI</span></label>
+      <span class="sp"></span>
+      <div class="seg" id="zoom" role="group">
+        <button type="button" data-v="fit" aria-pressed="true" data-i18n="t.fit">Fit</button>
+        <button type="button" data-v="1" aria-pressed="false" data-i18n="t.actual">Actual size</button>
+      </div>
+    </div>
+    <div class="stagewrap"><div class="stagebox" id="stage"></div></div>
+    <div class="measured" id="measured"></div>
+  </div>
+
+  <!-- タイトルの切れ方 -->
+  <div class="readout">
+    <div class="readout__head"><span class="eyebrow" data-i18n="t.cutTitle">Where the title gets cut</span></div>
+    <table id="cuts"></table>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* =====================================================================
+     実測値（2026-09-28、ブラウザ版 YouTube。パソコン 1440×900 px、スマホ 375×812 px の表示）
+     YouTube は表示をよく変えるので、変わったら測り直す
+     ===================================================================== */
+  var MEASURED = "2026-09-28";
+  var FONT = "Roboto, Arial, sans-serif";
+  var COL = {
+    light: { bg: "#ffffff", text: "#0f0f0f", sub: "#606060", sk: "#e5e5e5", sk2: "#f2f2f2", chip: "rgba(0,0,0,.05)", subBtn: ["#0f0f0f", "#f1f1f1"] },
+    dark: { bg: "#0f0f0f", text: "#f1f1f1", sub: "#aaaaaa", sk: "#272727", sk2: "#1f1f1f", chip: "rgba(255,255,255,.1)", subBtn: ["#f1f1f1", "#0f0f0f"] }
+  };
+  // タイトルが切れる場所: [幅 px, 行数, 文字サイズ, 行の高さ, 太さ]
+  var CUT = {
+    pcHome: [301.3, 2, 16, 22, 500], pcRelated: [136.5, 3, 14, 20, 500], pcSearch: [596, 2, 18, 26, 400], pcWatch: [996, 2, 20, 28, 700],
+    phHome: [263, 2, 14, 17.5, 400], phWatch: [343, 1, 18, 24, 900],
+    pcShelf: [182, 2, 16, 22, 500], phShelf: [151.5, 2, 14, 20, 400], pcShortsPlayer: [420, 1, 14, 20, 400], phShortsPlayer: [290, 1, 14, 20, 700]
+  };
+
+  /* ---- 状態 ---- */
+  var S = { kind: "video", scene: "home", device: "pc", theme: "light", zoom: "fit", zones: true,
+    title: "", channel: "", dur: "12:34", thumbs: { video: [null], shorts: [null] }, frame: null };
+  var SCENES = { video: ["home", "watch", "search", "related"], shorts: ["shelf", "player"] };
+  function col() { return COL[S.theme]; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function title() { return S.title || Shell.t("t.sampleTitle"); }
+  function channel() { return S.channel || Shell.t("t.sampleChannel"); }
+  function items() { var a = S.thumbs[S.kind].filter(function (x) { return x; }); return a.length ? a : [null]; }
+
+  /* =====================================================================
+     描画の部品（座標はすべて実測の px。最後に全体を縮小して表示する）
+     ===================================================================== */
+  var HUES = [18, 200, 140, 280, 40, 330, 180, 90];
+  function ph(i) {                                   // 他の動画の代わりの色面
+    var h = HUES[i % HUES.length];
+    return S.theme === "dark" ? "linear-gradient(135deg,hsl(" + h + ",25%,22%),hsl(" + (h + 40) + ",25%,16%))"
+                              : "linear-gradient(135deg,hsl(" + h + ",35%,82%),hsl(" + (h + 40) + ",35%,74%))";
+  }
+  function box(x, y, w, h, extra) { return 'left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;' + (h != null ? 'height:' + h + 'px;' : '') + (extra || ""); }
+  function thumb(x, y, w, h, r, src, i, badge, off) {
+    var bg = src ? "background-image:url(" + src + ");" : "background:" + ph(i) + ";";
+    var s = '<div class="th" style="' + box(x, y, w, h, bg + "border-radius:" + r + "px;") + '"></div>';
+    if (badge) s += '<div class="badge" style="right:auto;left:' + (x + w - off) + 'px;top:' + (y + h - off) + 'px;transform:translate(-100%,-100%)">' + esc(badge) + "</div>";
+    return s;
+  }
+  function text(x, y, w, t, fs, lh, fw, color, lines, extraStyle) {
+    return '<div class="' + (lines === 1 ? "one" : "t") + '" style="' + box(x, y, w, null, "font-size:" + fs + "px;line-height:" + lh + "px;font-weight:" + fw + ";color:" + color + ";" +
+      (lines > 1 ? "-webkit-line-clamp:" + lines + ";max-height:" + lines * lh + "px;" : "") + (extraStyle || "")) + '">' + esc(t) + "</div>";
+  }
+  function avatar(x, y, d, name) {
+    var ch = (Array.from((name || "?").trim())[0] || "?").toUpperCase(), hash = 0;
+    for (var i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return '<div class="av" style="' + box(x, y, d, d, "background:hsl(" + (hash % 360) + ",45%,48%);font-size:" + Math.round(d * 0.45) + "px;") + '">' + esc(ch) + "</div>";
+  }
+  function sk(x, y, w, h) { return '<div class="sk" style="' + box(x, y, w, h, "background:" + col().sk + ";") + '"></div>'; }
+  function tag(x, y, label) { return label ? '<div class="tag" style="' + box(x, y, null) + '">' + label + "</div>" : ""; }
+  function labelOf(k) { return items().length > 1 ? "ABC".charAt(k) : ""; }
+  function meta() { return Shell.t("t.sampleMeta"); }
+
+  /* =====================================================================
+     場面
+     ===================================================================== */
+  // パソコン: 上のバー（56 px）と左の一覧（240 px）の枠だけ描く
+  function pcChrome(W, H, side) {
+    var c = col(), s = '<div class="a" style="' + box(0, 0, W, 56, "background:" + c.bg + ";") + '"></div>' + sk(W / 2 - 280, 12, 560, 32);
+    if (side) for (var i = 0; i < 6; i++) s += sk(24, 72 + i * 48, 24, 24) + sk(64, 78 + i * 48, 110, 12);
+    return s;
+  }
+  // ---- ホーム（パソコン）: 1 行 3 枚、カード幅 373.3、間隔 16
+  function pcHome() {
+    var c = col(), W = 1440, x0 = 264, cw = 373.3, th = 210, rowH = 350, list = items(), n = 6, s = pcChrome(W, 0, true);
+    for (var i = 0; i < n; i++) {
+      var col_ = i % 3, row = Math.floor(i / 3), x = x0 + col_ * (cw + 16), y = 80 + row * rowH, mine = i < list.length;
+      s += thumb(x, y, cw, th, 12, mine ? list[i] : null, i + 3, mine ? S.dur : "", 8);
+      if (mine) {
+        s += avatar(x, y + th + 12, 36, channel()) + text(x + 48, y + th + 12, 301.3, title(), 16, 22, 500, c.text, 2) +
+          text(x + 48, y + th + 12 + 48, 301.3, channel(), 14, 20, 400, c.sub, 1) + text(x + 48, y + th + 12 + 68, 301.3, meta(), 14, 20, 400, c.sub, 1) +
+          tag(x + 6, y + 6, labelOf(i));
+      } else s += '<div class="av" style="' + box(x, y + th + 12, 36, 36, "background:" + c.sk + ";") + '"></div>' + sk(x + 48, y + th + 16, 280, 14) + sk(x + 48, y + th + 38, 200, 14) + sk(x + 48, y + th + 64, 140, 12);
+    }
+    return { w: W, h: 80 + 2 * rowH, html: s };
+  }
+  // ---- ホーム（スマホ）: 全幅のサムネイル、アイコン 40
+  function phCards(y0, list, from) {
+    var c = col(), s = "", y = y0;
+    for (var i = 0; i < 3; i++) {
+      var mine = i < list.length, th = 210.9;
+      s += thumb(0, y, 375, th, 0, mine ? list[i] : null, i + (from || 0), mine ? S.dur : "", 8);
+      if (mine) s += avatar(12, y + th + 12, 40, channel()) + text(64, y + th + 12, 263, title(), 14, 17.5, 400, c.text, 2) +
+        text(64, y + th + 12 + 38, 263, channel() + " • " + meta(), 12, 16, 400, c.sub, 2) + tag(6, y + 6, labelOf(i));
+      else s += '<div class="av" style="' + box(12, y + th + 12, 40, 40, "background:" + c.sk + ";") + '"></div>' + sk(64, y + th + 14, 240, 13) + sk(64, y + th + 36, 170, 11);
+      y += 309.9;
+    }
+    return { html: s, y: y };
+  }
+  function phChrome() { return sk(12, 12, 90, 24) + sk(279, 8, 32, 32) + sk(327, 8, 32, 32); }
+  function phHome() { var r = phCards(48, items()); return { w: 375, h: r.y, html: phChrome() + r.html }; }
+  // ---- 再生画面（パソコン）: プレーヤー 996×560.3、右列 396
+  function pcWatch() {
+    var c = col(), W = 1440, list = items(), src = list[0], s = pcChrome(W, 0, false);
+    s += '<div class="th" style="' + box(16, 68, 996, 560.3, (src ? "background-image:url(" + src + ");" : "background:" + ph(0) + ";") + "background-color:#000;") + '"></div>';
+    s += text(16, 640.3, 996, title(), 20, 28, 700, c.text, 2);
+    var y = 640.3 + titleLines(title(), CUT.pcWatch) * 28 + 8;
+    s += avatar(16, y, 40, channel()) + text(68, y + 1, 400, channel(), 16, 22, 500, c.text, 1) + text(68, y + 23, 400, Shell.t("t.sampleSubs"), 12, 18, 400, c.sub, 1);
+    var nameW = Math.min(400, Math.max(measure(channel(), 16, 500), measure(Shell.t("t.sampleSubs"), 12, 400)));
+    s += '<div class="pill" style="' + box(68 + nameW + 24, y, 129, 40, "background:" + c.subBtn[0] + ";color:" + c.subBtn[1] + ";font-size:14px;") + '">' + esc(Shell.t("t.subscribe")) + "</div>";
+    s += '<div class="a" style="' + box(16, y + 52, 996, 84, "background:" + c.chip + ";border-radius:12px;") + '"></div>' + sk(28, y + 64, 240, 12) + sk(28, y + 86, 700, 11) + sk(28, y + 106, 520, 11);
+    for (var i = 0; i < 5; i++) s += relatedItem(1028, 68 + i * 147, null, i + 4, false);
+    return { w: W, h: 900, html: s };
+  }
+  function relatedItem(x, y, src, i, mine, k) {
+    var c = col(), s = thumb(x, y, 247.5, 139.2, 8, src, i, mine ? S.dur : "", 4);
+    if (mine) s += text(x + 260, y, 136.5, title(), 14, 20, 500, c.text, 3) + text(x + 260, y + 4 + titleLines(title(), CUT.pcRelated) * 20, 136.5, channel(), 12, 18, 400, c.sub, 1) +
+      text(x + 260, y + 22 + titleLines(title(), CUT.pcRelated) * 20, 136.5, meta(), 12, 18, 400, c.sub, 1) + tag(x + 4, y + 4, labelOf(k));
+    else s += sk(x + 260, y + 2, 120, 12) + sk(x + 260, y + 20, 90, 12) + sk(x + 260, y + 46, 70, 10);
+    return s;
+  }
+  // ---- 関連動画（パソコン）: 右列に自分の動画が並んだところ
+  function pcRelated() {
+    var c = col(), W = 1440, list = items(), s = pcChrome(W, 0, false);
+    s += '<div class="th" style="' + box(16, 68, 996, 560.3, "background:" + ph(1) + ";") + '"></div>' + sk(16, 644, 600, 20) + sk(16, 684, 40, 40) + sk(68, 688, 160, 14);
+    for (var i = 0; i < 5; i++) { var mine = i >= 1 && i - 1 < list.length; s += relatedItem(1028, 68 + i * 147, mine ? list[i - 1] : null, i + 2, mine, i - 1); }
+    return { w: W, h: 900, html: s };
+  }
+  // ---- 検索結果（パソコン）: サムネイル 500×280.5、タイトル 18/26
+  function pcSearch() {
+    var c = col(), W = 1440, list = items(), s = pcChrome(W, 0, true) + sk(264, 68, 60, 28) + sk(332, 68, 80, 28) + sk(420, 68, 70, 28);
+    for (var i = 0; i < 3; i++) {
+      var y = 112 + i * 296.5, mine = i < list.length;
+      s += thumb(264, y, 500, 280.5, 12, mine ? list[i] : null, i + 5, mine ? S.dur : "", 8);
+      if (mine) {
+        var tl = titleLines(title(), CUT.pcSearch);
+        s += text(780, y, 596, title(), 18, 26, 400, c.text, 2) + text(780, y + tl * 26, 596, meta(), 12, 18, 400, c.sub, 1) +
+          avatar(780, y + tl * 26 + 30, 24, channel()) + text(812, y + tl * 26 + 33, 500, channel(), 12, 18, 400, c.sub, 1) +
+          sk(780, y + tl * 26 + 68, 560, 11) + sk(780, y + tl * 26 + 86, 420, 11) + tag(270, y + 6, labelOf(i));
+      } else s += sk(780, y + 4, 480, 16) + sk(780, y + 32, 160, 11) + '<div class="av" style="' + box(780, y + 56, 24, 24, "background:" + c.sk + ";") + '"></div>' + sk(812, y + 62, 120, 11);
+    }
+    return { w: W, h: 112 + 3 * 296.5, html: s };
+  }
+  // ---- 再生画面（スマホ）: プレーヤー全幅、タイトル 18/24、その下に関連動画
+  function phWatch() {
+    var c = col(), list = items(), src = list[0], s = phChrome();
+    s += '<div class="th" style="' + box(0, 48, 375, 210.9, (src ? "background-image:url(" + src + ");" : "background:" + ph(0) + ";") + "background-color:#000;") + '"></div>';
+    s += text(16, 270.9, 343, title(), 18, 24, 900, c.text, 1) + text(16, 302.9, 343, "@" + channel().replace(/\s+/g, "") + "  " + meta(), 12, 18, 400, c.sub, 1);
+    s += avatar(16, 334.9, 32, channel()) + '<div class="pill" style="' + box(56, 334.9, 108, 32, "background:" + c.subBtn[0] + ";color:" + c.subBtn[1] + ";font-size:12px;") + '">' + esc(Shell.t("t.subscribe")) + "</div>";
+    for (var i = 0; i < 4; i++) s += sk(16 + i * 88, 382, 80, 32);
+    var r = phCards(430, [], 3);
+    return { w: 375, h: r.y, html: s + r.html };
+  }
+  // ---- ショートの棚（パソコン）: 217.6 幅、2:3 に切り抜き
+  function pcShelf() {
+    var c = col(), W = 1440, list = items(), s = pcChrome(W, 0, true) + sk(264, 80, 120, 22);
+    for (var i = 0; i < 5; i++) {
+      var x = 264 + i * 233.6, y = 120, mine = i < list.length;
+      s += thumb(x, y, 217.6, 326.4, 8, mine ? list[i] : null, i + 1, "", 0);
+      if (mine) s += text(x, y + 334.4, 182, title(), 16, 22, 500, c.text, 2) + text(x, y + 334.4 + titleLines(title(), CUT.pcShelf) * 22 + 2, 182, Shell.t("t.sampleViews"), 14, 20, 400, c.sub, 1) + tag(x + 6, y + 6, labelOf(i));
+      else s += sk(x, y + 338, 170, 14) + sk(x, y + 360, 110, 14) + sk(x, y + 386, 80, 12);
+    }
+    return { w: W, h: 540, html: s };
+  }
+  // ---- ショートの棚（スマホ）: 2 列、167.5×251.3、タイトルは画像の上に白で
+  function phShelf() {
+    var c = col(), list = items(), s = phChrome();
+    for (var i = 0; i < 4; i++) {
+      var x = 16 + (i % 2) * 175.5, y = 72 + Math.floor(i / 2) * 320, mine = i < list.length;
+      s += thumb(x, y, 167.5, 251.3, 8, mine ? list[i] : null, i + 2, "", 0);
+      if (mine) {
+        s += '<div class="a" style="' + box(x, y + 150, 167.5, 101.3, "border-radius:0 0 8px 8px;background:linear-gradient(0deg,rgba(0,0,0,.55),rgba(0,0,0,0));") + '"></div>' +
+          text(x + 8, y + 181.3, 151.5, title(), 14, 20, 400, "#fff", 2, "text-shadow:0 1px 2px rgba(0,0,0,.4);") + text(x + 8, y + 223.3, 151.5, Shell.t("t.sampleViews"), 12, 18, 400, "#fff", 1) +
+          avatar(x + 6, y + 265.3, 36, channel()) + text(x + 48, y + 262, 119, channel(), 14, 20, 400, c.text, 1) + text(x + 48, y + 284, 119, Shell.t("t.sampleAgo"), 12, 18, 400, c.sub, 1) + tag(x + 6, y + 6, labelOf(i));
+      } else s += '<div class="av" style="' + box(x + 6, y + 265, 36, 36, "background:" + c.sk + ";") + '"></div>' + sk(x + 48, y + 268, 90, 12) + sk(x + 48, y + 288, 50, 10);
+    }
+    return { w: 375, h: 72 + 2 * 320, html: s };
+  }
+  // ---- ショートの再生画面（パソコン）: 452.3×804、ボタンは動画の外
+  function pcShortsPlayer() {
+    var W = 1440, x = 565.9, y = 64, w = 452.3, h = 804, src = S.frame || items()[0], c = col(), s = pcChrome(W, 0, true);
+    s += '<div class="th" style="' + box(x, y, w, h, (src ? "background-image:url(" + src + ");" : "background:" + ph(2) + ";") + "border-radius:12px;background-color:#000;") + '"></div>';
+    s += '<div class="a" style="' + box(x, y + h - 204.5, w, 204.5, "border-radius:0 0 12px 12px;background:linear-gradient(0deg,rgba(0,0,0,.4),rgba(0,0,0,0));") + '"></div>';
+    [0, 1].forEach(function (k) { s += '<div class="av" style="' + box(x + 16 + k * 56, y + 16, 48, 48, "background:rgba(0,0,0,.35);") + '"></div>'; });
+    [0, 1, 2].forEach(function (k) { s += '<div class="av" style="' + box(x + w - 64 - k * 48, y + 16, 48, 48, "background:rgba(0,0,0,.35);") + '"></div>'; });
+    s += avatar(x + 16, y + 692, 32, channel()) + text(x + 56, y + 698, 120, "@" + channel().replace(/\s+/g, ""), 14, 20, 400, "#fff", 1) +
+      '<div class="pill" style="' + box(x + 180, y + 688, 129, 40, "background:#f1f1f1;color:#0f0f0f;font-size:14px;") + '">' + esc(Shell.t("t.subscribe")) + "</div>" +
+      text(x + 16, y + 736, 420, title(), 14, 20, 400, "#fff", 1) +
+      '<div class="pill" style="' + box(x + 16, y + 764, 170, 24, "background:rgba(255,255,255,.2);color:#fff;font-size:12px;") + '">♪ ' + esc(Shell.t("t.sampleSound")) + "</div>" +
+      '<div class="a" style="' + box(x + 8, y + 800.5, 46, 3, "background:#f03;") + '"></div>';
+    for (var i = 0; i < 4; i++) s += '<div class="av" style="' + box(x + w + 12, 508 + i * 78, 48, 48, "background:" + c.chip + ";") + '"></div>' + sk(x + w + 20, 560 + i * 78, 32, 10);
+    if (S.zones) s += zone(x, y, w, 64, "t.zTop") + zone(x, y + 680, w, 124, "t.zBottom");
+    return { w: W, h: 900, html: s };
+  }
+  // ---- ショートの再生画面（スマホ・ブラウザ版）: 動画は 375×667（上から 73）、ボタンは右下
+  function phShortsPlayer() {
+    var src = S.frame || items()[0], s = '<div class="a" style="' + box(0, 0, 375, 812, "background:#000;") + '"></div>';
+    s += '<div class="th" style="' + box(0, 73, 375, 667, (src ? "background-image:url(" + src + ");" : "background:" + ph(2) + ";")) + '"></div>';
+    s += '<div class="sk" style="' + box(16, 12, 90, 24, "background:rgba(255,255,255,.25);") + '"></div>';
+    [0, 1, 2].forEach(function (k) {
+      s += '<div class="av" style="' + box(327, 568 + k * 60, 32, 32, "background:rgba(255,255,255,.18);") + '"></div>' +
+        '<div class="a" style="' + box(319, 600 + k * 60, 48, 16, "font:500 12px/16px " + FONT + ";color:#fff;text-align:center;") + '">' + ["9.5万", "653", Shell.t("t.share")][k] + "</div>";
+    });
+    s += '<div class="a" style="' + box(323, 748, 40, 40, "border-radius:8px;background:rgba(255,255,255,.3);") + '"></div>';
+    s += avatar(16, 700, 32, channel()) + text(56, 706, 72, "@" + channel().replace(/\s+/g, ""), 14, 20, 400, "#fff", 1) +
+      '<div class="pill" style="' + box(132, 696, 97, 40, "background:rgba(255,255,255,.2);color:#fff;font-size:14px;") + '">' + esc(Shell.t("t.subscribe")) + "</div>" +
+      text(16, 745, 290, title(), 14, 20, 700, "#fff", 1) +
+      '<div class="pill" style="' + box(16, 772, 214, 24, "background:rgba(255,255,255,.2);color:#fff;font-size:12px;") + '">▶ ' + esc(Shell.t("t.sampleSound")) + "</div>";
+    if (S.zones) s += zone(0, 0, 375, 48, "t.zTop") + zone(319, 560, 56, 236, "t.zRight") + zone(0, 690, 319, 106, "t.zBottom");
+    return { w: 375, h: 812, html: s };
+  }
+  function zone(x, y, w, h, key) { return '<div class="zone" style="' + box(x, y, w, h) + '"><span>' + Shell.t(key) + "</span></div>"; }
+
+  /* ---- 文字の測定（プレビューと同じフォントで、実際の折り返しを調べる） ---- */
+  var meter = document.createElement("div");
+  meter.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;word-break:break-word;font-family:" + FONT + ";";
+  document.body.appendChild(meter);
+  function measure(t, fs, fw) {
+    meter.style.width = "auto"; meter.style.whiteSpace = "nowrap"; meter.style.fontSize = fs + "px"; meter.style.fontWeight = fw; meter.textContent = t;
+    return meter.getBoundingClientRect().width;
+  }
+  function linesFor(t, spec) {
+    meter.style.whiteSpace = "normal"; meter.style.width = spec[0] + "px"; meter.style.fontSize = spec[2] + "px"; meter.style.lineHeight = spec[3] + "px"; meter.style.fontWeight = spec[4];
+    meter.textContent = t;
+    return Math.round(meter.getBoundingClientRect().height / spec[3]);
+  }
+  function titleLines(t, spec) { return Math.max(1, Math.min(spec[1], linesFor(t, spec))); }
+  // 表示される部分: 収まらないときは、末尾に「…」を付けて収まる最長の文字列
+  function visible(t, spec) {
+    if (spec[1] === 1 ? measure(t, spec[2], spec[4]) <= spec[0] : linesFor(t, spec) <= spec[1]) return { text: t, cut: false };
+    var ch = Array.from(t), lo = 0, hi = ch.length;
+    while (lo < hi) {
+      var mid = Math.ceil((lo + hi) / 2), s = ch.slice(0, mid).join("") + "…";
+      var fits = spec[1] === 1 ? measure(s, spec[2], spec[4]) <= spec[0] : linesFor(s, spec) <= spec[1];
+      if (fits) lo = mid; else hi = mid - 1;
+    }
+    return { text: ch.slice(0, lo).join("").replace(/\s+$/, "") + "…", cut: true, shown: lo, total: ch.length };
+  }
+
+  /* =====================================================================
+     描画
+     ===================================================================== */
+  var BUILD = {
+    video: { home: [pcHome, phHome], watch: [pcWatch, phWatch], search: [pcSearch, phHome], related: [pcRelated, phWatch] },
+    shorts: { shelf: [pcShelf, phShelf], player: [pcShortsPlayer, phShortsPlayer] }
+  };
+  function render() {
+    if (SCENES[S.kind].indexOf(S.scene) < 0) S.scene = SCENES[S.kind][0];
+    var sc = BUILD[S.kind][S.scene][S.device === "pc" ? 0 : 1](), c = col();
+    var avail = $("stage").parentElement.clientWidth, z = S.zoom === "fit" ? Math.min(1, avail / sc.w) : 1;
+    var stage = $("stage");
+    stage.style.width = Math.min(avail, sc.w * z) + "px"; stage.style.height = sc.h * z + "px";
+    stage.parentElement.style.overflowX = z * sc.w > avail ? "auto" : "hidden";
+    stage.style.width = sc.w * z + "px";
+    stage.innerHTML = '<div class="scene" style="width:' + sc.w + "px;height:" + sc.h + "px;background:" + c.bg + ";transform:scale(" + z + ');">' + sc.html + "</div>";
+    var note = Shell.t("t.measured").replace("{d}", MEASURED).replace("{w}", S.device === "pc" ? "1440×900" : "375×812");
+    if (S.device === "phone") note += " " + Shell.t("t.phoneNote");
+    if (S.device === "phone" && (S.scene === "search" || S.scene === "related")) note += " " + Shell.t("t.phoneSame");
+    $("measured").textContent = note;
+    renderCuts();
+  }
+  function renderCuts() {
+    var rows = S.kind === "video"
+      ? [["t.cHome", "pcHome", "pc"], ["t.cRelated", "pcRelated", "pc"], ["t.cSearch", "pcSearch", "pc"], ["t.cWatch", "pcWatch", "pc"], ["t.cHome", "phHome", "phone"], ["t.cWatch", "phWatch", "phone"]]
+      : [["t.cShelf", "pcShelf", "pc"], ["t.cPlayer", "pcShortsPlayer", "pc"], ["t.cShelf", "phShelf", "phone"], ["t.cPlayer", "phShortsPlayer", "phone"]];
+    var t = title();
+    $("cuts").innerHTML = rows.map(function (r) {
+      var spec = CUT[r[1]], v = visible(t, spec);
+      return "<tr><th>" + Shell.t(r[2] === "pc" ? "t.pc" : "t.phone") + " · " + Shell.t(r[0]) + '<span class="spec">' + Shell.t("t.lines").replace("{n}", spec[1]) + " · " + spec[2] + "px</span></th>" +
+        "<td>" + esc(v.text) + '<br><span class="' + (v.cut ? "cut" : "ok") + '">' + (v.cut ? Shell.t("t.cutN").replace("{a}", v.shown).replace("{b}", v.total) : Shell.t("t.fits")) + "</span></td></tr>";
+    }).join("");
+  }
+
+  /* =====================================================================
+     入力
+     ===================================================================== */
+  var pickTarget = null;
+  function buildThumbs() {
+    var arr = S.thumbs[S.kind], v = S.kind === "shorts" ? " v" : "";
+    var html = arr.map(function (src, k) {
+      return '<div class="tslot' + v + (src ? " has" : "") + '" data-k="' + k + '" tabindex="0" role="button" style="' + (src ? "background-image:url(" + src + ")" : "") + '">' +
+        (src ? "" : Shell.t("t.addThumb")) + (arr.length > 1 || src ? '<span class="lbl">' + "ABC".charAt(k) + "</span>" : "") +
+        (src ? '<button type="button" class="x" data-rm="' + k + '" aria-label="Remove">×</button>' : "") + "</div>";
+    }).join("");
+    if (arr.length < 3 && arr[arr.length - 1]) html += '<div class="tslot' + v + '" data-k="' + arr.length + '" tabindex="0" role="button">＋</div>';
+    $("thumbs").innerHTML = html;
+    $("thumb-hint").textContent = Shell.t(S.kind === "shorts" ? "t.thumbHintS" : "t.thumbHintV");
+    $("frames").innerHTML = '<div class="tslot v' + (S.frame ? " has" : "") + '" data-frame="1" tabindex="0" role="button" style="' + (S.frame ? "background-image:url(" + S.frame + ")" : "") + '">' +
+      (S.frame ? '<button type="button" class="x" data-rmframe="1" aria-label="Remove">×</button>' : Shell.t("t.addFrame")) + "</div>";
+    $("frame-field").hidden = S.kind !== "shorts";
+    $("dur-hint").hidden = $("in-dur").hidden = S.kind === "shorts";
+    document.querySelector(".fieldrow").style.gridTemplateColumns = S.kind === "shorts" ? "1fr" : "";
+  }
+  function readImage(f, cb) {
+    if (!f || !/^image\//.test(f.type)) return;
+    var r = new FileReader(); r.onload = function () { cb(r.result); }; r.readAsDataURL(f);
+  }
+  function setThumb(k, src) {
+    var arr = S.thumbs[S.kind];
+    if (k >= arr.length) arr.push(src); else arr[k] = src;
+    buildThumbs(); render();
+  }
+  function slotClick(e) {
+    var rm = e.target.closest("[data-rm]"), rmf = e.target.closest("[data-rmframe]");
+    if (rm) {
+      var arr = S.thumbs[S.kind]; arr.splice(+rm.getAttribute("data-rm"), 1); if (!arr.length) arr.push(null);
+      buildThumbs(); render(); return;
+    }
+    if (rmf) { S.frame = null; buildThumbs(); render(); return; }
+    var slot = e.target.closest(".tslot"); if (!slot) return;
+    pickTarget = slot.hasAttribute("data-frame") ? "frame" : +slot.getAttribute("data-k");
+    $("file").click();
+  }
+  ["thumbs", "frames"].forEach(function (id) {
+    var el = $(id);
+    el.addEventListener("click", slotClick);
+    el.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("tslot")) { e.preventDefault(); slotClick(e); } });
+    el.addEventListener("dragover", function (e) { var s = e.target.closest(".tslot"); if (s) { e.preventDefault(); s.classList.add("dragover"); } });
+    el.addEventListener("dragleave", function (e) { var s = e.target.closest(".tslot"); if (s) s.classList.remove("dragover"); });
+    el.addEventListener("drop", function (e) {
+      var s = e.target.closest(".tslot"); if (!s) return; e.preventDefault();
+      var f = e.dataTransfer.files[0];
+      if (s.hasAttribute("data-frame")) readImage(f, function (u) { S.frame = u; buildThumbs(); render(); });
+      else readImage(f, function (u) { setThumb(+s.getAttribute("data-k"), u); });
+    });
+  });
+  $("file").addEventListener("change", function () {
+    var f = this.files[0], t = pickTarget; this.value = "";
+    readImage(f, function (u) { if (t === "frame") { S.frame = u; buildThumbs(); render(); } else setThumb(t, u); });
+  });
+  $("in-title").addEventListener("input", function () { S.title = this.value; render(); });
+  $("in-channel").addEventListener("input", function () { S.channel = this.value; render(); });
+  $("in-dur").addEventListener("input", function () { S.dur = this.value.trim(); render(); });
+  function seg(id, key, after) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("[data-v]"); if (!b) return;
+      S[key] = b.getAttribute("data-v");
+      $(id).querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      if (after) after();
+      render();
+    });
+  }
+  function buildScenes() {
+    $("scenes").innerHTML = SCENES[S.kind].map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.scene) + '">' + Shell.t("t.s." + k) + "</button>"; }).join("");
+    $("zone-wrap").hidden = !(S.kind === "shorts" && S.scene === "player");
+  }
+  seg("kind", "kind", function () { S.scene = SCENES[S.kind][0]; buildThumbs(); buildScenes(); });
+  seg("scenes", "scene", buildScenes);
+  seg("device", "device"); seg("theme", "theme"); seg("zoom", "zoom");
+  $("zones").addEventListener("change", function () { S.zones = this.checked; render(); });
+  var rt = 0; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(render, 80); });
+
+  Shell.init({
+    id: "platform-sizes",
+    strings: {
+      en: {
+        "t.title": "Platform preview",
+        "t.desc": "See your thumbnail, title and channel name at their real size on YouTube's home feed, watch page, search results and related videos — for regular videos and Shorts, on desktop and phone.",
+        "t.kVideo": "Video", "t.kShorts": "Shorts", "t.thumbs": "Thumbnails (up to 3 to compare)",
+        "t.thumbHintV": "16:9 image (1280×720 recommended). Add a second or third to compare them side by side.",
+        "t.thumbHintS": "The shelf crops it to 2:3 from the centre. Add a second or third to compare.",
+        "t.addThumb": "Click or drop an image", "t.addFrame": "Add frame",
+        "t.frame": "Frame from the Short (for the player)", "t.frameHint": "A 9:16 still from the video. Without it, the thumbnail is used.",
+        "t.vtitle": "Title", "t.channel": "Channel name", "t.durPh": "12:34", "t.durHint": "Right box: the video length shown on the thumbnail.",
+        "t.pc": "Desktop", "t.phone": "Phone", "t.light": "Light", "t.dark": "Dark", "t.fit": "Fit", "t.actual": "Actual size",
+        "t.zones": "Show areas covered by the player UI",
+        "t.s.home": "Home", "t.s.watch": "Watch page", "t.s.search": "Search", "t.s.related": "Related videos", "t.s.shelf": "Shorts shelf", "t.s.player": "Shorts player",
+        "t.measured": "Sizes measured on the YouTube website on {d} at {w} px. YouTube changes its layout from time to time.",
+        "t.phoneNote": "Phone: measured on the mobile website (m.youtube.com); the YouTube app is laid out a little differently.",
+        "t.phoneSame": "On a phone, search results and related videos use the same full-width cards as the home feed.",
+        "t.cutTitle": "Where the title gets cut", "t.cHome": "Home", "t.cRelated": "Related videos", "t.cSearch": "Search", "t.cWatch": "Watch page",
+        "t.cShelf": "Shorts shelf", "t.cPlayer": "Shorts player", "t.lines": "{n} line(s)", "t.fits": "Shown in full", "t.cutN": "Cut after {a} of {b} characters",
+        "t.zTop": "Controls", "t.zRight": "Buttons", "t.zBottom": "Channel & title",
+        "t.sampleTitle": "Your video title appears here — see how many words fit before it is cut off", "t.sampleChannel": "Your channel",
+        "t.sampleMeta": "120K views • 3 days ago", "t.sampleViews": "1.2M views", "t.sampleAgo": "3 days ago", "t.sampleSubs": "12.3K subscribers",
+        "t.subscribe": "Subscribe", "t.sampleSound": "Original sound", "t.share": "Share"
+      },
+      ja: {
+        "t.title": "プラットフォーム表示プレビュー",
+        "t.desc": "サムネイル・タイトル・チャンネル名が、YouTube のホーム・再生画面・検索結果・関連動画で実際の大きさでどう見えるかを確認します。横動画とショート、パソコンとスマホに対応。",
+        "t.kVideo": "横動画", "t.kShorts": "ショート", "t.thumbs": "サムネイル（3枚まで比較できます）",
+        "t.thumbHintV": "16:9 の画像（1280×720 推奨）。2枚目・3枚目を足すと並べて比較できます。",
+        "t.thumbHintS": "棚では中央から 2:3 に切り抜かれます。2枚目・3枚目を足すと比較できます。",
+        "t.addThumb": "クリックかドロップで画像を追加", "t.addFrame": "1コマを追加",
+        "t.frame": "ショートの1コマ（再生画面用）", "t.frameHint": "動画から切り出した 9:16 の静止画。なければサムネイルを使います。",
+        "t.vtitle": "タイトル", "t.channel": "チャンネル名", "t.durPh": "12:34", "t.durHint": "右の欄は、サムネイル右下に出る動画の長さです。",
+        "t.pc": "パソコン", "t.phone": "スマホ", "t.light": "ライト", "t.dark": "ダーク", "t.fit": "画面に合わせる", "t.actual": "実寸",
+        "t.zones": "プレーヤーの表示で隠れる範囲を表示",
+        "t.s.home": "ホーム", "t.s.watch": "再生画面", "t.s.search": "検索結果", "t.s.related": "関連動画", "t.s.shelf": "ショートの棚", "t.s.player": "ショートの再生画面",
+        "t.measured": "寸法は {d} に YouTube のウェブサイトを {w} px の画面で測った値です。YouTube は表示をときどき変更します。",
+        "t.phoneNote": "スマホはモバイル版サイト（m.youtube.com）で測定しています。YouTube アプリは配置が少し異なります。",
+        "t.phoneSame": "スマホでは、検索結果や関連動画もホームと同じ全幅のカードで表示されます。",
+        "t.cutTitle": "タイトルの切れ方", "t.cHome": "ホーム", "t.cRelated": "関連動画", "t.cSearch": "検索結果", "t.cWatch": "再生画面",
+        "t.cShelf": "ショートの棚", "t.cPlayer": "ショートの再生画面", "t.lines": "{n} 行", "t.fits": "全文表示されます", "t.cutN": "{b} 文字中 {a} 文字まで表示",
+        "t.zTop": "操作ボタン", "t.zRight": "ボタン", "t.zBottom": "チャンネル・タイトル",
+        "t.sampleTitle": "ここに動画のタイトルが入ります。どこで切れるかを確認できます", "t.sampleChannel": "あなたのチャンネル",
+        "t.sampleMeta": "12万 回視聴 • 3 日前", "t.sampleViews": "120万 回視聴", "t.sampleAgo": "3 日前", "t.sampleSubs": "チャンネル登録者数 1.23万人",
+        "t.subscribe": "チャンネル登録", "t.sampleSound": "オリジナル楽曲", "t.share": "共有"
+      }
+    },
+    onSettingsChange: function () { buildThumbs(); buildScenes(); render(); }
+  });
+  $("in-dur").value = S.dur;
+})();
+</script>
+</body>
+</html>

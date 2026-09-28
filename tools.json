@@ -36,12 +36,12 @@
       ],
       "sub": "size",
       "name": {
-        "en": "Platform sizes",
-        "ja": "プラットフォーム寸法辞典"
+        "en": "Platform preview",
+        "ja": "プラットフォーム表示プレビュー"
       },
       "description": {
-        "en": "Recommended sizes and a crop preview for major platforms.",
-        "ja": "主要プラットフォームの推奨サイズと、切り取られ方のプレビュー。"
+        "en": "See your thumbnail, title and channel name at real size on YouTube's home, watch page, search and related videos — Shorts too, with covered areas, title cut-off and A/B/C comparison.",
+        "ja": "サムネイル・タイトル・チャンネル名がYouTubeのホーム・再生画面・検索・関連動画で実寸でどう見えるかを確認。ショートの隠れる範囲、タイトルの切れ方、3枚比較も。"
       },
       "keywords": [
         "youtube",
@@ -50,7 +50,18 @@
         "crop",
         "サムネ",
         "サイズ",
-        "寸法"
+        "寸法",
+        "preview",
+        "shorts",
+        "title",
+        "safe area",
+        "a/b test",
+        "mockup",
+        "ショート",
+        "プレビュー",
+        "タイトル",
+        "比較",
+        "YouTube"
       ],
       "added": "2026-07-04"
     },
