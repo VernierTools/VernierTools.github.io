@@ -303,22 +303,23 @@
       { id: "flutter", min: 0, max: 0.6, step: 0.01, def: 0.06, unit: "%" },
       { id: "drive", min: -6, max: 12, step: 0.5, def: 0, unit: "dB" },
       { id: "hiss", min: -90, max: -30, step: 1, def: -58, unit: "dB" },
-      { id: "hf", min: 3000, max: 18000, step: 100, def: 12000, unit: "Hz" },
+      { id: "hf", min: 3000, max: 18000, step: 100, def: 9500, unit: "Hz" },
+      { id: "lo", min: 20, max: 200, step: 5, def: 60, unit: "Hz" },
       { id: "azimuth", min: 0, max: 150, step: 1, def: 15, unit: "µs" },
       { id: "dropouts", min: 0, max: 30, step: 0.5, def: 1, unit: "/min" },
       { id: "print", min: -90, max: -30, step: 1, def: -66, unit: "dB" },
       { id: "sep", min: 10, max: 60, step: 1, def: 35, unit: "dB" }
     ],
     presets: {
-      light: { wow: 0.06, flutter: 0.03, drive: -3, hiss: -66, hf: 15000, azimuth: 5, dropouts: 0, print: -90, sep: 45 },
-      heavy: { speed: 1.5, wow: 0.45, flutter: 0.2, drive: 8, hiss: -46, hf: 7000, azimuth: 60, dropouts: 8, print: -48, sep: 22 }
+      light: { wow: 0.06, flutter: 0.03, drive: -3, hiss: -66, hf: 12500, lo: 40, azimuth: 5, dropouts: 0, print: -90, sep: 45 },
+      heavy: { speed: 1.5, wow: 0.45, flutter: 0.2, drive: 8, hiss: -46, hf: 6000, lo: 100, azimuth: 60, dropouts: 8, print: -48, sep: 22 }
     },
     process: function (ch, fs, p, seed) {
       tapeSaturate(ch, fs, p.drive);
       printThrough(ch, fs, p.print, 1.8);
       dropouts(ch, fs, p.dropouts, 24, rngFor(seed, "drop"));
       ch = varispeed(ch, fs, { speed: p.speed / 100, sines: [[1.1, p.wow / 100 * 0.6], [3.3, p.wow / 100 * 0.3]], drift: p.wow / 100 * 0.5, flutter: p.flutter / 100 }, rngFor(seed, "wow"));
-      ch.forEach(function (x) { biquad(x, coef("peak", fs, 70, 1, 2.5)); butter(x, fs, "lp", p.hf, 2); butter(x, fs, "hp", 25, 2); });
+      ch.forEach(function (x) { biquad(x, coef("peak", fs, 70, 1, 2.5)); butter(x, fs, "lp", p.hf, 2); butter(x, fs, "hp", p.lo, 2); });
       interDelay(ch, fs, p.azimuth);
       // 録音レベルを上げるほど、再生時に戻すぶんヒスは相対的に小さくなる
       addNoise(ch, fs, p.hiss - Math.max(0, p.drive), "white", rngFor(seed, "hiss"), function (nz) { butter(nz, fs, "lp", Math.min(p.hf * 1.2, fs * 0.45), 2); butter(nz, fs, "hp", 150, 2); }, 0);
@@ -344,17 +345,18 @@
       { id: "rumble", min: -90, max: -30, step: 1, def: -62, unit: "dB" },
       { id: "wow", min: 0, max: 1, step: 0.01, def: 0.12, unit: "%" },
       { id: "distortion", min: 0, max: 1, step: 0.01, def: 0.1, unit: "" },
-      { id: "hf", min: 6000, max: 20000, step: 100, def: 16000, unit: "Hz" },
-      { id: "sep", min: 10, max: 45, step: 1, def: 26, unit: "dB" }
+      { id: "hf", min: 5000, max: 20000, step: 100, def: 11000, unit: "Hz" },
+      { id: "lo", min: 20, max: 200, step: 5, def: 50, unit: "Hz" },
+      { id: "sep", min: 10, max: 45, step: 1, def: 20, unit: "dB" }
     ],
     presets: {
-      light: { crackle: 1, crackleLv: -42, pops: 0.5, surface: -66, rumble: -70, wow: 0.05, distortion: 0, hf: 18000, sep: 30 },
-      heavy: { crackle: 25, crackleLv: -24, pops: 10, scratch: -30, surface: -46, rumble: -50, wow: 0.4, distortion: 0.45, hf: 10000, sep: 18 }
+      light: { crackle: 1, crackleLv: -42, pops: 0.5, surface: -66, rumble: -70, wow: 0.05, distortion: 0, hf: 14000, lo: 30, sep: 26 },
+      heavy: { crackle: 25, crackleLv: -24, pops: 10, scratch: -30, surface: -46, rumble: -50, wow: 0.4, distortion: 0.45, hf: 7500, lo: 90, sep: 14 }
     },
     process: function (ch, fs, p, seed) {
       var rpm = p.rpm === "45" ? 45 : 100 / 3;
       ch = recordCommon(ch, fs, p, seed, rpm);
-      ch.forEach(function (x) { butter(x, fs, "lp", p.hf, 2); });
+      ch.forEach(function (x) { butter(x, fs, "lp", p.hf, 2); butter(x, fs, "hp", p.lo, 2); });
       crosstalk(ch, p.sep);
       addNoise(ch, fs, p.surface, "pink", rngFor(seed, "surf"), function (nz) { butter(nz, fs, "hp", 400, 2); butter(nz, fs, "lp", Math.min(p.hf, fs * 0.45), 2); }, 0.3);
       rumble(ch, fs, p.rumble, rngFor(seed, "rumble"));
