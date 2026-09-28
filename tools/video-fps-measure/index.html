@@ -28,6 +28,7 @@
   .dropzone .dz-main{ font-size:14px; color:var(--text-2); }
   .dropzone .dz-sub{ font-size:12px; color:var(--text-3); margin-top:4px; }
   .dropzone input[type="file"]{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .statusline{ margin-top:var(--s4); font-size:13px; color:var(--text-2); text-align:center; font-variant-numeric:tabular-nums; }
   .errbox{ margin-top:var(--s4); font-size:13px; color:var(--neg); background:var(--neg-tint); border-radius:var(--r); padding:var(--s3) var(--s4); line-height:1.55; }
 
   /* ---- 結果 ---- */
@@ -86,6 +87,7 @@
         <div class="dz-sub" data-i18n="t.dzsub">MP4, MOV, WebM, MKV. Processed in your browser; nothing is uploaded.</div>
         <input type="file" id="fileInput" accept="video/*,.mkv,.mov,.webm,.mp4,.m4v">
       </label>
+      <div class="statusline" id="introStatus" hidden></div>
       <div class="errbox" id="introErr" hidden></div>
     </div>
   </section>
@@ -205,23 +207,58 @@
   ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-drag"); }); });
   drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) load(f); });
 
+  // 読み込めなかった理由を、分かる範囲で具体的に出す
+  function loadErrorText(e, file) {
+    var c = e && e.code;
+    if (e && (e.name === "NotReadableError" || e.name === "NotFoundError" || e.name === "SecurityError")) return t("t.err.read");
+    if (c === "zero") return t("t.err.zero");
+    if (c === "other") return t("t.err.other").replace("{f}", e.format);
+    if (c === "audioonly") return t("t.err.audioonly");
+    if (c === "novideo") return t("t.err.novideo");
+    if (c === "nomoov") return t("t.err.nomoov");
+    if (c === "encrypted") return t("t.err.encrypted");
+    if (c === "unknown") return t("t.err.format").replace("{ext}", (file.name.match(/\.([^.]+)$/) || [, "?"])[1].toUpperCase());
+    return t("t.err.broken") + (e && e.message ? " (" + e.message + ")" : "");
+  }
+
+  var loading = 0;
   async function load(file) {
+    var my = ++loading;
     S.cancel = true;
+    showIntroError(null);
+    setIntroStatus(t("t.reading").replace("{p}", "0"));
     if (S.runPromise) await S.runPromise;   // 前のファイルの分析が止まるのを待つ
-    $("introErr").hidden = true;
-    var reader = Demux.fileReader(file), info;
-    try { info = await Demux.open(reader); }
-    catch (e) { showIntroError(e.code === "novideo" ? "t.err.novideo" : e.code === "nomoov" ? "t.err.nomoov" : "t.err.format"); return; }
-    if (info.samples.length < 2) { showIntroError("t.err.empty"); return; }
-    S.file = file; S.reader = reader; S.info = info; S.cad = null; S.error = null;
-    S.ts = FpsAnalyze.timestamps(info.samples.map(function (s) { return s.pts; }), info.timebase);
+    // 読み取った位置から進み具合を出す（MKV など、フレーム一覧がファイル全体に散らばる形式は時間がかかる）
+    var base = Demux.fileReader(file), maxPos = 0, lastShow = 0;
+    var reader = { size: base.size, read: function (pos, len) {
+      if (pos + len > maxPos) maxPos = Math.min(file.size, pos + len);
+      var now = performance.now();
+      if (now - lastShow > 120 && my === loading) { lastShow = now; setIntroStatus(t("t.reading").replace("{p}", Math.round(maxPos / Math.max(1, file.size) * 100))); }
+      return base.read(pos, len);
+    } };
+    var info, ts;
+    try {
+      info = await Demux.open(reader);
+      if (info.samples.length < 2) { var e0 = new Error("empty"); e0.code = "empty"; throw e0; }
+      ts = FpsAnalyze.timestamps(info.samples.map(function (s) { return s.pts; }), info.timebase);
+      if (!(ts.avgFps > 0 && isFinite(ts.avgFps))) { var e1 = new Error("timestamps"); e1.code = "badts"; throw e1; }
+    } catch (e) {
+      if (my !== loading) return;
+      setIntroStatus(null);
+      showIntroError(e.code === "empty" ? t("t.err.empty") : e.code === "badts" ? t("t.err.badts") : loadErrorText(e, file));
+      return;
+    }
+    if (my !== loading) return;
+    setIntroStatus(null);
+    S.file = file; S.reader = reader; S.info = info; S.ts = ts; S.cad = null; S.error = null;
     $("intro").hidden = true; $("result").hidden = false;
     $("fileName").textContent = file.name;
     renderAll();
     window.scrollTo(0, 0);
     run();
   }
-  function showIntroError(key) { var el = $("introErr"); el.textContent = t(key); el.hidden = false; }
+  function showIntroError(text) { var el = $("introErr"); el.textContent = text || ""; el.hidden = !text; }
+  function setIntroStatus(text) { var el = $("introStatus"); el.textContent = text || ""; el.hidden = !text; }
   $("anotherBtn").addEventListener("click", function () {
     S.cancel = true; $("result").hidden = true; $("intro").hidden = false; window.scrollTo(0, 0);
   });
@@ -274,7 +311,7 @@
     if (info.image) return typeof createImageBitmap === "function" ? { image: info.image } : { err: "t.err.codec" };
     if (typeof VideoDecoder === "undefined") return { err: "t.err.nowebcodecs" };
     if (!info.codec) return { err: "t.err.codec" };
-    if (info.samples.some(function (s) { return s.laced; })) return { err: "t.err.codec" };
+    if (info.samples.some(function (s) { return s.laced; })) return { err: "t.err.laced" };
     var cfg = { codec: info.codec, codedWidth: info.width || undefined, codedHeight: info.height || undefined };
     if (info.description) cfg.description = info.description;
     try { var sup = await VideoDecoder.isConfigSupported(cfg); if (sup.supported) return { cfg: cfg }; } catch (e) { /* 下で扱う */ }
@@ -327,7 +364,7 @@
 
   function run() { if (!S.running) S.runPromise = runInner(); return S.runPromise; }
   async function runInner() {
-    S.running = true; S.cancel = false; S.cad = null; S.error = null;
+    S.running = true; S.cancel = false; S.cad = null; S.error = null; S.errorDetail = null;
     renderMode(); renderAll();
     $("runBtn").hidden = true; $("cancelBtn").hidden = false; $("progWrap").hidden = false;
     var dc = await decoderConfig(S.info);
@@ -348,7 +385,7 @@
           if (doneN % 8 === 0) progress(doneN, total, k, wins.length);
         });
       }
-    } catch (e) { S.error = "t.err.decode"; return done(); }
+    } catch (e) { S.error = "t.err.decode"; S.errorDetail = e && e.message; return done(); }
     if (!S.cancel) S.cad = FpsAnalyze.cadence(results, S.ts.avgFps);
     done();
     function done() {
@@ -392,7 +429,8 @@
     if (S.running) { setVal("contentFps", '<span class="muted">…</span>', ""); verdict = t("t.analyzing"); }
     else if (S.error) {
       setVal("contentFps", "—", "");
-      verdict = t(S.error) + (S.error === "t.err.codec" ? " " + t("t.err.codecname").replace("{c}", info.codecName) : "");
+      verdict = t(S.error) + (S.error === "t.err.codec" ? " " + t("t.err.codecname").replace("{c}", info.codecName) : "") +
+        (S.errorDetail ? " (" + S.errorDetail + ")" : "");
     } else if (!cad) { setVal("contentFps", "—", ""); verdict = t("t.cancelled"); }
     else if (cad.insufficient) {
       setVal("contentFps", "—", "");
@@ -465,10 +503,19 @@
         "t.desc": "Find the frame rate a video really moves at — for example 24 fps footage inside a 60 fps file — by comparing its frames, not by trusting the file's setting.",
         "t.dzmain": "Drop a video file here, or click to choose",
         "t.dzsub": "MP4, MOV, WebM, MKV. Processed in your browser; nothing is uploaded.",
-        "t.err.format": "This file couldn't be read. Supported containers are MP4, MOV, WebM and MKV.",
-        "t.err.nomoov": "The file's frame list (moov) wasn't found. The file may be incomplete.",
+        "t.reading": "Reading the file… {p}%",
+        "t.err.format": "This doesn't look like an MP4, MOV, WebM or MKV file (extension: {ext}). The file may use another format with a video extension, or be damaged.",
+        "t.err.other": "This is a {f} file, which isn't supported. Export or convert it to MP4, MOV, WebM or MKV and try again.",
+        "t.err.zero": "The file is empty (0 bytes).",
+        "t.err.read": "The browser couldn't read the file. It may have been moved or renamed, or be stored in the cloud (iCloud, OneDrive…) without being downloaded to this device.",
+        "t.err.nomoov": "The file's frame list (moov) wasn't found. The recording may have been interrupted, or the file is still being written or copied.",
         "t.err.novideo": "No video track was found in this file.",
+        "t.err.audioonly": "This file only contains audio.",
+        "t.err.encrypted": "The video is encrypted (DRM), so it can't be read.",
         "t.err.empty": "The video track has too few frames to measure.",
+        "t.err.badts": "The frame timestamps in this file are broken, so the frame rate can't be calculated.",
+        "t.err.broken": "The file's structure couldn't be read. It may be damaged or use an unusual layout.",
+        "t.err.laced": "This file packs several frames into one block (lacing), which isn't supported, so only the timestamps were checked.",
         "t.err.nowebcodecs": "This browser can't decode video frames (WebCodecs). Only the timestamps were checked. Try a recent Chrome, Edge or Safari.",
         "t.err.codec": "This browser can't decode this codec, so only the timestamps were checked.",
         "t.err.codecname": "(Codec: {c})",
@@ -509,10 +556,19 @@
         "t.desc": "ファイルの設定に惑わされず、映像が実際に何fpsで動いているかを調べます。60fpsのファイルの中身が24fps、といった場合も、フレームを比べて見つけます。",
         "t.dzmain": "動画ファイルをドロップ、またはクリックして選択",
         "t.dzsub": "MP4・MOV・WebM・MKV。ブラウザ内で処理し、どこにも送りません。",
-        "t.err.format": "このファイルは読めませんでした。対応しているのは MP4・MOV・WebM・MKV です。",
-        "t.err.nomoov": "フレームの一覧（moov）が見つかりません。ファイルが途中で切れている可能性があります。",
+        "t.reading": "ファイルを読んでいます… {p}%",
+        "t.err.format": "MP4・MOV・WebM・MKV のどれでもないようです（拡張子: {ext}）。拡張子と中身の形式が違うか、ファイルが壊れている可能性があります。",
+        "t.err.other": "{f} 形式のファイルなので対応していません。MP4・MOV・WebM・MKV に書き出すか変換してから試してください。",
+        "t.err.zero": "ファイルが空です（0 バイト）。",
+        "t.err.read": "ブラウザがファイルを読めませんでした。選んだ後に移動・名前変更された、または iCloud・OneDrive などのクラウド上にあってこの端末にダウンロードされていない可能性があります。",
+        "t.err.nomoov": "フレームの一覧（moov）が見つかりません。録画が途中で止まったか、まだ書き込み・コピー中のファイルの可能性があります。",
         "t.err.novideo": "このファイルには映像が入っていません。",
+        "t.err.audioonly": "このファイルには音声しか入っていません。",
+        "t.err.encrypted": "映像が暗号化（DRM）されているため読めません。",
         "t.err.empty": "フレームが少なすぎて測れません。",
+        "t.err.badts": "フレームの時刻が壊れているため、フレームレートを計算できません。",
+        "t.err.broken": "ファイルの構造を読み取れませんでした。壊れているか、珍しい書き方のファイルの可能性があります。",
+        "t.err.laced": "複数のフレームを 1 つにまとめる書き方（レーシング）のファイルには対応していないため、タイムスタンプだけ調べました。",
         "t.err.nowebcodecs": "このブラウザはフレームの展開（WebCodecs）に対応していないため、タイムスタンプだけ調べました。新しい Chrome・Edge・Safari で試してください。",
         "t.err.codec": "このブラウザではこのコーデックを展開できないため、タイムスタンプだけ調べました。",
         "t.err.codecname": "（コーデック: {c}）",

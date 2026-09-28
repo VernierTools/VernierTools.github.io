@@ -117,12 +117,13 @@
       hdlr = path(mb, traks[i], ["mdia", "hdlr"]);
       if (hdlr && str4(mb, hdlr.data + 8) === "vide") { trak = traks[i]; break; }
     }
-    if (!trak) fail("novideo");
+    if (!trak) fail(traks.some(function (tr) { var hd = path(mb, tr, ["mdia", "hdlr"]); return hd && str4(mb, hd.data + 8) === "soun"; }) ? "audioonly" : "novideo");
     var tkhd = child(mb, trak, "tkhd"), trackId = u32(mb, tkhd.data + (mb[tkhd.data] === 1 ? 20 : 12));
     var mdhd = path(mb, trak, ["mdia", "mdhd"]), v1 = mb[mdhd.data] === 1;
     var timescale = u32(mb, mdhd.data + (v1 ? 20 : 12));
     var stbl = path(mb, trak, ["mdia", "minf", "stbl"]);
     var stsd = child(mb, stbl, "stsd"), entry = boxes(mb, stsd.data + 8, stsd.end)[0];
+    if (entry.type === "encv") fail("encrypted");
     var fourcc = entry.type, info = { container: "MP4", codecName: MP4_CODECS[fourcc] || fourcc.trim(), codec: null, description: null,
       image: fourcc === "png " ? "image/png" : fourcc === "jpeg" ? "image/jpeg" : null,
       width: u16(mb, entry.data + 24), height: u16(mb, entry.data + 26), timebase: 1 / timescale, declaredFps: null };
@@ -264,7 +265,7 @@
     var sid = vint(h, 0, true), ssz = vint(h, sid.len);
     if (sid.value !== ID.Segment) fail("unknown");
     var segStart = ebmlEnd + sid.len + ssz.len, segEnd = ssz.value < 0 ? reader.size : Math.min(reader.size, segStart + ssz.value);
-    var tcScale = 1e6, track = null, samples = [];
+    var tcScale = 1e6, track = null, samples = [], hasAudio = false;
     p = segStart;
     while (p < segEnd) {
       h = await reader.read(p, 16); if (h.length < 2) break;
@@ -286,18 +287,18 @@
               if (v.id === ID.PixelWidth) t.w = uint(b, v.data, v.size); else if (v.id === ID.PixelHeight) t.h = uint(b, v.data, v.size);
             });
           });
-          if (t.type === 1) track = t;
+          if (t.type === 1) track = t; else if (t.type === 2) hasAudio = true;
         });
         p = data + sz.value;
       } else if (id.value === ID.Cluster) {
-        if (!track) fail("novideo");
+        if (!track) fail(hasAudio ? "audioonly" : "novideo");
         p = await readCluster(reader, data, sz.value, segEnd, track, tcScale, samples);
       } else {
         if (sz.value < 0) break;
         p = data + sz.value;
       }
     }
-    if (!track) fail("novideo");
+    if (!track) fail(hasAudio ? "audioonly" : "novideo");
     var cid = track.codecId || "", info = { container: "WebM", codecName: MKV_CODECS[cid] || cid, codec: null, description: null,
       image: cid === "V_MJPEG" ? "image/jpeg" : null,
       width: track.w || 0, height: track.h || 0, timebase: tcScale / 1e9, declaredFps: track.defDur ? 1e9 / track.defDur : null, samples: samples };
@@ -352,11 +353,36 @@
   }
 
   /* ===================================================================== */
+  // 対応していない形式を、先頭のバイト列から見分ける（理由を表示するため）
+  function sniffOther(h) {
+    function at(o, s) { for (var i = 0; i < s.length; i++) if (h[o + i] !== s.charCodeAt(i)) return false; return true; }
+    if (at(0, "RIFF") && at(8, "AVI ")) return "AVI";
+    if (at(0, "RIFF") && at(8, "WAVE")) return "WAV (audio)";
+    if (at(0, "FLV")) return "FLV";
+    if (h[0] === 0x30 && h[1] === 0x26 && h[2] === 0xB2 && h[3] === 0x75) return "WMV / ASF";
+    if (h[0] === 0x06 && h[1] === 0x0E && h[2] === 0x2B && h[3] === 0x34) return "MXF";
+    if (h[0] === 0 && h[1] === 0 && h[2] === 1 && h[3] === 0xBA) return "MPEG-PS (VOB / MPG)";
+    if (h[0] === 0x47 && (h.length < 189 || h[188] === 0x47)) return "MPEG-TS";
+    if (h.length > 192 && h[4] === 0x47 && h[196] === 0x47) return "M2TS (AVCHD)";
+    if (at(0, "OggS")) return "Ogg";
+    if (at(0, "ID3") || (h[0] === 0xFF && (h[1] & 0xE0) === 0xE0)) return "MP3 (audio)";
+    if (at(0, "fLaC")) return "FLAC (audio)";
+    if (at(0, "GIF8")) return "GIF";
+    if (h[0] === 0x89 && at(1, "PNG")) return "PNG (image)";
+    if (h[0] === 0xFF && h[1] === 0xD8) return "JPEG (image)";
+    if (at(0, "FORM") && (at(8, "AIFF") || at(8, "AIFC"))) return "AIFF (audio)";
+    if (at(0, "RIFF") && at(8, "WEBP")) return "WebP (image)";
+    return null;
+  }
+
   async function open(reader) {
-    var h = await reader.read(0, 12);
+    if (!reader.size) fail("zero");
+    var h = await reader.read(0, 200);
     if (h.length >= 4 && u32(h, 0) === ID.EBML) return openMkv(reader);
     var t = h.length >= 8 ? str4(h, 4) : "";
-    if (["ftyp", "moov", "mdat", "free", "wide", "skip", "styp", "pnot"].indexOf(t) < 0) fail("unknown");
+    if (["ftyp", "moov", "mdat", "free", "wide", "skip", "styp", "pnot", "uuid"].indexOf(t) < 0) {
+      var other = sniffOther(h), e = new Error("other"); e.code = other ? "other" : "unknown"; e.format = other; throw e;
+    }
     return openMp4(reader, await topBoxes(reader));
   }
 
