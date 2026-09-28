@@ -13,50 +13,124 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  .pills{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-  .pills button{ font:inherit; font-size:12.5px; padding:5px 11px; border:1px solid var(--border-strong); border-radius:100px;
-    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
-  .pills button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
-  .pills button.add{ border-style:dashed; }
-  .prow{ display:flex; gap:var(--s2); align-items:center; }
-  .prow .select{ flex:1; min-width:0; }
-  .iconbtn{ flex:none; width:38px; height:38px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
-  .iconbtn svg{ width:17px; height:17px; }
+  /* ---- 共通の小物（セグメント・グループ） ---- */
+  .seg{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; }
+  .seg button{ appearance:none; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--text-2);
+    padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; transition:background var(--tap), color var(--tap); }
+  .seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); font-weight:500; }
+  .seg button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .group{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .group + .group, .ghead + .group{ margin-top:var(--s2); }
+  .ghead{ font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3); margin:var(--s5) 4px 0; }
+  .ghead:first-child{ margin-top:0; }
+  .grow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); padding:11px 14px; min-height:48px; }
+  .grow + .grow{ border-top:1px solid var(--border); }
+  .grow > .lbl{ font-size:13px; color:var(--text); flex:none; }
+  .grow.col{ flex-direction:column; align-items:stretch; gap:8px; }
+  .grow.col > .lbl{ color:var(--text-2); font-size:12.5px; }
+  .grow .input, .grow .select{ height:34px; }
   .sub{ font-size:12px; color:var(--text-3); line-height:1.55; }
-  .between{ display:flex; justify-content:space-between; align-items:center; gap:var(--s2); flex-wrap:wrap; }
+  .ibtn{ appearance:none; width:32px; height:32px; border-radius:8px; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--text-2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex:none; font:inherit; }
+  .ibtn:hover{ color:var(--text); background:var(--surface-2); }
+  .ibtn:disabled{ opacity:.4; cursor:default; }
+  .ibtn svg{ width:16px; height:16px; }
+  .linkbtn{ appearance:none; border:0; background:none; padding:0; font:inherit; font-size:13px; color:var(--accent); cursor:pointer; }
+  .linkbtn.danger{ color:var(--neg); }
+  .linkbtn:disabled{ color:var(--text-3); cursor:default; }
+  .stepper{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:13px; }
+  .stepper span{ min-width:1.4em; text-align:center; }
 
-  /* ---- テンキー ---- */
-  .padwrap{ display:flex; justify-content:center; padding:var(--s4) 0 var(--s2); }
-  .pad{ display:grid; grid-template-columns:repeat(4, minmax(0, 92px)); grid-auto-rows:78px; gap:8px; width:100%; max-width:400px; }
-  .key{ position:relative; font:inherit; text-align:center; cursor:pointer; border-radius:10px; padding:20px 6px 6px;
-    background:var(--surface-2); color:var(--text); border:1px solid var(--border-strong);
-    box-shadow:0 2px 0 var(--border-strong); display:flex; align-items:center; justify-content:center; overflow:hidden;
-    transition:transform 80ms ease, box-shadow 80ms ease; }
-  .key:hover{ border-color:var(--text-3); }
-  .key.is-sel{ outline:2px solid var(--accent); outline-offset:2px; }
-  .key.is-hit{ transform:translateY(2px); box-shadow:0 0 0 var(--border-strong); }
-  .key:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
-  .key .lg{ position:absolute; top:5px; left:8px; font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
-  .key .tx{ font-size:12.5px; font-weight:600; line-height:1.3; word-break:break-word; white-space:pre-line;
+  /* ---- ステージ（ソフトの切り替え・本体） ---- */
+  .stage{ padding:0; overflow:hidden; }
+  .apps{ display:flex; gap:6px; overflow-x:auto; padding:14px 16px 12px; border-bottom:1px solid var(--border); scrollbar-width:thin; }
+  .app{ appearance:none; flex:none; display:inline-flex; align-items:center; gap:8px; font:inherit; font-size:13px; color:var(--text-2);
+    background:transparent; border:1px solid transparent; border-radius:10px; padding:5px 12px 5px 5px; cursor:pointer; max-width:200px; }
+  .app:hover{ background:var(--surface-2); }
+  .app[aria-selected="true"]{ background:var(--surface-2); border-color:var(--border-strong); color:var(--text); font-weight:500; }
+  .app .av{ width:26px; height:26px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; color:#fff;
+    font-size:12px; font-weight:700; flex:none; }
+  .app .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .app.add{ padding:5px 10px; color:var(--text-3); border:1px dashed var(--border-strong); }
+  .bar{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); flex-wrap:wrap; padding:12px 16px 0; }
+  .layerwrap{ position:relative; display:flex; align-items:center; gap:6px; }
+  .menu{ position:absolute; top:calc(100% + 6px); left:0; z-index:20; min-width:180px; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; box-shadow:var(--shadow-md); padding:4px; }
+  .menu button{ display:block; width:100%; text-align:left; appearance:none; border:0; background:none; font:inherit; font-size:13px;
+    color:var(--text); padding:7px 10px; border-radius:6px; cursor:pointer; }
+  .menu button:hover, .menu button:focus-visible{ background:var(--surface-2); outline:none; }
+  .menu button.danger{ color:var(--neg); }
+  .menu hr{ border:0; border-top:1px solid var(--border); margin:4px 2px; }
+  .editbtn{ display:inline-flex; align-items:center; gap:6px; height:34px; font-size:13px; }
+  .editbtn svg{ width:14px; height:14px; }
+  .editbtn[aria-pressed="true"]{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .stagearea{ display:flex; justify-content:center; padding:28px 16px 18px;
+    background:radial-gradient(120% 90% at 50% 0%, var(--surface) 0%, var(--surface-2) 70%); }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; text-align:center; padding:0 16px 16px; }
+
+  /* ---- 本体とキーキャップ ---- */
+  .device{ --u:72px; --g:10px; position:relative; padding:18px; border-radius:26px;
+    box-shadow:0 1px 0 rgba(255,255,255,.08) inset, 0 28px 50px -24px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.12); }
+  .device.dark{ background:linear-gradient(160deg, #3a3c42 0%, #26272c 55%, #1f2024 100%); }
+  .device.light{ background:linear-gradient(160deg, #f3f4f6 0%, #e2e4e8 60%, #d6d9de 100%); box-shadow:0 1px 0 #fff inset, 0 28px 50px -24px rgba(0,0,0,.3), 0 2px 6px rgba(0,0,0,.08); }
+  .pad{ display:grid; grid-template-columns:repeat(var(--cols), var(--u)); grid-auto-rows:var(--u); gap:var(--g); }
+  .cap{ --kc:transparent; position:relative; appearance:none; font:inherit; text-align:center; cursor:pointer; padding:0; border:0;
+    border-radius:14px; display:flex; align-items:center; justify-content:center; overflow:visible;
+    transition:transform 90ms ease, box-shadow 120ms ease; touch-action:manipulation; }
+  .device.round .cap{ border-radius:999px; }
+  .device.dark .cap{ color:#f4f4f6;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--kc) 34%, #45474d), color-mix(in srgb, var(--kc) 30%, #303237));
+    box-shadow:0 1px 0 rgba(255,255,255,.12) inset, 0 -2px 0 rgba(0,0,0,.25) inset, 0 3px 0 #151619, 0 5px 10px rgba(0,0,0,.35); }
+  .device.light .cap{ color:#1d1d1f;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--kc) 22%, #ffffff), color-mix(in srgb, var(--kc) 26%, #f1f2f4));
+    box-shadow:0 1px 0 #fff inset, 0 -2px 0 rgba(0,0,0,.06) inset, 0 3px 0 #b9bdc5, 0 5px 10px rgba(0,0,0,.12); }
+  .cap.has-c::after{ content:""; position:absolute; left:50%; bottom:7px; width:18px; height:3px; margin-left:-9px; border-radius:2px; background:var(--kc); opacity:.95; }
+  .cap:hover{ transform:translateY(-1px); }
+  .cap.is-hit{ transform:translateY(2px); }
+  .cap.is-sel{ outline:2.5px solid var(--accent); outline-offset:3px; }
+  .cap:focus-visible{ outline:2.5px solid var(--accent); outline-offset:3px; }
+  .cap .lg{ position:absolute; top:8px; left:0; right:0; font-family:var(--font-mono); font-size:10.5px; opacity:.55; line-height:1; }
+  .device.round .cap .lg{ top:9px; }
+  .cap .tx{ font-size:var(--fs, 11.5px); font-weight:600; line-height:1.25; padding:14px 7px 6px; word-break:break-word; line-break:strict; white-space:pre-line;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-  .key .tx:empty::before{ content:"＋"; color:var(--text-3); font-weight:400; opacity:.5; }
-  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; text-align:center; }
+  .device.round .cap .tx{ padding-left:10px; padding-right:10px; }
+  .cap .tx:empty{ display:none; }
+  .device.small .cap.has-t .lg{ font-size:9px; top:6px; }
+  .device.small .cap .tx{ padding:10px 4px 4px; line-height:1.18; }
+  .device.small.round .cap .tx{ padding-left:7px; padding-right:7px; }
+  .device.small .cap.has-c::after{ bottom:4px; width:12px; margin-left:-6px; height:2px; }
+  .cap:not(.has-t) .lg{ position:static; font-size:14px; opacity:.85; font-family:var(--font-sans); font-weight:500; }
+  /* 編集モード */
+  .device.editing .cap{ cursor:grab; touch-action:none; }
+  .device.editing .cap.is-drag{ cursor:grabbing; z-index:5; transform:scale(1.04); }
+  .slot{ appearance:none; border:1.5px dashed rgba(128,128,140,.45); background:transparent; border-radius:14px; cursor:pointer; color:rgba(128,128,140,.7);
+    font-size:18px; display:flex; align-items:center; justify-content:center; }
+  .device.round .slot{ border-radius:999px; }
+  .slot:hover{ border-color:var(--accent); color:var(--accent); }
+  .rs{ position:absolute; right:-6px; bottom:-6px; width:18px; height:18px; border-radius:50%; background:var(--accent); border:2px solid #fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.35); cursor:nwse-resize; touch-action:none; z-index:6; }
 
-  /* ---- 色 ---- */
-  .swatches{ display:flex; flex-wrap:wrap; gap:6px; }
-  .swatches button{ width:28px; height:28px; border-radius:50%; cursor:pointer; border:1px solid var(--border-strong); padding:0; }
-  .swatches button[aria-pressed="true"]{ outline:2px solid var(--accent); outline-offset:2px; }
-  .swatches button.none{ background:linear-gradient(135deg, transparent 45%, var(--text-3) 45%, var(--text-3) 55%, transparent 55%), var(--surface); }
-  textarea.input{ height:auto; min-height:64px; padding:8px 12px; resize:vertical; line-height:1.45; }
-  #editor{ scroll-margin-top:88px; }
-  .keyname{ font-size:16px; font-weight:600; margin:0 0 var(--s3); }
-  .capture{ margin-top:var(--s2); }
-  .capture.is-on{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
-
-  /* ---- 画像 ---- */
-  .preview{ display:block; width:100%; max-width:340px; margin:0 auto; height:auto; border-radius:var(--r); border:1px solid var(--border); background:var(--surface-2); }
-  .warn{ font-size:12px; color:var(--neg); margin-top:var(--s2); }
-  .ok{ font-size:12px; color:var(--text-3); margin-top:var(--s2); }
+  /* ---- 右パネル ---- */
+  .keyhead{ display:flex; align-items:center; gap:12px; min-width:0; }
+  .keychip{ min-width:44px; height:44px; padding:0 10px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; flex:none;
+    font-family:var(--font-mono); font-size:15px; font-weight:600; background:var(--surface-2); border:1px solid var(--border-strong); }
+  .keyhead .t1{ font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .keyhead .t2{ font-size:12px; color:var(--text-3); margin-top:1px; }
+  textarea.input{ height:auto; min-height:62px; padding:8px 12px; resize:vertical; line-height:1.45; }
+  .swatches{ display:flex; flex-wrap:wrap; gap:8px; }
+  .swatches button{ width:26px; height:26px; border-radius:50%; cursor:pointer; border:0; padding:0; box-shadow:0 0 0 1px rgba(0,0,0,.12) inset; }
+  .swatches button[aria-pressed="true"]{ box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+  .swatches button.none{ background:linear-gradient(135deg, transparent 44%, var(--neg) 44%, var(--neg) 56%, transparent 56%), var(--surface-2); box-shadow:0 0 0 1px var(--border-strong) inset; }
+  .capture.is-on{ font-weight:600; }
+  .preview{ display:block; width:100%; max-width:360px; height:auto; margin:0 auto; border-radius:10px; border:1px solid var(--border); }
+  .btns{ display:flex; gap:var(--s2); flex-wrap:wrap; }
+  .btns .btn{ flex:1; min-width:120px; }
+  .msg{ font-size:12px; }
+  .msg:empty{ display:none; }
+  .msg.warn{ color:var(--neg); } .msg.ok{ color:var(--text-3); }
+  #inspector{ scroll-margin-top:88px; }
+  .work > div{ min-width:0; }
+  .stagearea{ overflow:hidden; }
 </style>
 </head>
 <body>
@@ -67,97 +141,31 @@
     <p data-i18n="t.desc">Using a numpad as a left-hand device? Note what each key does in each app, and save the layout as an image to paste into your notes.</p>
   </div>
 
-  <div class="work">
-    <!-- 左: ソフト・レイヤー・テンキー -->
+  <div class="work work--wide">
+    <!-- 左: ソフトの切り替えと本体 -->
     <div>
-      <div class="card">
-        <div class="field">
-          <label class="label" for="prof" data-i18n="t.app">App</label>
-          <div class="prow">
-            <select class="select" id="prof"></select>
-            <button type="button" class="btn btn--secondary iconbtn" id="p-add" data-i18n-title="t.pAdd" title="New app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-            <button type="button" class="btn btn--secondary iconbtn" id="p-dup" data-i18n-title="t.pDup" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg></button>
-            <button type="button" class="btn btn--secondary iconbtn" id="p-del" data-i18n-title="t.pDel" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+      <div class="card stage">
+        <div class="apps" id="apps" role="tablist" aria-label="Apps"></div>
+        <div class="bar">
+          <div class="layerwrap">
+            <div class="seg" id="layers" role="group"></div>
+            <button type="button" class="ibtn" id="layer-menu-btn" aria-haspopup="true" aria-expanded="false" data-i18n-title="t.layerMenu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="menu" id="layer-menu" hidden></div>
           </div>
+          <button type="button" class="btn btn--secondary editbtn" id="edit" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>
+            <span id="edit-label"></span></button>
         </div>
-        <div class="field">
-          <label class="label" for="pname" data-i18n="t.appName">App name</label>
-          <input class="input" id="pname" maxlength="60" autocomplete="off">
+        <div class="stagearea" id="stagearea">
+          <div class="device" id="device"><div class="pad" id="pad" aria-label="Numpad"></div></div>
         </div>
-        <div class="field">
-          <label class="label" data-i18n="t.layers">Layers (keys held together)</label>
-          <div class="pills" id="layers" role="group"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="padwrap"><div class="pad" id="pad" role="group" aria-label="Numpad"></div></div>
-        <div class="hint" data-i18n="t.padHint">Click a key — or press it on your numpad — to edit what it does.</div>
+        <div class="hint" id="hint"></div>
       </div>
     </div>
 
-    <!-- 右: キーの編集・画像・バックアップ -->
-    <div>
-      <div class="card" id="editor">
-        <p class="keyname" id="kname"></p>
-        <div class="field">
-          <label class="label" for="ktext" data-i18n="t.action">What it does</label>
-          <textarea class="input" id="ktext" rows="2" maxlength="60" data-i18n-ph="t.actionPh" placeholder="e.g. Play / Stop"></textarea>
-        </div>
-        <div class="field">
-          <label class="label" data-i18n="t.color">Color</label>
-          <div class="swatches" id="colors"></div>
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label class="label" for="klegend" data-i18n="t.legend">Key legend (shared by every app)</label>
-          <input class="input" id="klegend" maxlength="8" autocomplete="off">
-          <button type="button" class="btn btn--secondary btn--block capture" id="capture" data-i18n="t.capture">Detect the key by pressing it</button>
-          <div class="sub" id="kcode" style="margin-top:6px"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card__title" data-i18n="t.image">Image</div>
-        <div class="field">
-          <label class="label" data-i18n="t.imgWhat">Include</label>
-          <div class="pills" id="img-what" role="group">
-            <button type="button" data-v="cur" aria-pressed="true" data-i18n="t.imgCur">This layer</button>
-            <button type="button" data-v="all" aria-pressed="false" data-i18n="t.imgAll">All layers</button>
-          </div>
-        </div>
-        <div class="field">
-          <label class="label" data-i18n="t.imgBg">Background</label>
-          <div class="pills" id="img-bg" role="group">
-            <button type="button" data-v="light" aria-pressed="true" data-i18n="t.light">Light</button>
-            <button type="button" data-v="dark" aria-pressed="false" data-i18n="t.dark">Dark</button>
-          </div>
-        </div>
-        <div class="field"><img class="preview" id="preview" alt=""></div>
-        <div class="btnrow">
-          <button type="button" class="btn btn--primary" id="img-copy" data-i18n="t.imgCopy">Copy image</button>
-          <button type="button" class="btn btn--secondary" id="img-save" data-i18n="t.imgSave">Save PNG</button>
-        </div>
-        <div class="sub" id="img-msg" style="margin-top:var(--s2)"></div>
-      </div>
-
-      <div class="card">
-        <div class="card__title" data-i18n="t.backup">Backup</div>
-        <div class="field">
-          <label class="label" data-i18n="t.device">Numpad</label>
-          <div class="pills" id="device" role="group">
-            <button type="button" data-v="17" aria-pressed="true" data-i18n="t.dev17">17 keys</button>
-            <button type="button" data-v="21" aria-pressed="false" data-i18n="t.dev21">21 keys (extra top row)</button>
-          </div>
-        </div>
-        <p class="sub" data-i18n="t.storeNote">Notes are saved in this browser only. Clearing site data erases them, so export a backup now and then.</p>
-        <div class="btnrow" style="margin-top:var(--s3)">
-          <button type="button" class="btn btn--secondary" id="exp" data-i18n="t.export">Export (JSON)</button>
-          <button type="button" class="btn btn--secondary" id="imp" data-i18n="t.import">Import</button>
-          <input type="file" id="impfile" accept=".json,application/json" hidden>
-        </div>
-        <div id="bkmsg"></div>
-      </div>
-    </div>
+    <!-- 右: 設定 -->
+    <div id="inspector"></div>
   </div>
 </main>
 <script src="../../shared/shell.js"></script>
@@ -166,197 +174,342 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var STORE = "vernier.keybind";
+  var MAXC = 6, MAXR = 8;
 
   /* =====================================================================
-     テンキーの配置  [id(=KeyboardEvent.code), 刻印, 列, 行, 幅, 高さ]
-     21キーは 17キーの上に 4キーの段が付く（刻印と実機のキーは変更できる）
+     プリセット配列  [id, 刻印, 列, 行, 幅, 高さ]
+     id は実機のキー（KeyboardEvent.code）と同じ。電卓キーだけは code が別（LaunchApp2）
      ===================================================================== */
-  var BASE = [
-    ["NumLock", "Num", 0, 0, 1, 1], ["NumpadDivide", "/", 1, 0, 1, 1], ["NumpadMultiply", "*", 2, 0, 1, 1], ["NumpadSubtract", "−", 3, 0, 1, 1],
-    ["Numpad7", "7", 0, 1, 1, 1], ["Numpad8", "8", 1, 1, 1, 1], ["Numpad9", "9", 2, 1, 1, 1], ["NumpadAdd", "+", 3, 1, 1, 2],
-    ["Numpad4", "4", 0, 2, 1, 1], ["Numpad5", "5", 1, 2, 1, 1], ["Numpad6", "6", 2, 2, 1, 1],
-    ["Numpad1", "1", 0, 3, 1, 1], ["Numpad2", "2", 1, 3, 1, 1], ["Numpad3", "3", 2, 3, 1, 1], ["NumpadEnter", "Enter", 3, 3, 1, 2],
-    ["Numpad0", "0", 0, 4, 2, 1], ["NumpadDecimal", ".", 2, 4, 1, 1]
+  var NUM = [
+    ["Numpad7", "7"], ["Numpad8", "8"], ["Numpad9", "9"], ["Numpad4", "4"], ["Numpad5", "5"], ["Numpad6", "6"],
+    ["Numpad1", "1"], ["Numpad2", "2"], ["Numpad3", "3"]
   ];
-  var TOP = [["X1", "Esc", "Escape"], ["X2", "Tab", "Tab"], ["X3", "=", "NumpadEqual"], ["X4", "⌫", "Backspace"]];
-  function layout() {
-    if (D.device.type !== "21") return BASE.map(function (k) { return { id: k[0], lg: k[1], c: k[2], r: k[3], w: k[4], h: k[5] }; });
-    return TOP.map(function (k, i) { return { id: k[0], lg: k[1], c: i, r: 0, w: 1, h: 1 }; })
-      .concat(BASE.map(function (k) { return { id: k[0], lg: k[1], c: k[2], r: k[3] + 1, w: k[4], h: k[5] }; }));
-  }
-  function legendOf(k) { return D.device.legends[k.id] != null && D.device.legends[k.id] !== "" ? D.device.legends[k.id] : k.lg; }
-  function codeOf(id) {
-    if (D.device.codes[id]) return D.device.codes[id];
-    for (var i = 0; i < TOP.length; i++) if (TOP[i][0] === id) return TOP[i][2];
-    return id;
-  }
-  var COLORS = [null, "#E5484D", "#F2994A", "#E2B93B", "#30A46C", "#12A594", "#3E7BFA", "#8E4EC6", "#8B8D98"];
+  function digits(r0) { return NUM.map(function (k, i) { return [k[0], k[1], i % 3, r0 + Math.floor(i / 3), 1, 1]; }); }
+  var PRESETS = {
+    "17": [["NumLock", "Num", 0, 0, 1, 1], ["NumpadDivide", "/", 1, 0, 1, 1], ["NumpadMultiply", "*", 2, 0, 1, 1], ["NumpadSubtract", "−", 3, 0, 1, 1]]
+      .concat(digits(1), [["NumpadAdd", "+", 3, 1, 1, 2], ["NumpadEnter", "Enter", 3, 3, 1, 2], ["Numpad0", "0", 0, 4, 2, 1], ["NumpadDecimal", ".", 2, 4, 1, 1]]),
+    "21": [["Escape", "Esc", 0, 0, 1, 1], ["Tab", "Tab", 1, 0, 1, 1], ["NumpadEqual", "=", 2, 0, 1, 1], ["Backspace", "⌫", 3, 0, 1, 1],
+      ["NumLock", "Num", 0, 1, 1, 1], ["NumpadDivide", "/", 1, 1, 1, 1], ["NumpadMultiply", "*", 2, 1, 1, 1], ["NumpadSubtract", "−", 3, 1, 1, 1]]
+      .concat(digits(2), [["NumpadAdd", "+", 3, 2, 1, 2], ["NumpadEnter", "Enter", 3, 4, 1, 2], ["Numpad0", "0", 0, 5, 2, 1], ["NumpadDecimal", ".", 2, 5, 1, 1]]),
+    "22": [["Escape", "Esc", 0, 0, 1, 1], ["Calc", "Calc", 1, 0, 1, 1], ["Tab", "Tab", 2, 0, 1, 1], ["NumpadEqual", "=", 3, 0, 1, 1],
+      ["NumLock", "Num", 0, 1, 1, 1], ["NumpadDivide", "/", 1, 1, 1, 1], ["NumpadMultiply", "*", 2, 1, 1, 1], ["Backspace", "⌫", 3, 1, 1, 1]]
+      .concat(digits(2), [["NumpadSubtract", "−", 3, 2, 1, 1], ["NumpadAdd", "+", 3, 3, 1, 1], ["NumpadEnter", "Enter", 3, 4, 1, 2],
+        ["Numpad0", "0", 0, 5, 2, 1], ["NumpadDecimal", ".", 2, 5, 1, 1]])
+  };
+  var CODE = { Calc: "LaunchApp2" };
+  function makeKeys(p) { return PRESETS[p].map(function (k) { return { id: k[0], lg: k[1], code: CODE[k[0]] || k[0], c: k[2], r: k[3], w: k[4], h: k[5] }; }); }
+  var COLORS = [null, "#FF453A", "#FF9F0A", "#FFD60A", "#30D158", "#64D2FF", "#0A84FF", "#BF5AF2", "#FF375F", "#98989D"];
   var MODS = ["shift", "ctrl", "alt", "meta"];
   var MODNAME = { shift: "Shift", ctrl: "Ctrl", alt: "Alt", meta: "Cmd" };
+  var AVC = ["#0A84FF", "#30B0C7", "#34C759", "#FF9500", "#FF2D55", "#AF52DE", "#5856D6", "#A2845E"];
 
   /* =====================================================================
      データ（localStorage）
-       { v:1, device:{type, legends:{id:刻印}, codes:{id:code}},
-         active:<profile id>, profiles:[{id, name, layers:[{id, mod, name, map:{keyId:{t, c}}}]}],
-         exported:<最後に書き出した時刻>, changed:<最後に変更した時刻> }
+       { v:2, device:{preset, shape, color, keys:[{id, lg, code, c, r, w, h}]},
+         active, profiles:[{id, name, layers:[{id, mod, name, map:{keyId:{t, c}}}]}], exported, changed }
      ===================================================================== */
   function uid() { return Math.random().toString(36).slice(2, 10); }
+  var D = null;
+  function validProfiles(s) { return s && Array.isArray(s.profiles) && s.profiles.length && s.profiles.every(function (p) { return p && Array.isArray(p.layers) && p.layers.length; }); }
+  // 旧形式（v1: device.type = "17" / "21"、上段は X1〜X4）を v2 に移す
+  var OLDTOP = { X1: "Escape", X2: "Tab", X3: "NumpadEqual", X4: "Backspace" };
+  function migrate(s) {
+    if (!validProfiles(s) || !s.device) return null;
+    if (s.v === 2 && Array.isArray(s.device.keys) && s.device.keys.length) return s;
+    var type = s.device.type === "21" ? "21" : "17", keys = makeKeys(type), leg = s.device.legends || {}, codes = s.device.codes || {};
+    Object.keys(OLDTOP).forEach(function (x) {
+      var k = keys.filter(function (q) { return q.id === OLDTOP[x]; })[0];
+      if (k) { if (leg[x]) k.lg = leg[x]; if (codes[x]) k.code = codes[x]; }
+    });
+    keys.forEach(function (k) { if (!OLDTOP[k.id] && leg[k.id]) k.lg = leg[k.id]; });
+    s.profiles.forEach(function (p) { p.layers.forEach(function (l) {
+      l.map = l.map || {};
+      Object.keys(OLDTOP).forEach(function (x) { if (l.map[x]) { l.map[OLDTOP[x]] = l.map[x]; delete l.map[x]; } });
+    }); });
+    s.v = 2; s.device = { preset: type, shape: "square", color: "dark", keys: keys };
+    return s;
+  }
   function sample() {
     return { id: uid(), name: Shell.t("t.sampleName"), layers: [{ id: uid(), mod: "", name: "", map: {
       Numpad0: { t: Shell.t("t.s0"), c: 4 }, Numpad1: { t: Shell.t("t.s1"), c: 6 }, Numpad2: { t: Shell.t("t.s2"), c: 6 }, Numpad4: { t: Shell.t("t.s4"), c: 2 } } }] };
   }
-  var D = null;
-  function load() {
-    try { var s = JSON.parse(localStorage.getItem(STORE)); if (valid(s)) return s; } catch (e) {}
-    return null;
-  }
-  function valid(s) { return s && s.device && Array.isArray(s.profiles) && s.profiles.length && s.profiles.every(function (p) { return p.id && Array.isArray(p.layers) && p.layers.length; }); }
   function save(changed) {
     if (changed !== false) D.changed = Date.now();
     try { localStorage.setItem(STORE, JSON.stringify(D)); } catch (e) {}
-    backupMsg();
   }
+  var S = { layer: null, key: "Numpad5", edit: false, capture: false, img: "cur", bg: "light", menu: false };
   function prof() { return D.profiles.filter(function (p) { return p.id === D.active; })[0] || D.profiles[0]; }
-  var S = { layer: null, key: "Numpad5", capture: false, img: "cur", bg: "light" };
   function layer() { var p = prof(); return p.layers.filter(function (l) { return l.id === S.layer; })[0] || p.layers[0]; }
   function layerName(l) { return l.mod ? MODNAME[l.mod] : l.name || Shell.t("t.base"); }
+  function keys() { return D.device.keys; }
+  function keyById(id) { return keys().filter(function (k) { return k.id === id; })[0]; }
+  function dims() {
+    var c = 1, r = 1;
+    keys().forEach(function (k) { c = Math.max(c, k.c + k.w); r = Math.max(r, k.r + k.h); });
+    return { c: c, r: r };
+  }
+
+  /* ---- 配置の検査 ---- */
+  function fits(id, c, r, w, h) {
+    if (c < 0 || r < 0 || w < 1 || h < 1 || c + w > MAXC || r + h > MAXR) return false;
+    return keys().every(function (k) {
+      if (k.id === id) return true;
+      return c + w <= k.c || k.c + k.w <= c || r + h <= k.r || k.r + k.h <= r;
+    });
+  }
+  function normalize() {
+    var mc = Infinity, mr = Infinity;
+    keys().forEach(function (k) { mc = Math.min(mc, k.c); mr = Math.min(mr, k.r); });
+    if (!keys().length || (!mc && !mr)) return;
+    keys().forEach(function (k) { k.c -= mc; k.r -= mr; });
+  }
 
   /* =====================================================================
-     描画
+     描画: ソフト・レイヤー
      ===================================================================== */
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function tint(hex, a) {
-    var n = parseInt(hex.slice(1), 16);
-    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  function avatar(p) {
+    var n = p.name || "?", h = 0;
+    for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+    return { ch: (Array.from(n.trim())[0] || "?").toUpperCase(), col: AVC[h % AVC.length] };
   }
-  function renderProfiles() {
-    $("prof").innerHTML = D.profiles.map(function (p) { return '<option value="' + p.id + '">' + esc(p.name || Shell.t("t.untitled")) + "</option>"; }).join("");
-    $("prof").value = prof().id;
-    if (document.activeElement !== $("pname")) $("pname").value = prof().name;
-    $("p-del").disabled = D.profiles.length < 2;
+  function renderApps() {
+    var cur = prof().id;
+    $("apps").innerHTML = D.profiles.map(function (p) {
+      var a = avatar(p);
+      return '<button type="button" class="app" role="tab" data-p="' + p.id + '" aria-selected="' + (p.id === cur) + '">' +
+        '<span class="av" style="background:' + a.col + '">' + esc(a.ch) + '</span><span class="nm">' + esc(p.name || Shell.t("t.untitled")) + "</span></button>";
+    }).join("") + '<button type="button" class="app add" id="app-add">＋ ' + Shell.t("t.pAdd") + "</button>";
   }
   function renderLayers() {
-    var p = prof(), cur = layer();
-    var used = p.layers.map(function (l) { return l.mod; });
-    var html = p.layers.map(function (l) {
+    var cur = layer();
+    $("layers").innerHTML = prof().layers.map(function (l) {
       return '<button type="button" data-l="' + l.id + '" aria-pressed="' + (l.id === cur.id) + '">' + esc(layerName(l)) + "</button>";
     }).join("");
-    html += MODS.filter(function (m) { return used.indexOf(m) < 0; }).map(function (m) {
-      return '<button type="button" class="add" data-add="' + m + '">＋ ' + MODNAME[m] + "</button>";
+    var used = prof().layers.map(function (l) { return l.mod; });
+    var html = MODS.filter(function (m) { return used.indexOf(m) < 0; }).map(function (m) {
+      return '<button type="button" data-add="' + m + '">' + Shell.t("t.addLayer").replace("{m}", MODNAME[m]) + "</button>";
     }).join("");
-    if (cur.mod) html += '<button type="button" class="add" data-rm="1">' + Shell.t("t.rmLayer") + "</button>";
-    $("layers").innerHTML = html;
+    if (cur.mod) html += (html ? "<hr>" : "") + '<button type="button" class="danger" data-rm="1">' + Shell.t("t.rmLayer").replace("{m}", layerName(cur)) + "</button>";
+    $("layer-menu").innerHTML = html || '<div class="sub" style="padding:7px 10px">' + Shell.t("t.allLayers") + "</div>";
+    $("layer-menu").hidden = !S.menu;
+    $("layer-menu-btn").setAttribute("aria-expanded", S.menu ? "true" : "false");
+  }
+
+  /* =====================================================================
+     描画: 本体
+     ===================================================================== */
+  function unitSize() {
+    var d = dims(), cols = S.edit ? Math.min(MAXC, d.c + 1) : d.c;
+    var avail = $("stagearea").clientWidth - 32 - 36;         // 余白と本体の内側
+    var g = 10, u = Math.floor((avail - (cols - 1) * g) / cols);
+    return { u: Math.max(44, Math.min(78, u)), g: g, cols: cols, rows: S.edit ? Math.min(MAXR, d.r + 1) : d.r };
   }
   function renderPad() {
-    var map = layer().map, rows = D.device.type === "21" ? 6 : 5;
-    $("pad").style.gridTemplateRows = "repeat(" + rows + ", 78px)";
-    $("pad").innerHTML = layout().map(function (k) {
-      var e = map[k.id] || {}, col = COLORS[e.c] || null;
-      var style = "grid-column:" + (k.c + 1) + " / span " + k.w + ";grid-row:" + (k.r + 1) + " / span " + k.h + ";" +
-        (col ? "background:" + tint(col, 0.18) + ";border-color:" + col + ";box-shadow:0 2px 0 " + col + ";" : "");
-      return '<button type="button" class="key' + (k.id === S.key ? " is-sel" : "") + '" data-k="' + k.id + '" style="' + style + '"' +
-        ' aria-label="' + esc(legendOf(k) + (e.t ? ": " + e.t : "")) + '"><span class="lg">' + esc(legendOf(k)) + '</span><span class="tx">' + esc(e.t || "") + "</span></button>";
+    var dev = $("device"), map = layer().map, sz = unitSize();
+    dev.className = "device " + D.device.color + (D.device.shape === "round" ? " round" : "") + (S.edit ? " editing" : "");
+    dev.style.setProperty("--u", sz.u + "px"); dev.style.setProperty("--g", sz.g + "px");
+    dev.style.setProperty("--fs", Math.max(9, Math.min(11.5, sz.u * 0.155)).toFixed(1) + "px");
+    dev.classList.toggle("small", sz.u < 64);
+    $("pad").style.setProperty("--cols", sz.cols);
+    $("pad").style.gridTemplateRows = "repeat(" + sz.rows + ", var(--u))";
+    var html = "";
+    if (S.edit) {                                           // 空いたマス（クリックでキーを追加）
+      for (var r = 0; r < sz.rows; r++) for (var c = 0; c < sz.cols; c++) {
+        if (fits(null, c, r, 1, 1)) html += '<button type="button" class="slot" data-slot="' + c + "," + r + '" style="grid-column:' + (c + 1) + ";grid-row:" + (r + 1) + '" aria-label="' + Shell.t("t.addHere") + '">+</button>';
+      }
+    }
+    html += keys().map(function (k) {
+      var e = map[k.id] || {}, col = COLORS[e.c] || null, text = S.edit ? "" : e.t || "";
+      var cls = "cap" + (k.id === S.key ? " is-sel" : "") + (col && !S.edit ? " has-c" : "") + (text ? " has-t" : "");
+      return '<button type="button" class="' + cls + '" data-k="' + esc(k.id) + '" style="grid-column:' + (k.c + 1) + " / span " + k.w +
+        ";grid-row:" + (k.r + 1) + " / span " + k.h + (col && !S.edit ? ";--kc:" + col : "") + '" aria-label="' + esc((k.lg || "?") + (e.t ? ": " + e.t : "")) + '">' +
+        '<span class="lg">' + esc(k.lg) + '</span><span class="tx">' + esc(text) + "</span>" +
+        (S.edit && k.id === S.key ? '<span class="rs" data-rs="1" aria-hidden="true"></span>' : "") + "</button>";
     }).join("");
+    $("pad").innerHTML = html;
+    $("hint").textContent = Shell.t(S.edit ? "t.hintEdit" : "t.hint");
+    $("edit").setAttribute("aria-pressed", S.edit ? "true" : "false");
+    $("edit-label").textContent = Shell.t(S.edit ? "t.done" : "t.edit");
   }
-  function renderEditor() {
-    var k = layout().filter(function (x) { return x.id === S.key; })[0];
-    if (!k) { S.key = "Numpad5"; k = layout().filter(function (x) { return x.id === S.key; })[0]; }
-    var e = layer().map[k.id] || {};
-    $("kname").textContent = Shell.t("t.key") + " " + legendOf(k) + (layer().mod ? "  ·  " + layerName(layer()) + " +" : "");
-    if (document.activeElement !== $("ktext")) $("ktext").value = e.t || "";
-    $("colors").innerHTML = COLORS.map(function (c, i) {
-      return '<button type="button" data-c="' + i + '" class="' + (c ? "" : "none") + '" aria-pressed="' + ((e.c || 0) === i) + '"' +
-        ' aria-label="' + Shell.t(c ? "t.colorN" : "t.noColor").replace("{n}", i) + '"' + (c ? ' style="background:' + c + '"' : "") + "></button>";
-    }).join("");
-    if (document.activeElement !== $("klegend")) $("klegend").value = D.device.legends[k.id] || "";
-    $("klegend").placeholder = k.lg;
-    var isTop = k.id.charAt(0) === "X";
-    $("capture").hidden = !isTop;
-    $("capture").classList.toggle("is-on", S.capture);
-    $("capture").textContent = Shell.t(S.capture ? "t.capturing" : "t.capture");
-    $("kcode").textContent = isTop ? Shell.t("t.code").replace("{c}", codeOf(k.id)) : "";
+
+  /* =====================================================================
+     描画: 右パネル
+     ===================================================================== */
+  function grp(rows) { return '<div class="group">' + rows.join("") + "</div>"; }
+  function row(label, ctrl, col) { return '<div class="grow' + (col ? " col" : "") + '"><span class="lbl">' + label + "</span>" + ctrl + "</div>"; }
+  function seg(id, items, cur) {
+    return '<div class="seg" id="' + id + '">' + items.map(function (it) {
+      return '<button type="button" data-v="' + it[0] + '" aria-pressed="' + (it[0] === cur) + '">' + it[1] + "</button>";
+    }).join("") + "</div>";
   }
-  function renderAll() { renderProfiles(); renderLayers(); renderPad(); renderEditor(); renderDevice(); schedulePreview(); }
-  function renderDevice() { $("device").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === D.device.type ? "true" : "false"); }); }
+  function renderInspector() {
+    var k = keyById(S.key) || keys()[0], h = "";
+    if (k) S.key = k.id;
+    var e = k ? layer().map[k.id] || {} : {};
+    // キー
+    h += '<div class="ghead">' + Shell.t(S.edit ? "t.gKeyEdit" : "t.gKey") + "</div>";
+    if (k) {
+      var head = '<div class="grow"><div class="keyhead"><span class="keychip">' + esc(k.lg || "?") + '</span><div style="min-width:0"><div class="t1">' +
+        esc(S.edit ? Shell.t("t.keyN").replace("{k}", k.lg || "?") : e.t || Shell.t("t.unassigned")) + '</div><div class="t2">' +
+        esc(S.edit ? (k.code ? Shell.t("t.detected").replace("{c}", k.code) : Shell.t("t.noCode")) : (prof().name || Shell.t("t.untitled")) + " · " + layerName(layer())) + "</div></div></div></div>";
+      if (!S.edit) {
+        h += grp([head,
+          row(Shell.t("t.action"), '<textarea class="input" id="ktext" rows="2" maxlength="60" placeholder="' + esc(Shell.t("t.actionPh")) + '">' + esc(e.t || "") + "</textarea>", true),
+          row(Shell.t("t.color"), '<div class="swatches" id="colors">' + COLORS.map(function (c, i) {
+            return '<button type="button" data-c="' + i + '" class="' + (c ? "" : "none") + '" aria-pressed="' + ((e.c || 0) === i) + '" aria-label="' +
+              Shell.t(c ? "t.colorN" : "t.noColor").replace("{n}", i) + '"' + (c ? ' style="background:' + c + '"' : "") + "></button>";
+          }).join("") + "</div>", true)]);
+      } else {
+        h += grp([head,
+          row(Shell.t("t.legend"), '<input class="input" id="klegend" maxlength="8" autocomplete="off" style="max-width:130px" value="' + esc(k.lg) + '">'),
+          row(Shell.t("t.physKey"), '<button type="button" class="linkbtn capture' + (S.capture ? " is-on" : "") + '" id="capture">' +
+            Shell.t(S.capture ? "t.capturing" : "t.capture") + "</button>"),
+          row(Shell.t("t.width"), '<span class="stepper"><button type="button" class="ibtn" data-sz="w-1">−</button><span>' + k.w +
+            '</span><button type="button" class="ibtn" data-sz="w+1">＋</button></span>'),
+          row(Shell.t("t.height"), '<span class="stepper"><button type="button" class="ibtn" data-sz="h-1">−</button><span>' + k.h +
+            '</span><button type="button" class="ibtn" data-sz="h+1">＋</button></span>'),
+          row(Shell.t("t.move"), '<span class="stepper">' + [["←", "c-1"], ["↑", "r-1"], ["↓", "r+1"], ["→", "c+1"]].map(function (m) {
+            return '<button type="button" class="ibtn" data-mv="' + m[1] + '" aria-label="' + m[0] + '">' + m[0] + "</button>"; }).join("") + "</span>"),
+          '<div class="grow"><button type="button" class="linkbtn danger" id="kdel"' + (keys().length < 2 ? " disabled" : "") + ">" + Shell.t("t.delKey") + "</button></div>"]);
+      }
+    }
+    if (S.edit) {
+      h += '<div class="ghead">' + Shell.t("t.gDevice") + "</div>";
+      h += grp([
+        row(Shell.t("t.preset"), '<select class="select" id="preset" style="max-width:220px">' +
+          '<option value="">' + Shell.t("t.presetPick") + "</option>" +
+          ["17", "21", "22"].map(function (p) { return '<option value="' + p + '">' + Shell.t("t.pre" + p) + "</option>"; }).join("") + "</select>"),
+        row(Shell.t("t.shape"), seg("shape", [["square", Shell.t("t.square")], ["round", Shell.t("t.round")]], D.device.shape)),
+        row(Shell.t("t.body"), seg("dcolor", [["dark", Shell.t("t.dark")], ["light", Shell.t("t.light")]], D.device.color)),
+        '<div class="grow"><span class="sub">' + Shell.t("t.editNote") + "</span></div>"]);
+    } else {
+      // ソフト
+      h += '<div class="ghead">' + Shell.t("t.gApp") + "</div>";
+      h += grp([
+        row(Shell.t("t.appName"), '<input class="input" id="pname" maxlength="60" autocomplete="off" style="max-width:220px" value="' + esc(prof().name) + '">'),
+        '<div class="grow"><button type="button" class="linkbtn" id="p-dup">' + Shell.t("t.pDup") + '</button><button type="button" class="linkbtn danger" id="p-del"' +
+          (D.profiles.length < 2 ? " disabled" : "") + ">" + Shell.t("t.pDel") + "</button></div>"]);
+      // 画像
+      h += '<div class="ghead">' + Shell.t("t.gImage") + "</div>";
+      h += grp([
+        row(Shell.t("t.imgWhat"), seg("img-what", [["cur", Shell.t("t.imgCur")], ["all", Shell.t("t.imgAll")]], S.img)),
+        row(Shell.t("t.imgBg"), seg("img-bg", [["light", Shell.t("t.light")], ["dark", Shell.t("t.dark")]], S.bg)),
+        '<div class="grow col"><img class="preview" id="preview" alt=""><div class="btns">' +
+          (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write ? '<button type="button" class="btn btn--primary" id="img-copy">' + Shell.t("t.imgCopy") + "</button>" : "") +
+          '<button type="button" class="btn btn--secondary" id="img-save">' + Shell.t("t.imgSave") + '</button></div><div class="msg warn" id="img-msg"></div></div>']);
+      // バックアップ
+      h += '<div class="ghead">' + Shell.t("t.gBackup") + "</div>";
+      h += grp([
+        '<div class="grow col"><span class="sub">' + Shell.t("t.storeNote") + '</span><div class="btns">' +
+          '<button type="button" class="btn btn--secondary" id="exp">' + Shell.t("t.export") + '</button>' +
+          '<button type="button" class="btn btn--secondary" id="imp">' + Shell.t("t.import") + '</button></div>' +
+          '<input type="file" id="impfile" accept=".json,application/json" hidden><div class="msg" id="bkmsg"></div></div>']);
+    }
+    var act = document.activeElement && document.activeElement.id;
+    $("inspector").innerHTML = h;
+    if (act && $(act) && (act === "klegend" || act === "pname" || act === "ktext")) $(act).focus();
+    backupMsg(); schedulePreview();
+  }
+  function renderAll() { renderApps(); renderLayers(); renderPad(); renderInspector(); }
 
   /* =====================================================================
      画像（canvas）
      ===================================================================== */
-  var U = 84, G = 8, PAD = 28;
+  var U = 80, G = 10, BP = 20;
+  function rrect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  var NOSTART = /^[ーぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ、。，．・：；？！）」』】〕〉》’”…‥]$/;
   function wrap(ctx, text, maxW) {
     var out = [];
     String(text).split("\n").forEach(function (para) {
-      var line = "";
-      // 英単語はなるべく途中で切らない（空白で区切れる所で折り返す）。日本語は1文字ずつ
-      var tokens = para.match(/[\x21-\x7e]+|\s+|[^\x21-\x7e\s]/g) || [""];
+      var line = "", tokens = para.match(/[\x21-\x7e]+|\s+|[^\x21-\x7e\s]/g) || [""];
       tokens.forEach(function (tk) {
-        if (ctx.measureText(line + tk).width <= maxW || !line) {
-          if (ctx.measureText(tk).width > maxW && !line) {             // 1語で幅を超える: 文字単位
-            tk.split("").forEach(function (ch) { if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch; });
+        if (!line || ctx.measureText(line + tk).width <= maxW) {
+          if (!line && ctx.measureText(tk).width > maxW) {           // 1語で幅を超える: 文字単位で折る
+            tk.split("").forEach(function (ch) { if (line && ctx.measureText(line + ch).width > maxW) { out.push(line); line = ch; } else line += ch; });
           } else line += tk;
+        } else if (NOSTART.test(tk)) {
+          line += tk;                                               // 行頭に置けない文字（ー、っ、。など）は前の行に付ける
         } else { out.push(line.trim()); line = tk.trim(); }
       });
       out.push(line.trim());
     });
     return out;
   }
-  function rrect(ctx, x, y, w, h, r) {
-    if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-  function drawPanel(ctx, x0, y0, lay, th, font) {
-    var keys = layout();
-    ctx.font = "600 14px " + font; ctx.fillStyle = th.sub; ctx.textBaseline = "alphabetic";
-    ctx.fillText(layerName(lay), x0, y0 + 14);
-    y0 += 26;
-    keys.forEach(function (k) {
-      var x = x0 + k.c * (U + G), y = y0 + k.r * (U + G), w = k.w * U + (k.w - 1) * G, h = k.h * U + (k.h - 1) * G;
-      var e = lay.map[k.id] || {}, col = COLORS[e.c] || null;
-      ctx.beginPath(); rrect(ctx, x, y, w, h, 10);
-      ctx.fillStyle = col ? mix(th.key, col, th.dark ? 0.32 : 0.2) : th.key; ctx.fill();
-      ctx.lineWidth = col ? 2 : 1; ctx.strokeStyle = col || th.line; ctx.stroke();
-      ctx.font = "500 11px " + font; ctx.fillStyle = th.sub; ctx.textBaseline = "top"; ctx.textAlign = "left";
-      ctx.fillText(legendOf(k), x + 8, y + 7);
-      if (!e.t) return;
-      var maxW = w - 12, avail = h - 26, size = 15, lines;
-      for (; size >= 10; size--) {
-        ctx.font = "600 " + size + "px " + font;
-        lines = wrap(ctx, e.t, maxW);
-        if (lines.length * size * 1.25 <= avail) break;
-      }
-      var lh = size * 1.25, maxLines = Math.max(1, Math.floor(avail / lh));
-      if (lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, "…"); }
-      ctx.fillStyle = th.text; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var cy = y + 20 + avail / 2 - (lines.length - 1) * lh / 2;
-      lines.forEach(function (ln, i) { ctx.fillText(ln, x + w / 2, cy + i * lh); });
-      ctx.textAlign = "left";
-    });
-  }
-  function mix(a, b, t) {
+  function hexMix(a, b, t) {
     var p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16);
-    var r = Math.round((p >> 16) * (1 - t) + (q >> 16) * t), g = Math.round(((p >> 8) & 255) * (1 - t) + ((q >> 8) & 255) * t),
-        bl = Math.round((p & 255) * (1 - t) + (q & 255) * t);
-    return "rgb(" + r + "," + g + "," + bl + ")";
+    return "rgb(" + [16, 8, 0].map(function (s) { return Math.round(((p >> s) & 255) * (1 - t) + ((q >> s) & 255) * t); }).join(",") + ")";
+  }
+  function drawDevice(ctx, x0, y0, lay, font) {
+    var d = dims(), dark = D.device.color === "dark", round = D.device.shape === "round";
+    var bw = d.c * U + (d.c - 1) * G + BP * 2, bh = d.r * U + (d.r - 1) * G + BP * 2;
+    var gr = ctx.createLinearGradient(x0, y0, x0 + bw * 0.6, y0 + bh);
+    if (dark) { gr.addColorStop(0, "#3a3c42"); gr.addColorStop(1, "#1f2024"); } else { gr.addColorStop(0, "#f3f4f6"); gr.addColorStop(1, "#d6d9de"); }
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0," + (S.bg === "dark" ? 0.6 : 0.28) + ")"; ctx.shadowBlur = 30; ctx.shadowOffsetY = 14;
+    rrect(ctx, x0, y0, bw, bh, 24); ctx.fillStyle = gr; ctx.fill(); ctx.restore();
+    var capBase = dark ? "#3b3d42" : "#fbfbfc", capShadow = dark ? "#141518" : "#b9bdc5", txt = dark ? "#f4f4f6" : "#1d1d1f", sub = dark ? "rgba(244,244,246,.55)" : "rgba(29,29,31,.5)";
+    keys().forEach(function (k) {
+      var x = x0 + BP + k.c * (U + G), y = y0 + BP + k.r * (U + G), w = k.w * U + (k.w - 1) * G, h = k.h * U + (k.h - 1) * G, rad = round ? 999 : 13;
+      var e = lay.map[k.id] || {}, col = COLORS[e.c] || null;
+      rrect(ctx, x, y + 3, w, h, rad); ctx.fillStyle = capShadow; ctx.fill();
+      rrect(ctx, x, y, w, h, rad); ctx.fillStyle = col ? hexMix(capBase, col, dark ? 0.32 : 0.22) : capBase; ctx.fill();
+      if (col) { rrect(ctx, x + w / 2 - 9, y + h - 9, 18, 3, 1.5); ctx.fillStyle = col; ctx.fill(); }
+      ctx.textAlign = "center";
+      if (!e.t) {
+        ctx.font = "500 15px " + font; ctx.fillStyle = dark ? "rgba(244,244,246,.85)" : "rgba(29,29,31,.8)"; ctx.textBaseline = "middle";
+        ctx.fillText(k.lg, x + w / 2, y + h / 2); return;
+      }
+      ctx.font = "500 10.5px " + font; ctx.fillStyle = sub; ctx.textBaseline = "top";
+      ctx.fillText(k.lg, x + w / 2, y + (round ? 10 : 8));
+      var inset = round && k.w === 1 && k.h === 1 ? 14 : 8, maxW = w - inset * 2, avail = h - 26 - (round ? 8 : 4), size = 14, lines;
+      var best = null, target = null;
+      for (var sz = 14; sz >= 9; sz--) {
+        ctx.font = "600 " + sz + "px " + font;
+        var ls = wrap(ctx, e.t, maxW), ok = ls.length * sz * 1.22 <= avail && ls.every(function (l) { return ctx.measureText(l).width <= maxW * 1.12; });
+        if (sz === 11) target = ls.length;                            // 11px で何行になるか（これより行数を増やさない）
+        if (ok && !best) best = { size: sz, lines: ls };
+      }
+      for (sz = 14; sz >= 9 && target != null; sz--) {
+        ctx.font = "600 " + sz + "px " + font;
+        ls = wrap(ctx, e.t, maxW);
+        if (ls.length <= target && ls.length * sz * 1.22 <= avail) { best = { size: sz, lines: ls }; break; }
+      }
+      if (!best) { ctx.font = "600 9px " + font; best = { size: 9, lines: wrap(ctx, e.t, maxW) }; }
+      size = best.size; lines = best.lines; ctx.font = "600 " + size + "px " + font;
+      var lh = size * 1.22, maxLines = Math.max(1, Math.floor(avail / lh));
+      if (lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, "…"); }
+      ctx.fillStyle = txt; ctx.textBaseline = "middle";
+      var cy = y + 20 + (h - 20) / 2 - (lines.length - 1) * lh / 2;
+      lines.forEach(function (ln, i) { ctx.fillText(ln, x + w / 2, cy + i * lh); });
+    });
+    ctx.textAlign = "left";
   }
   function drawImage() {
-    var dark = S.bg === "dark";
-    var th = dark ? { bg: "#17181C", key: "#23252B", line: "#3A3D45", text: "#F2F3F5", sub: "#9A9EA8", dark: true }
-                  : { bg: "#FFFFFF", key: "#F6F7F9", line: "#D5D8DE", text: "#1A1C21", sub: "#6B7080", dark: false };
-    var lays = S.img === "all" ? prof().layers : [layer()];
-    var rows = D.device.type === "21" ? 6 : 5, pw = 4 * U + 3 * G, ph = rows * U + (rows - 1) * G + 26;
-    var W = PAD * 2 + lays.length * pw + (lays.length - 1) * 36, H = PAD * 2 + 34 + ph, SC = 2;
+    var dark = S.bg === "dark", bg = dark ? "#16171a" : "#f5f5f7", text = dark ? "#f5f5f7" : "#1d1d1f", sub = dark ? "#98989d" : "#6e6e73";
+    var lays = S.img === "all" ? prof().layers : [layer()], d = dims();
+    var bw = d.c * U + (d.c - 1) * G + BP * 2, bh = d.r * U + (d.r - 1) * G + BP * 2, P = 36, gap = 40;
+    var W = P * 2 + lays.length * bw + (lays.length - 1) * gap, H = P * 2 + 40 + 26 + bh + 10, SC = 2;
     var cv = document.createElement("canvas"); cv.width = W * SC; cv.height = H * SC;
     var ctx = cv.getContext("2d"); ctx.scale(SC, SC);
     var font = getComputedStyle(document.body).fontFamily;
-    ctx.fillStyle = th.bg; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = th.text; ctx.font = "700 20px " + font; ctx.textBaseline = "alphabetic";
-    ctx.fillText(prof().name || Shell.t("t.untitled"), PAD, PAD + 18);
-    lays.forEach(function (l, i) { drawPanel(ctx, PAD + i * (pw + 36), PAD + 34, l, th, font); });
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = text; ctx.font = "700 22px " + font; ctx.textBaseline = "alphabetic"; ctx.fillText(prof().name || Shell.t("t.untitled"), P, P + 20);
+    lays.forEach(function (l, i) {
+      var x = P + i * (bw + gap), y = P + 40;
+      ctx.fillStyle = sub; ctx.font = "600 13px " + font; ctx.textBaseline = "alphabetic"; ctx.fillText(layerName(l), x + 2, y + 13);
+      drawDevice(ctx, x, y + 26, l, font);
+    });
     return cv;
   }
   var pvTimer = 0;
-  function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(function () { $("preview").src = drawImage().toDataURL("image/png"); }, 120); }
+  function schedulePreview() {
+    clearTimeout(pvTimer);
+    pvTimer = setTimeout(function () { if ($("preview")) $("preview").src = drawImage().toDataURL("image/png"); }, 150);
+  }
   function fileBase() {
     var n = (prof().name || "numpad").replace(/[\\/:*?"<>|]+/g, "").trim() || "numpad";
     return n + (S.img === "cur" && layer().mod ? "-" + MODNAME[layer().mod] : "");
@@ -366,34 +519,37 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
+  function toastCopied() {
+    // Shell.copy は文字列用なので、画像のときは同じ見た目のトースト（.tb-copied）を自前で出す
+    var t = document.querySelector(".tb-copied");
+    if (!t) { t = document.createElement("div"); t.className = "tb-copied"; document.body.appendChild(t); }
+    t.textContent = Shell.t("copied"); t.classList.add("show");
+    clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("show"); }, 1100);
+  }
 
   /* =====================================================================
      バックアップ
      ===================================================================== */
   function backupMsg() {
-    var el = $("bkmsg");
-    if (!D.exported) { el.className = D.changed ? "warn" : "ok"; el.textContent = Shell.t("t.never"); return; }
-    var days = Math.floor((Date.now() - D.exported) / 864e5);
-    var stale = D.changed > D.exported && days >= 14;
-    el.className = stale ? "warn" : "ok";
-    el.textContent = Shell.t("t.lastExport").replace("{d}", new Date(D.exported).toLocaleDateString(Shell.lang)) +
-      (D.changed > D.exported ? " " + Shell.t("t.changedSince") : "");
+    var el = $("bkmsg"); if (!el) return;
+    if (!D.exported) { el.className = "msg " + (D.changed ? "warn" : "ok"); el.textContent = Shell.t("t.never"); return; }
+    var days = Math.floor((Date.now() - D.exported) / 864e5), stale = D.changed > D.exported && days >= 14;
+    el.className = "msg " + (stale ? "warn" : "ok");
+    el.textContent = Shell.t("t.lastExport").replace("{d}", new Date(D.exported).toLocaleDateString(Shell.lang)) + (D.changed > D.exported ? " " + Shell.t("t.changedSince") : "");
   }
   function importData(obj) {
-    if (!valid(obj)) throw new Error("bad");
+    obj = migrate(JSON.parse(JSON.stringify(obj)));
+    if (!obj) throw new Error("bad");
     var names = D.profiles.map(function (p) { return p.name; });
     obj.profiles.forEach(function (p) {
-      p = JSON.parse(JSON.stringify(p)); p.id = uid();
+      p.id = uid();
       p.layers.forEach(function (l) { l.id = uid(); if (MODS.indexOf(l.mod) < 0) l.mod = ""; l.map = l.map || {}; });
       var base = p.name || Shell.t("t.untitled"), n = base, i = 2;
       while (names.indexOf(n) >= 0) n = base + " (" + (i++) + ")";
       p.name = n; names.push(n); D.profiles.push(p);
     });
-    // 刻印・キーの登録は、読み込むデータのほうに設定があれば引き継ぐ
-    if (obj.device) {
-      if (obj.device.type === "17" || obj.device.type === "21") D.device.type = obj.device.type;
-      ["legends", "codes"].forEach(function (k) { if (obj.device[k]) Object.keys(obj.device[k]).forEach(function (id) { D.device[k][id] = String(obj.device[k][id]); }); });
-    }
+    // 配列は、読み込むファイルのものに合わせる（配列は全ソフト共通のため）
+    D.device = obj.device;
     return obj.profiles.length;
   }
 
@@ -402,86 +558,131 @@
      ===================================================================== */
   function selectKey(id, flash) {
     S.key = id; S.capture = false;
-    document.querySelectorAll(".key").forEach(function (b) { b.classList.toggle("is-sel", b.getAttribute("data-k") === id); });
-    if (flash) {
-      var el = document.querySelector('.key[data-k="' + id + '"]');
-      if (el) { el.classList.add("is-hit"); setTimeout(function () { el.classList.remove("is-hit"); }, 120); }
-    }
-    renderEditor();
+    document.querySelectorAll(".cap").forEach(function (b) { b.classList.toggle("is-sel", b.getAttribute("data-k") === id); });
+    if (flash) { var el = document.querySelector('.cap[data-k="' + id + '"]'); if (el) { el.classList.add("is-hit"); setTimeout(function () { el.classList.remove("is-hit"); }, 130); } }
+    if (S.edit) renderPad();
+    renderInspector();
   }
   function setEntry(fn) {
     var m = layer().map, e = m[S.key] || { t: "", c: 0 };
     fn(e);
     if (!e.t && !e.c) delete m[S.key]; else m[S.key] = e;
     save(); renderPad(); schedulePreview();
+    var t1 = document.querySelector(".keyhead .t1"); if (t1) t1.textContent = e.t || Shell.t("t.unassigned");
   }
-  $("pad").addEventListener("click", function (e) {
-    var b = e.target.closest(".key"); if (!b) return;
-    selectKey(b.getAttribute("data-k"));
-    // 1列表示では編集欄が図の下にあるので、そこまで送る
-    if (window.matchMedia("(max-width:760px)").matches) $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  $("ktext").addEventListener("input", function () { var v = this.value; setEntry(function (e) { e.t = v; }); });
-  $("colors").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-c]"); if (!b) return;
-    var c = +b.getAttribute("data-c"); setEntry(function (x) { x.c = c; }); renderEditor();
-  });
-  $("klegend").addEventListener("input", function () {
-    var v = this.value.trim(); if (v) D.device.legends[S.key] = v; else delete D.device.legends[S.key];
-    save(); renderPad(); schedulePreview();
-    $("kname").textContent = Shell.t("t.key") + " " + legendOf(layout().filter(function (x) { return x.id === S.key; })[0]);
-  });
-  $("capture").addEventListener("click", function () { S.capture = !S.capture; renderEditor(); });
+  function commitLayout() { normalize(); D.device.preset = "custom"; save(); renderPad(); renderInspector(); }
 
-  // 実機のキー: テンキーを押すと、そのキーを選ぶ（押したまま Shift 等があれば対応するレイヤーへ）
+  // ---- 本体: クリック・ドラッグ ----
+  var drag = null;
+  function cellAt(ev, sz) {
+    var pad = $("pad").getBoundingClientRect();
+    sz = sz || unitSize();
+    return { c: Math.floor((ev.clientX - pad.left + sz.g / 2) / (sz.u + sz.g)), r: Math.floor((ev.clientY - pad.top + sz.g / 2) / (sz.u + sz.g)) };
+  }
+  $("pad").addEventListener("pointerdown", function (ev) {
+    if (!S.edit) return;
+    var cap = ev.target.closest(".cap"); if (!cap) return;
+    var k = keyById(cap.getAttribute("data-k")), sz = unitSize(), at = cellAt(ev, sz);
+    if (k.id !== S.key) {
+      S.key = k.id; S.capture = false; renderPad(); renderInspector();
+      cap = document.querySelector('.cap[data-k="' + k.id + '"]');
+    }
+    // ドラッグ中はマスの寸法を固定する（キーが動くと列数が変わり、計算上の寸法も変わるため）
+    drag = { id: k.id, rs: !!ev.target.closest("[data-rs]"), dc: at.c - k.c, dr: at.r - k.r, moved: false, el: cap, sz: sz };
+    try { $("pad").setPointerCapture(ev.pointerId); } catch (err) {}
+    cap.classList.add("is-drag"); ev.preventDefault();
+  });
+  $("pad").addEventListener("pointermove", function (ev) {
+    if (!drag) return;
+    var k = keyById(drag.id), at = cellAt(ev, drag.sz), nc = k.c, nr = k.r, nw = k.w, nh = k.h;
+    if (drag.rs) { nw = Math.max(1, Math.min(4, at.c - k.c + 1)); nh = Math.max(1, Math.min(4, at.r - k.r + 1)); }
+    else { nc = at.c - drag.dc; nr = at.r - drag.dr; }
+    if (nc + nw > drag.sz.cols || nr + nh > drag.sz.rows) return;     // 表示中のマスの外には出さない
+    if ((nc !== k.c || nr !== k.r || nw !== k.w || nh !== k.h) && fits(k.id, nc, nr, nw, nh)) {
+      k.c = nc; k.r = nr; k.w = nw; k.h = nh; drag.moved = true;
+      drag.el.style.gridColumn = (nc + 1) + " / span " + nw; drag.el.style.gridRow = (nr + 1) + " / span " + nh;
+    }
+  });
+  function endDrag() {
+    if (!drag) return;
+    var moved = drag.moved; drag = null;
+    if (moved) commitLayout(); else renderPad();
+  }
+  $("pad").addEventListener("pointerup", endDrag);
+  $("pad").addEventListener("pointercancel", endDrag);
+  $("pad").addEventListener("click", function (ev) {
+    var slot = ev.target.closest(".slot");
+    if (slot) {
+      var p = slot.getAttribute("data-slot").split(",").map(Number), id = "K" + uid();
+      keys().push({ id: id, lg: "", code: "", c: p[0], r: p[1], w: 1, h: 1 });
+      S.key = id; S.capture = true; commitLayout();                  // 追加したら、そのまま実機のキーを待つ
+      return;
+    }
+    if (S.edit) return;
+    var cap = ev.target.closest(".cap"); if (!cap) return;
+    selectKey(cap.getAttribute("data-k"));
+    if (window.matchMedia("(max-width:760px)").matches) $("inspector").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // ---- 実機のキー ----
   document.addEventListener("keydown", function (e) {
     var t = e.target, tag = t && t.tagName;
     if (S.capture) {
       if (["Shift", "Control", "Alt", "Meta"].indexOf(e.key) >= 0) return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
-      if (e.code !== "Escape" || codeOf(S.key) === "Escape") { D.device.codes[S.key] = e.code; save(); }
-      S.capture = false; renderEditor(); return;
+      var k = keyById(S.key);
+      if (k) { k.code = e.code || e.key; if (!k.lg) k.lg = guessLegend(e); D.device.preset = "custom"; save(); }
+      S.capture = false; renderPad(); renderInspector(); return;
     }
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
-    var hit = layout().filter(function (k) { return codeOf(k.id) === e.code || (codeOf(k.id) === "NumpadEqual" && e.code === "Equal"); })[0];
+    if (S.edit && /^Arrow/.test(e.code) && keyById(S.key)) {       // 編集中: 矢印キーで移動
+      e.preventDefault(); moveKey(e.code === "ArrowLeft" ? "c-1" : e.code === "ArrowRight" ? "c+1" : e.code === "ArrowUp" ? "r-1" : "r+1"); return;
+    }
+    var hit = keys().filter(function (k) { return k.code && (k.code === e.code || (k.code === "NumpadEqual" && e.code === "Equal")); })[0];
     if (!hit) return;
     if (e.code === "Tab" && t !== document.body) return;            // フォーカス移動の Tab は奪わない
     e.preventDefault();
     var want = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : e.altKey ? "alt" : e.metaKey ? "meta" : "";
     var l = prof().layers.filter(function (x) { return x.mod === want; })[0];
-    if (l && l.id !== layer().id) { S.layer = l.id; renderLayers(); renderPad(); schedulePreview(); }
+    if (!S.edit && l && l.id !== layer().id) { S.layer = l.id; renderLayers(); renderPad(); }
     selectKey(hit.id, true);
   });
+  function guessLegend(e) {
+    var k = e.key || "";
+    var names = { Escape: "Esc", Backspace: "⌫", Enter: "Enter", Tab: "Tab", " ": "Space", Delete: "Del" };
+    if (names[k]) return names[k];
+    if (/^Numpad\d$/.test(e.code)) return e.code.slice(6);
+    return k.length <= 4 ? k.toUpperCase() : k.slice(0, 5);
+  }
+  function moveKey(m) {
+    var k = keyById(S.key); if (!k) return;
+    var ax = m.charAt(0), d = +m.slice(1);
+    var nc = k.c + (ax === "c" ? d : 0), nr = k.r + (ax === "r" ? d : 0);
+    if (fits(k.id, nc, nr, k.w, k.h)) { k.c = nc; k.r = nr; commitLayout(); }
+  }
 
-  $("prof").addEventListener("change", function () { D.active = this.value; S.layer = null; save(false); renderAll(); });
-  $("pname").addEventListener("input", function () {
-    prof().name = this.value; save();
-    var o = $("prof").querySelector('option[value="' + prof().id + '"]'); if (o) o.textContent = this.value || Shell.t("t.untitled");
-    schedulePreview();
-  });
-  $("p-add").addEventListener("click", function () {
-    var p = { id: uid(), name: Shell.t("t.newApp"), layers: [{ id: uid(), mod: "", name: "", map: {} }] };
-    D.profiles.push(p); D.active = p.id; S.layer = null; save(); renderAll();
-    $("pname").focus(); $("pname").select();
-  });
-  $("p-dup").addEventListener("click", function () {
-    var p = JSON.parse(JSON.stringify(prof())); p.id = uid(); p.name = p.name + Shell.t("t.copySuffix");
-    p.layers.forEach(function (l) { l.id = uid(); });
-    D.profiles.push(p); D.active = p.id; S.layer = null; save(); renderAll();
-  });
-  $("p-del").addEventListener("click", function () {
-    if (D.profiles.length < 2) return;
-    if (!confirm(Shell.t("t.confirmDel").replace("{n}", prof().name || Shell.t("t.untitled")))) return;
-    D.profiles = D.profiles.filter(function (p) { return p.id !== D.active; });
-    D.active = D.profiles[0].id; S.layer = null; save(); renderAll();
+  // ---- ソフト・レイヤー ----
+  $("apps").addEventListener("click", function (e) {
+    var b = e.target.closest(".app"); if (!b) return;
+    if (b.id === "app-add") {
+      var p = { id: uid(), name: Shell.t("t.newApp"), layers: [{ id: uid(), mod: "", name: "", map: {} }] };
+      D.profiles.push(p); D.active = p.id; S.layer = null; S.edit = false; save(); renderAll();
+      $("pname").focus(); $("pname").select(); return;
+    }
+    D.active = b.getAttribute("data-p"); S.layer = null; save(false); renderAll();
   });
   $("layers").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-l]"); if (!b) return;
+    S.layer = b.getAttribute("data-l"); renderLayers(); renderPad(); renderInspector();
+  });
+  $("layer-menu-btn").addEventListener("click", function (e) { e.stopPropagation(); S.menu = !S.menu; renderLayers(); });
+  document.addEventListener("click", function (e) { if (S.menu && !e.target.closest(".layerwrap")) { S.menu = false; renderLayers(); } });
+  $("layer-menu").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     var p = prof();
-    if (b.hasAttribute("data-l")) S.layer = b.getAttribute("data-l");
-    else if (b.hasAttribute("data-add")) {
-      var l = { id: uid(), mod: b.getAttribute("data-add"), name: "", map: {} };
-      var order = [""].concat(MODS);
+    if (b.hasAttribute("data-add")) {
+      var l = { id: uid(), mod: b.getAttribute("data-add"), name: "", map: {} }, order = [""].concat(MODS);
       p.layers.push(l); p.layers.sort(function (a, c) { return order.indexOf(a.mod) - order.indexOf(c.mod); });
       S.layer = l.id; save();
     } else if (b.hasAttribute("data-rm")) {
@@ -489,58 +690,90 @@
       if (Object.keys(cur.map).length && !confirm(Shell.t("t.confirmRmLayer").replace("{n}", layerName(cur)))) return;
       p.layers = p.layers.filter(function (x) { return x.id !== cur.id; }); S.layer = null; save();
     }
-    renderLayers(); renderPad(); renderEditor(); schedulePreview();
+    S.menu = false; renderLayers(); renderPad(); renderInspector();
   });
-  $("device").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-v]"); if (!b) return;
-    D.device.type = b.getAttribute("data-v"); save(); renderAll();
-  });
-  function pillGroup(id, key) {
-    $(id).addEventListener("click", function (e) {
-      var b = e.target.closest("[data-v]"); if (!b) return;
-      S[key] = b.getAttribute("data-v");
-      $(id).querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
-      try { localStorage.setItem(STORE + ".img", JSON.stringify({ img: S.img, bg: S.bg })); } catch (err) {}
+  $("edit").addEventListener("click", function () { S.edit = !S.edit; S.capture = false; S.menu = false; renderAll(); });
+
+  // ---- 右パネル（中身を描き直すので委譲で受ける） ----
+  var insp = $("inspector");
+  insp.addEventListener("input", function (e) {
+    var id = e.target.id, v = e.target.value;
+    if (id === "ktext") setEntry(function (x) { x.t = v; });
+    else if (id === "klegend") {
+      var k = keyById(S.key); k.lg = v.trim(); save(); renderPad();
+      document.querySelector(".keychip").textContent = k.lg || "?"; schedulePreview();
+    } else if (id === "pname") {
+      prof().name = v; save();
+      var chip = document.querySelector('.app[data-p="' + prof().id + '"]');
+      if (chip) { var a = avatar(prof()); chip.querySelector(".nm").textContent = v || Shell.t("t.untitled"); chip.querySelector(".av").textContent = a.ch; chip.querySelector(".av").style.background = a.col; }
       schedulePreview();
-    });
-  }
-  pillGroup("img-what", "img"); pillGroup("img-bg", "bg");
-  $("img-save").addEventListener("click", function () {
-    drawImage().toBlob(function (b) { download(b, fileBase() + ".png"); });
+    }
   });
-  $("img-copy").addEventListener("click", function () {
-    var msg = $("img-msg");
-    msg.textContent = "";
-    try {
-      // Safari は Promise を渡す形でないと、クリック直後の扱いにならない
-      var blob = new Promise(function (res) { drawImage().toBlob(res, "image/png"); });
-      navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(function () {
-        msg.textContent = ""; toastCopied();
-      }, function () { msg.textContent = Shell.t("t.copyFail"); });
-    } catch (err) { msg.textContent = Shell.t("t.copyFail"); }
+  insp.addEventListener("change", function (e) {
+    if (e.target.id === "preset" && e.target.value) {
+      var p = e.target.value;
+      if (!confirm(Shell.t("t.confirmPreset"))) { e.target.value = ""; return; }
+      D.device.keys = makeKeys(p); D.device.preset = p; S.key = "Numpad5"; save(); renderPad(); renderInspector();
+    }
+    if (e.target.id === "impfile") {
+      var f = e.target.files[0]; if (!f) return;
+      f.text().then(function (txt) {
+        var n = importData(JSON.parse(txt)); save(); renderAll();
+        $("bkmsg").className = "msg ok"; $("bkmsg").textContent = Shell.t("t.imported").replace("{n}", n);
+      }).catch(function () { $("bkmsg").className = "msg warn"; $("bkmsg").textContent = Shell.t("t.importFail"); });
+    }
   });
-  function toastCopied() {
-    // Shell.copy は文字列用なので、画像のときは同じ見た目のトースト（.tb-copied）を自前で出す
-    var t = document.querySelector(".tb-copied");
-    if (!t) { t = document.createElement("div"); t.className = "tb-copied"; document.body.appendChild(t); }
-    t.textContent = Shell.t("copied"); t.classList.add("show");
-    clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("show"); }, 1100);
-  }
-  $("exp").addEventListener("click", function () {
-    D.exported = Date.now(); save(false);
-    var out = { app: "vernier-keybind-notes", v: 1, device: D.device, profiles: D.profiles };
-    var d = new Date(), pad = function (n) { return ("0" + n).slice(-2); };
-    download(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }),
-      "numpad-notes-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json");
+  insp.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var sg = b.closest(".seg");
+    if (sg && b.hasAttribute("data-v")) {
+      var v = b.getAttribute("data-v");
+      if (sg.id === "shape") D.device.shape = v;
+      else if (sg.id === "dcolor") D.device.color = v;
+      else if (sg.id === "img-what") S.img = v;
+      else if (sg.id === "img-bg") S.bg = v;
+      if (sg.id === "shape" || sg.id === "dcolor") save(); else try { localStorage.setItem(STORE + ".img", JSON.stringify({ img: S.img, bg: S.bg })); } catch (err) {}
+      sg.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      renderPad(); schedulePreview(); return;
+    }
+    if (b.hasAttribute("data-c")) { var c = +b.getAttribute("data-c"); setEntry(function (x) { x.c = c; }); renderInspector(); return; }
+    if (b.hasAttribute("data-sz")) {
+      var k = keyById(S.key), m = b.getAttribute("data-sz"), nw = k.w + (m.charAt(0) === "w" ? +m.slice(1) : 0), nh = k.h + (m.charAt(0) === "h" ? +m.slice(1) : 0);
+      if (nw <= 4 && nh <= 4 && fits(k.id, k.c, k.r, nw, nh)) { k.w = nw; k.h = nh; commitLayout(); }
+      return;
+    }
+    if (b.hasAttribute("data-mv")) { moveKey(b.getAttribute("data-mv")); return; }
+    switch (b.id) {
+      case "capture": S.capture = !S.capture; renderInspector(); break;
+      case "kdel":
+        if (keys().length < 2) return;
+        D.device.keys = keys().filter(function (k) { return k.id !== S.key; }); S.key = keys()[0].id; commitLayout(); break;
+      case "p-dup":
+        var p = JSON.parse(JSON.stringify(prof())); p.id = uid(); p.name = p.name + Shell.t("t.copySuffix");
+        p.layers.forEach(function (l) { l.id = uid(); }); D.profiles.push(p); D.active = p.id; S.layer = null; save(); renderAll(); break;
+      case "p-del":
+        if (D.profiles.length < 2 || !confirm(Shell.t("t.confirmDel").replace("{n}", prof().name || Shell.t("t.untitled")))) return;
+        D.profiles = D.profiles.filter(function (q) { return q.id !== D.active; }); D.active = D.profiles[0].id; S.layer = null; save(); renderAll(); break;
+      case "img-save": drawImage().toBlob(function (bl) { download(bl, fileBase() + ".png"); }); break;
+      case "img-copy":
+        var msg = $("img-msg"); msg.textContent = "";
+        try {
+          // Safari は Promise を渡す形でないと、クリック直後の扱いにならない
+          var blob = new Promise(function (res) { drawImage().toBlob(res, "image/png"); });
+          navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(toastCopied, function () { msg.textContent = Shell.t("t.copyFail"); });
+        } catch (err) { msg.textContent = Shell.t("t.copyFail"); }
+        break;
+      case "exp":
+        D.exported = Date.now(); save(false);
+        var out = { app: "vernier-keybind-notes", v: 2, device: D.device, profiles: D.profiles };
+        var dt = new Date(), z = function (n) { return ("0" + n).slice(-2); };
+        download(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), "numpad-notes-" + dt.getFullYear() + z(dt.getMonth() + 1) + z(dt.getDate()) + ".json");
+        backupMsg(); break;
+      case "imp": $("impfile").value = ""; $("impfile").click(); break;
+    }
   });
-  $("imp").addEventListener("click", function () { $("impfile").click(); });
-  $("impfile").addEventListener("change", function () {
-    var f = this.files[0]; this.value = ""; if (!f) return;
-    f.text().then(function (txt) {
-      var n = importData(JSON.parse(txt)); save(); renderAll();
-      $("bkmsg").className = "ok"; $("bkmsg").textContent = Shell.t("t.imported").replace("{n}", n);
-    }).catch(function () { $("bkmsg").className = "warn"; $("bkmsg").textContent = Shell.t("t.importFail"); });
-  });
+  var rsTimer = 0;
+  window.addEventListener("resize", function () { clearTimeout(rsTimer); rsTimer = setTimeout(renderPad, 80); });
 
   Shell.init({
     id: "keybind-notes",
@@ -548,63 +781,68 @@
       en: {
         "t.title": "Numpad shortcut notes",
         "t.desc": "Using a numpad as a left-hand device? Note what each key does in each app, and save the layout as an image to paste into your notes.",
-        "t.app": "App", "t.appName": "App name", "t.pAdd": "New app", "t.pDup": "Duplicate", "t.pDel": "Delete",
-        "t.layers": "Layers (keys held together)", "t.base": "No modifier", "t.rmLayer": "Remove this layer",
-        "t.padHint": "Click a key — or press it on your numpad — to edit what it does. Holding Shift, Ctrl, Alt or Cmd jumps to that layer if you have added it.",
-        "t.key": "Key", "t.action": "What it does", "t.actionPh": "e.g. Play / Stop", "t.color": "Color", "t.noColor": "No color", "t.colorN": "Color {n}",
-        "t.legend": "Key legend (shared by every app)", "t.capture": "Detect the key by pressing it", "t.capturing": "Press the key on your numpad…",
-        "t.code": "Detected as: {c}",
-        "t.image": "Image", "t.imgWhat": "Include", "t.imgCur": "This layer", "t.imgAll": "All layers", "t.imgBg": "Background",
-        "t.light": "Light", "t.dark": "Dark", "t.imgCopy": "Copy image", "t.imgSave": "Save PNG",
-        "t.copyFail": "This browser could not copy the image. Use “Save PNG” instead.",
-        "t.backup": "Numpad & backup", "t.device": "Numpad", "t.dev17": "17 keys", "t.dev21": "21 keys (extra top row)",
-        "t.storeNote": "Notes are saved in this browser only. Clearing site data erases them, so export a backup now and then. Importing adds the apps in the file; it never deletes what you have.",
-        "t.export": "Export (JSON)", "t.import": "Import",
+        "t.pAdd": "Add app", "t.pDup": "Duplicate app", "t.pDel": "Delete app", "t.appName": "Name", "t.untitled": "Untitled", "t.newApp": "New app", "t.copySuffix": " (copy)",
+        "t.base": "No modifier", "t.layerMenu": "Layers", "t.addLayer": "Add {m} layer", "t.rmLayer": "Remove {m} layer",
+        "t.allLayers": "All layers added.",
+        "t.edit": "Edit layout", "t.done": "Done",
+        "t.hint": "Click a key — or press it on your numpad — to note what it does. Hold Shift, Ctrl, Alt or Cmd to jump to that layer.",
+        "t.hintEdit": "Drag keys to move them and the blue handle to resize. Click an empty slot to add a key.",
+        "t.gKey": "Key", "t.gKeyEdit": "Key layout", "t.gDevice": "Numpad", "t.gApp": "App", "t.gImage": "Image", "t.gBackup": "Backup",
+        "t.unassigned": "Not assigned", "t.keyN": "Key “{k}”", "t.detected": "Detected as {c}", "t.noCode": "No physical key registered",
+        "t.action": "What it does", "t.actionPh": "e.g. Play / Stop", "t.color": "Color", "t.noColor": "No color", "t.colorN": "Color {n}",
+        "t.legend": "Legend", "t.physKey": "Physical key", "t.capture": "Press to detect", "t.capturing": "Press the key…",
+        "t.width": "Width", "t.height": "Height", "t.move": "Move", "t.delKey": "Delete this key", "t.addHere": "Add a key here",
+        "t.preset": "Preset", "t.presetPick": "Replace with…", "t.pre17": "17 keys (standard)", "t.pre21": "21 keys (Esc, Tab, =, ⌫ on top)",
+        "t.pre22": "22 keys (Esc, Calc, Tab, = on top)", "t.confirmPreset": "Replace the current layout with this preset? Notes on keys that remain are kept.",
+        "t.shape": "Key shape", "t.square": "Rounded", "t.round": "Round", "t.body": "Body",
+        "t.editNote": "The layout is shared by every app. Browsers cannot see some keys (such as Calc, or keys the system takes first); you can still note them by clicking.",
+        "t.imgWhat": "Include", "t.imgCur": "This layer", "t.imgAll": "All", "t.imgBg": "Background", "t.light": "Light", "t.dark": "Dark",
+        "t.imgCopy": "Copy image", "t.imgSave": "Save PNG", "t.copyFail": "This browser could not copy the image. Use “Save PNG” instead.",
+        "t.storeNote": "Notes are saved in this browser only; clearing site data erases them. Export a backup now and then. Importing adds the apps in the file and never deletes yours.",
+        "t.export": "Export", "t.import": "Import",
         "t.never": "Not exported yet.", "t.lastExport": "Last exported {d}.", "t.changedSince": "Changed since then.",
         "t.imported": "Imported {n} app(s).", "t.importFail": "That file could not be read as numpad notes.",
-        "t.untitled": "Untitled", "t.newApp": "New app", "t.copySuffix": " (copy)",
         "t.confirmDel": "Delete “{n}”?", "t.confirmRmLayer": "Remove the {n} layer and its notes?",
         "t.sampleName": "DAW (example)", "t.s0": "Play", "t.s1": "Copy", "t.s2": "Paste", "t.s4": "Bounce"
       },
       ja: {
         "t.title": "テンキー割り当てメモ",
         "t.desc": "テンキーを左手デバイスとして使うときの、ソフトごとのキーの割り当てをメモ。画像にしてメモアプリに貼り付けられます。",
-        "t.app": "ソフト", "t.appName": "ソフト名", "t.pAdd": "ソフトを追加", "t.pDup": "複製", "t.pDel": "削除",
-        "t.layers": "レイヤー（同時に押すキー）", "t.base": "単体", "t.rmLayer": "このレイヤーを削除",
-        "t.padHint": "キーをクリックするか、実機のテンキーを押すと編集できます。Shift・Ctrl・Alt・Cmd を押しながらだと、追加済みのそのレイヤーに切り替わります。",
-        "t.key": "キー", "t.action": "機能", "t.actionPh": "例: 再生／停止", "t.color": "色", "t.noColor": "色なし", "t.colorN": "色 {n}",
-        "t.legend": "キーの刻印（全ソフト共通）", "t.capture": "実機のキーを押して登録", "t.capturing": "テンキーのキーを押してください…",
-        "t.code": "認識されるキー: {c}",
-        "t.image": "画像", "t.imgWhat": "内容", "t.imgCur": "このレイヤー", "t.imgAll": "すべてのレイヤー", "t.imgBg": "背景",
-        "t.light": "明るい", "t.dark": "暗い", "t.imgCopy": "画像をコピー", "t.imgSave": "PNG を保存",
-        "t.copyFail": "このブラウザでは画像をコピーできませんでした。「PNG を保存」を使ってください。",
-        "t.backup": "テンキーとバックアップ", "t.device": "テンキー", "t.dev17": "17キー", "t.dev21": "21キー（上段つき）",
-        "t.storeNote": "メモはこのブラウザの中にだけ保存されます。サイトのデータを消去すると消えるので、ときどき書き出してバックアップしてください。読み込むと、ファイル内のソフトが追加されます（今あるデータは消えません）。",
-        "t.export": "書き出し（JSON）", "t.import": "読み込み",
+        "t.pAdd": "ソフトを追加", "t.pDup": "このソフトを複製", "t.pDel": "このソフトを削除", "t.appName": "名前", "t.untitled": "名前なし", "t.newApp": "新しいソフト", "t.copySuffix": "のコピー",
+        "t.base": "単体", "t.layerMenu": "レイヤー", "t.addLayer": "{m} のレイヤーを追加", "t.rmLayer": "{m} のレイヤーを削除",
+        "t.allLayers": "すべてのレイヤーを追加済みです。",
+        "t.edit": "配列を編集", "t.done": "完了",
+        "t.hint": "キーをクリックするか、実機のテンキーを押すと、機能をメモできます。Shift・Ctrl・Alt・Cmd を押しながらだと、そのレイヤーに切り替わります。",
+        "t.hintEdit": "キーをドラッグで移動、青い丸をドラッグで大きさを変更できます。空いたマスをクリックするとキーを追加します。",
+        "t.gKey": "キー", "t.gKeyEdit": "キーの配置", "t.gDevice": "テンキー", "t.gApp": "ソフト", "t.gImage": "画像", "t.gBackup": "バックアップ",
+        "t.unassigned": "未設定", "t.keyN": "「{k}」キー", "t.detected": "認識されるキー: {c}", "t.noCode": "実機のキーは未登録",
+        "t.action": "機能", "t.actionPh": "例: 再生／停止", "t.color": "色", "t.noColor": "色なし", "t.colorN": "色 {n}",
+        "t.legend": "刻印", "t.physKey": "実機のキー", "t.capture": "押して登録", "t.capturing": "キーを押してください…",
+        "t.width": "幅", "t.height": "高さ", "t.move": "移動", "t.delKey": "このキーを削除", "t.addHere": "ここにキーを追加",
+        "t.preset": "プリセット", "t.presetPick": "選んで置き換え…", "t.pre17": "17キー（標準）", "t.pre21": "21キー（上段 Esc・Tab・=・⌫）",
+        "t.pre22": "22キー（上段 Esc・電卓・Tab・=）", "t.confirmPreset": "今の配列をこのプリセットに置き換えますか？ 残るキーのメモはそのまま使えます。",
+        "t.shape": "キーの形", "t.square": "角丸", "t.round": "丸", "t.body": "本体の色",
+        "t.editNote": "配列はすべてのソフトで共通です。電卓キーや OS が先に使うキーなど、ブラウザが受け取れないキーもあります。その場合もクリックすればメモできます。",
+        "t.imgWhat": "内容", "t.imgCur": "このレイヤー", "t.imgAll": "すべて", "t.imgBg": "背景", "t.light": "明るい", "t.dark": "暗い",
+        "t.imgCopy": "画像をコピー", "t.imgSave": "PNG を保存", "t.copyFail": "このブラウザでは画像をコピーできませんでした。「PNG を保存」を使ってください。",
+        "t.storeNote": "メモはこのブラウザの中にだけ保存され、サイトのデータを消去すると消えます。ときどき書き出してください。読み込みはソフトを追加するだけで、今のデータは消えません。",
+        "t.export": "書き出し", "t.import": "読み込み",
         "t.never": "まだ書き出していません。", "t.lastExport": "最後の書き出し: {d}", "t.changedSince": "（その後に変更あり）",
         "t.imported": "{n} 件のソフトを読み込みました。", "t.importFail": "このファイルはテンキー割り当てメモとして読み込めませんでした。",
-        "t.untitled": "名前なし", "t.newApp": "新しいソフト", "t.copySuffix": "のコピー",
         "t.confirmDel": "「{n}」を削除しますか？", "t.confirmRmLayer": "{n} のレイヤーと、その中のメモを削除しますか？",
         "t.sampleName": "DAW（例）", "t.s0": "再生", "t.s1": "コピー", "t.s2": "ペースト", "t.s4": "バウンス"
       }
     },
-    onSettingsChange: function () { if (D) { renderAll(); backupMsg(); } }
+    onSettingsChange: function () { if (D) renderAll(); }
   });
 
   // 初期化（サンプルの文言に Shell.t を使うため init の後）
-  D = load();
-  if (!D) { var p = sample(); D = { v: 1, device: { type: "17", legends: {}, codes: {} }, active: p.id, profiles: [p], exported: 0, changed: 0 }; save(false); }
-  try {
-    var im = JSON.parse(localStorage.getItem(STORE + ".img"));
-    if (im) { if (im.img === "all") S.img = "all"; if (im.bg === "dark") S.bg = "dark"; }
-  } catch (e) {}
-  ["img-what", "img-bg"].forEach(function (id) {
-    var v = id === "img-what" ? S.img : S.bg;
-    $(id).querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-v") === v ? "true" : "false"); });
-  });
+  try { D = migrate(JSON.parse(localStorage.getItem(STORE))); } catch (e) { D = null; }
+  if (!D) { var sp = sample(); D = { v: 2, device: { preset: "17", shape: "square", color: "dark", keys: makeKeys("17") }, active: sp.id, profiles: [sp], exported: 0, changed: 0 }; }
+  save(false);
+  try { var im = JSON.parse(localStorage.getItem(STORE + ".img")); if (im) { if (im.img === "all") S.img = "all"; if (im.bg === "dark") S.bg = "dark"; } } catch (e) {}
   document.querySelectorAll("[data-i18n-title]").forEach(function (el) { el.title = Shell.t(el.getAttribute("data-i18n-title")); el.setAttribute("aria-label", el.title); });
-  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) $("img-copy").hidden = true;
-  renderAll(); backupMsg();
+  renderAll();
 })();
 </script>
 </body>

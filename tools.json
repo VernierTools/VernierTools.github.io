@@ -1361,8 +1361,8 @@
         "ja": "テンキー割り当てメモ"
       },
       "description": {
-        "en": "Note what each numpad key does in each app when you use it as a left-hand device — with Shift/Ctrl layers, image export and JSON backup.",
-        "ja": "テンキーを左手デバイスにしたときの、ソフトごとのキー割り当てを図でメモ。Shift等のレイヤー、画像出力、JSONでバックアップ。"
+        "en": "Note what each numpad key does in each app when you use it as a left-hand device — editable key layout, Shift/Ctrl layers, image export and JSON backup.",
+        "ja": "テンキーを左手デバイスにしたときの、ソフトごとのキー割り当てを図でメモ。配列の編集、Shift等のレイヤー、画像出力、JSONでバックアップ。"
       },
       "keywords": [
         "numpad",
