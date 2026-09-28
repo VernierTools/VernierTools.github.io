@@ -290,6 +290,22 @@
     var r = phCards(430, [], 3);
     return { w: 375, h: r.y, html: s + r.html };
   }
+  // ---- 関連動画（スマホ）: 他の動画の再生画面の下に、自分の動画が全幅カードで並ぶ
+  function phRelated() {
+    var s = phChrome();
+    s += '<div class="th" style="' + box(0, 48, 375, 210.9, "background:" + ph(1) + ";") + '"></div>';
+    s += sk(16, 276, 300, 16) + sk(16, 306, 180, 11) + '<div class="av" style="' + box(16, 334.9, 32, 32, "background:" + col().sk + ";") + '"></div>' + sk(56, 334.9, 108, 32);
+    for (var i = 0; i < 4; i++) s += sk(16 + i * 88, 382, 80, 32);
+    var r = phCards(430, items(), 3);
+    return { w: 375, h: r.y, html: s + r.html };
+  }
+  // ---- 検索結果（スマホ）: 検索欄と絞り込みの下に、ホームと同じ全幅カード
+  function phSearch() {
+    var s = sk(12, 8, 24, 32) + '<div class="a" style="' + box(48, 6, 271, 36, "border-radius:18px;background:" + col().chip + ";") + '"></div>' + sk(327, 8, 32, 32);
+    for (var i = 0; i < 4; i++) s += sk(12 + i * 84, 54, 76, 32);
+    var r = phCards(98, items());
+    return { w: 375, h: r.y, html: s + r.html };
+  }
   // ---- ショートの棚（パソコン）: 217.6 幅、2:3 に切り抜き
   function pcShelf() {
     var c = col(), W = 1440, list = items(), s = pcChrome(W, 0, true) + sk(264, 80, 120, 22);
@@ -380,7 +396,7 @@
      描画
      ===================================================================== */
   var BUILD = {
-    video: { home: [pcHome, phHome], watch: [pcWatch, phWatch], search: [pcSearch, phHome], related: [pcRelated, phWatch] },
+    video: { home: [pcHome, phHome], watch: [pcWatch, phWatch], search: [pcSearch, phSearch], related: [pcRelated, phRelated] },
     shorts: { shelf: [pcShelf, phShelf], player: [pcShortsPlayer, phShortsPlayer] }
   };
   function render() {
@@ -506,7 +522,7 @@
         "t.s.home": "Home", "t.s.watch": "Watch page", "t.s.search": "Search", "t.s.related": "Related videos", "t.s.shelf": "Shorts shelf", "t.s.player": "Shorts player",
         "t.measured": "Sizes measured on the YouTube website on {d} at {w} px. YouTube changes its layout from time to time.",
         "t.phoneNote": "Phone: measured on the mobile website (m.youtube.com); the YouTube app is laid out a little differently.",
-        "t.phoneSame": "On a phone, search results and related videos use the same full-width cards as the home feed.",
+        "t.phoneSame": "On a phone, search results and related videos use the same full-width cards as the home feed; related videos appear below the video being played.",
         "t.cutTitle": "Where the title gets cut", "t.cHome": "Home", "t.cRelated": "Related videos", "t.cSearch": "Search", "t.cWatch": "Watch page",
         "t.cShelf": "Shorts shelf", "t.cPlayer": "Shorts player", "t.lines": "{n} line(s)", "t.fits": "Shown in full", "t.cutN": "Cut after {a} of {b} characters",
         "t.zTop": "Controls", "t.zRight": "Buttons", "t.zBottom": "Channel & title",
@@ -528,7 +544,7 @@
         "t.s.home": "ホーム", "t.s.watch": "再生画面", "t.s.search": "検索結果", "t.s.related": "関連動画", "t.s.shelf": "ショートの棚", "t.s.player": "ショートの再生画面",
         "t.measured": "寸法は {d} に YouTube のウェブサイトを {w} px の画面で測った値です。YouTube は表示をときどき変更します。",
         "t.phoneNote": "スマホはモバイル版サイト（m.youtube.com）で測定しています。YouTube アプリは配置が少し異なります。",
-        "t.phoneSame": "スマホでは、検索結果や関連動画もホームと同じ全幅のカードで表示されます。",
+        "t.phoneSame": "スマホでは、検索結果や関連動画もホームと同じ全幅のカードで表示されます。関連動画は、再生中の動画の下に並びます。",
         "t.cutTitle": "タイトルの切れ方", "t.cHome": "ホーム", "t.cRelated": "関連動画", "t.cSearch": "検索結果", "t.cWatch": "再生画面",
         "t.cShelf": "ショートの棚", "t.cPlayer": "ショートの再生画面", "t.lines": "{n} 行", "t.fits": "全文表示されます", "t.cutN": "{b} 文字中 {a} 文字まで表示",
         "t.zTop": "操作ボタン", "t.zRight": "ボタン", "t.zBottom": "チャンネル・タイトル",
