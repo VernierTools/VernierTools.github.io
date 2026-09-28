@@ -35,6 +35,11 @@
   /* ---- 波形と再生 ---- */
   .wave{ position:relative; height:120px; border-radius:var(--r); background:var(--surface-2); border:1px solid var(--border); overflow:hidden; cursor:pointer; touch-action:none; }
   .wave canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  .filebar{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); margin-bottom:var(--s2); }
+  .fname{ font-size:12.5px; color:var(--text-2); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .swapbtn{ height:30px; padding:0 10px; font-size:12.5px; gap:6px; flex:none; }
+  .swapbtn svg{ width:14px; height:14px; }
+  #audio-card.dragover .wave{ outline:2px dashed var(--accent); outline-offset:2px; }
   .wave .empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:var(--text-3); padding:0; }
   .transport{ display:flex; align-items:center; gap:var(--s3); margin-top:var(--s3); flex-wrap:wrap; }
   .playbtn{ width:44px; height:44px; border-radius:50%; border:0; background:var(--accent); color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
@@ -61,37 +66,43 @@
   <div class="work">
     <!-- 左: 読み込み・試聴 -->
     <div>
-      <div class="card">
-        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio file">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          <b data-i18n="t.dropb">Click to choose a file</b> <span data-i18n="t.dropor">or drag &amp; drop</span>
-          <small id="fileinfo" data-i18n="t.nofile">No file selected</small>
-        </div>
-        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
-        <div class="hint" data-i18n="t.local">Files never leave your browser.</div>
-        <div class="badge badge--neg err" id="err" hidden></div>
-      </div>
-
-      <div class="card">
+      <div class="card" id="audio-card">
         <div class="choicerow">
-          <span class="card__title" style="margin:0" data-i18n="t.listen">Listen</span>
+          <span class="card__title" style="margin:0" data-i18n="t.listen">Audio</span>
           <div class="seg" id="plen" role="group">
             <button type="button" data-v="30" aria-pressed="true" data-i18n="t.p30">30 s</button>
             <button type="button" data-v="all" aria-pressed="false" data-i18n="t.pall">Whole file</button>
           </div>
         </div>
-        <div class="wave" id="wave"><canvas id="wavec"></canvas><div class="empty" id="wave-empty" data-i18n="t.noAudio">Load a file to begin</div></div>
-        <div class="hint" id="wave-hint"></div>
-        <div class="transport">
-          <button type="button" class="playbtn" id="play" disabled aria-label="Play">
-            <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-          <span class="time" id="time">0:00</span>
-          <span class="busy" id="busy" hidden data-i18n="t.busy">Processing…</span>
-          <div class="seg ab" id="ab" role="group">
-            <button type="button" data-v="orig" aria-pressed="false" data-i18n="t.orig">Original</button>
-            <button type="button" data-v="proc" aria-pressed="true" data-i18n="t.proc">Degraded</button>
+        <!-- 読み込む前: ここをクリック／ドロップ -->
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <b data-i18n="t.dropb">Click to choose a file</b> <span data-i18n="t.dropor">or drag &amp; drop</span>
+          <small data-i18n="t.local">Files never leave your browser.</small>
+        </div>
+        <!-- 読み込んだ後: 同じ場所に波形と再生 -->
+        <div id="loaded" hidden>
+          <div class="filebar">
+            <span class="fname" id="fileinfo"></span>
+            <button type="button" class="btn btn--ghost swapbtn" id="replace">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+              <span data-i18n="t.replace">Other file</span></button>
+          </div>
+          <div class="wave" id="wave"><canvas id="wavec"></canvas></div>
+          <div class="hint" id="wave-hint"></div>
+          <div class="transport">
+            <button type="button" class="playbtn" id="play" aria-label="Play">
+              <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <span class="time" id="time">0:00</span>
+            <span class="busy" id="busy" hidden data-i18n="t.busy">Processing…</span>
+            <div class="seg ab" id="ab" role="group">
+              <button type="button" data-v="orig" aria-pressed="false" data-i18n="t.orig">Original</button>
+              <button type="button" data-v="proc" aria-pressed="true" data-i18n="t.proc">Degraded</button>
+            </div>
           </div>
         </div>
+        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
+        <div class="badge badge--neg err" id="err" hidden></div>
       </div>
 
       <div class="card">
@@ -244,7 +255,6 @@
   function loadFile(f) {
     if (!f) return;
     showErr("");
-    $("fileinfo").textContent = f.name;
     f.arrayBuffer().then(function (buf) {
       // ブラウザの decodeAudioData は、使う AudioContext のサンプリング周波数に変換してしまう。
       // ファイル本来の周波数を読み取り、その周波数の OfflineAudioContext で読み込む（分からない形式は 48 kHz）
@@ -254,7 +264,7 @@
       var ch = []; for (var c = 0; c < Math.min(2, ab.numberOfChannels); c++) ch.push(new Float32Array(ab.getChannelData(c)));
       setSource(ch, ab.sampleRate, f.name.replace(/\.[^.]+$/, ""));
       $("fileinfo").textContent = f.name + " · " + fmtTime(A.dur) + " · " + (ab.sampleRate / 1000) + " kHz · " + (ch.length === 1 ? "mono" : "stereo");
-    }).catch(function () { showErr(Shell.t("t.decodeErr")); $("fileinfo").textContent = Shell.t("t.nofile"); });
+    }).catch(function () { showErr(Shell.t("t.decodeErr")); });
   }
   function decode(ctx, buf) {
     return new Promise(function (res, rej) { var p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
@@ -299,15 +309,20 @@
   function setSource(ch, fs, name) {
     stop();
     A.src = ch; A.fs = fs; A.name = name; A.dur = ch[0].length / fs; A.start = 0; P.cue = null;
-    $("wave-empty").hidden = true; $("play").disabled = false; $("export").disabled = false;
+    $("drop").hidden = true; $("loaded").hidden = false; $("export").disabled = false;
     drawWave(); schedule();
   }
   $("drop").addEventListener("click", function () { $("file-input").click(); });
+  $("replace").addEventListener("click", function () { $("file-input").click(); });
   $("drop").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file-input").click(); } });
   $("file-input").addEventListener("change", function () { loadFile(this.files[0]); this.value = ""; });
-  ["dragenter", "dragover"].forEach(function (t) { $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.add("dragover"); }); });
-  ["dragleave", "drop"].forEach(function (t) { $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.remove("dragover"); }); });
-  $("drop").addEventListener("drop", function (e) { loadFile(e.dataTransfer.files[0]); });
+  // 読み込む前は点線の枠、読み込んだ後はカード全体（波形の上など）にドロップして差し替えられる
+  var card = $("audio-card"), dragDepth = 0;
+  function dragOn(on) { $("drop").classList.toggle("dragover", on); card.classList.toggle("dragover", on && !!A.src); }
+  card.addEventListener("dragenter", function (e) { e.preventDefault(); dragDepth++; dragOn(true); });
+  card.addEventListener("dragover", function (e) { e.preventDefault(); });
+  card.addEventListener("dragleave", function () { if (--dragDepth <= 0) { dragDepth = 0; dragOn(false); } });
+  card.addEventListener("drop", function (e) { e.preventDefault(); dragDepth = 0; dragOn(false); loadFile(e.dataTransfer.files[0]); });
 
   /* ---- 波形 ---- */
   function drawWave() {
@@ -500,7 +515,7 @@
         "t.desc": "Make audio sound like it came off a cassette, a record, a 78, a VHS tape, a phone line or AM radio — each built from how that medium actually degrades sound.",
         "t.dropb": "Click to choose a file", "t.dropor": "or drag & drop", "t.nofile": "No file selected", "t.local": "Files never leave your browser.",
         "t.decodeErr": "This file could not be read as audio by this browser.",
-        "t.listen": "Listen", "t.noAudio": "Load a file to begin",
+        "t.listen": "Audio", "t.replace": "Other file",
         "t.p30": "30 s", "t.pall": "Whole file",
         "t.waveHint30": "Click the waveform to choose the 30-second section you hear while adjusting. Export always processes the whole file.",
         "t.waveHintAll": "Click the waveform to play from there. Every change re-processes the whole file, so on long tracks the sound takes a few seconds to update.",
@@ -534,7 +549,7 @@
         "t.desc": "音声を、カセット・レコード・SP盤・VHS・電話・AMラジオを通したような音にします。それぞれの媒体で実際に劣化が起きる仕組みに沿って計算します。",
         "t.dropb": "クリックしてファイルを選択", "t.dropor": "またはドラッグ＆ドロップ", "t.nofile": "ファイル未選択", "t.local": "ファイルはブラウザの外に送られません。",
         "t.decodeErr": "このファイルは、このブラウザでは音声として読み込めませんでした。",
-        "t.listen": "試聴", "t.noAudio": "ファイルを読み込むと始められます",
+        "t.listen": "音声", "t.replace": "別のファイル",
         "t.p30": "30秒", "t.pall": "全体",
         "t.waveHint30": "波形をクリックすると、調整中に聴く30秒の区間を選べます。書き出しは常にファイル全体を処理します。",
         "t.waveHintAll": "波形をクリックすると、その位置から再生します。つまみを動かすたびにファイル全体を計算し直すため、長い曲では音が変わるまで数秒かかります。",
