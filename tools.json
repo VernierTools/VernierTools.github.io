@@ -802,8 +802,8 @@
         "ja": "レトロ・グラフィック変換"
       },
       "description": {
-        "en": "CRT, VHS, and 216-color retro conversion by real algorithms.",
-        "ja": "CRT/VHS/216色などレトロ変換を原理ベースで。"
+        "en": "Make video look like CRT, VHS, film, old black-and-white or early digicams.",
+        "ja": "映像をCRT・VHS・フィルム・昔のデジカメなどを通した見た目に。"
       },
       "keywords": [
         "crt",
@@ -812,9 +812,68 @@
         "dither",
         "websafe",
         "レトロ",
-        "減色"
+        "減色",
+        "film",
+        "grain",
+        "silent film",
+        "super 8",
+        "digicam",
+        "フィルム",
+        "無声映画",
+        "8ミリ",
+        "白黒",
+        "デジカメ"
       ],
       "added": "2026-07-11"
+    },
+    {
+      "id": "image-degrade",
+      "type": "web",
+      "path": "tools/image-degrade/",
+      "categories": [
+        "image"
+      ],
+      "sub": "edit",
+      "name": {
+        "en": "Image degradation simulator",
+        "ja": "画像劣化シミュレーター"
+      },
+      "description": {
+        "en": "Make a photo look like film, old black-and-white or an early digital camera.",
+        "ja": "写真をフィルム・昔の白黒・古いデジカメなどを通した画像に。"
+      },
+      "keywords": [
+        "film",
+        "grain",
+        "halation",
+        "black and white",
+        "sepia",
+        "tintype",
+        "wet plate",
+        "cyanotype",
+        "digital camera",
+        "digicam",
+        "jpeg",
+        "crt",
+        "vhs",
+        "retro",
+        "disposable",
+        "instant",
+        "フィルム",
+        "粒状",
+        "白黒",
+        "セピア",
+        "湿板",
+        "青写真",
+        "デジカメ",
+        "ガラケー",
+        "写ルンです",
+        "使い捨てカメラ",
+        "インスタント",
+        "レトロ",
+        "劣化"
+      ],
+      "added": "2026-09-29"
     },
     {
       "id": "texture-map-generator",

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image degradation simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .stage{ position:relative; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg);
+    overflow:hidden; display:flex; align-items:center; justify-content:center; min-height:200px; }
+  .stage canvas{ display:block; max-width:100%; max-height:72vh; width:auto; height:auto; image-rendering:auto; }
+  .stage.busy::after{ content:""; position:absolute; inset:0; background:rgba(0,0,0,.35); }
+  .stage__hint{ position:absolute; left:10px; top:10px; font-size:11.5px; color:#fff; background:rgba(0,0,0,.55);
+    border-radius:var(--r-sm); padding:2px 8px; pointer-events:none; }
+
+  .pgroup{ border-top:1px solid var(--border); margin-top:var(--s4); padding-top:var(--s4); }
+  .pgroup:first-of-type{ border-top:0; margin-top:0; padding-top:0; }
+  .pgroup__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .pgroup__head .eyebrow{ font-size:10.5px; }
+  .pgroup__head button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit;
+    font-size:11px; color:var(--text-3); padding:2px 6px; border-radius:var(--r-sm); }
+  .pgroup__head button:hover{ color:var(--text-2); background:var(--surface-2); }
+  .pgroup__body{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:0 var(--s6); }
+  .prow{ margin-bottom:var(--s3); }
+  .prow:last-child{ margin-bottom:0; }
+  .prow__top{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2); margin-bottom:5px; }
+  .prow__lbl{ font-size:12.5px; color:var(--text-2); }
+  .prow__val{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); white-space:nowrap; }
+  .prow__val b{ color:var(--accent); font-weight:500; }
+  .prow__note{ font-size:11px; color:var(--text-3); margin-top:4px; line-height:1.4; }
+
+  .drop{ padding:var(--s7) var(--s5); }
+  .filemeta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+  .sigrow{ display:grid; grid-template-columns:1.3fr 1fr; gap:var(--s5); align-items:start; margin-bottom:var(--s7); }
+  @media (max-width:760px){ .sigrow{ grid-template-columns:1fr; } }
+  .fig canvas{ display:block; width:100%; height:64px; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface); }
+  .fig figcaption{ font-size:11px; color:var(--text-3); margin-top:5px; }
+  .exnote{ font-size:11.5px; color:var(--text-3); margin-top:var(--s2); line-height:1.5; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Image degradation simulator</h1>
+    <p data-i18n="t.desc">Make a photo look as if it went through film, an old black-and-white plate, an early digital camera, a CRT, VHS or the early web — by modelling each medium, not by stacking filters.</p>
+  </div>
+
+  <div class="card" id="loadcard" style="margin-bottom:var(--s5)">
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+      <b data-i18n="t.droptitle">Drop an image here</b>
+      <small data-i18n="t.dropsub">JPEG, PNG, WebP, HEIC (Safari) — nothing leaves your device</small>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="badge badge--neg" id="loaderr" hidden style="margin-top:var(--s3)"></div>
+  </div>
+
+  <div class="card" id="viewcard" hidden style="padding:var(--s4);margin-bottom:var(--s5)">
+    <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
+    <div class="filemeta" id="filemeta"></div>
+    <div class="btnrow" style="margin-top:var(--s4)">
+      <button class="btn btn--secondary" id="bypass" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span data-i18n="t.bypass">Show original</span>
+      </button>
+      <button class="btn btn--secondary" id="reseed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+        <span data-i18n="t.reseed">New randomness</span>
+      </button>
+      <button class="btn btn--secondary" id="unload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <span data-i18n="t.unload">Another image</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s5)">
+    <div class="row2">
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="mode" data-i18n="t.mode">Medium</label>
+        <select class="select" id="mode"></select>
+        <div class="prow__note" id="modenote"></div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="preset" data-i18n="t.preset">Preset</label>
+        <select class="select" id="preset"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="exportcard" hidden style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.export">Export</div>
+    <div class="row2">
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="ex-size" data-i18n="t.exsize">Size</label>
+        <select class="select" id="ex-size">
+          <option value="orig" data-i18n="t.exsize.orig">Same as the original</option>
+          <option value="native" data-i18n="t.exsize.native">The medium's own pixels</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="ex-fmt" data-i18n="t.exfmt">Format</label>
+        <select class="select" id="ex-fmt">
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG (95)</option>
+        </select>
+      </div>
+    </div>
+    <div class="exnote" id="exnote"></div>
+    <div class="btnrow">
+      <button class="btn btn--primary btn--block" id="save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        <span data-i18n="t.save">Save image</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card" id="params" style="margin-bottom:var(--s5)"></div>
+
+  <div class="sigrow">
+    <div class="readout">
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.signal">Readout</span></div>
+      <div id="rrows"></div>
+      <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+    </div>
+    <figure class="fig" id="respfig">
+      <canvas id="resp" width="600" height="128"></canvas>
+      <figcaption data-i18n="t.respcap">Frequency response of the horizontal filter. Accent = luma, grey = chroma. 0–6 MHz.</figcaption>
+    </figure>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script src="../../shared/retro-engine.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   Image degradation simulator — Vernier
+   劣化の計算は shared/retro-engine.js（映像ツール retro-graphics と共通）。
+   プレビューは長辺 1600 px まで、書き出しは長辺 4096 px まで。
+   粒状はフィルムの大きさと画素の大きさから決まるので、プレビューと書き出しで見え方は揃う。
+   ========================================================================= */
+(function () {
+
+var E = window.RetroEngine;
+var PREVIEW_MAX = 1600, EXPORT_MAX = 4096;
+var mode = "film", V = E.defaults(), seed = 1, bypass = false;
+var $ = function(id){ return document.getElementById(id); };
+var cv = $("out"), eng = null, img = null, imgW = 0, imgH = 0, srcW = 0, srcH = 0, fileName = "image";
+function t(k){ return Shell.t(k); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+/* ---- 大きさ ---- */
+function fit(w, h, max){ var s = Math.min(1, max / Math.max(w, h)); return { w: Math.max(2, Math.round(w * s)), h: Math.max(2, Math.round(h * s)) }; }
+function native(){ return $("ex-size").value === "native" && (mode === "digicam" || mode === "net"); }
+
+/* ---- 描画 ---- */
+var pending = 0;
+function render(){   // スライダー操作で何度も呼ばれるので、まとめて 1 回だけ描く
+  if (!img) return;
+  clearTimeout(pending);
+  pending = setTimeout(function(){ draw(fit(imgW, imgH, PREVIEW_MAX)); }, 0);
+}
+function draw(sz){
+  var o = bypass ? sz : eng.outputSize(mode, V, sz.w, sz.h, { image:true, native:native() });
+  if (cv.width !== o.w || cv.height !== o.h){ cv.width = o.w; cv.height = o.h; }
+  eng.render(mode, V, { W:sz.w, H:sz.h, image:true, seed:seed, bypass:bypass });
+  $("hint").hidden = !bypass; $("hint").textContent = t("t.original");
+}
+
+/* ---- 読み込み ---- */
+async function load(file){
+  $("loaderr").hidden = true;
+  var bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch (e) {
+    try { bmp = await new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = URL.createObjectURL(file); }); }
+    catch (e2) { $("loaderr").hidden = false; $("loaderr").innerHTML = '<span class="d"></span>' + esc(t("t.loaderr")); return; }
+  }
+  srcW = bmp.width || bmp.naturalWidth; srcH = bmp.height || bmp.naturalHeight;
+  // GPU に載せるのは長辺 4096 まで（書き出しの上限と同じ）
+  var s = fit(srcW, srcH, Math.min(EXPORT_MAX, eng.webgl.getParameter(eng.webgl.MAX_TEXTURE_SIZE)));
+  // キャンバスに描いてから使う（縮小も兼ねる。ImageBitmap のままだと WebGL で上下反転の指定が効かない）
+  var c = document.createElement("canvas"); c.width = s.w; c.height = s.h;
+  var x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(bmp, 0, 0, s.w, s.h);
+  if (bmp.close) bmp.close();
+  bmp = c;
+  img = bmp; imgW = s.w; imgH = s.h; fileName = (file.name || "image").replace(/\.[^.]+$/, "");
+  eng.upload(img, imgW, imgH, true);
+  $("loadcard").hidden = true; $("viewcard").hidden = false; $("exportcard").hidden = false;
+  $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + srcW + "×" + srcH + '</span>' +
+    '<span class="badge badge--muted"><span class="d"></span>' + esc(file.name || "") + '</span>';
+  updateReadout(); updateExportNote(); render();
+}
+
+/* ---- 書き出し: 同じキャンバスを書き出しの大きさで描き直し、保存したらプレビューに戻す ---- */
+function save(){
+  if (!img) return;
+  var sz = { w: imgW, h: imgH };
+  $("stage").classList.add("busy");
+  setTimeout(function(){
+    try { draw(sz); } catch (e) { $("stage").classList.remove("busy"); return; }
+    var fmt = $("ex-fmt").value, mime = fmt === "png" ? "image/png" : "image/jpeg";
+    cv.toBlob(function(b){
+      var a = document.createElement("a"); a.href = URL.createObjectURL(b);
+      a.download = fileName + "-" + mode + (fmt === "png" ? ".png" : ".jpg"); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      $("stage").classList.remove("busy");
+      draw(fit(imgW, imgH, PREVIEW_MAX));
+    }, mime, 0.95);
+  }, 30);
+}
+function updateExportNote(){
+  if (!img) return;
+  var o = eng.outputSize(mode, V, imgW, imgH, { image:true, native:native() });
+  var msg = t("t.exout").replace("{w}", o.w).replace("{h}", o.h);
+  if (imgW !== srcW) msg += " " + t("t.exshrunk").replace("{m}", EXPORT_MAX);
+  if ($("ex-size").value === "native" && !(mode === "digicam" || mode === "net")) msg += " " + t("t.exnonative");
+  $("exnote").textContent = msg;
+}
+
+/* ---- UI ---- */
+function buildModes(){
+  $("mode").innerHTML = E.MODES.map(function(m){ return '<option value="' + m + '"' + (m === mode ? " selected" : "") + '>' + t("m." + m) + '</option>'; }).join("");
+}
+function buildPresets(){
+  var ps = E.PRESETS[mode];
+  $("preset").innerHTML = '<option value="">' + t("t.custom") + '</option>' +
+    Object.keys(ps).map(function(k){ return '<option value="' + k + '">' + t("ps." + mode + "." + k) + '</option>'; }).join("");
+}
+function buildParams(){
+  E.buildParams($("params"), mode, V, { video:false, t:t, onChange:function(){ $("preset").value = ""; updateReadout(); updateExportNote(); render(); } });
+}
+function updateReadout(){
+  var r = E.readout(mode, V, imgW || 1600, imgH || 1067);
+  $("rrows").innerHTML = r.rows.map(function(row){
+    return '<div class="rrow"><span class="rrow__label">' + t(row.k) + '</span><span class="rrow__value" data-copy="' + esc(row.v) + '">' + esc(row.v) + '</span></div>';
+  }).join("");
+  $("respfig").hidden = !r.fir;
+  if (r.fir) E.drawResponse($("resp"), r.fir, t);
+}
+function setMode(m, preset){
+  mode = m; $("modenote").textContent = t("note." + mode);
+  buildPresets();
+  if (preset && E.applyPreset(mode, preset, V)) $("preset").value = preset;
+  buildParams(); updateReadout(); updateExportNote(); render();
+}
+
+$("drop").addEventListener("click", function(){ $("file").click(); });
+$("file").addEventListener("change", function(e){ if (e.target.files[0]) load(e.target.files[0]); e.target.value = ""; });
+["dragenter","dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("dragover"); }); });
+["dragleave","drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); }); });
+$("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) load(f); });
+$("bypass").addEventListener("click", function(){ bypass = !bypass; $("bypass").setAttribute("aria-pressed", String(bypass)); render(); });
+$("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.random() * 9999); render(); });
+$("unload").addEventListener("click", function(){ img = null; $("viewcard").hidden = true; $("exportcard").hidden = true; $("loadcard").hidden = false; });
+$("save").addEventListener("click", save);
+$("ex-size").addEventListener("change", function(){ updateExportNote(); render(); });
+$("mode").addEventListener("change", function(){ var m = $("mode").value, first = Object.keys(E.PRESETS[m])[0]; setMode(m, first); });
+$("preset").addEventListener("change", function(){
+  var pv = $("preset").value;
+  if (E.applyPreset(mode, pv, V)){ buildParams(); $("preset").value = pv; updateReadout(); updateExportNote(); render(); }
+});
+
+/* ---- 文言 ---- */
+var EN = {
+  "t.title":"Image degradation simulator",
+  "t.desc":"Make a photo look as if it went through film, an old black-and-white plate, an early digital camera, a CRT, VHS or the early web — by modelling each medium, not by stacking filters.",
+  "t.droptitle":"Drop an image here","t.dropsub":"JPEG, PNG, WebP, HEIC (Safari) — nothing leaves your device",
+  "t.loaderr":"This image couldn't be opened in this browser.",
+  "t.bypass":"Show original","t.reseed":"New randomness","t.unload":"Another image","t.original":"Original",
+  "t.export":"Export","t.exsize":"Size","t.exsize.orig":"Same as the original","t.exsize.native":"The medium's own pixels (digital camera, early web)",
+  "t.exfmt":"Format","t.save":"Save image",
+  "t.exout":"Saved at {w}×{h} px.","t.exshrunk":"The original is larger than {m} px, so it's processed at {m} px on the long edge.",
+  "t.exnonative":"This medium has no fixed pixel count, so the original size is used.",
+  "t.signal":"Readout","t.copyhint":"Click any value to copy.",
+  "t.respcap":"Frequency response of the horizontal filter. Accent = luma, grey = chroma. 0–6 MHz.",
+  "t.nogl":"This tool needs WebGL2. Try a current version of Chrome, Edge, Firefox, or Safari."
+};
+var JA = {
+  "t.title":"画像劣化シミュレーター",
+  "t.desc":"写真を、フィルム・昔の白黒・初期のデジカメ・CRT・VHS・昔のネットを通したような画像にします。フィルタの重ねがけではなく、媒体の仕組みとして再現します。",
+  "t.droptitle":"画像をドロップ","t.dropsub":"JPEG / PNG / WebP / HEIC（Safari）— ファイルは端末外に出ません",
+  "t.loaderr":"このブラウザではこの画像を開けませんでした。",
+  "t.bypass":"元の画像を表示","t.reseed":"別の乱数にする","t.unload":"別の画像","t.original":"元の画像",
+  "t.export":"書き出し","t.exsize":"大きさ","t.exsize.orig":"元の画像と同じ","t.exsize.native":"媒体の実際の画素数（デジカメ・昔のネット）",
+  "t.exfmt":"形式","t.save":"画像を保存",
+  "t.exout":"{w}×{h} px で保存します。","t.exshrunk":"元の画像が {m} px より大きいので、長辺 {m} px で処理します。",
+  "t.exnonative":"この媒体には決まった画素数がないので、元の大きさで保存します。",
+  "t.signal":"読み取り値","t.copyhint":"数値をクリックでコピー。",
+  "t.respcap":"水平フィルタの周波数特性。アクセント色＝輝度、グレー＝色差。0〜6MHz。",
+  "t.nogl":"このツールはWebGL2が必要です。Chrome・Edge・Firefox・Safariの最新版でお試しください。"
+};
+function merge(a, b){ var o = {}, k; for (k in a) o[k] = a[k]; for (k in b) o[k] = b[k]; return o; }
+
+eng = E.create(cv);
+Shell.init({
+  id:"image-degrade",
+  strings:{ en:merge(E.STRINGS.en, EN), ja:merge(E.STRINGS.ja, JA) },
+  onSettingsChange: function(){
+    if (!eng) return;
+    buildModes(); $("modenote").textContent = t("note." + mode);
+    var pv = $("preset").value; buildPresets(); $("preset").value = pv;
+    buildParams(); updateReadout(); updateExportNote(); render();
+  }
+});
+if (!eng){
+  $("loadcard").innerHTML = '<div class="badge badge--neg"><span class="d"></span>' + t("t.nogl") + '</div>';
+} else {
+  setMode("film", "consumer");
+}
+})();
+</script>
+</body>
+</html>
