@@ -233,7 +233,7 @@ button{ font-family:inherit; }
   padding:var(--s7) var(--s5); text-align:center; color:var(--text-2); cursor:pointer;
   transition:border-color var(--tap), background var(--tap); }
 .drop:hover,.drop.dragover{ border-color:var(--accent); background:var(--accent-tint); }
-.drop svg{ width:26px; height:26px; color:var(--text-3); margin-bottom:var(--s2); }
+.drop svg{ display:block; width:26px; height:26px; color:var(--text-3); margin:0 auto var(--s2); }
 .drop b{ color:var(--text); font-weight:600; }
 .drop small{ display:block; margin-top:6px; color:var(--text-3); font-size:12px; }
 .preview{ border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
