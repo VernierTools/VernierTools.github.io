@@ -170,11 +170,19 @@
   var RE_SPACE   = /[\u0020\u3000\t\n\r]/;
   var RE_HIRA    = /[\u3040-\u309F]/;
   var RE_KATA    = /[\u30A0-\u30FF\uFF66-\uFF9F]/;
-  var RE_KANJI   = /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/;
+  var RE_KANJI   = /\p{Script=Han}/u;   // \u62E1\u5F35\u6F22\u5B57\uFF08\uD842\uDFB7 \u306A\u3069\uFF09\u3068\u300C\u3005\u300D\u3082\u6F22\u5B57\u306B\u542B\u3081\u308B
   var RE_ALNUM   = /[A-Za-z0-9\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/;
+  var RE_EMOJI   = /\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Regional_Indicator}|\u20E3/u;   // \u00A9\u30FB\u2122 \u306A\u3069\u6587\u5B57\u8868\u793A\u306E\u8A18\u53F7\u306F\u9664\u304F
 
-  function classify(ch, cp) {
-    if (cp > 0xFFFF) return "emoji";
+  // \u898B\u305F\u76EE\u306E1\u6587\u5B57\uFF08\u66F8\u8A18\u7D20\uFF09\u5358\u4F4D\u3067\u6570\u3048\u308B\u3002\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67 \u3084 \uD83C\uDDEF\uD83C\uDDF5 \u3084 \u2764\uFE0F \u30821\u6587\u5B57\u3002
+  var SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("ja", { granularity: "grapheme" }) : null;
+  function graphemes(text) {
+    if (!SEG) return Array.from(text);
+    var out = []; for (var it of SEG.segment(text)) out.push(it.segment); return out;
+  }
+
+  function classify(ch) {
+    if (RE_EMOJI.test(ch)) return "emoji";
     if (RE_SPACE.test(ch)) return "space";
     if (RE_HIRA.test(ch)) return "hiragana";
     if (RE_KATA.test(ch)) return "katakana";
@@ -184,12 +192,9 @@
   }
 
   function analyze(text) {
-    var cps = Array.from(text);
+    var cps = graphemes(text);
     var counts = { space: 0, hiragana: 0, katakana: 0, kanji: 0, alnum: 0, symbol: 0, emoji: 0 };
-    for (var i = 0; i < cps.length; i++) {
-      var ch = cps[i];
-      counts[classify(ch, ch.codePointAt(0))]++;
-    }
+    for (var i = 0; i < cps.length; i++) counts[classify(cps[i])]++;
     return { total: cps.length, counts: counts };
   }
 

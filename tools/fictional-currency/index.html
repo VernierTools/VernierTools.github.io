@@ -376,7 +376,7 @@
   });
 
   var loaded = load();
-  currencies = (loaded && loaded.length) ? loaded : defaultCurrencies();
+  currencies = loaded ? loaded : defaultCurrencies();   // 「すべて削除」した空の状態も、次回そのまま復元する
   refValue = currencies.length ? currencies[0].rate : 0;
   if (!loaded) save();
   render();

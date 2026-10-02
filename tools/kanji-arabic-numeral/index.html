@@ -273,9 +273,10 @@
     }
     return String(kanjiToNumber(tok));
   }
-  function numberToKanji(num) {
+  // 桁数の多い数でも精度が落ちないよう、数値ではなく数字列のまま4桁ずつ区切って扱う
+  function numberToKanji(digits) {
     var kd = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-    var bigUnits = ["", "万", "億", "兆"];
+    var bigUnits = ["", "万", "億", "兆", "京"];
     function fourDigit(n) {
       var s = "", th = Math.floor(n / 1000) % 10, hd = Math.floor(n / 100) % 10, te = Math.floor(n / 10) % 10, on = n % 10;
       if (th) s += (th === 1 ? "" : kd[th]) + "千";
@@ -284,9 +285,10 @@
       if (on) s += kd[on];
       return s;
     }
-    if (num === 0) return "〇";
-    var groups = [], n = num;
-    while (n > 0) { groups.push(n % 10000); n = Math.floor(n / 10000); }
+    digits = digits.replace(/^0+/, "");
+    if (digits === "") return "〇";
+    var groups = [];
+    for (var e = digits.length; e > 0; e -= 4) groups.push(parseInt(digits.slice(Math.max(0, e - 4), e), 10));
     var result = "";
     for (var i = groups.length - 1; i >= 0; i--) {
       if (groups[i] === 0) continue;
@@ -313,6 +315,7 @@
     var tokens = [], re = new RegExp(ARABIC_ANY_RE.source, "g"), m;
     while ((m = re.exec(v))) {
       var start = m.index, tok = m[0], end = start + tok.length;
+      if (normalizeDigits(tok).replace(/^0+/, "").length > 20) continue;   // 京（10^16）の位を超える数は漢数字にしない
       if (hasUnitAt(v, end)) { tokens.push({ start: start, end: end, text: tok }); continue; }
       var before = start > 0 ? v[start - 1] : "", after = end < v.length ? v[end] : "";
       if (CODE_ADJACENT_RE.test(before) || CODE_ADJACENT_RE.test(after)) continue;
@@ -324,7 +327,7 @@
     var tokens = findArabicNumberTokens(v);
     if (!tokens.length) return v;
     var result = "", last = 0;
-    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(parseInt(normalizeDigits(t.text), 10)); last = t.end; });
+    tokens.forEach(function (t) { result += v.slice(last, t.start) + numberToKanji(normalizeDigits(t.text)); last = t.end; });
     return result + v.slice(last);
   }
 

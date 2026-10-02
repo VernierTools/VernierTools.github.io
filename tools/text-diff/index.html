@@ -173,7 +173,7 @@
   }
   function countType(list, type) {
     var n = 0;
-    for (var i = 0; i < list.length; i++) if (list[i].type === type) n += list[i].text.length;
+    for (var i = 0; i < list.length; i++) if (list[i].type === type) n += Array.from(list[i].text).length;
     return n;
   }
 
@@ -202,8 +202,8 @@
       rightHtml = segs.right.map(renderSeg).join("");
       del = countType(segs.left, "del"); ins = countType(segs.right, "ins");
     }
-    hlA.innerHTML = leftHtml;
-    hlB.innerHTML = rightHtml;
+    hlA.innerHTML = leftHtml + " ";   // 末尾が改行のとき最後の空行の高さを確保して、入力欄とスクロール位置をそろえる
+    hlB.innerHTML = rightHtml + " ";
     hlA.scrollTop = taA.scrollTop; hlA.scrollLeft = taA.scrollLeft;
     hlB.scrollTop = taB.scrollTop; hlB.scrollLeft = taB.scrollLeft;
     setStats(del, ins, result.fallback);
@@ -215,7 +215,7 @@
   // a little behind, but the raw text itself never should, so every input event mirrors the
   // plain text immediately; the debounced pass only adds the diff highlighting on top.
   var composing = { a: false, b: false }, timer = null;
-  function quickMirror(ta, hl) { hl.textContent = ta.value; }
+  function quickMirror(ta, hl) { hl.textContent = ta.value + " "; }
   function schedule() { clearTimeout(timer); timer = setTimeout(computeAndRender, 220); }
 
   function wire(ta, hl, key) {

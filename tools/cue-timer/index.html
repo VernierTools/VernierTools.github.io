@@ -903,19 +903,33 @@
     if (natural) { startAlertLoop(); sendNotification(tr("t.notifynext", "The next cue has started.")); }
     return true;
   }
-  function tick() {
-    if (!running) return;
+  // 経過時間から現在のキューを進め、表示を更新する。進行が続くなら true。
+  function step() {
+    if (!running) return false;
     var now = performance.now();
     var remaining = segDurationMs - (now - segStartPerf);
     var guard = 0;
     while (remaining <= 0 && guard < 500) {
-      if (!advanceCore(-remaining, true)) return;
+      if (!advanceCore(-remaining, true)) return false;
       remaining = segDurationMs - (performance.now() - segStartPerf);
       guard++;
     }
     updateLiveUI(remaining);
-    rafId = requestAnimationFrame(tick);
+    return true;
   }
+  function tick() {
+    if (step()) rafId = requestAnimationFrame(tick);
+  }
+  // 別のタブを見ている間は requestAnimationFrame が止まるので、次の切り替わり時刻に
+  // 合わせたタイマーで進める（アラームと通知を、タブが裏にあっても時間どおりに鳴らすため）。
+  var bgTimer = null;
+  function armBackground() {
+    clearTimeout(bgTimer); bgTimer = null;
+    if (!running || !document.hidden) return;
+    var remaining = segDurationMs - (performance.now() - segStartPerf);
+    bgTimer = setTimeout(function () { if (step()) armBackground(); }, Math.max(20, remaining + 15));
+  }
+  document.addEventListener("visibilitychange", armBackground);
 
   function start() {
     if (running) return;
@@ -948,6 +962,7 @@
     requestWakeLock();
     renderQueue();
     rafId = requestAnimationFrame(tick);
+    armBackground();
   }
   function pauseTimer() {
     if (!running) return;

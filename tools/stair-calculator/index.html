@@ -322,6 +322,7 @@
       var b = bounds(el);
       var dflt = parseFloat(el.defaultValue);
       var v = clamp(num(el, dflt), b[0], b[1]);
+      if (el === inSteps) v = clamp(Math.round(v), b[0], b[1]);   // 段数は整数
       el.value = v; // 表示値と計算に使う値を必ず一致させる
       render();
     });

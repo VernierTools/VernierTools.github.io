@@ -187,9 +187,10 @@
     var C = coverMm();
     var A = Math.max(0, parseFloat(inAllowance.value) || 0);
 
-    var divisor = binding === "saddle" ? 4 : 2;
-    var textBlock = P * pages / divisor;
-    var spine = textBlock + C + A;
+    // 紙1枚＝2ページ。中綴じでも 4ページ分の1枚を二つ折りにするので、折り目の厚みは同じく ページ数÷2 枚ぶん。
+    var textBlock = P * pages / 2;
+    // 表紙は表側と裏側の2枚ぶんが背の両端に重なる
+    var spine = textBlock + C * 2 + A;
 
     setValue(outSpine, spine);
     setValue(outTextblock, textBlock);

@@ -303,18 +303,18 @@
       state.active = true; state.paused = false; syncCamUI();
     } catch (err) { showError(err); state.active = false; state.paused = false; syncCamUI(); }
   }
-  function stopCamera() {
+  function stopCamera(keepFs) {
     if (state.stream) { state.stream.getTracks().forEach(function (t) { t.stop(); }); state.stream = null; }
     video.srcObject = null; state.active = false; state.paused = false; syncCamUI();
-    if (isFs()) exitFs();
+    if (keepFs !== true && isFs()) exitFs();
   }
   btnCam.addEventListener("click", function () { state.active ? stopCamera() : startCamera(); });
   btnSwitch.addEventListener("click", function () {
     if (!state.active) return;
     state.facing = state.facing === "environment" ? "user" : "environment";
-    stopCamera(); startCamera();
+    stopCamera(true); startCamera();   // 全画面のままカメラだけ切り替える
   });
-  window.addEventListener("pagehide", stopCamera);
+  window.addEventListener("pagehide", function () { stopCamera(); });
 
   /* ---- フルスクリーン ----
      まずブラウザ純正のFullscreen APIを使う（対応ブラウザではこれが一番安定）。
