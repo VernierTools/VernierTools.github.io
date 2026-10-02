@@ -345,6 +345,7 @@
     },
     {
       "id": "static-keyframe-cleaner",
+      "hidden": true,
       "type": "blender",
       "platform": "Blender",
       "path": "tools/static-keyframe-cleaner/",

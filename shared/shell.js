@@ -459,7 +459,11 @@
     if (_toolsCache){ cb(_toolsCache); return; }
     fetch(ROOT + "tools.json", { cache:"no-cache" })
       .then(function(r){ return r.json(); })
-      .then(function(data){ _toolsCache = (data && data.tools) || []; cb(_toolsCache); })
+      .then(function(data){
+        // "hidden": true のエントリ（ページ未作成など）はホーム・カテゴリに出さない
+        _toolsCache = ((data && data.tools) || []).filter(function(x){ return !x.hidden; });
+        cb(_toolsCache);
+      })
       .catch(function(){
         var m = document.querySelector("[data-tools-home],[data-tools-category]");
         if (m) m.insertAdjacentHTML("beforeend",

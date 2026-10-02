@@ -185,19 +185,20 @@
 
   var state = { angle: 0, sizePct: 60, stream: null, facing: "environment", active: false, paused: false, dragging: false };
 
-  /* ---- 幾何: 分度器の描画 ---- */
+  /* ---- 幾何: 分度器の描画 ----
+     一般的な分度器と同じく反時計回り（0°が右、90°が上）。SVG は y が下向きなので sin の符号を反転する。 */
   function buildTicks(R) {
     var s = "";
     for (var d = 0; d < 360; d += 5) {
       var major = d % 30 === 0;
       var rad = d * Math.PI / 180;
-      var ox = 50 + R * Math.cos(rad), oy = 50 + R * Math.sin(rad);
+      var ox = 50 + R * Math.cos(rad), oy = 50 - R * Math.sin(rad);
       var innerLen = major ? 4.2 : 2.2;
-      var ix = 50 + (R - innerLen) * Math.cos(rad), iy = 50 + (R - innerLen) * Math.sin(rad);
+      var ix = 50 + (R - innerLen) * Math.cos(rad), iy = 50 - (R - innerLen) * Math.sin(rad);
       s += '<line x1="' + ix + '" y1="' + iy + '" x2="' + ox + '" y2="' + oy +
         '" stroke="var(--text-3)" stroke-width="' + (major ? 0.6 : 0.35) + '" stroke-opacity="' + (major ? 0.85 : 0.5) + '"></line>';
       if (major) {
-        var lr = R + 6.5, lx = 50 + lr * Math.cos(rad), ly = 50 + lr * Math.sin(rad);
+        var lr = R + 6.5, lx = 50 + lr * Math.cos(rad), ly = 50 - lr * Math.sin(rad);
         s += '<text x="' + lx + '" y="' + ly + '" font-size="4.2" text-anchor="middle" dominant-baseline="middle" fill="var(--text-3)" font-family="var(--font-mono)">' + d + '</text>';
       }
     }
@@ -215,7 +216,7 @@
     a = ((a % 360) + 360) % 360;
     state.angle = a;
     armG.style.transformOrigin = "50px 50px";
-    armG.style.transform = "rotate(" + a + "deg)";
+    armG.style.transform = "rotate(" + (-a) + "deg)";   // CSS の回転は時計回りが正
     var rounded = Math.round(a);
     angleSlider.value = rounded;
     angleVal.textContent = rounded + "°";
@@ -227,7 +228,7 @@
   function angleFromEvent(e) {
     var r = ov.getBoundingClientRect();
     var rx = (e.clientX - r.left) / r.width * 100, ry = (e.clientY - r.top) / r.height * 100;
-    return Math.atan2(ry - 50, rx - 50) * 180 / Math.PI;
+    return Math.atan2(50 - ry, rx - 50) * 180 / Math.PI;
   }
   function onDown(e) {
     e.preventDefault(); state.dragging = true; setAngle(angleFromEvent(e));
