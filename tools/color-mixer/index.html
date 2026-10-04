@@ -151,6 +151,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="spectral.js"></script>
 <script>
 "use strict";
 (function () {
@@ -174,7 +175,7 @@
     "t.color":"Color", "t.removecolor":"Remove color", "t.needmin":"At least 2 colors are needed",
     "t.maxcolors":"Up to 6 colors", "t.weight":"weight",
     "t.hintadd":"Calculates the color when light sources overlap, as a weighted average in linear light space.",
-    "t.hintsub":"Approximates the color when paints or pigments are mixed, as a weighted average in CMY."
+    "t.hintsub":"Simulates mixing paints: estimates each color's reflectance spectrum and mixes it with Kubelka-Munk theory."
   };
   function t(key) {
     if (typeof Shell !== "undefined" && Shell) return Shell.t(key);
@@ -237,11 +238,11 @@
       });
       return { r: clamp255(linearToSrgb(rl)), g: clamp255(linearToSrgb(gl)), b: clamp255(linearToSrgb(bl)) };
     }
-    var c1 = 0, m1 = 0, y1 = 0;
-    rgbs.forEach(function (col, i) {
-      c1 += (1 - col.r / 255) * ws[i]; m1 += (1 - col.g / 255) * ws[i]; y1 += (1 - col.b / 255) * ws[i];
-    });
-    return { r: clamp255((1 - c1) * 255), g: clamp255((1 - m1) * 255), b: clamp255((1 - y1) * 255) };
+    // 絵の具: 各色から分光反射率を推定し、Kubelka-Munk 理論で混ぜる（spectral.js / MIT）。
+    // spectral.mix は係数を2乗して濃度にするので、比率どおりの量になるよう平方根を渡す。
+    var parts = [];
+    state.colors.forEach(function (c, i) { if (ws[i] > 0) parts.push([new spectral.Color(c.hex), Math.sqrt(ws[i])]); });
+    return hexToRgb(spectral.mix.apply(null, parts).toString());
   }
 
   // ---- 出力・比率バー・％表示の更新（行のDOMは作り直さない = スライダー操作中も安定） ----
@@ -399,7 +400,7 @@
           "t.subtractive": "Subtractive (paint)",
           "t.subtractivedesc": "Mixing paints or pigments",
           "t.hintadd": "Calculates the color when light sources overlap, as a weighted average in linear light space. E.g. red light + green light \u2192 yellowish light.",
-          "t.hintsub": "Approximates the color when paints or pigments are mixed, as a weighted average in CMY. Real pigments vary, so treat this as a rough guide.",
+          "t.hintsub": "Simulates mixing paints: estimates each color's reflectance spectrum and mixes it with Kubelka-Munk theory (spectral.js). E.g. yellow + blue \u2192 green. Real pigments vary, so treat this as a guide.",
           "t.colors": "Colors & ratio",
           "t.color": "Color",
           "t.weight": "weight",
@@ -424,7 +425,7 @@
           "t.subtractive": "減法混色（絵の具）",
           "t.subtractivedesc": "絵の具・顔料を混ぜる",
           "t.hintadd": "複数の光を重ねたときの色を、線形光空間での加重平均として計算します。例：赤い光＋緑の光→黄色っぽい光。",
-          "t.hintsub": "絵の具や顔料を混ぜたときの色を、CMYでの加重平均として簡易的に近似します。実際の顔料特性により結果は変わるため、目安としてご利用ください。",
+          "t.hintsub": "絵の具を混ぜたときの色を再現します。各色の分光反射率を推定し、Kubelka-Munk理論で混ぜています（spectral.js）。例：黄＋青→緑。実際の顔料によって結果は変わるため、目安としてご利用ください。",
           "t.colors": "色と比率",
           "t.color": "色",
           "t.weight": "重み",
