@@ -223,7 +223,7 @@
     var validLevel = Number.isFinite(L0);
     var validRef = Number.isFinite(r0) && r0 > 0;
     var validDistance = Number.isFinite(r) && r > 0;
-    var validTemp = Number.isFinite(T);
+    var validTemp = Number.isFinite(T) && T > -273.15 && 331.3 + 0.606 * T > 0;   // 絶対零度未満・音速が0以下になる値は無効
 
     invalidate(level, !validLevel);
     invalidate(ref, !validRef);

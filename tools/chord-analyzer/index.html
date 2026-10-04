@@ -186,7 +186,7 @@
     { ivs:[0,4,8,10],       suf:"aug7",   pri:4, q:"aug" },
     { ivs:[0,4,8,11],       suf:"augMaj7",pri:4, q:"aug" },
     { ivs:[0,4,7,9],        suf:"6",      pri:2, q:"major" },
-    { ivs:[0,3,7,9],        suf:"m6",     pri:2, q:"minor",   minorPrefixed:true },
+    { ivs:[0,3,7,9],        suf:"m6",     pri:3, q:"minor",   minorPrefixed:true },
     { ivs:[0,5,7,10],       suf:"7sus4",  pri:3, q:"major" },
     { ivs:[0,2,4,7],        suf:"add9",   pri:3, q:"major" },
     { ivs:[0,2,3,7],        suf:"madd9",  pri:4, q:"minor",   minorPrefixed:true },
@@ -237,7 +237,7 @@
       var idx = diat.indexOf(off);
       m.diatonic = idx >= 0;
       m.degree = idx >= 0 ? idx + 1 : null;
-      m.score = m.def.pri + (m.diatonic ? 0 : 3);
+      m.score = m.def.pri + (m.diatonic ? 0 : 3) - (bassPc !== null && m.root === bassPc ? 4 : 0);   // 最低音が根音になる解釈を優先（C E G A + 低音A → Am7）
       m.name = noteName(m.root) + styleSuffix(m.def);
     });
     matches.sort(function (a, b) { return a.score - b.score; });
@@ -250,7 +250,13 @@
     var lo = (m.def.q === "minor" || m.def.q === "dim" || m.def.q === "halfdim");
     var base = lo ? ROMAN_LO[m.degree - 1] : ROMAN_UP[m.degree - 1];
     var sym = m.def.q === "dim" ? "°" : m.def.q === "halfdim" ? "ø" : m.def.q === "aug" ? "+" : "";
-    return base + sym;
+    // 7th・6th を付ける（G7 → V7、Cmaj7 → Imaj7、Bm7♭5 → viiø7、Bdim7 → vii°7）
+    var iv = m.def.ivs, fig = "";
+    if (iv.indexOf(10) >= 0) fig = "7";
+    else if (iv.indexOf(11) >= 0) fig = "maj7";
+    else if (m.def.suf === "dim7") fig = "7";
+    else if (iv.indexOf(9) >= 0) fig = "6";
+    return base + sym + fig;
   }
 
   function bassDescription(primary) {

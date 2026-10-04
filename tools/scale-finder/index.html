@@ -127,6 +127,14 @@
 "use strict";
 (function () {
   var NOTE_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  var NOTE_FLAT  = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  // 調号に合わせた表記: そのスケールの「親の長調」が F・B♭・E♭・A♭・D♭ ならフラット、それ以外はシャープ
+  // （例: B♭メジャー、Dナチュラルマイナー、Cドリアン＝親がB♭）。全音・ディミニッシュは親を持たないのでシャープ。
+  var FLAT_PARENTS = { 5: 1, 10: 1, 3: 1, 8: 1, 1: 1 };
+  function namesFor(root, sc) {
+    if (sc.parent == null) return NOTE_NAMES;
+    return FLAT_PARENTS[(root + sc.parent) % 12] ? NOTE_FLAT : NOTE_NAMES;
+  }
 
   // white keys: pc + x offset. black keys: pc + x offset (centered on the boundary).
   var WHITE = [ {pc:0,x:0}, {pc:2,x:70}, {pc:4,x:140}, {pc:5,x:210}, {pc:7,x:280}, {pc:9,x:350}, {pc:11,x:420} ];
@@ -135,26 +143,26 @@
 
   // 常時表示: 長調 + 基本の短調3種（自然的・和声的・旋律的）
   var BASE_SCALES = [
-    { id:"major",            key:"t.scale.major",            intervals:[0,2,4,5,7,9,11] },
-    { id:"natural_minor",    key:"t.scale.natural_minor",     intervals:[0,2,3,5,7,8,10] },
-    { id:"harmonic_minor",   key:"t.scale.harmonic_minor",    intervals:[0,2,3,5,7,8,11] },
-    { id:"melodic_minor",    key:"t.scale.melodic_minor",     intervals:[0,2,3,5,7,9,11] }
+    { id:"major", parent:0,            key:"t.scale.major",            intervals:[0,2,4,5,7,9,11] },
+    { id:"natural_minor", parent:3,    key:"t.scale.natural_minor",     intervals:[0,2,3,5,7,8,10] },
+    { id:"harmonic_minor", parent:3,   key:"t.scale.harmonic_minor",    intervals:[0,2,3,5,7,8,11] },
+    { id:"melodic_minor", parent:3,    key:"t.scale.melodic_minor",     intervals:[0,2,3,5,7,9,11] }
   ];
   // トグルで追加表示: ペンタトニック・ブルース・全音・ディミニッシュ
   var EXTRA_SCALES = [
-    { id:"major_pentatonic", key:"t.scale.major_pentatonic",  intervals:[0,2,4,7,9] },
-    { id:"minor_pentatonic", key:"t.scale.minor_pentatonic",  intervals:[0,3,5,7,10] },
-    { id:"blues",            key:"t.scale.blues",             intervals:[0,3,5,6,7,10] },
+    { id:"major_pentatonic", parent:0, key:"t.scale.major_pentatonic",  intervals:[0,2,4,7,9] },
+    { id:"minor_pentatonic", parent:3, key:"t.scale.minor_pentatonic",  intervals:[0,3,5,7,10] },
+    { id:"blues", parent:3,            key:"t.scale.blues",             intervals:[0,3,5,6,7,10] },
     { id:"whole_tone",       key:"t.scale.whole_tone",        intervals:[0,2,4,6,8,10] },
     { id:"dim_wh",           key:"t.scale.dim_wh",            intervals:[0,2,3,5,6,8,9,11] },
     { id:"dim_hw",           key:"t.scale.dim_hw",            intervals:[0,1,3,4,6,7,9,10] }
   ];
   var CHURCH_SCALES = [
-    { id:"dorian",     key:"t.scale.dorian",     intervals:[0,2,3,5,7,9,10] },
-    { id:"phrygian",   key:"t.scale.phrygian",   intervals:[0,1,3,5,7,8,10] },
-    { id:"lydian",     key:"t.scale.lydian",     intervals:[0,2,4,6,7,9,11] },
-    { id:"mixolydian", key:"t.scale.mixolydian", intervals:[0,2,4,5,7,9,10] },
-    { id:"locrian",    key:"t.scale.locrian",    intervals:[0,1,3,5,6,8,10] }
+    { id:"dorian", parent:10,     key:"t.scale.dorian",     intervals:[0,2,3,5,7,9,10] },
+    { id:"phrygian", parent:8,   key:"t.scale.phrygian",   intervals:[0,1,3,5,7,8,10] },
+    { id:"lydian", parent:7,     key:"t.scale.lydian",     intervals:[0,2,4,6,7,9,11] },
+    { id:"mixolydian", parent:5, key:"t.scale.mixolydian", intervals:[0,2,4,5,7,9,10] },
+    { id:"locrian", parent:1,    key:"t.scale.locrian",    intervals:[0,1,3,5,6,8,10] }
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -229,6 +237,9 @@
     out.sort(function (a, b) {
       if (a.extra !== b.extra) return a.extra - b.extra;
       if (a.notes.length !== b.notes.length) return a.notes.length - b.notes.length;
+      // 同じ音の組み合わせなら、長調・短調など一般的なスケールを先に（教会旋法は後ろ）
+      var ra = scales.indexOf(a.scale), rb = scales.indexOf(b.scale);
+      if (ra !== rb) return ra - rb;
       if (a.root !== b.root) return a.root - b.root;
       return Shell.t(a.scale.key).localeCompare(Shell.t(b.scale.key));
     });
@@ -251,11 +262,14 @@
     matchCount.textContent = results.length;
     var shown = results.slice(0, MAX_ROWS);
     var html = shown.map(function (m, i) {
-      var noteTxt = m.notes.map(function (n) {
+      var NN = namesFor(m.root, m.scale);
+      // 根音から順に並べる（C から並べると B♭ メジャーが C D E♭ F G A B♭ になって読みにくい）
+      var ordered = m.scale.intervals.map(function (iv) { return (m.root + iv) % 12; });
+      var noteTxt = ordered.map(function (n) {
         var isSel = sel.indexOf(n) >= 0;
-        return isSel ? NOTE_NAMES[n] : '<span class="extra">' + NOTE_NAMES[n] + "</span>";
+        return isSel ? NN[n] : '<span class="extra">' + NN[n] + "</span>";
       }).join(" ");
-      var copyTxt = m.notes.map(function (n) { return NOTE_NAMES[n]; }).join(" ");
+      var copyTxt = ordered.map(function (n) { return NN[n]; }).join(" ");
       var badge = m.extra === 0
         ? '<span class="mrow__badge mrow__badge--tight" data-i18n="t.exactbadge">exact</span>'
         : '<span class="mrow__badge">+' + m.extra + '</span>';
@@ -264,7 +278,7 @@
           '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
         '</button>' +
         '<div class="mrow__main">' +
-          '<div class="mrow__name"><span class="root">' + NOTE_NAMES[m.root] + '</span> ' + Shell.t(m.scale.key) + '</div>' +
+          '<div class="mrow__name"><span class="root">' + NN[m.root] + '</span> ' + Shell.t(m.scale.key) + '</div>' +
           '<div class="mrow__notes" data-copy="' + copyTxt + '">' + noteTxt + '</div>' +
         '</div>' + badge + '</div>';
     }).join("");

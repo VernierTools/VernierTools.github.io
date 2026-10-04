@@ -441,13 +441,21 @@
     var perChannel = [], totalClipped = 0, totalSamples = 0, threshold = 0.999;
     for (var c = 0; c < chCount; c++) {
       var data = ab.getChannelData(c);
-      var peak = 0, sumSq = 0, clipped = 0;
+      // クリッピング＝波形の頂点が上限に張り付いて平らになった部分。
+      // 上限付近を「3サンプル以上連続」した区間だけ数える（0dBFSちょうどの正弦波は頂点を一瞬通るだけなので数えない）。
+      var peak = 0, sumSq = 0, clipped = 0, run = 0, runSign = 0;
       for (var i = 0; i < data.length; i++) {
         var v = data[i], av = v < 0 ? -v : v;
         if (av > peak) peak = av;
         sumSq += v * v;
-        if (av >= threshold) clipped++;
+        var sg = v < 0 ? -1 : 1;
+        if (av >= threshold && (run === 0 || sg === runSign)) { run++; runSign = sg; }
+        else {
+          if (run >= 3) clipped += run;
+          run = av >= threshold ? 1 : 0; runSign = sg;
+        }
       }
+      if (run >= 3) clipped += run;
       var rms = Math.sqrt(sumSq / (data.length || 1));
       perChannel.push({
         peak: peak, peakDb: peak > 0 ? 20 * Math.log10(peak) : -Infinity,

@@ -105,7 +105,7 @@
             <span class="val mono" id="d-tol-val">0</span>
           </div>
         </div>
-        <div class="hint" style="font-size:12px;color:var(--text-3)" data-i18n="t.tolnote">Same pitch and channel, start times within this many ticks (960 = quarter note) — or simply overlapping — count as duplicates. 0 keeps only exact-time overlaps.</div>
+        <div class="hint" style="font-size:12px;color:var(--text-3)" data-i18n="t.tolnote">Same pitch and channel with start times within this many ticks (960 = quarter note) count as duplicates and are removed. A note that merely overlaps the previous one is kept, and the earlier note is shortened to end where it starts. 0 removes only exact-time duplicates.</div>
       </div>
       <div class="hint" style="font-size:12px;color:var(--text-3);margin-top:var(--s3)" id="roll-hint" data-i18n="t.rollhint" hidden>Drag the roll or click the ruler to move around. Notes outlined in red are duplicates.</div>
     </div>
@@ -183,7 +183,7 @@
           } else if (type === 0x80 || (type === 0x90 && d2 === 0)) {
             var k2 = ch + ":" + d1, stk = open[k2];
             if (stk && stk.length) {
-              var on = stk.pop();
+              var on = stk.shift();   // 同じ音高が重なったときは先に始まった音から閉じる（DAW と同じ FIFO）
               var dur = Math.max(1, T - on.tick);
               out.notes.push({ id: nid(), start: on.tick, duration: dur, pitch: d1, velocity: clamp(on.vel, 1, 127), channel: ch });
             }
@@ -275,10 +275,17 @@
       var last = null;
       arr.forEach(function (n) {
         if (last) {
-          var overlap = last.start + last.duration > n.start;
-          if (Math.abs(n.start - last.start) <= tol || overlap) {
+          if (n.start - last.start <= tol) {
+            // ほぼ同時に始まる同じ音 = 重複。あとの方を捨て、長い方の終わりまで鳴らす
+            var end = Math.max(last.start + last.duration, n.start + n.duration);
+            if (end > last.start + last.duration) { last = keep[keep.length - 1] = Object.assign({}, last, { duration: end - last.start }); }
             dupIds.add(last.id); dupIds.add(n.id);
-            return; // duplicate: drop, keep 'last' as the anchor
+            return;
+          }
+          if (last.start + last.duration > n.start) {
+            // 弾き直しで前の音に食い込んでいるだけ = 本物の音符。消さずに前の音の終わりを詰める
+            keep[keep.length - 1] = Object.assign({}, last, { duration: Math.max(1, n.start - last.start) });
+            dupIds.add(last.id);
           }
         }
         keep.push(n); last = n;
@@ -695,7 +702,7 @@
         "t.file": "MIDI file", "t.dropb": "Click or drop a MIDI file", "t.dropsmall": ".mid / .midi — processed locally, never uploaded",
         "t.loaded": "Loaded file", "t.change": "Load another",
         "t.tol": "Tolerance",
-        "t.tolnote": "Same pitch and channel, start times within this many ticks (960 = quarter note) — or simply overlapping — count as duplicates. 0 keeps only exact-time overlaps.",
+        "t.tolnote": "Same pitch and channel with start times within this many ticks (960 = quarter note) count as duplicates and are removed. A note that merely overlaps the previous one is kept, and the earlier note is shortened to end where it starts. 0 removes only exact-time duplicates.",
         "t.output": "Result", "t.total": "Notes in file", "t.dups": "Duplicates found", "t.remain": "Notes after removal",
         "t.download": "Download cleaned file",
         "t.note": "Within a duplicate group the earliest note is kept; the rest are removed. Everything else in the file is untouched.",
@@ -711,7 +718,7 @@
         "t.file": "MIDIファイル", "t.dropb": "クリックまたはドラッグ&ドロップ", "t.dropsmall": ".mid / .midi — ローカルで処理（アップロードなし）",
         "t.loaded": "読み込んだファイル", "t.change": "別のファイルを読み込む",
         "t.tol": "許容範囲",
-        "t.tolnote": "同じ音高・チャンネルで、開始時刻の差がこのtick数以内（960=4分音符）、または重なっている場合に重複とみなします。0なら完全同時のみ対象。",
+        "t.tolnote": "同じ音高・チャンネルで、開始時刻の差がこのtick数以内（960=4分音符）のものを重複として除去します。前の音に食い込んでいるだけの音は残し、前の音の終わりを次の音の頭まで詰めます。0なら完全同時のみ除去。",
         "t.output": "結果", "t.total": "ファイル内のノート数", "t.dups": "検出した重複数", "t.remain": "除去後のノート数",
         "t.download": "クリーンにしたファイルをダウンロード",
         "t.note": "重複グループのうち最も早いノートが残され、残りは除去されます。それ以外の内容は変更されません。",

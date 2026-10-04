@@ -656,7 +656,7 @@
           } else if (type === 0x80 || (type === 0x90 && d2 === 0)) {
             var k2 = ch + ":" + d1, stk = open[k2];
             if (stk && stk.length) {
-              var on = stk.pop();
+              var on = stk.shift();   // 同じ音高が重なったときは先に始まった音から閉じる（DAW と同じ FIFO）
               var dur = Math.max(1, T960 - on.tick);
               out.notes.push({ id: nid(), start: on.tick, duration: dur, pitch: d1, velocity: clamp(on.vel, 1, 127), channel: ch });
             }

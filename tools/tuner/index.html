@@ -203,36 +203,46 @@
   function f2(n) { return Math.round(n * 10) / 10; }
   function pt(deg, r) { var rad = deg * Math.PI / 180; return [100 + r * Math.sin(rad), 100 - r * Math.cos(rad)]; }
 
-  /* ---- pitch detection: autocorrelation with parabolic interpolation ---- */
+  /* ---- pitch detection: McLeod Pitch Method (正規化自己相関 NSDF) ----
+     ⚠ 素の自己相関の最大値を拾う方式は、ラグ0付近の大きな値に引っ張られて
+       およそ300Hz未満（ギターの低音弦・ベース・男声）を一切検出できなかった。
+       NSDF は振幅で正規化されるので、最初に負へ落ちた後の「山」だけを候補にし、
+       最大の山の 93% 以上ある最初の山を基本周期とする（倍音へのオクターブ誤認を防ぐ）。 */
+  var nsdf = null;
   function autoCorrelate(buf, sampleRate, rmsThresh) {
-    var n = buf.length, i;
+    var n = buf.length, i, j;
     var rms = 0;
     for (i = 0; i < n; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / n);
     if (rms < rmsThresh) return -1;
-
-    var minLag = Math.max(2, Math.floor(sampleRate / 2000)); // ~2000 Hz upper bound
-    var maxLag = Math.min(n - 2, Math.floor(sampleRate / 40)); // ~40 Hz lower bound
-    if (maxLag <= minLag + 2) return -1;
-
-    var c0 = 0;
-    for (i = 0; i < n; i++) c0 += buf[i] * buf[i];
-    if (c0 <= 0) return -1;
-
-    var bestLag = -1, bestVal = -Infinity;
-    for (var lag = minLag - 1; lag <= maxLag + 1; lag++) {
-      var sum = 0;
-      for (var j = 0; j < n - lag; j++) sum += buf[j] * buf[j + lag];
-      if (lag >= minLag && lag <= maxLag && sum > bestVal) { bestVal = sum; bestLag = lag; }
+    var minLag = Math.max(2, Math.floor(sampleRate / 4200));
+    var maxLag = Math.min(Math.floor(n / 2), Math.floor(sampleRate / 38));   // 2周期ぶん入る範囲（≒ベースのE1まで）
+    if (!nsdf || nsdf.length < maxLag + 2) nsdf = new Float32Array(maxLag + 2);
+    var m = 0;
+    for (j = 0; j < n; j++) m += 2 * buf[j] * buf[j];                        // τ=0 の Σ(x_j² + x_{j+τ}²)
+    for (var tau = 0; tau <= maxLag + 1; tau++) {
+      if (tau > 0) m -= buf[n - tau] * buf[n - tau] + buf[tau - 1] * buf[tau - 1];
+      var acf = 0;
+      for (j = 0; j < n - tau; j++) acf += buf[j] * buf[j + tau];
+      nsdf[tau] = m > 0 ? 2 * acf / m : 0;
     }
-    if (bestLag < 0 || bestVal / c0 < 0.35) return -1;
-
-    // parabolic interpolation using neighbours (recompute cheaply)
-    function corrAt(lag) { var s = 0; for (var j = 0; j < n - lag; j++) s += buf[j] * buf[j + lag]; return s; }
-    var x1 = corrAt(bestLag - 1), x2 = bestVal, x3 = corrAt(bestLag + 1);
+    // 最初に負になった後の、正の区間ごとの最大値（山）を集める
+    var t = 1;
+    while (t <= maxLag && nsdf[t] > 0) t++;
+    var peaks = [], best = 0;
+    while (t <= maxLag) {
+      while (t <= maxLag && nsdf[t] <= 0) t++;
+      var pk = -1, pv = -Infinity;
+      while (t <= maxLag && nsdf[t] > 0) { if (nsdf[t] > pv) { pv = nsdf[t]; pk = t; } t++; }
+      if (pk > 0 && pk >= minLag) { peaks.push(pk); if (pv > best) best = pv; }
+    }
+    if (!peaks.length || best < 0.5) return -1;                              // 周期性が弱い（雑音）
+    var bestLag = -1;
+    for (i = 0; i < peaks.length; i++) if (nsdf[peaks[i]] >= 0.93 * best) { bestLag = peaks[i]; break; }
+    if (bestLag < 1) return -1;
+    var x1 = nsdf[bestLag - 1], x2 = nsdf[bestLag], x3 = nsdf[bestLag + 1];
     var a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
-    var T0 = bestLag;
-    if (a !== 0) T0 = bestLag - b / (2 * a);
+    var T0 = a !== 0 ? bestLag - b / (2 * a) : bestLag;
     if (T0 <= 0) return -1;
     var freq = sampleRate / T0;
     if (freq < 27 || freq > 4200) return -1;
@@ -292,7 +302,7 @@
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         var source = audioCtx.createMediaStreamSource(stream);
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = 4096;   // 低い音（40Hz台）でも2周期以上入る長さ
         source.connect(analyser);
         buf = new Float32Array(analyser.fftSize);
         running = true; setMicUI("on"); loop();
@@ -309,12 +319,15 @@
     setMicUI("off");
     showNoSignal();
   }
-  function loop() {
+  var lastAnalysis = 0;
+  function loop(now) {
     if (!running) return;
+    rafId = requestAnimationFrame(loop);
+    if (now && now - lastAnalysis < 30) return;                            // 解析は約30回/秒で十分（負荷を抑える）
+    lastAnalysis = now || 0;
     analyser.getFloatTimeDomainData(buf);
     var freq = autoCorrelate(buf, audioCtx.sampleRate, gateThreshold());
     handleFreq(freq);
-    rafId = requestAnimationFrame(loop);
   }
   function handleFreq(freq) {
     if (freq <= 0) { smoothBuf = []; showNoSignal(); return; }
