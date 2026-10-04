@@ -870,7 +870,7 @@ function addThumb(i){
   img.addEventListener('click',()=>{ const s=shots[i]; if(!s) return; openViewerAt(liveShots().indexOf(s)); });
   const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label',Shell.t('t.deleteAlt'));
   x.addEventListener('click',ev=>{ ev.stopPropagation(); removeShot(i,t); });
-  const idx=document.createElement('span'); idx.className='idx'; idx.textContent=String(liveShots().length+1).padStart(2,'0');
+  const idx=document.createElement('span'); idx.className='idx'; idx.textContent=String(liveShots().length).padStart(2,'0');   // 追加済みの1枚を含めた枚数＝この写真の番号
   t.append(img,x,idx); strip.appendChild(t);
   strip.scrollLeft=strip.scrollWidth;
 }
@@ -952,7 +952,12 @@ saveBtn.addEventListener('click',async()=>{
   if(navigator.canShare && navigator.canShare({files})){
     try{ await navigator.share({files}); }catch(_){ /* cancelled */ }
   }else{
-    showNotice(Shell.t('t.noticeShareUnsupported'));
+    // 共有シートが無い環境（主にPCのブラウザ）では、1枚ずつファイルとしてダウンロードする
+    files.forEach((f,i)=>setTimeout(()=>{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    }, i*250));
   }
 });
 

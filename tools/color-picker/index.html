@@ -503,7 +503,7 @@
     function imgPos(e) { var c = canvasXY(e); return { x: Math.floor((c.x - st.pan.x) / st.zoom), y: Math.floor((c.y - st.pan.y) / st.zoom) }; }
     function normRect(a, b) { var x1 = clamp(Math.min(a.x, b.x), 0, st.image.width - 1), y1 = clamp(Math.min(a.y, b.y), 0, st.image.height - 1),
       x2 = clamp(Math.max(a.x, b.x), 0, st.image.width - 1), y2 = clamp(Math.max(a.y, b.y), 0, st.image.height - 1);
-      return { x: x1, y: y1, w: Math.max(1, x2 - x1), h: Math.max(1, y2 - y1) }; }
+      return { x: x1, y: y1, w: x2 - x1 + 1, h: y2 - y1 + 1 }; }   // 端のピクセルも含める
     function clearSel() { st.selRect = null; st.selecting = false; st.densityMap = null; st.densityMax = 0; st.hueDensity = null; st.hueDensityMax = 0; st.sampled = 0; render(); drawDist(); updateStats(st.hover); }
     function computeDensity(rect) {
       if (!st.image || !rect) return;
@@ -516,7 +516,9 @@
         var i = (y * iw + x) * 4; if (data[i + 3] < 8) continue;
         var hsv = rgbToHsv(data[i], data[i + 1], data[i + 2]);
         var bx = clamp(Math.floor(hsv.s / 100 * (bX - 1)), 0, bX - 1), by = clamp(Math.floor((100 - hsv.v) / 100 * (bY - 1)), 0, bY - 1), bh = clamp(Math.floor(hsv.h) % bH, 0, bH - 1);
-        var c = ++map[by][bx], hc = ++hueMap[bh]; if (c > maxC) maxC = c; if (hc > hueMax) hueMax = hc; sampled++;
+        var c = ++map[by][bx]; if (c > maxC) maxC = c; sampled++;
+        // 無彩色（グレー・ほぼ黒）は色相を持たないので、色相の分布には数えない（赤に偏って見えるため）
+        if (hsv.s > 4 && hsv.v > 4) { var hc = ++hueMap[bh]; if (hc > hueMax) hueMax = hc; }
       }
       st.densityMap = map; st.densityMax = maxC; st.hueDensity = hueMap; st.hueDensityMax = hueMax; st.sampled = sampled;
     }

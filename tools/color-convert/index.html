@@ -164,19 +164,33 @@
     var X = xyz.x, Y = xyz.y, Z = xyz.z;
     return { r: 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z, g: -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z, b: 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z };
   }
-  function xyzToLab(xyz) {
-    var Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
-    function f(t) { return t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116); }
-    var fx = f(xyz.x / Xn), fy = f(xyz.y / Yn), fz = f(xyz.z / Zn);
+  // Lab / LCH は CSS Color 4 の lab()/lch() や Photoshop と同じ D50 基準。
+  // sRGB の XYZ は D65 なので、Bradford 変換で D50 に順応させてから Lab にする。
+  var D50 = [0.3457 / 0.3585, 1, (1 - 0.3457 - 0.3585) / 0.3585];
+  function d65ToD50(x) {
+    return { x: 1.0479298208405488 * x.x + 0.022946793341019088 * x.y - 0.05019222954313557 * x.z,
+             y: 0.029627815688159344 * x.x + 0.990434484573249 * x.y - 0.01707382502938514 * x.z,
+             z: -0.009243058152591178 * x.x + 0.015055144896577895 * x.y + 0.7518742899580008 * x.z };
+  }
+  function d50ToD65(x) {
+    return { x: 0.9554734527042182 * x.x - 0.023098536874261423 * x.y + 0.0632593086610217 * x.z,
+             y: -0.028369706963208136 * x.x + 1.0099954580058226 * x.y + 0.021041398966943008 * x.z,
+             z: 0.012314001688319899 * x.x - 0.020507696433477912 * x.y + 1.3303659366080753 * x.z };
+  }
+  var LAB_E = 216 / 24389, LAB_K = 24389 / 27;
+  function xyzToLab(xyz65) {
+    var xyz = d65ToD50(xyz65);
+    function f(t) { return t > LAB_E ? Math.cbrt(t) : (LAB_K * t + 16) / 116; }
+    var fx = f(xyz.x / D50[0]), fy = f(xyz.y / D50[1]), fz = f(xyz.z / D50[2]);
     return { l: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
   }
   function labToXyz(lab) {
-    var Xn = 0.95047, Yn = 1, Zn = 1.08883;
     var fy = (lab.l + 16) / 116, fx = fy + lab.a / 500, fz = fy - lab.b / 200;
-    function finv(t) { var t3 = t * t * t; return t3 > 0.008856 ? t3 : (t - 16 / 116) / 7.787; }
-    return { x: finv(fx) * Xn, y: finv(fy) * Yn, z: finv(fz) * Zn };
+    function finv(t) { var t3 = t * t * t; return t3 > LAB_E ? t3 : (116 * t - 16) / LAB_K; }
+    return d50ToD65({ x: finv(fx) * D50[0], y: finv(fy) * D50[1], z: finv(fz) * D50[2] });
   }
-  function labToLch(lab) { var c = Math.sqrt(lab.a * lab.a + lab.b * lab.b), h = Math.atan2(lab.b, lab.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: lab.l, c: c, h: h }; }
+  function labToLch(lab) { var c = Math.sqrt(lab.a * lab.a + lab.b * lab.b), h = Math.atan2(lab.b, lab.a) * 180 / Math.PI; if (h < 0) h += 360; if (c < 0.005) { c = 0; h = 0; }   // 無彩色は色相を 0 に（誤差の向きで値が暴れるため）
+    return { l: lab.l, c: c, h: h }; }
   function lchToLab(lch) { var hr = lch.h * Math.PI / 180; return { l: lch.l, a: lch.c * Math.cos(hr), b: lch.c * Math.sin(hr) }; }
   function labToRgb(lab) { return linearToRgb(xyzToLinear(labToXyz(lab))); }
   function lchToRgb(lch) { return labToRgb(lchToLab(lch)); }
@@ -198,7 +212,7 @@
   }
   function rgbToOklabPct(r, g, b) { var ok = linearToOklab(rgbToLinear(r, g, b)); return { l: ok.l * 100, a: ok.a, b: ok.b }; }
   function oklabPctToRgb(v) { return linearToRgb(oklabToLinear({ l: v.l / 100, a: v.a, b: v.b })); }
-  function rgbToOklchPct(r, g, b) { var p = rgbToOklabPct(r, g, b), c = Math.sqrt(p.a * p.a + p.b * p.b), h = Math.atan2(p.b, p.a) * 180 / Math.PI; if (h < 0) h += 360; return { l: p.l, c: c, h: h }; }
+  function rgbToOklchPct(r, g, b) { var p = rgbToOklabPct(r, g, b), c = Math.sqrt(p.a * p.a + p.b * p.b), h = Math.atan2(p.b, p.a) * 180 / Math.PI; if (h < 0) h += 360; if (c < 0.00005) { c = 0; h = 0; } return { l: p.l, c: c, h: h }; }
   function oklchPctToRgb(v) { var hr = v.h * Math.PI / 180; return oklabPctToRgb({ l: v.l, a: v.c * Math.cos(hr), b: v.c * Math.sin(hr) }); }
 
   function relLuminance(r, g, b) { var lin = rgbToLinear(r, g, b); return 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b; }

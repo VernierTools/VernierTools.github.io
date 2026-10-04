@@ -272,21 +272,22 @@
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
     var w=canvas.width, h=canvas.height;
     var band=Math.max(1, Math.min(h, Math.floor(4194304 / Math.max(1,w)))); // 約4Mピクセルずつ
-    var sumR=0,sumG=0,sumB=0,count=0;
+    var sumR=0,sumG=0,sumB=0,sumA=0,count=0;
     var hr=new Uint32Array(256), hg=new Uint32Array(256), hb=new Uint32Array(256);
     for(var y=0; y<h; y+=band){
       var rows=Math.min(band, h-y);
       var data=ctx.getImageData(0,y,w,rows).data;
       for(var i=0;i<data.length;i+=4){
         if(data[i+3]===0) continue;
-        var r=data[i], g=data[i+1], b=data[i+2];
-        sumR+=r; sumG+=g; sumB+=b; count++;
+        var r=data[i], g=data[i+1], b=data[i+2], a=data[i+3];
+        // 半透明のふち（アンチエイリアス等）は不透明度に応じて軽く数える
+        sumR+=r*a; sumG+=g*a; sumB+=b*a; sumA+=a; count++;
         hr[r]++; hg[g]++; hb[b]++;
       }
     }
     if(!count) return null;
     return {
-      mean:{ r:sumR/count, g:sumG/count, b:sumB/count },
+      mean:{ r:sumR/sumA, g:sumG/sumA, b:sumB/sumA },
       median:{ r:medianFromHistogram(hr,count), g:medianFromHistogram(hg,count), b:medianFromHistogram(hb,count) },
       count:count
     };

@@ -178,6 +178,9 @@
   var punit = "mm";
   var lockAspect = false, lockRatio = 1;
   var mode = "simple";
+  // DPI を変えたとき、最後に入力した側（ピクセル or 物理サイズ）を固定し、もう片方を計算し直す
+  var anchor = "px", pxW = 1000, pxH = 1000;
+  function keepPx() { anchor = "px"; pxW = mmToPx(wMM, dpi); pxH = mmToPx(hMM, dpi); }
 
   function pxToMM(px, d) { return px / d * MM_PER_IN; }
   function mmToPx(mm, d) { return mm / MM_PER_IN * d; }
@@ -238,6 +241,7 @@
 
   function onDpiChange(v) {
     dpi = clamp(parseFloat(v) || 96, 1, 20000);
+    if (anchor === "px") { wMM = pxToMM(pxW, dpi); hMM = pxToMM(pxH, dpi); }
     syncDpiButtons(); render();
   }
   inDpi.addEventListener("input", function () { onDpiChange(inDpi.value); });
@@ -258,19 +262,19 @@
 
   inWpx.addEventListener("input", function () {
     var v = parseFloat(inWpx.value); if (isNaN(v) || v < 0) return;
-    wMM = pxToMM(v, dpi); applyAspectFromWidth(); render();
+    wMM = pxToMM(v, dpi); applyAspectFromWidth(); keepPx(); render();
   });
   inHpx.addEventListener("input", function () {
     var v = parseFloat(inHpx.value); if (isNaN(v) || v < 0) return;
-    hMM = pxToMM(v, dpi); applyAspectFromHeight(); render();
+    hMM = pxToMM(v, dpi); applyAspectFromHeight(); keepPx(); render();
   });
   inWu.addEventListener("input", function () {
     var v = parseFloat(inWu.value); if (isNaN(v) || v < 0) return;
-    wMM = unitToMM(v, punit); applyAspectFromWidth(); render();
+    wMM = unitToMM(v, punit); applyAspectFromWidth(); anchor = "phys"; render();
   });
   inHu.addEventListener("input", function () {
     var v = parseFloat(inHu.value); if (isNaN(v) || v < 0) return;
-    hMM = unitToMM(v, punit); applyAspectFromHeight(); render();
+    hMM = unitToMM(v, punit); applyAspectFromHeight(); anchor = "phys"; render();
   });
 
   $("seg-unit").addEventListener("click", function (e) {
@@ -291,20 +295,21 @@
   $("swap").addEventListener("click", function () {
     var t = wMM; wMM = hMM; hMM = t;
     if (lockAspect) lockRatio = wMM / hMM || 1;
+    if (anchor === "px") keepPx();
     render();
   });
 
   $("paperset").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     var p = PAPER[b.getAttribute("data-paper")]; if (!p) return;
-    wMM = p[0]; hMM = p[1];
+    wMM = p[0]; hMM = p[1]; anchor = "phys";
     if (lockAspect) lockRatio = wMM / hMM || 1;
     render();
   });
 
   $("reset").addEventListener("click", function () {
     dpi = 96; wMM = pxToMM(1000, 96); hMM = pxToMM(1000, 96);
-    punit = "mm"; lockAspect = false; lockChk.checked = false;
+    punit = "mm"; lockAspect = false; lockChk.checked = false; anchor = "px"; pxW = pxH = 1000;
     syncDpiButtons(); syncUnitSeg(); render();
   });
 
