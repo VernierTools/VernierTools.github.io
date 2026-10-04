@@ -372,7 +372,9 @@
     var out = new Uint8ClampedArray(w*h*4);
     for (var i=0; i<w*h; i++){
       var o = i*4;
-      var yv = (convention === "directx") ? -n.ny[i] : n.ny[i];
+      // ny は画像の下向きが正（gy = 下 − 上 から作っている）。OpenGL は緑＝上向き(Y+)なので反転し、
+      // DirectX(Y−) はそのまま使う。盛り上がりの上のふちが OpenGL で緑 > 128 になるのが正しい。
+      var yv = (convention === "directx") ? n.ny[i] : -n.ny[i];
       out[o]   = Math.round((n.nx[i]*0.5+0.5)*255);
       out[o+1] = Math.round((yv*0.5+0.5)*255);
       out[o+2] = Math.round((n.nz[i]*0.5+0.5)*255);

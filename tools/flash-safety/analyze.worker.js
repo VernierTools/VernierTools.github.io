@@ -283,7 +283,7 @@ function run(buffer, opts, marginPct, speedFactor) {
                 if (dY > 0.20) sceneCuts.push(tRate);
               }
               prevMeanY = meanY;
-              rec.sceneCut = sceneCuts.length ? sceneCuts[sceneCuts.length - 1] === tUs : false;
+              rec.sceneCut = sceneCuts.length ? sceneCuts[sceneCuts.length - 1] === tRate : false;   // push したのは tRate（倍速時に tUs と一致しない）
             }
 
             /* 2024年提案用（Michelson 分岐あり）。EOTF は bt1886 を使う。 */

@@ -355,8 +355,16 @@
         acc[di] += lum[y * w + x]; cnt[di]++;
       }
     }
+    // ⚠ 元画像が S より小さい向き（例: 320×180 の高さ）は拡大になり、
+    //    1画素も割り当てられないセルが出る。0 のまま残すと黒い横線が並んで
+    //    「縞」に見え、誤検出・検出漏れの両方を起こすので、最寄りの元画素で埋める。
     var small = new Float32Array(S * S);
-    for (var i = 0; i < S * S; i++) small[i] = acc[i] / (cnt[i] || 1);
+    for (var i = 0; i < S * S; i++) {
+      if (cnt[i]) { small[i] = acc[i] / cnt[i]; continue; }
+      var sx = Math.min(w - 1, Math.floor(((i % S) + 0.5) / xs));
+      var sy = Math.min(h - 1, Math.floor((Math.floor(i / S) + 0.5) / ys));
+      small[i] = lum[sy * w + sx];
+    }
 
     var r = analyzeBlock(small, S, S, 0, 0, S, opts);
     if (!r) return null;

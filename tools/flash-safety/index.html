@@ -207,7 +207,7 @@
 <body>
 <main class="shell">
   <div class="toolhead">
-    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipExperimental">実験的</span><span class="chip ver">2.0</span></div>
+    <div class="chips"><span class="chip chip--bl" data-i18n="t.chipExperimental">実験的</span><span class="chip ver">2.1</span></div>
     <h1 data-i18n="t.title">ポリゴンショック・リスクチェッカー</h1>
     <p data-i18n="t.desc">閃光（輝度・赤）の検出、5基準（NHK・民放連 / ITU-R / Ofcom / WCAG 2.3.1 / WCAG 2.3.2）と参考1件（2024年提案）の並列判定、空間パターン（縞模様）の参考検出、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。実機での網羅的な動作確認が完了していないため、実験的な位置づけとしています。</p>
   </div>
@@ -307,7 +307,7 @@
   /* ⚠ index.html を編集したら必ず上げる。
      画面表示（.chip.ver）とレポートの両方に出るので、
      「反映されていないのか、直っていないのか」を切り分けられる。 */
-  var UI_VERSION = "2.0";
+  var UI_VERSION = "2.1";
 
   var file = null, player = null;
   /* 言語切替時に判定コーナーを描き直すため、最後の結果を保持する。
@@ -550,7 +550,7 @@
     file = f;
     $("drop").querySelector("b").textContent = f.name;
     $("drop").querySelector("small").textContent =
-      (f.size / 1048576).toFixed(2) + " MB / " + (f.type || "種別不明");
+      (f.size / 1048576).toFixed(2) + " MB / " + (f.type || T("t.unknownType", "種別不明"));
     $("runAnalyze").disabled = false;
   }
   $("drop").addEventListener("click", function () { $("pick").click(); });
@@ -570,9 +570,9 @@
   var aworker = null;
   $("runAnalyze").addEventListener("click", function () {
     if (!file) return;
-    if (typeof VideoDecoder === "undefined") { status("このブラウザは WebCodecs に非対応です", "neg"); return; }
+    if (typeof VideoDecoder === "undefined") { status(T("t.noWebCodecs", "このブラウザは WebCodecs に非対応です"), "neg"); return; }
     $("runAnalyze").disabled = true;
-    status("読み込み中…", "muted");
+    status(T("t.loading", "読み込み中…"), "muted");
 
     file.arrayBuffer().then(function (buf) {
       status(T("t.analyzing","解析中…"), "muted");
@@ -585,12 +585,12 @@
           return;
         }
         $("runAnalyze").disabled = false;
-        if (!e.data.ok) { status("失敗: " + e.data.error, "neg"); return; }
+        if (!e.data.ok) { status(T("t.failedPrefix", "失敗: ") + e.data.error, "neg"); return; }
         renderVerdict(e.data.result);
       };
       aworker.onerror = function (err) {
         $("runAnalyze").disabled = false;
-        status("Worker エラー: " + err.message, "neg");
+        status(T("t.workerError", "Worker エラー: ") + err.message, "neg");
       };
       aworker.postMessage({
         cmd: "analyze", buffer: buf,
@@ -628,7 +628,7 @@
     var speedTxt = (a.speedFactor && a.speedFactor !== 1)
       ? " / " + T("t.speedTag", "想定") + a.speedFactor + T("t.speedTagSuffix", "倍視聴")
       : "";
-    $("vmeta").textContent = a.frames + "フレーム / " + a.fps.toFixed(2) + "fps / マージン" + a.marginPct + "%" + speedTxt;
+    $("vmeta").textContent = a.frames + T("t.metaFrames", "フレーム") + " / " + a.fps.toFixed(2) + "fps / " + T("t.metaMargin", "マージン") + a.marginPct + "%" + speedTxt;
 
     var LV = levels();
     /* 主判定と参考枠を分ける。
@@ -786,6 +786,8 @@
           "t.disclaimer": "本ツールは参考用であり、医療機器でも適合認証でもありません。放送・映画・ゲーム等の商用制作物の適合確認には Harding FPA 等の認証ツールをご利用ください。基準に適合していても、すべての光感受性の方の発作を防げるわけではありません。",
           "t.pass": "検出なし", "t.caution": "要注意", "t.fail": "抵触",
           "t.analyzing": "解析中…", "t.done": "解析完了",
+          "t.unknownType": "種別不明", "t.noWebCodecs": "このブラウザは WebCodecs に非対応です", "t.loading": "読み込み中…",
+          "t.failedPrefix": "失敗: ", "t.workerError": "Worker エラー: ", "t.metaFrames": "フレーム", "t.metaMargin": "マージン",
           "t.whyRef": "この基準について", "t.close": "閉じる",
           "t.refSection": "参考基準（判定は目安）", "t.refFailCount": "件が抵触",
           "t.refLaneHead": "参考",
@@ -843,6 +845,8 @@
           "t.disclaimer": "This tool is for guidance only. It is neither a medical device nor a conformance certification. For broadcast, film or game deliverables, use a certified tool such as Harding FPA. Meeting a standard does not prevent seizures in every photosensitive viewer.",
           "t.pass": "Nothing detected", "t.caution": "Borderline", "t.fail": "Exceeds",
           "t.analyzing": "Analyzing…", "t.done": "Done",
+          "t.unknownType": "unknown type", "t.noWebCodecs": "This browser doesn't support WebCodecs", "t.loading": "Loading…",
+          "t.failedPrefix": "Failed: ", "t.workerError": "Worker error: ", "t.metaFrames": " frames", "t.metaMargin": "margin ",
           "t.whyRef": "About this criterion", "t.close": "Close",
           "t.refSection": "Reference criteria (guidance only)", "t.refFailCount": " exceed",
           "t.refLaneHead": "Reference",
