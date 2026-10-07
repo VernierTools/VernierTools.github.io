@@ -1813,8 +1813,8 @@
         "ja": "本の背幅計算"
       },
       "description": {
-        "en": "Estimate a book's spine width from page count and paper/cover choice.",
-        "ja": "ページ数と本文用紙・表紙の種類から、本の背幅を概算。"
+        "en": "Spine width and full cover size (mm and px) for print data.",
+        "ja": "背幅と、入稿用の表紙サイズ（mm・px）を計算。"
       },
       "keywords": [
         "spine width",
@@ -1824,7 +1824,11 @@
         "printing",
         "背幅",
         "製本",
-        "用紙厚"
+        "用紙厚",
+        "表紙",
+        "入稿",
+        "同人誌",
+        "塗り足し"
       ],
       "added": "2026-08-05"
     },

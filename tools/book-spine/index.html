@@ -14,22 +14,30 @@
 <meta name="theme-color" content="#5457E5">
 <style>
   .seg{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .seg--3{ grid-template-columns:repeat(3,1fr); }
   .seg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
     height:38px; border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface);
-    color:var(--text-2); transition:all var(--tap); }
+    color:var(--text-2); transition:all var(--tap); padding:0 6px; }
   .seg button:hover{ border-color:var(--text-3); }
   .seg button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
 
   .coverbox{ margin-top:var(--s3); padding-top:var(--s3); border-top:1px dashed var(--border); }
-  .coverbox[hidden]{ display:none; }
+  .coverbox[hidden], .sizebox[hidden]{ display:none; }
+  .sizebox{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
 
   .fieldhint{ font-size:11.5px; color:var(--text-3); margin-top:6px; line-height:1.5; }
+  .cardtitle{ font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--text-3); margin-bottom:var(--s3); }
 
   .rrow__value small{ display:block; font-family:var(--font-mono); font-size:11.5px; font-weight:400;
-    color:var(--text-3); margin-top:2px; letter-spacing:0; }
+    color:var(--text-3); margin-top:2px; letter-spacing:0; text-align:right; }
 
   .acc-note{ font-size:11.5px; color:var(--text-3); padding:var(--s4); line-height:1.6; border-top:1px solid var(--border); }
   .acc-note strong{ color:var(--text-2); font-weight:600; }
+  .readout + .readout{ margin-top:var(--s4); }
+
+  .diagram{ padding:var(--s3) var(--s4) var(--s4); }
+  .diagram svg{ display:block; width:100%; height:auto; }
+  .diagram text{ font-family:var(--font-mono); }
 </style>
 </head>
 <body>
@@ -37,13 +45,14 @@
   <div class="toolhead">
     <div class="chips"><span class="chip" data-i18n="cat.general">General</span></div>
     <h1 data-i18n="t.title">Book spine width calculator</h1>
-    <p data-i18n="t.desc">Estimate a book's spine width from page count, paper, and binding type.</p>
+    <p data-i18n="t.desc">Estimate a book's spine width and the full cover size for print data, from page count, paper and trim size.</p>
   </div>
 
   <div class="work">
     <!-- 左: 入力 -->
     <div>
       <div class="card">
+        <div class="cardtitle" data-i18n="t.secSpine">Pages and paper</div>
         <div class="field">
           <label class="label" data-i18n="t.binding">Binding</label>
           <div class="seg" id="seg-binding">
@@ -53,44 +62,47 @@
         </div>
 
         <div class="field">
-          <label class="label" for="in-pages" data-i18n="t.pages">Page count (text pages)</label>
-          <input class="input" id="in-pages" type="number" min="2" step="2" value="200" inputmode="numeric">
-          <div class="fieldhint" data-i18n="t.pageshint">Number of interior pages, not counting the cover.</div>
+          <label class="label" for="in-pages" data-i18n="t.pages">Text pages</label>
+          <input class="input" id="in-pages" type="number" min="2" step="2" value="60" inputmode="numeric">
+          <div class="fieldhint" data-i18n="t.pageshint">Interior pages, not counting the 4 cover pages. Some printers count "total pages including the cover" — subtract 4 in that case.</div>
         </div>
 
         <div class="field">
-          <label class="label" for="in-paper" data-i18n="t.paper">Paper</label>
+          <label class="label" for="in-paper" data-i18n="t.paper">Text paper</label>
           <select class="select" id="in-paper">
-            <option value="0.10" data-i18n="t.paper.woodfree70">Woodfree paper 70kg (≈0.10mm)</option>
-            <option value="0.12" selected data-i18n="t.paper.woodfree90">Woodfree paper 90kg (≈0.12mm)</option>
-            <option value="0.15" data-i18n="t.paper.woodfree110">Woodfree paper 110kg (≈0.15mm)</option>
-            <option value="0.10" data-i18n="t.paper.coated90">Coated paper 90kg (≈0.10mm)</option>
-            <option value="0.11" data-i18n="t.paper.coated110">Coated paper 110kg (≈0.11mm)</option>
-            <option value="0.11" data-i18n="t.paper.matcoated90">Matte coated paper 90kg (≈0.11mm)</option>
+            <option value="0.10" data-i18n="t.paper.jo70">Woodfree 70kg (≈0.10mm)</option>
+            <option value="0.12" selected data-i18n="t.paper.jo90">Woodfree 90kg (≈0.12mm)</option>
+            <option value="0.14" data-i18n="t.paper.jo110">Woodfree 110kg (≈0.14mm)</option>
+            <option value="0.12" data-i18n="t.paper.shoseki90">Book paper 90kg (≈0.12mm)</option>
+            <option value="0.08" data-i18n="t.paper.coat90">Coated 90kg (≈0.08mm)</option>
+            <option value="0.11" data-i18n="t.paper.coat110">Coated 110kg (≈0.11mm)</option>
+            <option value="0.13" data-i18n="t.paper.matte110">Matte coated 110kg (≈0.13mm)</option>
+            <option value="0.14" data-i18n="t.paper.bulky">Book bulky (≈0.14mm)</option>
+            <option value="0.15" data-i18n="t.paper.comic">Comic bulky (≈0.15mm)</option>
             <option value="custom" data-i18n="t.custom">Custom</option>
           </select>
           <div class="inputgroup" id="paper-custom-wrap" hidden style="margin-top:8px">
             <input class="input" id="in-paper-custom" type="number" min="0.01" step="0.001" value="0.12" inputmode="decimal">
             <span class="unit">mm</span>
           </div>
-          <div class="fieldhint" data-i18n="t.paperhint">Reference thickness per sheet. Actual values vary by printer — check their spec for production use.</div>
+          <div class="fieldhint" data-i18n="t.paperhint">Thickness of one sheet (2 pages), from figures printers publish. Brands vary by a few percent.</div>
         </div>
 
         <div class="field">
           <label class="toggle">
-            <input type="checkbox" id="chk-cover">
+            <input type="checkbox" id="chk-cover" checked>
             <span class="track"></span>
-            <span data-i18n="t.coverinclude">Include cover thickness</span>
+            <span data-i18n="t.coverinclude">Add cover thickness (front + back)</span>
           </label>
-          <div class="coverbox" id="cover-box" hidden>
+          <div class="coverbox" id="cover-box">
             <select class="select" id="in-cover">
-              <option value="0.20" data-i18n="t.cover.thin">Light cover (≈0.20mm)</option>
-              <option value="0.30" selected data-i18n="t.cover.mid">Standard cover (≈0.30mm)</option>
-              <option value="0.45" data-i18n="t.cover.thick">Heavy cover (≈0.45mm)</option>
+              <option value="0.20" data-i18n="t.cover.thin">Thin cover stock (≈0.20mm)</option>
+              <option value="0.25" selected data-i18n="t.cover.mid">Standard cover stock (≈0.25mm)</option>
+              <option value="0.35" data-i18n="t.cover.thick">Thick cover stock (≈0.35mm)</option>
               <option value="custom" data-i18n="t.custom">Custom</option>
             </select>
             <div class="inputgroup" id="cover-custom-wrap" hidden style="margin-top:8px">
-              <input class="input" id="in-cover-custom" type="number" min="0.01" step="0.001" value="0.30" inputmode="decimal">
+              <input class="input" id="in-cover-custom" type="number" min="0.01" step="0.001" value="0.25" inputmode="decimal">
               <span class="unit">mm</span>
             </div>
           </div>
@@ -102,7 +114,62 @@
             <input class="input" id="in-allowance" type="number" min="0" step="0.1" value="0" inputmode="decimal">
             <span class="unit">mm</span>
           </div>
-          <div class="fieldhint" data-i18n="t.allowancehint">Optional. Some printers add a small margin for glue or trimming.</div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.round">Rounding</label>
+          <div class="seg seg--3" id="seg-round">
+            <button type="button" data-round="none" aria-pressed="false" data-i18n="t.round.none">None</button>
+            <button type="button" data-round="0.1" aria-pressed="true" data-i18n="t.round.01">0.1 mm</button>
+            <button type="button" data-round="0.5" aria-pressed="false" data-i18n="t.round.05">0.5 mm up</button>
+          </div>
+          <div class="fieldhint" data-i18n="t.roundhint">Many printers truncate to 0.1 mm and then round up to the next 0.5 mm.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardtitle" data-i18n="t.secCover">Cover data</div>
+        <div class="field">
+          <label class="label" for="in-size" data-i18n="t.size">Trim size</label>
+          <select class="select" id="in-size">
+            <option value="148x210" selected>A5 (148 × 210)</option>
+            <option value="182x257">B5 (182 × 257)</option>
+            <option value="210x297">A4 (210 × 297)</option>
+            <option value="128x182">B6 (128 × 182)</option>
+            <option value="105x148" data-i18n="t.size.bunko">Bunko / A6 (105 × 148)</option>
+            <option value="103x182" data-i18n="t.size.shinsho">Shinsho (103 × 182)</option>
+            <option value="custom" data-i18n="t.custom">Custom</option>
+          </select>
+          <div class="sizebox" id="size-custom" hidden>
+            <div class="inputgroup"><input class="input" id="in-w" type="number" min="10" step="0.5" value="148" inputmode="decimal"><span class="unit" data-i18n="t.wunit">W mm</span></div>
+            <div class="inputgroup"><input class="input" id="in-h" type="number" min="10" step="0.5" value="210" inputmode="decimal"><span class="unit" data-i18n="t.hunit">H mm</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.dir">Binding side</label>
+          <div class="seg" id="seg-dir">
+            <button type="button" data-dir="right" aria-pressed="true" data-i18n="t.dir.right">Right (manga, vertical text)</button>
+            <button type="button" data-dir="left" aria-pressed="false" data-i18n="t.dir.left">Left (horizontal text)</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="in-bleed" data-i18n="t.bleed">Bleed</label>
+          <div class="inputgroup">
+            <input class="input" id="in-bleed" type="number" min="0" step="0.5" value="3" inputmode="decimal">
+            <span class="unit">mm</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" data-i18n="t.dpi">Resolution</label>
+          <div class="seg seg--3" id="seg-dpi">
+            <button type="button" data-dpi="350" aria-pressed="true">350 dpi</button>
+            <button type="button" data-dpi="600" aria-pressed="false">600 dpi</button>
+            <button type="button" data-dpi="1200" aria-pressed="false">1200 dpi</button>
+          </div>
+          <div class="fieldhint" data-i18n="t.dpihint">350 dpi for colour covers, 600 dpi for greyscale, 1200 dpi for line art.</div>
         </div>
       </div>
     </div>
@@ -110,9 +177,7 @@
     <!-- 右: 出力 -->
     <div>
       <div class="readout">
-        <div class="readout__head">
-          <span data-i18n="t.output">Result</span>
-        </div>
+        <div class="readout__head"><span data-i18n="t.output">Spine</span></div>
         <div class="rrow rrow--hero">
           <span class="rrow__label" id="lbl-spine" data-i18n="t.spine">Spine width</span>
           <span class="rrow__value" id="out-spine" data-copy>0.0<span class="u">mm</span></span>
@@ -121,9 +186,30 @@
           <span class="rrow__label" data-i18n="t.textblock">Text block thickness</span>
           <span class="rrow__value" id="out-textblock" data-copy>0.0<span class="u">mm</span></span>
         </div>
-        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+        <div class="rrow" id="row-spinetext">
+          <span class="rrow__label" data-i18n="t.spinetext">Safe width for spine text</span>
+          <span class="rrow__value" id="out-spinetext" data-copy>0.0<span class="u">mm</span></span>
+        </div>
         <div class="badges" id="badges" style="padding:0 var(--s4) var(--s4)"></div>
-        <div class="acc-note" id="acc-note" data-i18n="t.accnote">Paper thickness presets are reference values, not guaranteed. Confirm exact figures with your printer before production.</div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span data-i18n="t.coverOut">Cover data size</span></div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.withBleed">With bleed</span>
+          <span class="rrow__value" id="out-cover-mm" data-copy>—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" id="lbl-px">Pixels</span>
+          <span class="rrow__value" id="out-cover-px" data-copy>—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.trimmed">Trimmed spread</span>
+          <span class="rrow__value" id="out-cover-trim" data-copy>—</span>
+        </div>
+        <div class="diagram"><svg id="diagram" viewBox="0 0 320 170" role="img" aria-label="Cover layout"></svg></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+        <div class="acc-note" id="accnote"><strong>Use your printer's own spine figure for the final file.</strong> Each printer uses its own formula, paper figures and rounding, and they check covers against that number. Results here typically land within a few tenths of a millimetre, well inside the ±1 mm that glue and binding add — good for planning and starting the artwork.</div>
       </div>
     </div>
   </div>
@@ -135,103 +221,143 @@
 (function () {
   function $(id) { return document.getElementById(id); }
 
-  var segBinding = $("seg-binding");
-  var inPages = $("in-pages");
-  var inPaper = $("in-paper");
-  var paperCustomWrap = $("paper-custom-wrap");
-  var inPaperCustom = $("in-paper-custom");
-  var chkCover = $("chk-cover");
-  var coverBox = $("cover-box");
-  var inCover = $("in-cover");
-  var coverCustomWrap = $("cover-custom-wrap");
-  var inCoverCustom = $("in-cover-custom");
-  var inAllowance = $("in-allowance");
-  var lblSpine = $("lbl-spine");
-  var outSpine = $("out-spine");
-  var outTextblock = $("out-textblock");
-  var badgesEl = $("badges");
+  var S = { binding: "perfect", round: "0.1", dir: "right", dpi: 350 };
 
-  var binding = "perfect";
-
+  function num(el, d) { var v = parseFloat(el.value); return isFinite(v) ? v : d; }
   function paperMm() {
-    if (inPaper.value === "custom") return Math.max(0, parseFloat(inPaperCustom.value) || 0);
-    return parseFloat(inPaper.value) || 0;
+    if ($("in-paper").value === "custom") return Math.max(0, num($("in-paper-custom"), 0));
+    return parseFloat($("in-paper").value) || 0;
   }
   function coverMm() {
-    if (!chkCover.checked) return 0;
-    if (inCover.value === "custom") return Math.max(0, parseFloat(inCoverCustom.value) || 0);
-    return parseFloat(inCover.value) || 0;
+    if (!$("chk-cover").checked) return 0;
+    if ($("in-cover").value === "custom") return Math.max(0, num($("in-cover-custom"), 0));
+    return parseFloat($("in-cover").value) || 0;
+  }
+  function trimSize() {
+    var v = $("in-size").value;
+    if (v === "custom") return { w: Math.max(10, num($("in-w"), 148)), h: Math.max(10, num($("in-h"), 210)) };
+    var p = v.split("x"); return { w: +p[0], h: +p[1] };
+  }
+  // 印刷所でよく使われる丸め: 0.1mm 未満を切り捨ててから 0.5mm 単位で切り上げ（例: 2.189 → 2.1 → 2.5）
+  function roundSpine(x) {
+    if (S.round === "0.1") return Math.round(x * 10) / 10;
+    if (S.round === "0.5") { var t = Math.floor(x * 10 + 1e-9) / 10; return Math.ceil(t / 0.5 - 1e-9) * 0.5; }
+    return x;
   }
 
-  function fmt(mm) {
-    var sys = (typeof Shell !== "undefined" && Shell) ? Shell.units.system : "metric";
-    if (sys === "imperial") {
-      var inch = mm / 25.4;
-      return { value: inch.toFixed(3), unit: "in" };
-    }
-    return { value: mm.toFixed(2), unit: "mm" };
+  function imperial() { return typeof Shell !== "undefined" && Shell && Shell.units.system === "imperial"; }
+  function fmtLen(mm, dp) {
+    if (imperial()) return { v: (mm / 25.4).toFixed(3), u: "in" };
+    return { v: mm.toFixed(dp == null ? 2 : dp), u: "mm" };
   }
-  function setValue(el, mm) {
-    var f = fmt(mm);
-    el.innerHTML = f.value + '<span class="u">' + f.unit + "</span>";
-    el.setAttribute("data-copy", f.value + f.unit);
+  function setLen(el, mm, dp) {
+    var f = fmtLen(mm, dp);
+    el.innerHTML = f.v + '<span class="u">' + f.u + "</span>";
+    el.setAttribute("data-copy", f.v);
   }
-
-  function badge(text, kind) {
-    return '<span class="badge badge--' + kind + '"><span class="d"></span>' + text + "</span>";
+  function setPair(el, w, h, dp) {
+    var a = fmtLen(w, dp), b = fmtLen(h, dp), txt = a.v + " × " + b.v;
+    el.innerHTML = txt + '<span class="u">' + a.u + "</span>";
+    el.setAttribute("data-copy", a.v + " x " + b.v);
   }
+  function t(k) { return (typeof Shell !== "undefined" && Shell) ? Shell.t(k) : k; }
+  function badge(text, kind) { return '<span class="badge badge--' + kind + '"><span class="d"></span>' + text + "</span>"; }
+  function trimNum(x) { return String(Math.round(x * 100) / 100); }
 
   function render() {
-    var pages = Math.max(0, parseInt(inPages.value, 10) || 0);
-    var P = paperMm();
-    var C = coverMm();
-    var A = Math.max(0, parseFloat(inAllowance.value) || 0);
-
-    // 紙1枚＝2ページ。中綴じでも 4ページ分の1枚を二つ折りにするので、折り目の厚みは同じく ページ数÷2 枚ぶん。
+    var pages = Math.max(0, parseInt($("in-pages").value, 10) || 0);
+    var P = paperMm(), C = coverMm(), A = Math.max(0, num($("in-allowance"), 0));
+    // 紙1枚＝2ページ。中綴じも 4ページ分の紙を二つ折りにするので、折り目の厚みは同じく ページ数÷2 枚ぶん。
     var textBlock = P * pages / 2;
-    // 表紙は表側と裏側の2枚ぶんが背の両端に重なる
-    var spine = textBlock + C * 2 + A;
+    var raw = textBlock + C * 2 + A;               // 表紙は表側と裏側の2枚ぶん
+    var saddle = S.binding === "saddle";
+    var spine = saddle ? raw : roundSpine(raw);
 
-    setValue(outSpine, spine);
-    setValue(outTextblock, textBlock);
+    $("lbl-spine").textContent = saddle ? t("t.spinebulge") : t("t.spine");
+    setLen($("out-spine"), spine, saddle || S.round === "none" ? 2 : 1);
+    setLen($("out-textblock"), textBlock);
+    var textW = Math.max(0, spine - 2);            // 製本で背が ±1mm ずれても文字が表紙に回り込まない幅
+    $("row-spinetext").hidden = saddle;
+    setLen($("out-spinetext"), textW, 1);
 
-    var t = (typeof Shell !== "undefined" && Shell) ? Shell.t : function (k) { return k; };
-    lblSpine.textContent = binding === "saddle" ? t("t.spinebulge") : t("t.spine");
-
-    var badges = [];
-    if (binding === "saddle") {
-      if (pages % 4 !== 0) badges.push(badge(t("t.badge.mult4"), "muted"));
-      badges.push(badge(t("t.badge.saddlenote"), "muted"));
+    var b = [];
+    if (saddle) {
+      if (pages % 4 !== 0) b.push(badge(t("t.badge.mult4"), "muted"));
+      b.push(badge(t("t.badge.saddlenote"), "muted"));
     } else {
-      if (pages % 2 !== 0) badges.push(badge(t("t.badge.mult2"), "muted"));
+      if (pages % 2 !== 0) b.push(badge(t("t.badge.mult2"), "muted"));
+      if (spine < 3) b.push(badge(t("t.badge.thin"), "neg"));
+      if (pages > 0 && pages < 24) b.push(badge(t("t.badge.minpages"), "muted"));
     }
-    badgesEl.innerHTML = badges.join("");
+    $("badges").innerHTML = b.join("");
+
+    // ---- 表紙データ ----
+    var sz = trimSize(), bleed = Math.max(0, num($("in-bleed"), 3));
+    var sp = saddle ? 0 : spine;                   // 中綴じの表紙には背が無い
+    var trimW = sz.w * 2 + sp, trimH = sz.h;
+    var fullW = trimW + bleed * 2, fullH = trimH + bleed * 2;
+    setPair($("out-cover-mm"), fullW, fullH, 1);
+    setPair($("out-cover-trim"), trimW, trimH, 1);
+    var pxW = Math.round(fullW / 25.4 * S.dpi), pxH = Math.round(fullH / 25.4 * S.dpi);
+    $("lbl-px").textContent = t("t.pixels").replace("{d}", S.dpi);
+    $("out-cover-px").innerHTML = pxW + " × " + pxH + '<span class="u">px</span>';
+    $("out-cover-px").setAttribute("data-copy", pxW + " x " + pxH);
+
+    drawDiagram(sz, sp, bleed, saddle);
+    $("accnote").innerHTML = t("t.accnote");   // <strong> を含むので data-i18n ではなくここで差し込む
   }
 
-  segBinding.addEventListener("click", function (e) {
-    var b = e.target.closest("button"); if (!b) return;
-    binding = b.getAttribute("data-binding");
-    segBinding.querySelectorAll("button").forEach(function (x) {
-      x.setAttribute("aria-pressed", String(x === b));
+  // 表紙の展開図。右綴じは左から 表1・背・表4、左綴じは 表4・背・表1（外側を上にして広げた向き）
+  function drawDiagram(sz, sp, bleed, saddle) {
+    var fullW = sz.w * 2 + sp + bleed * 2, fullH = sz.h + bleed * 2;
+    var VW = 320, VH = 170, pad = 14, top = 10, bottomText = 34;
+    var k = Math.min((VW - pad * 2) / fullW, (VH - top - bottomText) / fullH);
+    var ox = (VW - fullW * k) / 2, oy = top;
+    function X(mm) { return (ox + mm * k).toFixed(1); }
+    function Y(mm) { return (oy + mm * k).toFixed(1); }
+    var front = t("t.front"), back = t("t.back");
+    var leftLbl = S.dir === "right" ? front : back, rightLbl = S.dir === "right" ? back : front;
+    var x0 = bleed, xs = bleed + sz.w, xe = xs + sp, x1 = xe + sz.w;
+    var h = "";
+    h += '<rect x="' + X(0) + '" y="' + Y(0) + '" width="' + (fullW * k).toFixed(1) + '" height="' + (fullH * k).toFixed(1) +
+         '" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4 3"/>';
+    h += '<rect x="' + X(x0) + '" y="' + Y(bleed) + '" width="' + ((x1 - x0) * k).toFixed(1) + '" height="' + (sz.h * k).toFixed(1) +
+         '" fill="var(--surface)" stroke="var(--text-2)" stroke-width="1"/>';
+    if (sp > 0) {
+      h += '<rect x="' + X(xs) + '" y="' + Y(bleed) + '" width="' + Math.max(1, sp * k).toFixed(1) + '" height="' + (sz.h * k).toFixed(1) +
+           '" fill="var(--accent)" fill-opacity=".22" stroke="var(--accent)" stroke-width="1"/>';
+    } else {
+      h += '<line x1="' + X(xs) + '" y1="' + Y(bleed) + '" x2="' + X(xs) + '" y2="' + Y(bleed + sz.h) + '" stroke="var(--text-3)" stroke-dasharray="3 3"/>';
+    }
+    var cy = (oy + (bleed + sz.h / 2) * k).toFixed(1);
+    h += '<text x="' + ((+X(x0) + +X(xs)) / 2).toFixed(1) + '" y="' + cy + '" text-anchor="middle" font-size="12" fill="var(--text-2)">' + leftLbl + "</text>";
+    h += '<text x="' + ((+X(xe) + +X(x1)) / 2).toFixed(1) + '" y="' + cy + '" text-anchor="middle" font-size="12" fill="var(--text-2)">' + rightLbl + "</text>";
+    var by = (oy + fullH * k + 14).toFixed(1);
+    h += '<text x="' + ((+X(x0) + +X(xs)) / 2).toFixed(1) + '" y="' + by + '" text-anchor="middle" font-size="10" fill="var(--text-3)">' + trimNum(sz.w) + "</text>";
+    h += '<text x="' + ((+X(xe) + +X(x1)) / 2).toFixed(1) + '" y="' + by + '" text-anchor="middle" font-size="10" fill="var(--text-3)">' + trimNum(sz.w) + "</text>";
+    if (sp > 0) h += '<text x="' + ((+X(xs) + +X(xe)) / 2).toFixed(1) + '" y="' + (+by + 13).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--accent)">' + t("t.spineShort") + " " + trimNum(sp) + "</text>";
+    $("diagram").innerHTML = h;
+  }
+
+  function segWire(id, attr, key, parse) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      S[key] = parse ? parse(b.getAttribute(attr)) : b.getAttribute(attr);
+      $(id).querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      render();
     });
-    render();
-  });
+  }
+  segWire("seg-binding", "data-binding", "binding");
+  segWire("seg-round", "data-round", "round");
+  segWire("seg-dir", "data-dir", "dir");
+  segWire("seg-dpi", "data-dpi", "dpi", function (v) { return parseInt(v, 10); });
 
-  inPaper.addEventListener("change", function () {
-    paperCustomWrap.hidden = inPaper.value !== "custom";
-    render();
-  });
-  inCover.addEventListener("change", function () {
-    coverCustomWrap.hidden = inCover.value !== "custom";
-    render();
-  });
-  chkCover.addEventListener("change", function () {
-    coverBox.hidden = !chkCover.checked;
-    render();
-  });
-
-  [inPages, inPaperCustom, inCoverCustom, inAllowance].forEach(function (el) {
-    el.addEventListener("input", render);
+  $("in-paper").addEventListener("change", function () { $("paper-custom-wrap").hidden = this.value !== "custom"; render(); });
+  $("in-cover").addEventListener("change", function () { $("cover-custom-wrap").hidden = this.value !== "custom"; render(); });
+  $("in-size").addEventListener("change", function () { $("size-custom").hidden = this.value !== "custom"; render(); });
+  $("chk-cover").addEventListener("change", function () { $("cover-box").hidden = !this.checked; render(); });
+  ["in-pages", "in-paper-custom", "in-cover-custom", "in-allowance", "in-w", "in-h", "in-bleed"].forEach(function (id) {
+    $(id).addEventListener("input", render);
   });
 
   if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
@@ -240,75 +366,78 @@
       strings: {
         en: {
           "t.title": "Book spine width calculator",
-          "t.desc": "Estimate a book's spine width from page count, paper, and binding type.",
-          "t.binding": "Binding",
-          "t.perfect": "Perfect binding",
-          "t.saddle": "Saddle stitch",
-          "t.pages": "Page count (text pages)",
-          "t.pageshint": "Number of interior pages, not counting the cover.",
-          "t.paper": "Paper",
-          "t.paper.woodfree70": "Woodfree paper 70kg (≈0.10mm)",
-          "t.paper.woodfree90": "Woodfree paper 90kg (≈0.12mm)",
-          "t.paper.woodfree110": "Woodfree paper 110kg (≈0.15mm)",
-          "t.paper.coated90": "Coated paper 90kg (≈0.10mm)",
-          "t.paper.coated110": "Coated paper 110kg (≈0.11mm)",
-          "t.paper.matcoated90": "Matte coated paper 90kg (≈0.11mm)",
+          "t.desc": "Estimate a book's spine width and the full cover size for print data, from page count, paper and trim size.",
+          "t.secSpine": "Pages and paper", "t.secCover": "Cover data",
+          "t.binding": "Binding", "t.perfect": "Perfect binding", "t.saddle": "Saddle stitch",
+          "t.pages": "Text pages",
+          "t.pageshint": "Interior pages, not counting the 4 cover pages. Some printers count \"total pages including the cover\" — subtract 4 in that case.",
+          "t.paper": "Text paper",
+          "t.paper.jo70": "Woodfree 70kg (≈0.10mm)", "t.paper.jo90": "Woodfree 90kg (≈0.12mm)", "t.paper.jo110": "Woodfree 110kg (≈0.14mm)",
+          "t.paper.shoseki90": "Book paper 90kg (≈0.12mm)", "t.paper.coat90": "Coated 90kg (≈0.08mm)", "t.paper.coat110": "Coated 110kg (≈0.11mm)",
+          "t.paper.matte110": "Matte coated 110kg (≈0.13mm)", "t.paper.bulky": "Book bulky (≈0.14mm)", "t.paper.comic": "Comic bulky (≈0.15mm)",
           "t.custom": "Custom",
-          "t.paperhint": "Reference thickness per sheet. Actual values vary by printer — check their spec for production use.",
-          "t.coverinclude": "Include cover thickness",
-          "t.cover.thin": "Light cover (≈0.20mm)",
-          "t.cover.mid": "Standard cover (≈0.30mm)",
-          "t.cover.thick": "Heavy cover (≈0.45mm)",
+          "t.paperhint": "Thickness of one sheet (2 pages), from figures printers publish. Brands vary by a few percent.",
+          "t.coverinclude": "Add cover thickness (front + back)",
+          "t.cover.thin": "Thin cover stock (≈0.20mm)", "t.cover.mid": "Standard cover stock (≈0.25mm)", "t.cover.thick": "Thick cover stock (≈0.35mm)",
           "t.allowance": "Extra allowance",
-          "t.allowancehint": "Optional. Some printers add a small margin for glue or trimming.",
-          "t.output": "Result",
-          "t.spine": "Spine width",
-          "t.spinebulge": "Ridge bulge (reference)",
-          "t.textblock": "Text block thickness",
+          "t.round": "Rounding", "t.round.none": "None", "t.round.01": "0.1 mm", "t.round.05": "0.5 mm up",
+          "t.roundhint": "Many printers truncate to 0.1 mm and then round up to the next 0.5 mm.",
+          "t.size": "Trim size", "t.size.bunko": "Bunko / A6 (105 × 148)", "t.size.shinsho": "Shinsho (103 × 182)",
+          "t.wunit": "W mm", "t.hunit": "H mm",
+          "t.dir": "Binding side", "t.dir.right": "Right (manga, vertical text)", "t.dir.left": "Left (horizontal text)",
+          "t.bleed": "Bleed", "t.dpi": "Resolution",
+          "t.dpihint": "350 dpi for colour covers, 600 dpi for greyscale, 1200 dpi for line art.",
+          "t.output": "Spine", "t.spine": "Spine width", "t.spinebulge": "Fold bulge (reference)",
+          "t.textblock": "Text block thickness", "t.spinetext": "Safe width for spine text",
+          "t.coverOut": "Cover data size", "t.withBleed": "With bleed", "t.pixels": "Pixels at {d} dpi", "t.trimmed": "Trimmed spread",
+          "t.front": "Front", "t.back": "Back", "t.spineShort": "Spine",
           "t.copyhint": "Click any value to copy.",
-          "t.accnote": "Paper thickness presets are reference values, not guaranteed. Confirm exact figures with your printer before production.",
+          "t.accnote": "<strong>Use your printer's own spine figure for the final file.</strong> Each printer uses its own formula, paper figures and rounding, and they check covers against that number. Results here typically land within a few tenths of a millimetre, well inside the ±1 mm that glue and binding add — good for planning and starting the artwork.",
           "t.badge.mult2": "Page count is usually even.",
-          "t.badge.mult4": "Page count is usually a multiple of 4 for saddle stitch.",
-          "t.badge.saddlenote": "Saddle-stitched books have no flat spine face — this is a rough reference for the folded ridge, useful for 3D modeling."
+          "t.badge.mult4": "Saddle-stitched page counts are usually a multiple of 4.",
+          "t.badge.saddlenote": "Saddle-stitched books have no flat spine, so the cover has no spine panel. The figure is the folded ridge — handy for 3D modelling.",
+          "t.badge.thin": "Spine under 3 mm: many printers advise against spine text.",
+          "t.badge.minpages": "Perfect binding has a minimum page count per printer — often around 16–24 text pages."
         },
         ja: {
           "t.title": "本の背幅計算",
-          "t.desc": "ページ数・用紙・綴じ方式から、本の背幅を概算します。",
-          "t.binding": "綴じ方式",
-          "t.perfect": "無線綴じ",
-          "t.saddle": "中綴じ",
+          "t.desc": "ページ数・用紙・判型から、本の背幅と入稿用の表紙サイズを計算します。",
+          "t.secSpine": "ページと用紙", "t.secCover": "表紙データ",
+          "t.binding": "綴じ方式", "t.perfect": "無線綴じ", "t.saddle": "中綴じ",
           "t.pages": "本文ページ数",
-          "t.pageshint": "表紙を除いた、本文のページ数。",
-          "t.paper": "用紙",
-          "t.paper.woodfree70": "上質紙 70kg（目安 0.10mm）",
-          "t.paper.woodfree90": "上質紙 90kg（目安 0.12mm）",
-          "t.paper.woodfree110": "上質紙 110kg（目安 0.15mm）",
-          "t.paper.coated90": "コート紙 90kg（目安 0.10mm）",
-          "t.paper.coated110": "コート紙 110kg（目安 0.11mm）",
-          "t.paper.matcoated90": "マットコート紙 90kg（目安 0.11mm）",
+          "t.pageshint": "表紙（4ページ分）を除いた本文のページ数。印刷所によっては「表紙込みの総ページ数」で数えるので、その場合は4を引いて入力してください。",
+          "t.paper": "本文用紙",
+          "t.paper.jo70": "上質紙 70kg（目安 0.10mm）", "t.paper.jo90": "上質紙 90kg（目安 0.12mm）", "t.paper.jo110": "上質紙 110kg（目安 0.14mm）",
+          "t.paper.shoseki90": "書籍用紙 90kg（目安 0.12mm）", "t.paper.coat90": "コート紙 90kg（目安 0.08mm）", "t.paper.coat110": "コート紙 110kg（目安 0.11mm）",
+          "t.paper.matte110": "マットコート紙 110kg（目安 0.13mm）", "t.paper.bulky": "書籍バルキー（目安 0.14mm）", "t.paper.comic": "コミックバルキー（目安 0.15mm）",
           "t.custom": "カスタム",
-          "t.paperhint": "1枚あたりの目安の厚みです。実際の紙厚は印刷所や銘柄によって異なるため、入稿前に必ず確認してください。",
-          "t.coverinclude": "表紙の厚みを含める",
-          "t.cover.thin": "薄口の表紙（目安 0.20mm）",
-          "t.cover.mid": "普通の表紙（目安 0.30mm）",
-          "t.cover.thick": "厚口の表紙（目安 0.45mm）",
+          "t.paperhint": "紙1枚（2ページ分）の厚みです。印刷所が公表している値の目安で、銘柄によって数％前後します。",
+          "t.coverinclude": "表紙の厚みを足す（表・裏の2枚分）",
+          "t.cover.thin": "薄めの表紙用紙（目安 0.20mm）", "t.cover.mid": "標準の表紙用紙（目安 0.25mm）", "t.cover.thick": "厚めの表紙用紙（目安 0.35mm）",
           "t.allowance": "余裕（のり代など）",
-          "t.allowancehint": "任意項目です。印刷所によっては、のり代や仕上がり誤差の余裕を加えることがあります。",
-          "t.output": "計算結果",
-          "t.spine": "背幅",
-          "t.spinebulge": "背の膨らみ（目安）",
-          "t.textblock": "本文の厚み",
+          "t.round": "丸め", "t.round.none": "なし", "t.round.01": "0.1mm", "t.round.05": "0.5mm切り上げ",
+          "t.roundhint": "多くの印刷所は、0.1mm未満を切り捨ててから0.5mm単位で切り上げています。",
+          "t.size": "判型（仕上がりサイズ）", "t.size.bunko": "文庫・A6（105 × 148）", "t.size.shinsho": "新書（103 × 182）",
+          "t.wunit": "幅 mm", "t.hunit": "高さ mm",
+          "t.dir": "綴じ方向", "t.dir.right": "右綴じ（漫画・縦書き）", "t.dir.left": "左綴じ（横書き）",
+          "t.bleed": "塗り足し", "t.dpi": "解像度",
+          "t.dpihint": "カラー表紙は350dpi、グレースケールは600dpi、モノクロ2階調は1200dpiが目安です。",
+          "t.output": "背幅", "t.spine": "背幅", "t.spinebulge": "背の膨らみ（目安）",
+          "t.textblock": "本文の厚み", "t.spinetext": "背文字を置ける幅の目安",
+          "t.coverOut": "表紙データのサイズ", "t.withBleed": "塗り足し込み", "t.pixels": "{d}dpiでのピクセル数", "t.trimmed": "仕上がり（見開き）",
+          "t.front": "表1", "t.back": "表4", "t.spineShort": "背",
           "t.copyhint": "数値をクリックでコピー。",
-          "t.accnote": "紙厚のプリセットはあくまで目安の参考値です。正確な数値は印刷所の仕様を必ず確認してください。",
+          "t.accnote": "<strong>入稿データの背幅は、入稿先の印刷所の値を使ってください。</strong>計算式・紙厚・丸め方は印刷所ごとに違い、表紙データはその値で確認されます。ここでの結果は多くの場合それと0.数mmの差で、糊や製本による±1mmの誤差の範囲に収まります。印刷所選びや表紙を描き始めるときの目安としてご利用ください。",
           "t.badge.mult2": "ページ数は偶数になるのが一般的です。",
           "t.badge.mult4": "中綴じはページ数が4の倍数になるのが一般的です。",
-          "t.badge.saddlenote": "中綴じ本には平らな背面がないため、これは折り目部分の膨らみの目安です。3DCGでの参考値としてご利用ください。"
+          "t.badge.saddlenote": "中綴じ本には平らな背が無いので、表紙データにも背はありません。背幅の値は折り目部分の膨らみの目安です（3DCGの参考に）。",
+          "t.badge.thin": "背幅が3mm未満です。背文字は入れないよう勧める印刷所が多いです。",
+          "t.badge.minpages": "無線綴じには印刷所ごとに最少ページ数があります（本文16〜24ページ程度が目安）。"
         }
       },
       onSettingsChange: render
     });
   }
-
   render();
 })();
 </script>
