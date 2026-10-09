@@ -941,7 +941,10 @@
         "maya",
         "houdini",
         "軸",
-        "スケール"
+        "スケール",
+        "embergen",
+        "liquigen",
+        "jangafx"
       ],
       "added": "2026-07-11"
     },
