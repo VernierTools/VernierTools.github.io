@@ -996,6 +996,174 @@
       "added": "2026-07-11"
     },
     {
+      "id": "modifier-guard",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/modifier-guard/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Modifier Guard",
+        "ja": "Modifier Guard"
+      },
+      "description": {
+        "en": "Stop heavy modifiers before they freeze the viewport. Blender add-on.",
+        "ja": "重いモディファイアを、固まる前に自動で止めるアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "modifier",
+        "freeze",
+        "subdivision",
+        "performance",
+        "モディファイア",
+        "フリーズ",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
+      "id": "alpha-cutout-knife",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/alpha-cutout-knife/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Alpha Cutout Knife",
+        "ja": "Alpha Cutout Knife"
+      },
+      "description": {
+        "en": "Cut a mesh along a texture's alpha edge. Blender add-on.",
+        "ja": "テクスチャのアルファに沿ってメッシュを切り抜くアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "alpha",
+        "cutout",
+        "mesh",
+        "texture",
+        "アルファ",
+        "切り抜き",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
+      "id": "weight-texture-mask",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/weight-texture-mask/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Weight Texture Mask",
+        "ja": "Weight Texture Mask"
+      },
+      "description": {
+        "en": "Blend two materials with a Weight Paint mask. Blender add-on.",
+        "ja": "ウェイトペイントで2つのマテリアルを塗り分けるアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "weight paint",
+        "vertex group",
+        "material",
+        "shader",
+        "mask",
+        "ウェイト",
+        "マスク",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
+      "id": "duplicate-to-instance",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/duplicate-to-instance/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Duplicate to Instance",
+        "ja": "Duplicate to Instance"
+      },
+      "description": {
+        "en": "Make identical meshes share one mesh to save memory. Blender add-on.",
+        "ja": "同じメッシュを共有させてメモリを節約するアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "instance",
+        "linked duplicate",
+        "memory",
+        "optimize",
+        "インスタンス",
+        "リンク複製",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
+      "id": "outliner-visibility-checker",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/outliner-visibility-checker/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Outliner Visibility Checker",
+        "ja": "Outliner Visibility Checker"
+      },
+      "description": {
+        "en": "Find objects whose viewport and render visibility differ. Blender add-on.",
+        "ja": "ビューポートとレンダーの表示が食い違うオブジェクトを探すアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "outliner",
+        "visibility",
+        "render",
+        "hide",
+        "表示",
+        "レンダー",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
+      "id": "set-origin-to-selected",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/set-origin-to-selected/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Set Origin to Selected",
+        "ja": "Set Origin to Selected"
+      },
+      "description": {
+        "en": "Set the origin to the selection from Edit Mode. Blender add-on.",
+        "ja": "編集モードのまま原点を選択部分に移すアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "origin",
+        "edit mode",
+        "pivot",
+        "mesh",
+        "原点",
+        "アドオン"
+      ],
+      "added": "2026-10-09"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modifier Guard — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト（Safe / Smart / Smooth） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・制限事項） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="t.badge">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Modifier Guard</h1>
+    <p data-i18n="t.desc">Stops heavy modifiers before they freeze the viewport.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">Stops it before it runs</b><span data-i18n="t.f1.d">Blender can't cancel a modifier once it starts. Modifier Guard estimates each modifier's load just before the viewport updates, and turns off the viewport display of one that would go over the limit, so the freeze never happens.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">Only the culprit</b><span data-i18n="t.f2.d">Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">Calibrate for your computer</b><span data-i18n="t.f3.d">One click measures this machine and scene, then sets the limit so a modifier at the limit takes no longer than the wait you choose (2 seconds by default).</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f4.t">Easy to undo</b><span data-i18n="t.f4.d">A banner tells you what was stopped. Revert to the last safe settings or Allow it for the session from the sidebar, and stopped modifiers come back on by themselves once you lower them.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f5.t">Covers the tricky cases</b><span data-i18n="t.f5.d">Works during playback, with drivers and NLA strips, and checks heavy files right after they open. Render settings are never touched.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 5.2 or later. Written for Windows, macOS and Linux, but so far tested only on macOS (Apple Silicon).</span></p>
+        <p class="note"><b data-i18n="t.limits">Good to know</b><br>
+          <span data-i18n="t.limitsbody">The load is an estimate, made on the safe side, so a modifier may occasionally be stopped a little early. Geometry Nodes are estimated from their last result. Linked data from another file can't be stopped; it is listed in the panel instead.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip file on the right. Don't unzip it.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Get Extensions.</li>
+          <li data-i18n="t.step3">Open the ⌄ menu at the top-right, choose "Install from Disk…", then pick the .zip file. (Dragging the .zip into the Blender window also works.)</li>
+          <li data-i18n="t.step4">Find it in the 3D Viewport ▸ Sidebar (N) ▸ "Modifier Guard" tab. Press Calibrate once to fit the limit to your computer.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6z"/><path d="M12 8v4"/><path d="M12 15.5v.01"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Modifier Guard</div>
+              <div class="dl-kind" data-i18n="t.badge">Blender add-on</div>
+            </div>
+          </div>
+          <a class="btn btn--primary btn--block" href="modifier_guard.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.3.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">5.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
+          </div>
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open (GPL). Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "modifier-guard",
+    strings: {
+      en: {
+        "t.title": "Modifier Guard",
+        "t.badge": "Blender add-on",
+        "t.desc": "Stops heavy modifiers before they freeze the viewport.",
+        "t.feat": "Features",
+        "t.about": "Requirements & notes",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 5.2 or later. Written for Windows, macOS and Linux, but so far tested only on macOS (Apple Silicon).",
+        "t.limits": "Good to know",
+        "t.limitsbody": "The load is an estimate, made on the safe side, so a modifier may occasionally be stopped a little early. Geometry Nodes are estimated from their last result. Linked data from another file can't be stopped; it is listed in the panel instead.",
+        "t.install": "Install",
+        "t.download": "Download (.zip)",
+        "t.version": "Version",
+        "t.blender": "Blender",
+        "t.os": "OS",
+        "t.dlcap": "Free and open (GPL). Everything runs locally in Blender — nothing is uploaded.",
+        "t.f1.t": "Stops it before it runs",
+        "t.f1.d": "Blender can't cancel a modifier once it starts. Modifier Guard estimates each modifier's load just before the viewport updates, and turns off the viewport display of one that would go over the limit, so the freeze never happens.",
+        "t.f2.t": "Only the culprit",
+        "t.f2.d": "Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost.",
+        "t.f3.t": "Calibrate for your computer",
+        "t.f3.d": "One click measures this machine and scene, then sets the limit so a modifier at the limit takes no longer than the wait you choose (2 seconds by default).",
+        "t.f4.t": "Easy to undo",
+        "t.f4.d": "A banner tells you what was stopped. Revert to the last safe settings or Allow it for the session from the sidebar, and stopped modifiers come back on by themselves once you lower them.",
+        "t.f5.t": "Covers the tricky cases",
+        "t.f5.d": "Works during playback, with drivers and NLA strips, and checks heavy files right after they open. Render settings are never touched.",
+        "t.step1": "Download the .zip file on the right. Don't unzip it.",
+        "t.step2": "In Blender, open Edit ▸ Preferences ▸ Get Extensions.",
+        "t.step3": "Open the ⌄ menu at the top-right, choose \"Install from Disk…\", then pick the .zip file. (Dragging the .zip into the Blender window also works.)",
+        "t.step4": "Find it in the 3D Viewport ▸ Sidebar (N) ▸ \"Modifier Guard\" tab. Press Calibrate once to fit the limit to your computer."
+},
+      ja: {
+        "t.title": "Modifier Guard",
+        "t.badge": "Blenderアドオン",
+        "t.desc": "重すぎるモディファイアを、ビューポートが固まる前に止めます。",
+        "t.feat": "特長",
+        "t.about": "動作環境・補足",
+        "t.req": "動作環境",
+        "t.reqbody": "Blender 5.2 以降が必要です。Windows・macOS・Linux 向けに作っていますが、動作確認は macOS（Apple Silicon）のみです。",
+        "t.limits": "知っておきたいこと",
+        "t.limitsbody": "重さは安全側に見積もった推定なので、少し早めに止まることがあります。ジオメトリノードは前回の結果から見積もります。別ファイルからリンクしたデータは止められないので、パネルに一覧で出します。",
+        "t.install": "インストール",
+        "t.download": "ダウンロード（.zip）",
+        "t.version": "バージョン",
+        "t.blender": "Blender",
+        "t.os": "OS",
+        "t.dlcap": "無料・オープンソース（GPL）。すべてBlender内でローカルに動作し、アップロードはありません。",
+        "t.f1.t": "評価が始まる前に止める",
+        "t.f1.d": "Blender は始まったモディファイアの計算を止められません。Modifier Guard はビューポートが更新される直前に各モディファイアの重さを見積もり、上限を超えそうなものだけビューポート表示をオフにするので、固まる計算そのものが走りません。",
+        "t.f2.t": "原因のものだけ",
+        "t.f2.d": "止めるのは上限を超えたモディファイアだけです。ベベル・リメッシュ・正確モードのブーリアンのように遅い種類は、実測した重みで見積もります。",
+        "t.f3.t": "パソコンに合わせて調整",
+        "t.f3.d": "Calibrate を押すと、このパソコンと開いているシーンで実測し、上限のモディファイアでも待ち時間が設定値（標準2秒）に収まるように上限を決めます。",
+        "t.f4.t": "すぐ元に戻せる",
+        "t.f4.d": "止めたことはバナーで知らせます。サイドバーから、上限内だった最後の設定に「戻す」か、今回だけ「許可」できます。設定を下げれば自動で表示が戻ります。",
+        "t.f5.t": "難しい場面にも対応",
+        "t.f5.d": "再生中、ドライバーやNLAでの変化にも働き、重いファイルは開いた直後に確認します。レンダーの設定には一切触れません。",
+        "t.step1": "右の .zip ファイルをダウンロードします。展開（解凍）はしないでください。",
+        "t.step2": "Blenderで 編集 ▸ プリファレンス ▸ エクステンションを入手 を開きます。",
+        "t.step3": "右上の ⌄ メニューから「ディスクからインストール…」を選び、.zip ファイルを指定します。（.zip を Blender のウィンドウにドラッグ＆ドロップしても入ります）",
+        "t.step4": "3Dビューポート ▸ サイドバー（N）▸「Modifier Guard」タブにあります。最初に一度 Calibrate を押すと、上限がパソコンに合います。"
+}
+    }
+  });
+}
+</script>
+</body>
+</html>

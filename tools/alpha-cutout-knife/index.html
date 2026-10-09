@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpha Cutout Knife — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト（Safe / Smart / Smooth） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・制限事項） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="t.badge">Blender add-on</span>
+    </div>
+    <h1 data-i18n="t.title">Alpha Cutout Knife</h1>
+    <p data-i18n="t.desc">Cut a mesh along a texture's alpha edge and delete the transparent faces.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 説明 / インストール手順 -->
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">A clean cut line</b><span data-i18n="t.f1.d">Edges are split exactly where the alpha edge crosses them, and only the faces it passes through are rebuilt. Temporary helper edges are dissolved afterwards.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">Finds the right texture</b><span data-i18n="t.f2.d">Follows each material's nodes back from the Alpha input, through reroutes and node groups. Slots without an alpha texture are left untouched.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">Rig-safe</b><span data-i18n="t.f3.d">Vertex group weights and shape key positions are carried over to the new vertices, so armatures and shape keys keep working.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f4.t">Object or Edit Mode</b><span data-i18n="t.f4.d">Runs on the active mesh in either mode, and every setting can be tweaked afterwards in the Adjust Last Operation panel.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Pure Python, so it should run on Windows, macOS and Linux; tested on macOS with Blender 5.2.</span></p>
+        <p class="note"><b data-i18n="t.limits">Good to know</b><br>
+          <span data-i18n="t.limitsbody">The cut follows the active UV map. Mapping or vector nodes between the UVs and the image (scale, offset, rotation) are not taken into account. Images whose Alpha Mode is None have no alpha to read. If a shape key other than Basis is active in Edit Mode, the cut is refused; select Basis first.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip file on the right. Don't unzip it.</li>
+          <li data-i18n="t.step2">In Blender, open Edit ▸ Preferences ▸ Get Extensions.</li>
+          <li data-i18n="t.step3">Open the ⌄ menu at the top-right, choose "Install from Disk…", then pick the .zip file. (Dragging the .zip into the Blender window also works.)</li>
+          <li data-i18n="t.step4">Find it in the 3D Viewport ▸ Sidebar (N) ▸ "Alpha Cut" tab.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4"/><path d="M14 4h6v6"/><circle cx="8" cy="8" r="3" stroke-dasharray="2 2"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Alpha Cutout Knife</div>
+              <div class="dl-kind" data-i18n="t.badge">Blender add-on</div>
+            </div>
+          </div>
+          <a class="btn btn--primary btn--block" href="alpha_cutout_knife.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">5.1.1</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
+          </div>
+          <p class="dl-cap" data-i18n="t.dlcap">Free and open (GPL). Everything runs locally in Blender — nothing is uploaded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "alpha-cutout-knife",
+    strings: {
+      en: {
+        "t.title": "Alpha Cutout Knife",
+        "t.badge": "Blender add-on",
+        "t.desc": "Cut a mesh along a texture's alpha edge and delete the transparent faces.",
+        "t.feat": "Features",
+        "t.about": "Requirements & notes",
+        "t.req": "Requirements",
+        "t.reqbody": "Requires Blender 4.2 or later. Pure Python, so it should run on Windows, macOS and Linux; tested on macOS with Blender 5.2.",
+        "t.limits": "Good to know",
+        "t.limitsbody": "The cut follows the active UV map. Mapping or vector nodes between the UVs and the image (scale, offset, rotation) are not taken into account. Images whose Alpha Mode is None have no alpha to read. If a shape key other than Basis is active in Edit Mode, the cut is refused; select Basis first.",
+        "t.install": "Install",
+        "t.download": "Download (.zip)",
+        "t.version": "Version",
+        "t.blender": "Blender",
+        "t.os": "OS",
+        "t.dlcap": "Free and open (GPL). Everything runs locally in Blender — nothing is uploaded.",
+        "t.f1.t": "A clean cut line",
+        "t.f1.d": "Edges are split exactly where the alpha edge crosses them, and only the faces it passes through are rebuilt. Temporary helper edges are dissolved afterwards.",
+        "t.f2.t": "Finds the right texture",
+        "t.f2.d": "Follows each material's nodes back from the Alpha input, through reroutes and node groups. Slots without an alpha texture are left untouched.",
+        "t.f3.t": "Rig-safe",
+        "t.f3.d": "Vertex group weights and shape key positions are carried over to the new vertices, so armatures and shape keys keep working.",
+        "t.f4.t": "Object or Edit Mode",
+        "t.f4.d": "Runs on the active mesh in either mode, and every setting can be tweaked afterwards in the Adjust Last Operation panel.",
+        "t.step1": "Download the .zip file on the right. Don't unzip it.",
+        "t.step2": "In Blender, open Edit ▸ Preferences ▸ Get Extensions.",
+        "t.step3": "Open the ⌄ menu at the top-right, choose \"Install from Disk…\", then pick the .zip file. (Dragging the .zip into the Blender window also works.)",
+        "t.step4": "Find it in the 3D Viewport ▸ Sidebar (N) ▸ \"Alpha Cut\" tab."
+},
+      ja: {
+        "t.title": "Alpha Cutout Knife",
+        "t.badge": "Blenderアドオン",
+        "t.desc": "テクスチャのアルファの境目に沿ってメッシュを切り、透明な側の面を削除します。",
+        "t.feat": "特長",
+        "t.about": "動作環境・補足",
+        "t.req": "動作環境",
+        "t.reqbody": "Blender 4.2 以降が必要です。Python だけで書かれているので Windows・macOS・Linux で動くはずです（動作確認は macOS・Blender 5.2）。",
+        "t.limits": "知っておきたいこと",
+        "t.limitsbody": "切る位置はアクティブなUVマップで決まります。UVと画像の間にあるマッピングやベクトルのノード（拡大・移動・回転）は考慮しません。アルファモードが「なし」の画像はアルファを読めません。編集モードで Basis 以外のシェイプキーが選ばれているときは実行しないので、先に Basis を選んでください。",
+        "t.install": "インストール",
+        "t.download": "ダウンロード（.zip）",
+        "t.version": "バージョン",
+        "t.blender": "Blender",
+        "t.os": "OS",
+        "t.dlcap": "無料・オープンソース（GPL）。すべてBlender内でローカルに動作し、アップロードはありません。",
+        "t.f1.t": "きれいな切り口",
+        "t.f1.d": "アルファの境目が辺を横切る位置でぴったり分割し、境目が通る面だけを作り直します。途中でできた補助の辺は最後に溶解します。",
+        "t.f2.t": "テクスチャを自動で特定",
+        "t.f2.d": "マテリアルごとに、アルファの入力からノードをさかのぼって画像を探します。リルートやノードグループの中もたどります。アルファ画像のないスロットの面には触れません。",
+        "t.f3.t": "リグを壊さない",
+        "t.f3.d": "新しくできた頂点にも、頂点グループのウェイトとシェイプキーの位置を引き継ぎます。",
+        "t.f4.t": "オブジェクト・編集の両モード",
+        "t.f4.d": "どちらのモードでも動き、実行後に「最後の操作を調整」パネルで設定を変えられます。",
+        "t.step1": "右の .zip ファイルをダウンロードします。展開（解凍）はしないでください。",
+        "t.step2": "Blenderで 編集 ▸ プリファレンス ▸ エクステンションを入手 を開きます。",
+        "t.step3": "右上の ⌄ メニューから「ディスクからインストール…」を選び、.zip ファイルを指定します。（.zip を Blender のウィンドウにドラッグ＆ドロップしても入ります）",
+        "t.step4": "3Dビューポート ▸ サイドバー（N）▸「Alpha Cut」タブにあります。"
+}
+    }
+  });
+}
+</script>
+</body>
+</html>
