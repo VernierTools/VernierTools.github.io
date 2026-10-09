@@ -1,10 +1,11 @@
 bl_info = {
     "name": "Material-less Object Counter",
     "author": "Mikat",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (4, 2, 0),
     "location": "Editor Headers (3D View / Shader / Outliner / Properties) and View3D > Sidebar (N) > No Material",
-    "description": "Counts objects without materials (no slots or only empty slots), "
+    "description": "Counts objects whose faces render without a material (no slots, "
+                   "or faces using an empty slot; unused empty slots are ignored), "
                    "lists them for quick selection, with type filters, hidden/faceless "
                    "toggles, select-all and zoom-to-object. The header button can be "
                    "shown in several editors.",
@@ -12,6 +13,7 @@ bl_info = {
 }
 
 import bpy
+import numpy as np
 from bpy.app.handlers import persistent
 from bpy.props import StringProperty, BoolProperty, EnumProperty, PointerProperty
 from mathutils import Vector
@@ -40,6 +42,12 @@ _result_cache = {}
 # ファイル読み込み時にのみ破棄する。これにより Include Faceless の切り替えは
 # 再計算ゼロ（キャッシュ命中）で即反映される。
 _faces_cache = {}
+
+# オブジェクトの「マテリアル状態」(_object_status の戻り値) のキャッシュ。
+# キー = obj.session_uid。スロット・マテリアル・面のインデックスはいずれも
+# depsgraph 更新を伴って変わるので、破棄のタイミングは _faces_cache と同じ。
+# None（＝問題なし）も有効値なので、存在判定は `in` で行う。
+_status_cache = {}
 
 # 設定が未登録(テキストエディタ実行直後など)のときに使うデフォルト対象タイプ。
 _DEFAULT_TYPES = {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME'}
@@ -105,23 +113,112 @@ _DEFAULT_EDITOR_ATTR = "show_in_view3d"
 # ----------------------------------------------------------------------------
 # 判定ロジック
 # ----------------------------------------------------------------------------
-def _object_status(obj):
-    """オブジェクトのマテリアル状態を返す。
+def _eval_object(obj, depsgraph):
+    """評価済み（モディファイア適用後）のオブジェクトを返す。取れなければ元のまま。
+    Geometry Nodes の Set Material などで付いたマテリアルは評価後のスロットにしか
+    現れないため、スロット判定は評価後で行う。"""
+    if depsgraph is not None:
+        try:
+            return obj.evaluated_get(depsgraph)
+        except Exception:
+            pass
+    return obj
+
+
+def _used_slot_indices(obj, eval_obj, slot_count):
+    """実際に面（文字・スプライン）から参照されているスロット番号の集合を返す。
+    参照が分からないとき（面が無い等）は None。
+
+    範囲外のマテリアルインデックスは、描画側と同じく最後のスロットに丸める。"""
+    last = slot_count - 1
+    data = getattr(eval_obj, "data", None)
+
+    # --- メッシュ：評価後メッシュの material_index 属性（面ドメイン）を読む ---
+    polys = getattr(data, "polygons", None)
+    if polys is not None:
+        n = len(polys)
+        if n == 0:
+            return None
+        attr = data.attributes.get("material_index")
+        if attr is None or attr.domain != 'FACE':
+            return {0}  # 属性が無ければ全面がインデックス 0
+        idx = np.empty(n, dtype=np.int32)
+        attr.data.foreach_get("value", idx)
+        np.clip(idx, 0, last, out=idx)
+        counts = np.bincount(idx, minlength=slot_count)
+        return {int(i) for i in np.flatnonzero(counts)}
+
+    # --- カーブ / サーフェス：スプラインごとの material_index ---
+    if obj.type in {'CURVE', 'SURFACE'}:
+        splines = getattr(obj.data, "splines", None)
+        if not splines:
+            return None
+        return {min(max(sp.material_index, 0), last) for sp in splines}
+
+    # --- テキスト：文字ごとの material_index ---
+    if obj.type == 'FONT':
+        fmt = getattr(obj.data, "body_format", None)
+        if not fmt:
+            return None
+        return {min(max(ch.material_index, 0), last) for ch in fmt}
+
+    # --- メタボール / ボリューム：先頭スロットのみ使われる ---
+    return {0}
+
+
+def _object_status(obj, depsgraph=None):
+    """オブジェクトのマテリアル状態を返す（結果を obj.session_uid でキャッシュ）。
 
     戻り値:
-      None        … マテリアルを持てない型 / 既に割り当て済み（=カウント対象外）
+      None        … マテリアルを持てない型 / 使われているスロットは全て割り当て済み
       'NO_SLOT'   … マテリアルスロットが 1 つも無い
-      'EMPTY_SLOT'… スロットはあるが全て空（中身が None）
-    """
+      'EMPTY_SLOT'… 面が使っているスロットが全て空（＝マテリアルの付いた面が無い）
+      'PARTIAL'   … 一部の面だけが空スロットを使っている
+
+    どの面からも使われていない空スロットは無視する（レンダーに影響しないため）。
+    キャッシュは _faces_cache と同じく depsgraph 更新とファイル読み込みで破棄する。"""
+    try:
+        key = obj.session_uid
+    except Exception:
+        key = None
+    if key is not None and key in _status_cache:
+        return _status_cache[key]
+    result = _compute_object_status(obj, depsgraph)
+    if key is not None:
+        _status_cache[key] = result
+    return result
+
+
+def _compute_object_status(obj, depsgraph=None):
     data = getattr(obj, "data", None)
     if data is None or not hasattr(data, "materials"):
         return None
-    slots = obj.material_slots
+    eval_obj = _eval_object(obj, depsgraph)
+    try:
+        slots = eval_obj.material_slots
+    except Exception:
+        slots = obj.material_slots
     if not slots:
         return 'NO_SLOT'
-    if all(slot.material is None for slot in slots):
+    empty = [slot.material is None for slot in slots]
+    if not any(empty):
+        return None  # 全スロット割り当て済み（大半はここで終わる＝重い集計をしない）
+    if all(empty):
         return 'EMPTY_SLOT'
-    return None
+
+    # 空スロットと割り当て済みスロットが混在：面が実際にどちらを使っているかを見る。
+    try:
+        used = _used_slot_indices(obj, eval_obj, len(slots))
+    except Exception:
+        used = None
+    if used is None:
+        return None  # 面が無い等で参照が分からない → 従来どおり「一部割り当て済み」扱い
+    used_empty = [i for i in used if empty[i]]
+    if not used_empty:
+        return None
+    if len(used_empty) == len(used):
+        return 'EMPTY_SLOT'
+    return 'PARTIAL'
 
 
 def _get_depsgraph(context=None):
@@ -281,9 +378,9 @@ def iter_no_material_objects(view_layer, settings=None, depsgraph=None):
         include_hidden = False
         include_faceless = False
 
-    # 面の有無を評価後で見るためのデプスグラフ（1 回だけ取得）。
-    # 面なしを含める設定なら面判定自体が不要なので取得を省く。
-    if not include_faceless and depsgraph is None:
+    # 面の有無・マテリアル判定を評価後で見るためのデプスグラフ（1 回だけ取得）。
+    # マテリアル判定も評価後のスロット・面を使うので、常に取得する。
+    if depsgraph is None:
         depsgraph = _get_depsgraph()
 
     for obj in view_layer.objects:
@@ -299,7 +396,7 @@ def iter_no_material_objects(view_layer, settings=None, depsgraph=None):
         # ただしモディファイアで面が生成されるものは「面あり」として拾う。
         if not include_faceless and not _has_faces(obj, depsgraph):
             continue
-        status = _object_status(obj)
+        status = _object_status(obj, depsgraph)
         if status is not None:
             yield obj, status
 
@@ -482,6 +579,7 @@ def _on_depsgraph_update(scene, depsgraph):
     # （設定トグルは depsgraph 更新を起こさないためここを通らず、キャッシュは残る＝
     #   Include Faceless の切り替えは再計算ゼロで即反映される。）
     _faces_cache.clear()
+    _status_cache.clear()
     _in_depsgraph_handler = True
     try:
         _request_recount()
@@ -494,6 +592,7 @@ def _on_load(*args):
     # ファイルを開いたらキャッシュを破棄（次回参照時に再集計される）。
     _result_cache.clear()
     _faces_cache.clear()
+    _status_cache.clear()
 
 
 # ----------------------------------------------------------------------------
@@ -658,6 +757,13 @@ def _draw_type_filter(layout, settings):
                 icon='FACESEL' if settings.include_faceless else 'MESH_DATA')
 
 
+_STATUS_ICONS = {
+    'NO_SLOT': 'X',
+    'EMPTY_SLOT': 'MATERIAL',
+    'PARTIAL': 'MOD_MASK',
+}
+
+
 def _draw_object_list(layout, items):
     """未割り当てオブジェクトの一覧。各行＝[状態][名前(選択)][ズーム]。
     items は (name, type, status) タプルのリスト（キャッシュ済みの結果）。"""
@@ -665,8 +771,9 @@ def _draw_object_list(layout, items):
     for name, otype, status in items:
         row = col.row(align=True)
 
-        # 状態アイコン：NO_SLOT=スロット無し / EMPTY_SLOT=空スロットあり。
-        status_icon = 'MATERIAL' if status == 'EMPTY_SLOT' else 'X'
+        # 状態アイコン：NO_SLOT=スロット無し / EMPTY_SLOT=全面が空スロット /
+        # PARTIAL=一部の面だけ空スロット。
+        status_icon = _STATUS_ICONS.get(status, 'X')
         row.label(text="", icon=status_icon)
 
         type_icon = _TYPE_ICONS.get(otype, 'OBJECT_DATA')

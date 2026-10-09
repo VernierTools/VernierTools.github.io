@@ -138,7 +138,7 @@
         <p class="note"><b data-i18n="t.req">Requirements</b><br>
           <span data-i18n="t.reqbody">Requires Blender 4.2 or later. Pure Python — runs on Windows, macOS, and Linux.</span></p>
         <p class="note"><b data-i18n="t.limits">Good to know</b><br>
-          <span data-i18n="t.limitsbody">Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) and have either no material slots or only empty ones. By default, objects with no faces — even after modifiers — and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.</span></p>
+          <span data-i18n="t.limitsbody">Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) whose faces render without a material: objects with no slots, and objects where some or all faces use an empty slot. Empty slots that no face uses are ignored. By default, objects with no faces — even after modifiers — and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.</span></p>
       </div>
 
       <div class="card">
@@ -173,7 +173,7 @@
           </a>
 
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.0.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.2.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">All</span></div>
           </div>
@@ -210,7 +210,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.req": "Requirements",
         "t.reqbody": "Requires Blender 4.2 or later. Pure Python \u2014 runs on Windows, macOS, and Linux.",
         "t.limits": "Good to know",
-        "t.limitsbody": "Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) and have either no material slots or only empty ones. By default, objects with no faces \u2014 even after modifiers \u2014 and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.",
+        "t.limitsbody": "Counts objects that can hold materials (mesh, curve, surface, metaball, text, volume) whose faces render without a material: objects with no slots, and objects where some or all faces use an empty slot. Empty slots that no face uses are ignored. By default, objects with no faces \u2014 even after modifiers \u2014 and objects hidden in the viewport are skipped; both can be turned on in the filters. Counts are tracked per view layer.",
         "t.kicker": "Never ship a scene with a forgotten grey mesh again.",
         "t.download": "Download (.py)",
         "t.version": "Version", "t.blender": "Blender", "t.os": "OS",
@@ -234,7 +234,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.req": "\u52D5\u4F5C\u74B0\u5883",
         "t.reqbody": "Blender 4.2 \u4EE5\u964D\u304C\u5FC5\u8981\u3067\u3059\u3002\u7D14\u7C8B\u306APython\u306E\u307F\u3067\u3001Windows\u30FBmacOS\u30FBLinux \u3067\u52D5\u4F5C\u3057\u307E\u3059\u3002",
         "t.limits": "\u88DC\u8DB3",
-        "t.limitsbody": "\u30DE\u30C6\u30EA\u30A2\u30EB\u3092\u6301\u3066\u308B\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E1\u30C3\u30B7\u30E5\u30FB\u30AB\u30FC\u30D6\u30FB\u30B5\u30FC\u30D5\u30A7\u30B9\u30FB\u30E1\u30BF\u30DC\u30FC\u30EB\u30FB\u30C6\u30AD\u30B9\u30C8\u30FB\u30DC\u30EA\u30E5\u30FC\u30E0\uFF09\u306E\u3046\u3061\u3001\u30B9\u30ED\u30C3\u30C8\u304C\u7121\u3044\uFF0F\u3059\u3079\u3066\u7A7A\u306E\u3082\u306E\u3092\u6570\u3048\u307E\u3059\u3002\u521D\u671F\u72B6\u614B\u3067\u306F\u3001\u9762\u306E\u7121\u3044\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E2\u30C7\u30A3\u30D5\u30A1\u30A4\u30A2\u9069\u7528\u5F8C\u3082\u9762\u304C\u7121\u3044\u3082\u306E\uFF09\u3068\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u3067\u975E\u8868\u793A\u306E\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306F\u5BFE\u8C61\u5916\u3067\u3059\uFF08\u3069\u3061\u3089\u3082\u30D5\u30A3\u30EB\u30BF\u30FC\u3067\u6709\u52B9\u5316\u53EF\u80FD\uFF09\u3002\u30AB\u30A6\u30F3\u30C8\u306F\u30D3\u30E5\u30FC\u30EC\u30A4\u30E4\u30FC\u3054\u3068\u306B\u7BA1\u7406\u3055\u308C\u307E\u3059\u3002",
+        "t.limitsbody": "\u30DE\u30C6\u30EA\u30A2\u30EB\u3092\u6301\u3066\u308B\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E1\u30C3\u30B7\u30E5\u30FB\u30AB\u30FC\u30D6\u30FB\u30B5\u30FC\u30D5\u30A7\u30B9\u30FB\u30E1\u30BF\u30DC\u30FC\u30EB\u30FB\u30C6\u30AD\u30B9\u30C8\u30FB\u30DC\u30EA\u30E5\u30FC\u30E0\uFF09\u306E\u3046\u3061\u3001\u30DE\u30C6\u30EA\u30A2\u30EB\u306E\u7121\u3044\u9762\u304C\u3042\u308B\u3082\u306E\uFF08\u30B9\u30ED\u30C3\u30C8\u304C\u7121\u3044\u3001\u307E\u305F\u306F\u4E00\u90E8\u30FB\u5168\u90E8\u306E\u9762\u304C\u7A7A\u30B9\u30ED\u30C3\u30C8\u3092\u4F7F\u3063\u3066\u3044\u308B\uFF09\u3092\u6570\u3048\u307E\u3059\u3002\u3069\u306E\u9762\u306B\u3082\u4F7F\u308F\u308C\u3066\u3044\u306A\u3044\u7A7A\u30B9\u30ED\u30C3\u30C8\u306F\u7121\u8996\u3057\u307E\u3059\u3002\u521D\u671F\u72B6\u614B\u3067\u306F\u3001\u9762\u306E\u7121\u3044\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\uFF08\u30E2\u30C7\u30A3\u30D5\u30A1\u30A4\u30A2\u9069\u7528\u5F8C\u3082\u9762\u304C\u7121\u3044\u3082\u306E\uFF09\u3068\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u3067\u975E\u8868\u793A\u306E\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306F\u5BFE\u8C61\u5916\u3067\u3059\uFF08\u3069\u3061\u3089\u3082\u30D5\u30A3\u30EB\u30BF\u30FC\u3067\u6709\u52B9\u5316\u53EF\u80FD\uFF09\u3002\u30AB\u30A6\u30F3\u30C8\u306F\u30D3\u30E5\u30FC\u30EC\u30A4\u30E4\u30FC\u3054\u3068\u306B\u7BA1\u7406\u3055\u308C\u307E\u3059\u3002",
         "t.kicker": "\u30B0\u30EC\u30FC\u306E\u307E\u307E\u306E\u30E1\u30C3\u30B7\u30E5\u3092\u3001\u4E8C\u5EA6\u3068\u6700\u7D42\u30B7\u30FC\u30F3\u306B\u6B8B\u3057\u307E\u305B\u3093\u3002",
         "t.download": "\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\uFF08.py\uFF09",
         "t.version": "\u30D0\u30FC\u30B8\u30E7\u30F3", "t.blender": "Blender", "t.os": "OS",
