@@ -1,18 +1,20 @@
 bl_info = {
     "name": "Material-less Object Counter",
     "author": "Mikat",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (4, 2, 0),
     "location": "Editor Headers (3D View / Shader / Outliner / Properties) and View3D > Sidebar (N) > No Material",
     "description": "Counts objects whose faces render without a material (no slots, "
                    "or faces using an empty slot; unused empty slots are ignored), "
                    "lists them for quick selection, with type filters, hidden/faceless "
-                   "toggles, select-all and zoom-to-object. The header button can be "
+                   "toggles, select-all, zoom-to-object and (in Edit Mode) selection "
+                   "of faces without a material. The header button can be "
                    "shown in several editors.",
     "category": "3D View",
 }
 
 import bpy
+import bmesh
 import numpy as np
 from bpy.app.handlers import persistent
 from bpy.props import StringProperty, BoolProperty, EnumProperty, PointerProperty
@@ -746,6 +748,13 @@ def _draw_actions(layout, has_items):
     op.zoom = True
 
 
+def _draw_edit_mode_actions(layout, context):
+    """メッシュ編集モードのときだけ「空スロットの面を選択」ボタンを出す。"""
+    if context.mode != 'EDIT_MESH':
+        return
+    layout.operator("mesh.nomat_select_empty_faces", icon='FACESEL')
+
+
 def _draw_type_filter(layout, settings):
     """オブジェクトタイプのトグル群（2 列グリッド）＋ 非表示の扱い。"""
     grid = layout.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
@@ -807,6 +816,7 @@ def draw_no_material_ui(layout, context):
 
     _draw_status(layout, len(items))
     _draw_actions(layout, bool(items))
+    _draw_edit_mode_actions(layout, context)
 
     # --- フィルター（折りたたみ式・リストより上に固定） ---
     header = layout.row(align=True)
@@ -866,6 +876,56 @@ class OBJECT_OT_nomat_select(bpy.types.Operator):
         if self.zoom:
             # 表示 / 非表示の状態は変更せず、ビューだけ寄せる。
             _zoom_to_selected(context)
+        return {'FINISHED'}
+
+
+class MESH_OT_nomat_select_empty_faces(bpy.types.Operator):
+    bl_idname = "mesh.nomat_select_empty_faces"
+    bl_label = "Select Faces Without Material"
+    bl_description = ("Select faces that use an empty material slot (or every face "
+                      "if the object has no slots) in all meshes in Edit Mode")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'EDIT_MESH'
+
+    def execute(self, context):
+        objects = [o for o in getattr(context, "objects_in_mode_unique_data", ())
+                   if o.type == 'MESH']
+        if not objects:
+            return {'CANCELLED'}
+
+        # 面単位で選ぶので面選択モードにする（頂点モードのまま面を選ぶと、
+        # フラッシュで隣の面まで選択に巻き込まれるため）。
+        context.tool_settings.mesh_select_mode = (False, False, True)
+
+        total = 0
+        for obj in objects:
+            # 編集中の面のインデックスは元オブジェクトのスロットを指すので、
+            # ここでは評価後ではなく元のスロットで判定する。
+            slots = obj.material_slots
+            empty = [slot.material is None for slot in slots]
+            last = len(slots) - 1
+            bm = bmesh.from_edit_mesh(obj.data)
+            # 解除と選択を面ごとに交互に行うと、後から解除した隣の面が共有辺・頂点を
+            # 外してしまい先に選んだ面が消える。全解除してから対象だけ選ぶ。
+            for elems in (bm.verts, bm.edges, bm.faces):
+                for elem in elems:
+                    elem.select_set(False)
+            for f in bm.faces:
+                if f.hide:
+                    continue
+                if not slots or empty[min(f.material_index, last)]:
+                    f.select_set(True)
+                    total += 1
+            bm.select_flush_mode()
+            bmesh.update_edit_mesh(obj.data, loop_triangles=False, destructive=False)
+
+        if total:
+            self.report({'INFO'}, "Selected %d face(s) without material" % total)
+        else:
+            self.report({'INFO'}, "No faces use an empty slot")
         return {'FINISHED'}
 
 
@@ -1179,6 +1239,7 @@ classes = (
     NoMatPreferences,
     OBJECT_OT_nomat_select,
     OBJECT_OT_nomat_select_all,
+    MESH_OT_nomat_select_empty_faces,
     VIEW3D_OT_nomat_refresh,
     VIEW3D_PT_no_material,            # 親パネルを先に登録
     VIEW3D_PT_no_material_settings,

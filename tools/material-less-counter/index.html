@@ -120,7 +120,7 @@
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f2.t">Jump straight to them</b><span data-i18n="t.f2.d">Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go.</span></span>
+            <span><b data-i18n="t.f2.t">Jump straight to them</b><span data-i18n="t.f2.d">Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go. In Edit Mode, one button selects exactly the faces left without a material.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
@@ -173,7 +173,7 @@
           </a>
 
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.2.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.3.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">4.2+</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">All</span></div>
           </div>
@@ -198,7 +198,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.badge": "Blender add-on",
         "t.feat": "Features",
         "t.f1.t": "See it at a glance",   "t.f1.d": "A header counter shows how many objects still have no material \u2014 a red warning while any remain, a checkmark once every object is covered.",
-        "t.f2.t": "Jump straight to them", "t.f2.d": "Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go.",
+        "t.f2.t": "Jump straight to them", "t.f2.d": "Click any object in the list to select it, zoom the viewport to frame it, or Select All to grab them in one go. In Edit Mode, one button selects exactly the faces left without a material.",
         "t.f3.t": "Filter precisely",     "t.f3.d": "Narrow by object type, include or exclude hidden objects, and choose whether faceless objects count. Faces built by modifiers like Skin are detected correctly.",
         "t.f4.t": "Right where you work",  "t.f4.d": "Show the button in the 3D Viewport, Shader Editor, Outliner, or Properties header \u2014 on the left or the right.",
         "t.install": "Install",
@@ -222,7 +222,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.badge": "Blender\u30A2\u30C9\u30AA\u30F3",
         "t.feat": "\u7279\u9577",
         "t.f1.t": "\u3072\u3068\u76EE\u3067\u628A\u63E1",   "t.f1.d": "\u30D8\u30C3\u30C0\u30FC\u306E\u30AB\u30A6\u30F3\u30BF\u30FC\u304C\u672A\u8A2D\u5B9A\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u6570\u3092\u8868\u793A\u3002\u6B8B\u3063\u3066\u3044\u308B\u9593\u306F\u8D64\u3044\u8B66\u544A\u3001\u3059\u3079\u3066\u8A2D\u5B9A\u6E08\u307F\u306B\u306A\u308B\u3068\u30C1\u30A7\u30C3\u30AF\u30DE\u30FC\u30AF\u306B\u5909\u308F\u308A\u307E\u3059\u3002",
-        "t.f2.t": "\u305D\u306E\u5834\u6240\u3078\u76F4\u884C", "t.f2.d": "\u4E00\u89A7\u306E\u540D\u524D\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u9078\u629E\u3001\u30BA\u30FC\u30E0\u3067\u30D3\u30E5\u30FC\u3092\u5BC4\u305B\u3001Select All \u3067\u4E00\u62EC\u9078\u629E\u3067\u304D\u307E\u3059\u3002",
+        "t.f2.t": "\u305D\u306E\u5834\u6240\u3078\u76F4\u884C", "t.f2.d": "\u4E00\u89A7\u306E\u540D\u524D\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u9078\u629E\u3001\u30BA\u30FC\u30E0\u3067\u30D3\u30E5\u30FC\u3092\u5BC4\u305B\u3001Select All \u3067\u4E00\u62EC\u9078\u629E\u3067\u304D\u307E\u3059\u3002\u7DE8\u96C6\u30E2\u30FC\u30C9\u3067\u306F\u3001\u30DE\u30C6\u30EA\u30A2\u30EB\u306E\u7121\u3044\u9762\u3060\u3051\u3092\u30DC\u30BF\u30F3\u3072\u3068\u3064\u3067\u9078\u629E\u3067\u304D\u307E\u3059\u3002",
         "t.f3.t": "\u7D30\u304B\u304F\u7D5E\u308A\u8FBC\u307F",   "t.f3.d": "\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u30BF\u30A4\u30D7\u3067\u7D5E\u308A\u8FBC\u307F\u3001\u975E\u8868\u793A\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u9664\u5916/\u5305\u542B\u3092\u5207\u308A\u66FF\u3048\u3001\u9762\u306A\u3057\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u6570\u3048\u308B\u304B\u3082\u9078\u3079\u307E\u3059\u3002Skin \u306A\u3069\u30E2\u30C7\u30A3\u30D5\u30A1\u30A4\u30A2\u3067\u751F\u6210\u3055\u308C\u308B\u9762\u3082\u6B63\u3057\u304F\u5224\u5B9A\u3057\u307E\u3059\u3002",
         "t.f4.t": "\u4F5C\u696D\u3059\u308B\u5834\u6240\u306B\u914D\u7F6E",  "t.f4.d": "3D\u30D3\u30E5\u30FC\u30DD\u30FC\u30C8\u30FB\u30B7\u30A7\u30FC\u30C0\u30FC\u30A8\u30C7\u30A3\u30BF\u30FC\u30FB\u30A2\u30A6\u30C8\u30E9\u30A4\u30CA\u30FC\u30FB\u30D7\u30ED\u30D1\u30C6\u30A3\u306E\u5404\u30D8\u30C3\u30C0\u30FC\u306B\u3001\u5DE6\u53F3\u3069\u3061\u3089\u3067\u3082\u30DC\u30BF\u30F3\u3092\u8868\u793A\u3067\u304D\u307E\u3059\u3002",
         "t.install": "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB",
