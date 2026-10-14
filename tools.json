@@ -877,6 +877,39 @@
       "added": "2026-09-29"
     },
     {
+      "id": "poster-weathering",
+      "type": "web",
+      "path": "tools/poster-weathering/",
+      "categories": [
+        "image"
+      ],
+      "sub": "edit",
+      "name": {
+        "en": "Weathered poster simulator",
+        "ja": "放置ポスターシミュレーター"
+      },
+      "description": {
+        "en": "Make an image look like a poster left outdoors for months or years.",
+        "ja": "画像を、屋外に何年も貼りっぱなしにしたポスターに。"
+      },
+      "keywords": [
+        "poster",
+        "weathered",
+        "aged",
+        "faded",
+        "torn",
+        "grunge",
+        "paper",
+        "ポスター",
+        "劣化",
+        "色あせ",
+        "破れ",
+        "汚れ",
+        "経年"
+      ],
+      "added": "2026-10-14"
+    },
+    {
       "id": "texture-map-generator",
       "type": "web",
       "path": "tools/texture-map-generator/",

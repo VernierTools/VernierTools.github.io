@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weathered poster simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* 破れた所は透明なので、市松模様の上に表示する */
+  .stage{ position:relative; border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    display:flex; align-items:center; justify-content:center; min-height:200px; padding:var(--s4);
+    background-color:var(--surface-2);
+    background-image:linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%),
+                     linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%);
+    background-size:20px 20px; background-position:0 0, 10px 10px; }
+  .stage canvas{ display:block; max-width:100%; max-height:72vh; width:auto; height:auto; }
+  .stage.busy::after{ content:""; position:absolute; inset:0; background:rgba(0,0,0,.35); }
+  .stage__hint{ position:absolute; left:10px; top:10px; font-size:11.5px; color:#fff; background:rgba(0,0,0,.55);
+    border-radius:var(--r-sm); padding:2px 8px; pointer-events:none; }
+
+  .pgroup{ border-top:1px solid var(--border); margin-top:var(--s4); padding-top:var(--s4); }
+  .pgroup:first-of-type{ border-top:0; margin-top:0; padding-top:0; }
+  .pgroup__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--s3); }
+  .pgroup__head .eyebrow{ font-size:10.5px; }
+  .pgroup__head button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit;
+    font-size:11px; color:var(--text-3); padding:2px 6px; border-radius:var(--r-sm); }
+  .pgroup__head button:hover{ color:var(--text-2); background:var(--surface-2); }
+  .pgroup__body{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:0 var(--s6); }
+  .prow{ margin-bottom:var(--s3); }
+  .prow:last-child{ margin-bottom:0; }
+  .prow[hidden]{ display:none; }
+  .prow__top{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2); margin-bottom:5px; }
+  .prow__lbl{ font-size:12.5px; color:var(--text-2); }
+  .prow__val{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); white-space:nowrap; }
+  .prow__note{ font-size:11px; color:var(--text-3); margin-top:4px; line-height:1.4; }
+
+  .drop{ padding:var(--s7) var(--s5); }
+  .filemeta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+  .exnote{ font-size:11.5px; color:var(--text-3); margin-top:var(--s2); line-height:1.5; }
+  .rrow__value{ font-size:18px; }
+  .mech{ margin:0; padding-left:1.1em; font-size:12.5px; color:var(--text-2); line-height:1.6; }
+  .mech li + li{ margin-top:var(--s2); }
+  .mech b{ color:var(--text); font-weight:600; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span></div>
+    <h1 data-i18n="t.title">Weathered poster simulator</h1>
+    <p data-i18n="t.desc">Turn an image into a poster that has been left outdoors for months or years — fading, yellowing, dirt, rain stains, tears, peeling and more, each modelled on how it actually happens.</p>
+  </div>
+
+  <div class="card" id="loadcard" style="margin-bottom:var(--s5)">
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+      <b data-i18n="t.droptitle">Drop an image here</b>
+      <small data-i18n="t.dropsub">JPEG, PNG, WebP, HEIC (Safari) — nothing leaves your device</small>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="badge badge--neg" id="loaderr" hidden style="margin-top:var(--s3)"></div>
+  </div>
+
+  <div class="card" id="viewcard" hidden style="padding:var(--s4);margin-bottom:var(--s5)">
+    <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
+    <div class="filemeta" id="filemeta"></div>
+    <div class="btnrow" style="margin-top:var(--s4)">
+      <button class="btn btn--secondary" id="bypass" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span data-i18n="t.bypass">Show original</span>
+      </button>
+      <button class="btn btn--secondary" id="reseed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+        <span data-i18n="t.reseed">New randomness</span>
+      </button>
+      <button class="btn btn--secondary" id="unload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <span data-i18n="t.unload">Another image</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s5)">
+    <div class="row2">
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="preset" data-i18n="t.preset">Time outdoors</label>
+        <select class="select" id="preset"></select>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label" for="mount" data-i18n="p.mount">How it's put up</label>
+        <select class="select" id="mount"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="exportcard" hidden style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.export">Export</div>
+    <div class="exnote" id="exnote" style="margin-top:0"></div>
+    <div class="btnrow">
+      <button class="btn btn--primary btn--block" id="save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        <span data-i18n="t.save">Save PNG</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card" id="params" style="margin-bottom:var(--s5)"></div>
+
+  <div class="work" style="margin-bottom:var(--s7)">
+    <div class="readout">
+      <div class="readout__head"><span class="eyebrow" data-i18n="t.readout">Readout</span></div>
+      <div id="rrows"></div>
+      <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+    </div>
+    <div class="card">
+      <div class="card__title" data-i18n="t.how">How each effect works</div>
+      <ul class="mech">
+        <li><b data-i18n="m.fade.t">Fading</b> — <span data-i18n="m.fade.d"></span></li>
+        <li><b data-i18n="m.yellow.t">Yellowing</b> — <span data-i18n="m.yellow.d"></span></li>
+        <li><b data-i18n="m.dirt.t">Dirt</b> — <span data-i18n="m.dirt.d"></span></li>
+        <li><b data-i18n="m.stain.t">Rain stains</b> — <span data-i18n="m.stain.d"></span></li>
+        <li><b data-i18n="m.run.t">Ink run</b> — <span data-i18n="m.run.d"></span></li>
+        <li><b data-i18n="m.tear.t">Tears</b> — <span data-i18n="m.tear.d"></span></li>
+        <li><b data-i18n="m.peel.t">Peeling</b> — <span data-i18n="m.peel.d"></span></li>
+        <li><b data-i18n="m.rust.t">Rust streaks</b> — <span data-i18n="m.rust.d"></span></li>
+        <li><b data-i18n="m.abr.t">Abrasion</b> — <span data-i18n="m.abr.d"></span></li>
+        <li><b data-i18n="m.wave.t">Cockling &amp; creases</b> — <span data-i18n="m.wave.d"></span></li>
+        <li><b data-i18n="m.mold.t">Mould spots</b> — <span data-i18n="m.mold.d"></span></li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script id="fs" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D uImg;
+uniform vec2 uRes;        // 出力全体の画素数
+uniform vec2 uSize;       // ポスターの大きさ (mm)
+uniform float uMmPx;      // 1画素あたりの mm
+uniform float uSeed;
+uniform int uMount;       // 0 糊 / 1 画鋲 / 2 ホチキス / 3 貼っていない
+uniform int uPaper;       // 0 コート紙 / 1 上質紙 / 2 新聞用紙
+uniform bool uBypass;
+uniform vec4 uFadeK;      // インクごとの退色の速さ×線量（C, M, Y, K）
+uniform float uSunBias;   // 上ほど日が当たる度合い
+uniform float uYellow, uDirt, uStain, uRun, uRunLen, uTear, uRust, uRustLen, uAbr, uWave, uCrumple, uMold;
+uniform vec4 uCurl;       // 角ごとのめくれ（折り返し線までの距離 mm。TL, TR, BR, BL）
+uniform vec4 uCurlAng;    // 折り返し線の傾き（rad、対角線からのずれ）
+uniform int uNPins;
+uniform vec4 uPin[6];     // x, y (mm), 状態 (1 残っている / 2 外れた), 角度
+uniform vec3 uPinCol[6];
+out vec4 outColor;
+
+/* ---- 乱数・ノイズ（mm 座標で定義するので、解像度を変えても同じ模様になる） ---- */
+uvec3 pcg3(uvec3 v){
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  return v;
+}
+float h21(vec2 i, float s){ return float(pcg3(uvec3(ivec3(int(i.x), int(i.y), int(s)))).x) / 4294967295.0; }
+vec2 h22(vec2 i, float s){ uvec3 r = pcg3(uvec3(ivec3(int(i.x), int(i.y), int(s)))); return vec2(r.xy) / 4294967295.0; }
+float gn(vec2 p, float s){
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  float a0 = h21(i, s) * 6.2831853, a1 = h21(i + vec2(1, 0), s) * 6.2831853;
+  float a2 = h21(i + vec2(0, 1), s) * 6.2831853, a3 = h21(i + vec2(1, 1), s) * 6.2831853;
+  float a = dot(vec2(cos(a0), sin(a0)), f);
+  float b = dot(vec2(cos(a1), sin(a1)), f - vec2(1, 0));
+  float c = dot(vec2(cos(a2), sin(a2)), f - vec2(0, 1));
+  float d = dot(vec2(cos(a3), sin(a3)), f - vec2(1, 1));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 1.41;
+}
+// p (mm) と基本の波長 (mm)。画素より細かいオクターブは消す（プレビューと書き出しで見え方を揃える）
+float fbm(vec2 p, float wl, int oct, float s){
+  vec2 q = p / wl; float sum = 0.0, amp = 0.5, norm = 0.0;
+  for (int i = 0; i < 7; i++){
+    if (i >= oct) break;
+    float vis = clamp((wl / uMmPx - 2.0) / 2.0, 0.0, 1.0);
+    sum += amp * vis * gn(q, s + float(i) * 17.0); norm += amp;
+    q = q * 2.03 + vec2(13.1, 7.7); amp *= 0.5; wl *= 0.4926;
+  }
+  return sum / norm;
+}
+float S(float k){ return uSeed * 131.0 + k; }
+
+vec3 toLin(vec3 c){ return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+vec3 toSrgb(vec3 c){ c = clamp(c, 0.0, 1.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+
+float edgeDist(vec2 p){ return min(min(p.x, p.y), min(uSize.x - p.x, uSize.y - p.y)); }
+float segDist(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
+
+/* ---- 破れ：> 0 なら紙がある（値は境目までのおおよその mm） ---- */
+float tearField(vec2 p){
+  float e = edgeDist(p);
+  float m = min(uSize.x, uSize.y);
+  float f = e;
+  if (uTear > 0.0){
+    // 大きな欠け（風でばたつく下側と角ほど大きい）
+    float big = fbm(p, 0.35 * m, 3, S(1.0));
+    float bite = max(0.0, big * 1.7 + 0.2);
+    float yb = 1.0 + 1.3 * smoothstep(0.55, 1.0, p.y / uSize.y);
+    float depth = uTear * yb * bite * bite * 0.22 * m;
+    // ぎざぎざ（繊維がちぎれる細かい凹凸）
+    float rag = fbm(p, 7.0, 5, S(2.0)) * (2.0 + 6.0 * uTear) + fbm(p, 1.0, 3, S(3.0)) * 0.6;
+    f = e - depth - rag * min(1.0, uTear * 3.0) - uTear * 2.0;
+  }
+  for (int i = 0; i < 6; i++){
+    if (i >= uNPins) break;
+    vec2 P = uPin[i].xy;
+    if (uPin[i].z > 1.5){
+      // 外れた留め具：風で引っ張られて穴から縁まで裂け、角ごと持っていかれる
+      vec2 edgeP = vec2(P.x < uSize.x * 0.5 ? 0.0 : uSize.x, P.y < uSize.y * 0.5 ? 0.0 : uSize.y);
+      if (abs(P.x - uSize.x * 0.5) < uSize.x * 0.2) edgeP.x = P.x;   // 辺の中央の留め具は真上か真下へ
+      float r = 9.0 + 7.0 * fbm(p, 6.0, 4, S(4.0 + float(i)));
+      f = min(f, segDist(p, P, edgeP) - r);
+    } else if (uPin[i].z > 0.5){
+      f = max(f, 7.0 - length(p - P));   // 留め具が押さえている所は破れない
+    }
+  }
+  return f;
+}
+
+/* ---- 紙の起伏 (mm)。湿気の波打ち・糊の浮き ---- */
+float height(vec2 p){
+  float h = 0.0;
+  if (uWave > 0.0){
+    if (uMount == 0){
+      // 糊貼り：濡れて伸びた紙が壁に貼り付いたまま乾き、細かいシワと糊の浮き（ふくらみ）になる
+      vec2 r = vec2(p.x * 0.8 + p.y * 0.35, p.y * 0.8 - p.x * 0.35);   // シワは斜めにも走る
+      h += uWave * 0.45 * fbm(vec2(r.x, r.y * 0.6), 11.0, 3, S(30.0));
+      float b = max(0.0, fbm(p, 45.0, 2, S(31.0)) * 1.8 - 0.35);
+      h += uWave * 2.2 * b * b;
+    } else {
+      // 留めただけ・貼っていない：紙全体が大きく波打つ
+      h += uWave * 3.0 * fbm(vec2(p.x, p.y * 0.6), 60.0, 3, S(32.0));
+    }
+  }
+  return h;
+}
+/* ---- 揉まれた紙：まっすぐな折り目が何本も交差し、折り目の両側で紙が傾く（山折り・谷折り） ---- */
+vec3 crumple(vec2 p){   // xy = 傾き、z = 折り目の強さ
+  vec2 g = vec2(0); float line = 0.0;
+  float m = max(uSize.x, uSize.y);
+  int n = 10 + int(38.0 * min(uCrumple, 1.0));
+  float w = max(uMmPx * 0.7, 0.3);
+  for (int i = 0; i < 48; i++){
+    if (i >= n) break;
+    vec2 r1 = h22(vec2(float(i), 1.0), S(40.0)), r2 = h22(vec2(float(i), 2.0), S(41.0));
+    vec2 c = r1 * uSize;
+    float ang = r2.x * 3.14159;
+    vec2 dir = vec2(cos(ang), sin(ang)), nrm = vec2(-dir.y, dir.x);
+    float len = m * (0.12 + 0.5 * r2.y * r2.y);          // 短い折り目が多く、長いものは少ない
+    float a = (h21(vec2(float(i), 3.0), S(42.0)) - 0.5) * 0.5;   // 符号で山折り・谷折り
+    vec2 rel = p - c;
+    float along = dot(rel, dir), d = dot(rel, nrm);
+    float win = 1.0 - smoothstep(len * 0.35, len * 0.5, abs(along));
+    float fall = exp(-abs(d) / (len * 0.35));
+    g += a * sign(d) * nrm * win * fall;
+    line = max(line, (1.0 - smoothstep(0.0, w, abs(d))) * win * smoothstep(0.03, 0.2, abs(a)));
+  }
+  return vec3(g, line);
+}
+
+/* ---- インクの透過率（＝白い紙に刷った時の色）を退色させる。濃度で考えるとインクは足し算になる ---- */
+vec3 fadeInk(vec3 lin, float sun){
+  vec3 D = -log(max(lin, vec3(1e-4))) / 2.302585;
+  float K = min(D.r, min(D.g, D.b));
+  vec3 cmy = D - K;                 // C は赤を、M は緑を、Y は青を吸う
+  vec4 keep = exp(-uFadeK * sun);
+  cmy *= keep.xyz; K *= keep.w;
+  return pow(vec3(10.0), -(cmy + K));
+}
+vec3 inkAt(vec2 q, float sun){
+  vec4 s = texture(uImg, clamp(q / uSize, 0.0, 1.0));
+  vec3 lin = toLin(s.rgb);
+  lin = mix(vec3(1.0), lin, s.a);   // 元画像の透明部分は「何も刷っていない」扱い
+  return fadeInk(lin, sun);
+}
+
+/* ---- 紙そのものの色（黄変と繊維） ---- */
+vec3 paperColor(vec2 p, float yAmt){
+  float e = edgeDist(p);
+  float y = yAmt * (0.75 + 0.35 * fbm(p, 80.0, 3, S(50.0))) + yAmt * 0.6 * exp(-e / 18.0);   // 空気に触れる縁ほど進む
+  y = clamp(y, 0.0, 1.0);
+  vec3 tint = uPaper == 2 ? vec3(0.80, 0.62, 0.36) : vec3(0.86, 0.72, 0.46);
+  vec3 c = mix(vec3(1.0), tint, y);
+  float fib = fbm(p, 1.6, 3, S(51.0)) * (uPaper == 0 ? 0.015 : 0.04);
+  return c * (1.0 + fib);
+}
+
+void main(){
+  vec2 px = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+  vec2 p = px / uRes * uSize;   // mm、左上原点・下向き
+  if (uBypass){
+    vec4 s = texture(uImg, p / uSize);
+    outColor = s; return;
+  }
+
+  /* 1. めくれ：角の三角形が折り返し線で前にめくれ、その下は壁（透明）、めくれた紙は裏面を見せる */
+  vec2 C[4] = vec2[4](vec2(0, 0), vec2(uSize.x, 0), uSize, vec2(0, uSize.y));
+  vec2 N[4] = vec2[4](vec2(0.7071, 0.7071), vec2(-0.7071, 0.7071), vec2(-0.7071, -0.7071), vec2(0.7071, -0.7071));
+  const float KC = 0.45;   // 丸まって見かけの幅が縮む割合
+  bool lifted = false, onFlap = false; vec2 flapSrc = vec2(0); float flapU = 0.0, flapShadow = 1.0;
+  for (int i = 0; i < 4; i++){
+    float d = uCurl[i]; if (d <= 0.0) continue;
+    float ca = cos(uCurlAng[i]), sa = sin(uCurlAng[i]);
+    vec2 n = vec2(ca * N[i].x - sa * N[i].y, sa * N[i].x + ca * N[i].y), t = vec2(-n.y, n.x);
+    float s = dot(p - C[i], n), l = dot(p - C[i], t);
+    if (s < d){ lifted = true; continue; }
+    if (s < d + d * KC){
+      vec2 src = C[i] + n * (d - (s - d) / KC) + t * l;
+      if (src.x >= 0.0 && src.y >= 0.0 && src.x <= uSize.x && src.y <= uSize.y && tearField(src) > 0.0){
+        onFlap = true; flapSrc = src; flapU = (s - d) / (d * KC);
+      }
+    } else {
+      float w = 4.0 + d * 0.12;
+      flapShadow = min(flapShadow, 1.0 - 0.45 * (1.0 - smoothstep(0.0, w, s - d - d * KC)));
+    }
+  }
+
+  float sunMap = mix(1.0, 1.45 - 0.9 * p.y / uSize.y, uSunBias);   // 上の方ほど日が当たる
+
+  vec3 col; float alpha = 1.0;
+  if (onFlap){
+    // めくれた紙の裏面：日に当たらなかった分黄変は軽く、糊貼りなら糊の跡、表の印刷がうっすら透ける
+    vec3 back = paperColor(flapSrc, uYellow * 0.6);
+    if (uMount == 0) back *= mix(vec3(1.0), vec3(0.78, 0.76, 0.72), smoothstep(-0.1, 0.4, fbm(flapSrc, 12.0, 4, S(60.0))));
+    vec3 through = inkAt(flapSrc, sunMap);
+    back *= mix(vec3(1.0), through, 0.12);
+    back *= mix(vec3(1.0), vec3(0.55, 0.52, 0.47), uDirt * 0.5);
+    float shade = 0.62 + 0.45 * sin(flapU * 3.14159) - 0.1 * flapU;   // 丸まった筒の陰影
+    col = back * shade;
+    float tf = tearField(flapSrc);
+    alpha = smoothstep(-0.5 * uMmPx, 0.5 * uMmPx, tf);
+    outColor = vec4(toSrgb(col), alpha); return;
+  }
+  if (lifted){ outColor = vec4(0.0); return; }
+
+  /* 2. 破れ */
+  float e = edgeDist(p);
+  float tf = tearField(p);
+  float torn = smoothstep(0.0, 0.4, e - tf);   // 裁ち落としの縁ではなく、破れてできた縁か
+  tf += fbm(p, 0.5, 2, S(5.0)) * 0.35 * torn;  // ちぎれた繊維の毛羽
+  alpha = smoothstep(-0.5 * uMmPx, 0.5 * uMmPx, tf);
+  float residue = 0.0;
+  if (uMount == 0 && tf < 0.0 && e > 0.0){
+    // 糊貼りを剥がした跡：紙の裏側の層が壁に薄く残る
+    residue = smoothstep(0.16, 0.2, fbm(p, 22.0, 5, S(6.0)) + fbm(p, 1.2, 2, S(12.0)) * 0.06) * smoothstep(0.0, 0.1, uTear);
+    alpha = max(alpha, residue * 0.85);
+  }
+  if (alpha <= 0.0){ outColor = vec4(0.0); return; }
+
+  /* 3. 起伏と陰影 */
+  float eps = max(uMmPx, 0.25);
+  float h0 = height(p);
+  vec2 g = vec2(height(p + vec2(eps, 0)) - h0, height(p + vec2(0, eps)) - h0) / eps;
+  vec3 cr = vec3(0);
+  if (uCrumple > 0.0){ cr = crumple(p); g += cr.xy * min(uCrumple, 1.5); }
+  vec3 nrm = normalize(vec3(-g, 1.0));
+  vec3 L = normalize(vec3(-0.45, -0.55, 0.85));
+  float shade = clamp(dot(nrm, L) / L.z, 0.35, 1.5);
+  vec2 q = p + g * 0.6;   // 起伏に沿って図柄もわずかに歪む
+
+  /* 4. インク：退色 → 雨で流れる → 擦れて剥げる */
+  vec3 T = inkAt(q, sunMap);
+  // 雨じみの1層目＝よく濡れる所。流れはそこに集中する
+  float wet0 = fbm(vec2(p.x, p.y * 0.55), 85.0, 4, S(70.0));
+  if (uRun > 0.0){
+    float drip = smoothstep(-0.25, 0.45, fbm(vec2(p.x, 0.0), 4.0, 3, S(8.0)));
+    float lenMm = uRunLen * (0.35 + 0.65 * drip);
+    vec3 acc = T; float wsum = 1.0;
+    for (int j = 1; j <= 10; j++){
+      float k = float(j) / 10.0;
+      float w = exp(-k * 2.5);
+      acc += inkAt(q - vec2(0.0, lenMm * k), sunMap) * w; wsum += w;
+    }
+    float m = uRun * (0.35 + 0.65 * smoothstep(0.0, 0.25, wet0)) * (0.4 + 0.6 * drip);
+    vec3 runT = mix(T, acc / wsum, clamp(m, 0.0, 0.9));
+    T = mix(min(T, runT), runT, 0.3);   // 流れてきた色は足されるが、流れ出た所はあまり薄くならない
+  }
+  float loss = 0.0;
+  if (uAbr > 0.0){
+    // 擦れるのは触れられる所だけ：低い所・縁の近く・たまたま何かが当たる場所
+    float wgt = 0.35 + 0.9 * smoothstep(0.45, 1.0, p.y / uSize.y) + 0.6 * exp(-e / 25.0);
+    float zone = smoothstep(0.0, 0.35, fbm(p, 140.0, 3, S(11.0)) + 0.25 * uAbr * wgt - 0.1);
+    float scuff = fbm(vec2(p.x * 0.18, p.y), 2.5, 4, S(9.0));     // 横に引きずった細い擦り傷
+    float grit = fbm(p, 0.7, 2, S(10.0));                           // 飛んできた砂粒
+    float v = 0.7 * scuff + 0.3 * grit;
+    float th = 0.62 - 0.32 * min(1.0, uAbr * wgt);
+    float hard = uPaper == 0 ? 0.02 : 0.08;   // コート紙はインクが膜ごと欠ける
+    loss = zone * smoothstep(th - hard, th + hard, v);
+  }
+  if (uCrumple > 0.0){
+    // 折り目でインクが割れる（途切れ途切れに）
+    float crack = cr.z * smoothstep(-0.1, 0.3, fbm(p, 3.0, 2, S(43.0)));
+    loss = max(loss, crack * min(1.0, uCrumple) * (uPaper == 0 ? 0.85 : 0.45));
+  }
+  T = mix(T, vec3(1.0), clamp(loss, 0.0, 1.0));
+
+  /* 5. 紙 × インク */
+  col = paperColor(p, uYellow) * T;
+
+  /* 6. 雨じみ（乾く縁に汚れが運ばれて輪になる） */
+  if (uStain > 0.0){
+    int layers = 1 + int(uStain * 3.0);
+    for (int i = 0; i < 4; i++){
+      if (i >= layers) break;
+      float f = i == 0 ? wet0 : fbm(vec2(p.x, p.y * 0.55) + vec2(37.0 * float(i)), 85.0 - float(i) * 12.0, 4, S(70.0 + float(i)));
+      float th = 0.18 + 0.22 * p.y / uSize.y + 0.08 * float(i);   // 上の縁から垂れた水ほど多い
+      // 輪は乾いた縁（外側）でくっきり、内側へ向かって薄れる。濃さは場所でむらがある
+      float ring = smoothstep(th - 0.005, th, f) * exp(-max(0.0, f - th) / 0.035);
+      ring *= 0.55 + 0.45 * fbm(p, 9.0, 2, S(75.0 + float(i)));
+      float inside = smoothstep(th, th + 0.03, f);
+      col *= mix(vec3(1.0), vec3(0.72, 0.58, 0.40), ring * 0.5 * uStain);
+      col *= mix(vec3(1.0), vec3(0.95, 0.91, 0.84), inside * 0.5 * uStain);
+    }
+  }
+
+  /* 7. 汚れ（すす・ほこり、雨だれの筋、地面からの跳ね返り、くぼみに溜まる） */
+  if (uDirt > 0.0){
+    float d = uDirt * (0.45 + 0.4 * fbm(p, 110.0, 4, S(80.0)));
+    float streak = smoothstep(0.3, 0.65, fbm(vec2(p.x, p.y * 0.06), 9.0, 3, S(81.0))) * smoothstep(0.0, 0.3, fbm(vec2(p.x, 0.0), 60.0, 2, S(83.0)));
+    d += uDirt * 0.5 * streak * exp(-p.y / (uSize.y * 0.45));   // 上の縁から雨が汚れを引く
+    d += uDirt * 0.8 * smoothstep(0.75, 1.0, p.y / uSize.y) * (0.5 + 0.5 * fbm(p, 6.0, 4, S(82.0)));
+    d += uDirt * max(0.0, -h0) * 0.08;
+    col *= mix(vec3(1.0), vec3(0.40, 0.36, 0.30), clamp(d, 0.0, 0.85));
+  }
+
+  /* 8. 錆だれ */
+  if (uRust > 0.0){
+    for (int i = 0; i < 6; i++){
+      if (i >= uNPins) break;
+      vec2 P = uPin[i].xy; float dx = p.x - P.x, dy = p.y - P.y;
+      float halo = exp(-length(p - P) / 4.0) * 0.7;
+      float r = 0.0;
+      if (dy > 0.0){
+        float wob = fbm(vec2(dy, float(i) * 9.0), 25.0, 3, S(90.0)) * 4.0;
+        float w = 1.2 + dy * 0.05;
+        r = exp(-pow((dx - wob) / w, 2.0)) * exp(-dy / max(1.0, uRustLen)) * (0.6 + 0.4 * fbm(vec2(p.x, p.y * 0.2), 3.0, 3, S(91.0)));
+      }
+      col *= mix(vec3(1.0), vec3(0.62, 0.34, 0.14), clamp((halo + r) * uRust, 0.0, 0.85));
+    }
+  }
+
+  /* 9. カビ・斑点（湿った下の方とじみの中に多い） */
+  if (uMold > 0.0){
+    vec2 cell = floor(p / 9.0);
+    for (int yy = -1; yy <= 1; yy++) for (int xx = -1; xx <= 1; xx++){
+      vec2 cc = cell + vec2(xx, yy);
+      vec2 r2 = h22(cc, S(100.0));
+      // カビは湿った所に群がる：下の方と、低い周波数のまとまり
+      float clump = smoothstep(0.05, 0.45, fbm(cc * 9.0, 120.0, 2, S(102.0)));
+      float dens = uMold * clump * (0.3 + 0.7 * smoothstep(0.3, 1.0, (cc.y * 9.0) / uSize.y));
+      if (r2.x > dens * 0.45) continue;
+      vec2 c = (cc + h22(cc, S(101.0))) * 9.0;
+      float rad = 0.3 + 1.4 * r2.y;
+      float dd = length(p - c);
+      float spot = smoothstep(rad, rad * 0.3, dd) * 0.7 + exp(-dd / (rad * 2.5)) * 0.25;
+      col *= mix(vec3(1.0), vec3(0.58, 0.44, 0.26), clamp(spot, 0.0, 0.8));
+    }
+  }
+
+  /* 10. 破れた縁：ちぎれると紙の芯の白い繊維が出る */
+  float fringe = torn * (1.0 - smoothstep(0.0, 0.9, tf));
+  col = mix(col, paperColor(p, uYellow * 0.5) * 0.97, fringe * 0.8);
+
+  /* 糊の跡に残った紙の層 */
+  if (residue > 0.0 && tf < 0.0){
+    col = paperColor(p, uYellow * 1.2) * mix(vec3(1.0), vec3(0.62, 0.58, 0.52), 0.35 + 0.4 * uDirt) * (0.9 + 0.1 * fbm(p, 2.0, 3, S(7.0)));
+  }
+
+  col *= shade * flapShadow;
+  col *= 1.0 - cr.z * 0.22 * min(1.0, uCrumple);   // 折り目に溜まった汚れと影
+  if (uPaper == 0){   // コート紙のつや
+    vec3 H = normalize(L + vec3(0, 0, 1));
+    col += pow(max(dot(nrm, H), 0.0), 60.0) * 0.06 * (uWave + uCrumple);
+  }
+
+  /* 11. 留め具そのもの */
+  for (int i = 0; i < 6; i++){
+    if (i >= uNPins) break;
+    vec2 P = uPin[i].xy; float st = uPin[i].z;
+    if (st > 1.5){   // 外れた跡の穴
+      float hd = length(p - P);
+      if (hd < 1.0 && tf > 0.0){ alpha = 0.0; }
+      continue;
+    }
+    if (st < 0.5) continue;
+    if (uMount == 1){
+      float r = 5.0, dd = length(p - P);
+      float sh = exp(-pow(length(p - P - vec2(1.5, 2.0)) / 6.0, 2.0));
+      col *= 1.0 - 0.35 * sh;
+      if (dd < r){
+        float z = sqrt(1.0 - (dd * dd) / (r * r));
+        vec3 n3 = normalize(vec3((p - P) / r, z));
+        float lam = max(dot(n3, L), 0.0);
+        vec3 pc = uPinCol[i] * mix(vec3(1.0), vec3(0.8, 0.75, 0.6), uYellow * 0.5);   // プラスチックも日焼けする
+        col = pc * (0.35 + 0.75 * lam) + pow(max(dot(reflect(-L, n3), vec3(0, 0, 1)), 0.0), 30.0) * 0.5;
+        alpha = 1.0;
+      }
+    } else if (uMount == 2){
+      float a = uPin[i].w; vec2 dir = vec2(cos(a), sin(a));
+      vec2 rel = p - P; float u = dot(rel, dir), v = dot(rel, vec2(-dir.y, dir.x));
+      float sh = exp(-pow(abs(v - 0.6) / 0.9, 2.0)) * step(abs(u), 6.5);
+      col *= 1.0 - 0.3 * sh;
+      if (abs(u) < 6.0 && abs(v) < 0.45){
+        float rust = clamp(uRust * 1.2 * (0.5 + 0.5 * fbm(p, 1.2, 2, S(110.0))), 0.0, 1.0);
+        vec3 metal = mix(vec3(0.72, 0.73, 0.75), vec3(0.45, 0.25, 0.12), rust);
+        col = metal * (0.75 + 0.35 * (1.0 - abs(v) / 0.45));
+        alpha = 1.0;
+      }
+    }
+  }
+
+  outColor = vec4(toSrgb(col), alpha);
+}
+</script>
+<script>
+"use strict";
+/* =========================================================================
+   Weathered poster simulator — Vernier
+   劣化はすべて 1 枚のフラグメントシェーダーで、ポスター上の mm 座標を基準に計算する。
+   なので長辺 1400 px のプレビューと、長辺 4096 px までの書き出しで模様・大きさが揃う。
+   年数から各効果の量を出す「時間の曲線」はこの JS 側（amounts）にまとめてある。
+   ========================================================================= */
+(function () {
+
+var PREVIEW_MAX = 1400, EXPORT_MAX = 4096;
+var $ = function(id){ return document.getElementById(id); };
+function t(k){ return Shell.t(k); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+/* ---- パラメーター ---- */
+var SIZES = [["a3",420],["b3",515],["a2",594],["b2",728],["a1",841],["b1",1030]];   // 長辺 (mm)
+var DEFS = [
+  { k:"years", g:"base", t:"years", d:1 },
+  { k:"size",  g:"base", t:"sel", o:["a3","b3","a2","b2","a1","b1"], d:3 },
+  { k:"paper", g:"base", t:"sel", o:["coated","uncoated","news"], d:0 },
+  { k:"ink",   g:"base", t:"sel", o:["offset","dye","pigment"], d:0 },
+  { k:"sun",   g:"env", t:"pct", d:0.7 },
+  { k:"sunBias", g:"env", t:"pct", d:0.4 },
+  { k:"rain",  g:"env", t:"pct", d:0.7 },
+  { k:"smog",  g:"env", t:"pct", d:0.5 },
+  { k:"sFade", g:"fx", t:"mul", d:1 }, { k:"sYellow", g:"fx", t:"mul", d:1 },
+  { k:"sDirt", g:"fx", t:"mul", d:1 }, { k:"sStain", g:"fx", t:"mul", d:1 },
+  { k:"sRun", g:"fx", t:"mul", d:1 }, { k:"sTear", g:"fx", t:"mul", d:1 },
+  { k:"sPeel", g:"fx", t:"mul", d:1 }, { k:"sRust", g:"fx", t:"mul", d:1, pins:true },
+  { k:"sAbr", g:"fx", t:"mul", d:1 }, { k:"sWave", g:"fx", t:"mul", d:1 },
+  { k:"sCrumple", g:"fx", t:"mul", d:1 }, { k:"sMold", g:"fx", t:"mul", d:1 }
+];
+var GROUPS = ["base", "env", "fx"];
+var PRESETS = [["new",0],["w1",7/365],["m1",1/12],["m3",0.25],["m6",0.5],["y1",1],["y2",2],["y3",3],["y5",5],["y10",10],["y20",20]];
+var MOUNTS = ["paste", "pushpin", "staple", "none"];
+var V = {}; DEFS.forEach(function(p){ V[p.k] = p.d; });
+var mount = "paste", seed = 1 + Math.floor(Math.random() * 9999), bypass = false;
+
+// 年数スライダーは 0〜30 年を 3 乗の目盛りで（最初の数ヶ月の変化が大きいので、そこを細かく）
+var YMAX = 30;
+function yearsToSlider(y){ return Math.round(1000 * Math.cbrt(y / YMAX)); }
+function sliderToYears(v){ return YMAX * Math.pow(v / 1000, 3); }
+function fmtYears(y){
+  if (y <= 0) return t("u.new");
+  if (y < 1/12) return t("u.days").replace("{n}", Math.max(1, Math.round(y * 365)));
+  if (y < 1) return t("u.months").replace("{n}", (Math.round(y * 12 * 10) / 10).toString());
+  return t("u.years").replace("{n}", (y < 10 ? Math.round(y * 10) / 10 : Math.round(y)).toString());
+}
+function fmtVal(p){
+  var v = V[p.k];
+  if (p.t === "years") return fmtYears(v);
+  if (p.t === "sel") return "";
+  if (p.t === "pct") return Math.round(v * 100) + "%";
+  return "×" + v.toFixed(2);
+}
+
+/* ---- 乱数（角のめくれ・留め具の外れ方を決める。シェーダーと同じ seed から） ---- */
+function rng(s){ return function(){ s |= 0; s = s + 0x6D2B79F5 | 0; var r = Math.imul(s ^ s >>> 15, 1 | s); r = r + Math.imul(r ^ r >>> 7, 61 | r) ^ r; return ((r ^ r >>> 14) >>> 0) / 4294967296; }; }
+
+/* ---- 年数と環境から各効果の量を出す（仕組みごとの時間の進み方） ---- */
+var INK_K = [0.17, 1.39, 0.99, 0.023];     // C, M, Y, K の退色の速さ（直射日光1年あたり。M・Y が先に褪せる）
+var INK_FADE = { offset:1, dye:3, pigment:0.4 }, INK_RUN = { offset:0.08, dye:1, pigment:0.3 };
+var PAPER_YEL = [0.5, 1, 4], PAPER_TEAR = [0.9, 1, 1.6], PAPER_STAIN = [0.6, 1, 1.2];
+function amounts(W, H){
+  var Y = V.years, sun = V.sun, rain = V.rain, pi = V.paper, ink = DEFS[3].o[V.ink];
+  var ex = function(tau){ return 1 - Math.exp(-Y / tau); };
+  var A = {};
+  var dose = Y * (0.15 + 0.85 * sun) * INK_FADE[ink] * V.sFade;
+  A.fadeK = INK_K.map(function(k){ return k * dose; });
+  A.yellow = Math.min(1, V.sYellow * 0.9 * (1 - Math.exp(-Y * PAPER_YEL[pi] * (0.3 + 0.7 * sun) / 6)));
+  A.dirt = Math.min(1.5, V.sDirt * ex(3) * (0.3 + 0.7 * V.smog));
+  A.stain = Math.min(1.5, V.sStain * (1 - Math.exp(-Y * rain / 0.4)) * PAPER_STAIN[pi]);
+  A.run = Math.min(1, V.sRun * INK_RUN[ink] * (1 - Math.exp(-Y * rain / 0.05)));
+  A.runLen = 8 + 40 * ex(0.5);
+  A.tear = Math.min(2, V.sTear * Math.pow(Math.min(1, Y / 8), 1.2) * PAPER_TEAR[pi] * (0.5 + 0.5 * rain));
+  A.wave = Math.min(2, V.sWave * (1 - Math.exp(-Y * (0.3 + 0.7 * rain) / 0.15)));
+  var cr = mount === "none" ? 0.8 * ex(0.3) : mount === "paste" ? 0.1 * ex(2) : 0.3 * ex(1);
+  A.crumple = Math.min(2, V.sCrumple * cr);
+  A.abr = Math.min(1.5, V.sAbr * Math.min(1, Y / 6));
+  A.mold = Math.min(1.5, V.sMold * Math.max(0, Math.min(1, (Y - 0.3) / 5)) * (0.2 + 0.8 * rain) * (1.2 - 0.7 * sun));
+  var pins = mount === "pushpin" || mount === "staple";
+  A.rust = pins ? Math.min(1.5, V.sRust * ex(1.2) * (0.3 + 0.7 * rain)) : 0;
+  A.rustLen = 5 + 120 * ex(4);
+
+  // 留め具：画鋲は四隅、ホチキスは四隅＋上下の中央。時間とともに外れる
+  var r = rng(seed * 7 + 3), P = [];
+  if (pins){
+    var ins = 12, pos = [[ins, ins], [W - ins, ins], [W - ins, H - ins], [ins, H - ins]];
+    if (mount === "staple") pos.push([W / 2, ins], [W / 2, H - ins]);
+    var lossRate = (mount === "staple" ? 0.6 : 1) * Math.min(2, V.sTear) * (0.5 + 0.5 * rain);
+    pos.forEach(function(q, i){
+      var lost = r() < (1 - Math.exp(-Y * lossRate / 5)) * (i >= 2 && i < 4 ? 1.3 : 0.8);   // 下の方が外れやすい（紙の重みと風）
+      P.push({ x:q[0], y:q[1], state: lost ? 2 : 1, ang:(r() - 0.5) * 0.5,
+        col: [[0.75,0.08,0.06],[0.08,0.2,0.7],[0.9,0.75,0.05],[0.92,0.92,0.9],[0.1,0.55,0.2]][Math.floor(r() * 5)] });
+    });
+  }
+  A.pins = P;
+  // めくれ：糊貼りは糊が弱った角から、留め具は外れた角だけ、貼っていない紙は角が折れる
+  var peel = V.sPeel * ex(2.5) * (mount === "none" ? 0.6 : 1), m = Math.min(W, H);
+  var rc = rng(seed * 13 + 5);
+  A.curlAng = [];
+  A.curl = [0, 1, 2, 3].map(function(i){
+    var free = mount === "paste" || mount === "none" || (P[i] && P[i].state === 2);
+    var a = rc(), b = rc(); A.curlAng.push((rc() - 0.5) * 0.7);
+    if (i < 2 && mount === "paste") a = a * 1.25 + 0.1;   // 糊貼りは下の角から浮きやすい（雨が溜まる）
+    if (!free || peel <= 0 || a > Math.min(0.9, peel * 0.8)) return 0;
+    return Math.min(0.4, peel * (0.25 + 0.75 * b) * 0.25) * m;
+  });
+  return A;
+}
+
+/* ---- WebGL ---- */
+var cv = $("out"), gl = cv.getContext("webgl2", { premultipliedAlpha:false, preserveDrawingBuffer:true, alpha:true });
+var prog = null, U = {}, tex = null, img = null, imgW = 0, imgH = 0, srcW = 0, srcH = 0, fileName = "poster";
+function initGL(){
+  if (!gl) return false;
+  var vs = "#version 300 es\nvoid main(){ vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }";
+  function sh(type, src){ var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, $("fs").textContent));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  ["uImg","uRes","uSize","uMmPx","uSeed","uMount","uPaper","uBypass","uFadeK","uSunBias","uYellow","uDirt","uStain","uRun","uRunLen",
+   "uTear","uRust","uRustLen","uAbr","uWave","uCrumple","uMold","uCurl","uCurlAng","uNPins","uPin","uPinCol"].forEach(function(n){ U[n] = gl.getUniformLocation(prog, n); });
+  gl.bindVertexArray(gl.createVertexArray());
+  tex = gl.createTexture();
+  return true;
+}
+function posterMm(){
+  var L = SIZES[V.size][1], s = L / Math.max(imgW, imgH);
+  return [imgW * s, imgH * s];
+}
+function draw(w, h){
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  var mm = posterMm(), A = amounts(mm[0], mm[1]);
+  gl.viewport(0, 0, w, h);
+  gl.useProgram(prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(U.uImg, 0);
+  gl.uniform2f(U.uRes, w, h); gl.uniform2f(U.uSize, mm[0], mm[1]); gl.uniform1f(U.uMmPx, mm[0] / w);
+  gl.uniform1f(U.uSeed, seed); gl.uniform1i(U.uMount, MOUNTS.indexOf(mount)); gl.uniform1i(U.uPaper, V.paper);
+  gl.uniform1i(U.uBypass, bypass ? 1 : 0);
+  gl.uniform4fv(U.uFadeK, A.fadeK); gl.uniform1f(U.uSunBias, V.sunBias);
+  gl.uniform1f(U.uYellow, A.yellow); gl.uniform1f(U.uDirt, A.dirt); gl.uniform1f(U.uStain, A.stain);
+  gl.uniform1f(U.uRun, A.run); gl.uniform1f(U.uRunLen, A.runLen); gl.uniform1f(U.uTear, A.tear);
+  gl.uniform1f(U.uRust, A.rust); gl.uniform1f(U.uRustLen, A.rustLen); gl.uniform1f(U.uAbr, A.abr);
+  gl.uniform1f(U.uWave, A.wave); gl.uniform1f(U.uCrumple, A.crumple); gl.uniform1f(U.uMold, A.mold);
+  gl.uniform4fv(U.uCurl, A.curl); gl.uniform4fv(U.uCurlAng, A.curlAng);
+  var pin = new Float32Array(24), pc = new Float32Array(18);
+  A.pins.forEach(function(q, i){ pin.set([q.x, q.y, q.state, q.ang], i * 4); pc.set(q.col, i * 3); });
+  gl.uniform1i(U.uNPins, A.pins.length); gl.uniform4fv(U.uPin, pin); gl.uniform3fv(U.uPinCol, pc);
+  gl.disable(gl.BLEND);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  // 大きい書き出しは帯に分けて描く（1 回の描画が長すぎると GPU が止められることがある）
+  var band = Math.max(64, Math.floor(4e6 / w));
+  gl.enable(gl.SCISSOR_TEST);
+  for (var y = 0; y < h; y += band){ gl.scissor(0, y, w, Math.min(band, h - y)); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.flush(); }
+  gl.disable(gl.SCISSOR_TEST);
+  $("hint").hidden = !bypass; $("hint").textContent = t("t.original");
+  return A;
+}
+function fit(w, h, max){ var s = Math.min(1, max / Math.max(w, h)); return { w: Math.max(2, Math.round(w * s)), h: Math.max(2, Math.round(h * s)) }; }
+var pending = 0;
+function render(){
+  if (!img) return;
+  clearTimeout(pending);
+  pending = setTimeout(function(){ var s = fit(imgW, imgH, PREVIEW_MAX); draw(s.w, s.h); }, 0);
+}
+
+/* ---- 読み込み ---- */
+async function load(file){
+  $("loaderr").hidden = true;
+  var bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch (e) {
+    try { bmp = await new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = URL.createObjectURL(file); }); }
+    catch (e2) { $("loaderr").hidden = false; $("loaderr").innerHTML = '<span class="d"></span>' + esc(t("t.loaderr")); return; }
+  }
+  srcW = bmp.width || bmp.naturalWidth; srcH = bmp.height || bmp.naturalHeight;
+  var s = fit(srcW, srcH, Math.min(EXPORT_MAX, gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+  var c = document.createElement("canvas"); c.width = s.w; c.height = s.h;
+  var x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(bmp, 0, 0, s.w, s.h);
+  if (bmp.close) bmp.close();
+  img = c; imgW = s.w; imgH = s.h; fileName = (file.name || "poster").replace(/\.[^.]+$/, "");
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  $("loadcard").hidden = true; $("viewcard").hidden = false; $("exportcard").hidden = false;
+  $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + srcW + "×" + srcH + '</span>' +
+    '<span class="badge badge--muted"><span class="d"></span>' + esc(file.name || "") + '</span>';
+  update();
+}
+
+/* ---- 書き出し（PNG のみ。破れ・めくれの下は透明） ---- */
+function save(){
+  if (!img) return;
+  $("stage").classList.add("busy");
+  setTimeout(function(){
+    draw(imgW, imgH);
+    cv.toBlob(function(b){
+      var a = document.createElement("a"); a.href = URL.createObjectURL(b);
+      a.download = fileName + "-weathered.png"; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      $("stage").classList.remove("busy");
+      render();
+    }, "image/png");
+  }, 30);
+}
+function updateExportNote(){
+  if (!img) return;
+  var mm = posterMm();
+  var msg = t("t.exout").replace("{w}", imgW).replace("{h}", imgH)
+    .replace("{mw}", Math.round(mm[0])).replace("{mh}", Math.round(mm[1])).replace("{dpi}", Math.round(imgW / (mm[0] / 25.4)));
+  if (imgW !== srcW) msg += " " + t("t.exshrunk").split("{m}").join(EXPORT_MAX);
+  $("exnote").textContent = msg;
+}
+
+/* ---- 読み取り値 ---- */
+function updateReadout(){
+  var mm = img ? posterMm() : [SIZES[V.size][1] * 0.707, SIZES[V.size][1]];
+  var A = amounts(mm[0], mm[1]);
+  var keep = A.fadeK.map(function(k){ return Math.round(100 * Math.exp(-k)) + "%"; });
+  var rows = [
+    ["r.ink", keep.join(" / ")],
+    ["r.yellow", Math.round(A.yellow * 100) + "%"],
+    ["r.curl", Math.round(Math.max.apply(null, A.curl)) + " mm"]
+  ];
+  if (A.pins.length){
+    rows.push(["r.pins", A.pins.filter(function(q){ return q.state === 2; }).length + " / " + A.pins.length]);
+    rows.push(["r.rust", Math.round(A.rust > 0 ? A.rustLen : 0) + " mm"]);
+  }
+  rows.push(["r.size", Math.round(mm[0]) + " × " + Math.round(mm[1]) + " mm"]);
+  $("rrows").innerHTML = rows.map(function(r){
+    return '<div class="rrow"><span class="rrow__label">' + t(r[0]) + '</span><span class="rrow__value" data-copy="' + esc(r[1]) + '">' + esc(r[1]) + '</span></div>';
+  }).join("");
+}
+function update(){ updateReadout(); updateExportNote(); render(); }
+
+/* ---- UI ---- */
+function buildPresets(){
+  var cur = PRESETS.filter(function(p){ return Math.abs(p[1] - V.years) < 1e-6; })[0];
+  $("preset").innerHTML = '<option value="">' + t("t.custom") + '</option>' +
+    PRESETS.map(function(p){ return '<option value="' + p[0] + '">' + t("ps." + p[0]) + '</option>'; }).join("");
+  $("preset").value = cur ? cur[0] : "";
+}
+function buildMounts(){
+  $("mount").innerHTML = MOUNTS.map(function(m){ return '<option value="' + m + '">' + t("o.mount." + m) + '</option>'; }).join("");
+  $("mount").value = mount;
+}
+function buildParams(){
+  var html = "";
+  GROUPS.forEach(function(g){
+    html += '<div class="pgroup"><div class="pgroup__head"><span class="eyebrow">' + t("g." + g) + '</span><button type="button" data-rg="' + g + '">' + t("t.resetg") + '</button></div><div class="pgroup__body">';
+    DEFS.filter(function(p){ return p.g === g; }).forEach(function(p){
+      var hide = p.pins && !(mount === "pushpin" || mount === "staple");
+      html += '<div class="prow"' + (hide ? " hidden" : "") + '><div class="prow__top"><span class="prow__lbl">' + t("p." + p.k) + '</span><span class="prow__val" data-v="' + p.k + '">' + fmtVal(p) + '</span></div>';
+      if (p.t === "sel") html += '<select class="select" data-p="' + p.k + '">' + p.o.map(function(o, i){ return '<option value="' + i + '"' + (V[p.k] === i ? " selected" : "") + '>' + t("o." + p.k + "." + o) + '</option>'; }).join("") + '</select>';
+      else if (p.t === "years") html += '<input class="slider" type="range" data-p="years" min="0" max="1000" step="1" value="' + yearsToSlider(V.years) + '">';
+      else if (p.t === "pct") html += '<input class="slider" type="range" data-p="' + p.k + '" min="0" max="1" step="0.01" value="' + V[p.k] + '">';
+      else html += '<input class="slider" type="range" data-p="' + p.k + '" min="0" max="2" step="0.05" value="' + V[p.k] + '">';
+      var note = t("n." + p.k);
+      if (note !== "n." + p.k) html += '<div class="prow__note">' + note + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  var box = $("params"); box.innerHTML = html;
+  box.querySelectorAll("[data-p]").forEach(function(el){
+    el.addEventListener("input", function(){
+      var k = el.getAttribute("data-p"), p = DEFS.filter(function(d){ return d.k === k; })[0];
+      V[k] = k === "years" ? sliderToYears(parseFloat(el.value)) : parseFloat(el.value);
+      box.querySelector('[data-v="' + k + '"]').textContent = fmtVal(p);
+      if (k === "years") $("preset").value = "";
+      update();
+    });
+  });
+  box.querySelectorAll("[data-rg]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var g = b.getAttribute("data-rg");
+      DEFS.filter(function(p){ return p.g === g; }).forEach(function(p){ V[p.k] = p.d; });
+      buildPresets(); buildParams(); update();
+    });
+  });
+}
+
+$("drop").addEventListener("click", function(){ $("file").click(); });
+$("file").addEventListener("change", function(e){ if (e.target.files[0]) load(e.target.files[0]); e.target.value = ""; });
+["dragenter","dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("dragover"); }); });
+["dragleave","drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); }); });
+$("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) load(f); });
+$("bypass").addEventListener("click", function(){ bypass = !bypass; $("bypass").setAttribute("aria-pressed", String(bypass)); render(); });
+$("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.random() * 9999); update(); });
+$("unload").addEventListener("click", function(){ img = null; $("viewcard").hidden = true; $("exportcard").hidden = true; $("loadcard").hidden = false; });
+$("save").addEventListener("click", save);
+$("preset").addEventListener("change", function(){
+  var p = PRESETS.filter(function(q){ return q[0] === $("preset").value; })[0];
+  if (p){ V.years = p[1]; buildParams(); $("preset").value = p[0]; update(); }
+});
+$("mount").addEventListener("change", function(){ mount = $("mount").value; buildParams(); update(); });
+
+/* ---- 文言 ---- */
+var EN = {
+  "t.title":"Weathered poster simulator",
+  "t.desc":"Turn an image into a poster that has been left outdoors for months or years — fading, yellowing, dirt, rain stains, tears, peeling and more, each modelled on how it actually happens.",
+  "t.droptitle":"Drop an image here","t.dropsub":"JPEG, PNG, WebP, HEIC (Safari) — nothing leaves your device",
+  "t.loaderr":"This image couldn't be opened in this browser.",
+  "t.bypass":"Show original","t.reseed":"New randomness","t.unload":"Another image","t.original":"Original",
+  "t.preset":"Time outdoors","t.custom":"Custom","t.resetg":"Reset",
+  "t.export":"Export","t.save":"Save PNG",
+  "t.exout":"Saved as a {w}×{h} px PNG with transparency where the paper is torn or lifted ({mw}×{mh} mm, about {dpi} dpi).",
+  "t.exshrunk":"The original is larger than {m} px, so it's processed at {m} px on the long edge.",
+  "t.readout":"Readout","t.copyhint":"Click any value to copy.","t.how":"How each effect works",
+  "t.nogl":"This tool needs WebGL2. Try a current version of Chrome, Edge, Firefox, or Safari.",
+  "u.new":"New","u.days":"{n} days","u.months":"{n} months","u.years":"{n} years",
+  "ps.new":"Brand new","ps.w1":"1 week","ps.m1":"1 month","ps.m3":"3 months","ps.m6":"6 months","ps.y1":"1 year","ps.y2":"2 years","ps.y3":"3 years","ps.y5":"5 years","ps.y10":"10 years","ps.y20":"20 years",
+  "o.mount.paste":"Pasted to a wall","o.mount.pushpin":"Pinned with pushpins","o.mount.staple":"Stapled","o.mount.none":"Not put up (loose sheet)",
+  "g.base":"Poster","g.env":"Where it is","g.fx":"Strength of each effect",
+  "p.mount":"How it's put up","p.years":"Time outdoors","p.size":"Poster size","p.paper":"Paper","p.ink":"Ink",
+  "o.size.a3":"A3","o.size.b3":"B3","o.size.a2":"A2","o.size.b2":"B2","o.size.a1":"A1","o.size.b1":"B1",
+  "o.paper.coated":"Coated (glossy poster paper)","o.paper.uncoated":"Uncoated (woodfree)","o.paper.news":"Newsprint / cheap paper",
+  "o.ink.offset":"Offset printing (oil-based pigment)","o.ink.dye":"Inkjet, dye ink","o.ink.pigment":"Inkjet, pigment ink",
+  "p.sun":"Sunlight","p.sunBias":"More sun at the top","p.rain":"Rain exposure","p.smog":"Air pollution (traffic, soot)",
+  "p.sFade":"Fading","p.sYellow":"Yellowing","p.sDirt":"Dirt","p.sStain":"Rain stains","p.sRun":"Ink run","p.sTear":"Tears",
+  "p.sPeel":"Peeling","p.sRust":"Rust streaks","p.sAbr":"Abrasion","p.sWave":"Cockling (wet–dry waves)","p.sCrumple":"Crumpled creases","p.sMold":"Mould spots",
+  "n.years":"Each effect advances at its own pace: colours and waves change within months, yellowing, tears and rust over years.",
+  "n.size":"Sets the real size, so stains, tears and rust are drawn in millimetres.",
+  "n.paper":"Newsprint contains lignin and yellows several times faster; coated paper sheds ink in flakes.",
+  "n.ink":"Dye inkjet fades about 3× faster and runs in the rain; offset ink barely runs.",
+  "n.sunBias":"Shades the lower part, as an eave or a neighbouring poster would.",
+  "n.sCrumple":"Strongest for a loose sheet. On a wall it mostly shows on lifted parts.",
+  "r.ink":"Ink left at mid-height (C / M / Y / K)","r.yellow":"Paper yellowing","r.curl":"Largest lifted corner","r.pins":"Pins or staples lost","r.rust":"Rust streak length","r.size":"Poster size",
+  "m.fade.t":"Fading","m.fade.d":"UV breaks down the pigments. Magenta and yellow go first and cyan and black last, so old posters turn bluish. Modelled in ink density, where layers of ink add up.",
+  "m.yellow.t":"Yellowing","m.yellow.d":"The paper itself oxidises with light and air (lignin, acids). It starts at the edges and shows most in unprinted areas.",
+  "m.dirt.t":"Dirt","m.dirt.d":"Soot and dust settle, rain draws streaks from the top edge, splashes from the ground darken the bottom, and grime collects in hollows.",
+  "m.stain.t":"Rain stains","m.stain.d":"Water carries dissolved dirt to where it dries, leaving a brown ring (tide line). Repeated wetting leaves nested rings.",
+  "m.run.t":"Ink run","m.run.d":"Water-soluble ink is carried downward where the paper gets wettest, leaving drips.",
+  "m.tear.t":"Tears","m.tear.d":"Paper weakened by UV and wet–dry cycles tears from the edges, worst at the bottom where wind flaps it; the torn edge shows white fibres.",
+  "m.peel.t":"Peeling","m.peel.d":"Paste weakens and corners lift. Pinned posters only curl where a pin has come out. The lifted flap shows its back.",
+  "m.rust.t":"Rust streaks","m.rust.d":"Steel pins and staples rust, and rain carries the rust down below them.",
+  "m.abr.t":"Abrasion","m.abr.d":"Wind-blown grit and passers-by scrape the ink off, mostly low down and near the edges.",
+  "m.wave.t":"Cockling & creases","m.wave.d":"Fibres swell when wet and shrink as they dry, so the sheet waves (and pasted paper blisters). A loose sheet gets crumpled, and ink cracks along the folds.",
+  "m.mold.t":"Mould spots","m.mold.d":"In damp shade, fungi and iron in the paper leave small brown spots (foxing), mostly low down."
+};
+var JA = {
+  "t.title":"放置ポスターシミュレーター",
+  "t.desc":"画像を、屋外に何ヶ月・何年も貼りっぱなしにしたポスターにします。色あせ・黄ばみ・汚れ・雨じみ・破れ・剥がれなどを、それぞれ実際に起きる仕組みに沿って再現します。",
+  "t.droptitle":"画像をドロップ","t.dropsub":"JPEG / PNG / WebP / HEIC（Safari）— ファイルは端末外に出ません",
+  "t.loaderr":"このブラウザではこの画像を開けませんでした。",
+  "t.bypass":"元の画像を表示","t.reseed":"別の乱数にする","t.unload":"別の画像","t.original":"元の画像",
+  "t.preset":"放置した期間","t.custom":"カスタム","t.resetg":"リセット",
+  "t.export":"書き出し","t.save":"PNGで保存",
+  "t.exout":"{w}×{h} px の PNG で保存します。破れ・めくれた所は透明になります（実寸 {mw}×{mh} mm、約 {dpi} dpi）。",
+  "t.exshrunk":"元の画像が {m} px より大きいので、長辺 {m} px で処理します。",
+  "t.readout":"読み取り値","t.copyhint":"数値をクリックでコピー。","t.how":"それぞれの仕組み",
+  "t.nogl":"このツールはWebGL2が必要です。Chrome・Edge・Firefox・Safariの最新版でお試しください。",
+  "u.new":"新品","u.days":"{n}日","u.months":"{n}ヶ月","u.years":"{n}年",
+  "ps.new":"新品","ps.w1":"1週間","ps.m1":"1ヶ月","ps.m3":"3ヶ月","ps.m6":"半年","ps.y1":"1年","ps.y2":"2年","ps.y3":"3年","ps.y5":"5年","ps.y10":"10年","ps.y20":"20年",
+  "o.mount.paste":"壁に糊で貼る","o.mount.pushpin":"画鋲で留める","o.mount.staple":"ホチキスで留める","o.mount.none":"貼っていない（紙だけ）",
+  "g.base":"ポスター","g.env":"置かれた場所","g.fx":"効果ごとの強さ",
+  "p.mount":"貼り方","p.years":"放置した期間","p.size":"ポスターの大きさ","p.paper":"紙","p.ink":"インク",
+  "o.size.a3":"A3","o.size.b3":"B3","o.size.a2":"A2","o.size.b2":"B2","o.size.a1":"A1","o.size.b1":"B1",
+  "o.paper.coated":"コート紙（つやのあるポスター用紙）","o.paper.uncoated":"上質紙","o.paper.news":"新聞用紙・安い紙",
+  "o.ink.offset":"オフセット印刷（油性・顔料）","o.ink.dye":"インクジェット（染料）","o.ink.pigment":"インクジェット（顔料）",
+  "p.sun":"日当たり","p.sunBias":"上の方ほど日が当たる","p.rain":"雨の当たり方","p.smog":"空気の汚れ（車の排気・すす）",
+  "p.sFade":"色あせ","p.sYellow":"黄変","p.sDirt":"汚れ","p.sStain":"雨じみ","p.sRun":"インクの流れ","p.sTear":"破れ",
+  "p.sPeel":"剥がれ・めくれ","p.sRust":"錆だれ","p.sAbr":"擦れ","p.sWave":"波打ち（濡れて乾く）","p.sCrumple":"しわくちゃ（折れジワ）","p.sMold":"カビの斑点",
+  "n.years":"効果ごとに進む速さが違います。色と波打ちは数ヶ月で、黄変・破れ・錆は年単位で進みます。",
+  "n.size":"実際の大きさを決めます。しみ・破れ・錆などは mm 単位で描きます。",
+  "n.paper":"新聞用紙はリグニンを含むので何倍も早く黄ばみます。コート紙はインクが膜ごと欠けます。",
+  "n.ink":"染料のインクジェットは約3倍早く褪せ、雨で流れます。オフセット印刷のインクはほとんど流れません。",
+  "n.sunBias":"庇や隣のポスターで下の方が日陰になる様子です。",
+  "n.sCrumple":"貼っていない紙で最も強く出ます。壁に貼った場合は、めくれた所などに少し出ます。",
+  "r.ink":"中ほどのインクの残り（C / M / Y / K）","r.yellow":"紙の黄変","r.curl":"いちばん大きいめくれ","r.pins":"外れた留め具","r.rust":"錆の筋の長さ","r.size":"ポスターの実寸",
+  "m.fade.t":"色あせ","m.fade.d":"紫外線で顔料が分解されます。マゼンタとイエローが先に、シアンと黒は最後まで残るので、古いポスターは青っぽくなります。インクの濃度（重ねると足し算になる量）で計算しています。",
+  "m.yellow.t":"黄変","m.yellow.d":"紙そのものが光と空気で酸化します（リグニンや紙の中の酸）。縁から進み、印刷の無い白い所ほど目立ちます。",
+  "m.dirt.t":"汚れ","m.dirt.d":"すすやほこりが積もり、雨が上の縁から筋を引き、地面からの跳ね返りで下が黒ずみ、くぼみに汚れが溜まります。",
+  "m.stain.t":"雨じみ","m.stain.d":"水が溶かした汚れを乾く縁まで運び、茶色い輪（タイドライン）を残します。何度も濡れると輪が重なります。",
+  "m.run.t":"インクの流れ","m.run.d":"水に溶けるインクが、よく濡れる所で下へ運ばれて垂れます。",
+  "m.tear.t":"破れ","m.tear.d":"紫外線と濡れ・乾きで弱った紙が縁から破れます。風でばたつく下の方ほどひどく、ちぎれた縁には紙の白い繊維が出ます。",
+  "m.peel.t":"剥がれ・めくれ","m.peel.d":"糊が弱って角が浮きます。留め具の場合は外れた角だけがめくれます。めくれた紙は裏面が見えます。",
+  "m.rust.t":"錆だれ","m.rust.d":"鉄の画鋲やホチキスの針が錆び、雨がその錆を下へ流します。",
+  "m.abr.t":"擦れ","m.abr.d":"風で飛ぶ砂や通行人がインクを削ります。低い所と縁の近くに多く出ます。",
+  "m.wave.t":"波打ち・しわ","m.wave.d":"繊維は濡れると膨らみ、乾くと縮むので紙が波打ちます（糊貼りは浮きができる）。貼っていない紙は揉まれて折れジワになり、折り目でインクが割れます。",
+  "m.mold.t":"カビの斑点","m.mold.d":"湿った日陰では、カビや紙の中の鉄分が小さな茶色い点（フォクシング）を残します。下の方に多く出ます。"
+};
+
+var ok = false;
+try { ok = initGL(); } catch (e) { ok = false; }
+Shell.init({
+  id:"poster-weathering",
+  strings:{ en:EN, ja:JA },
+  onSettingsChange: function(){ if (!ok) return; buildPresets(); buildMounts(); buildParams(); update(); }
+});
+if (!ok){
+  $("loadcard").innerHTML = '<div class="badge badge--neg"><span class="d"></span>' + t("t.nogl") + '</div>';
+} else {
+  buildPresets(); buildMounts(); buildParams(); updateReadout();
+}
+})();
+</script>
+</body>
+</html>
