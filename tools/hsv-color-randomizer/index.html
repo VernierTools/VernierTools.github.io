@@ -37,6 +37,15 @@
     background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0/18px 18px;
     --pos:50%; touch-action:none; user-select:none; }
   .ba canvas{ display:block; width:100%; height:auto; }
+  /* 貼り付けたプレビューは画面の高さに収める（比較用の元画像は .ba いっぱいに重なるので、.ba ごと縮める） */
+  .pin__view .ba{ width:fit-content; max-width:100%; margin:0 auto; }
+  .pin__view .ba > canvas{ width:auto; max-width:100%; max-height:calc(100vh - 210px); }
+  .pin__view .imgarea{ margin-bottom:0; }
+  .pin__ctrl .work{ grid-template-columns:minmax(0,1fr); padding-bottom:0; }
+  @media (max-width:760px){
+    .pin__view .ba > canvas{ max-height:36vh; }
+    .pin__view.pin--free .ba > canvas{ max-height:none; }
+  }
   /* 上に重ねた元画像を、つまみの位置で左側だけ見せる */
   .ba__before{ position:absolute; inset:0; clip-path:inset(0 calc(100% - var(--pos)) 0 0); }
   .ba__handle{ position:absolute; top:0; bottom:0; left:var(--pos); width:2px; margin-left:-1px;
@@ -95,6 +104,8 @@
   </div>
 
   <!-- 画像コーナー（コントロールより上・全幅） -->
+  <div class="pin">
+  <div class="pin__view pin--idle" id="pinview">
   <section class="imgarea">
     <div class="imgarea__head">
       <span class="eyebrow" id="areahead" data-i18n="t.image">Image</span>
@@ -130,7 +141,9 @@
       </div>
     </div>
   </section>
+  </div>
 
+  <div class="pin__ctrl">
   <div class="work">
     <!-- 左: 操作 -->
     <div>
@@ -243,6 +256,8 @@
              data-i18n="t.empty">Choose an image to get started.</div>
       </div>
     </div>
+  </div>
+  </div>
   </div>
 
   <canvas id="stage"></canvas>
@@ -628,6 +643,7 @@
 
       drop.hidden = true;
       ba.hidden = false;
+      document.getElementById("pinview").classList.remove("pin--idle");
       changeBtn.hidden = false;
       areahead.setAttribute("data-i18n", "t.compare");
       areahead.textContent = tt("t.compare");

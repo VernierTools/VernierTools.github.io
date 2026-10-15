@@ -62,6 +62,14 @@
   .stage:not(.loaded){ cursor:pointer; }
   .stage canvas{ display:block; width:100%; height:auto; }
   .stage canvas.hidden{ display:none; }
+  /* 貼り付けたプレビューは画面の高さに収める。比較のつまみはステージ幅基準なので、ステージを画像の幅に合わせる */
+  .pin__view .stage.loaded{ width:fit-content; max-width:100%; min-height:0; margin-left:auto; margin-right:auto; }
+  .pin__view .stage canvas{ width:auto; max-width:100%; max-height:calc(100vh - 270px); }
+  @media (max-width:760px){
+    .pin__view .stage{ margin-bottom:var(--s2); }
+    .pin__view .stage canvas{ max-height:36vh; }
+    .pin__view .bgcard{ padding:var(--s3); }
+  }
   .stage[data-bg="black"]{ background:#000; }
   .stage[data-bg="white"]{ background:#fff; }
   .stage-empty{ display:flex; flex-direction:column; align-items:center; gap:var(--s3); padding:var(--s7) var(--s4);
@@ -97,8 +105,8 @@
   </div>
 
   <div class="work">
-    <!-- 左: プレビュー・出力・書き出し・除去ハイライト -->
-    <div>
+    <!-- 左: プレビュー（画面に貼り付く）。右: 操作と書き出し -->
+    <div class="pin__view pin--idle" id="pinview">
       <div class="preview stage" id="stage" data-bg="checker" data-compare="0">
         <canvas id="view" class="hidden"></canvas>
         <div class="compare-tags" id="ctags"><span data-i18n="t.before">Before</span><span data-i18n="t.after">After</span></div>
@@ -114,7 +122,7 @@
       </div>
       <input type="file" id="file" accept="image/*" hidden>
 
-      <div class="card">
+      <div class="card bgcard">
         <div class="chanhead" style="margin-bottom:0">
           <span class="eyebrow" data-i18n="t.previewbg">Preview background</span>
           <button class="btn btn--ghost" id="cmpBtn" disabled style="height:28px;padding:0 10px;font-size:12.5px" data-i18n="t.compare">Compare</button>
@@ -126,43 +134,9 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:var(--s4)">
-        <div class="chanhead">
-          <label class="label" data-i18n="t.hl">Removed-area highlight</label>
-          <label class="toggle"><input type="checkbox" id="hlOn" aria-label="Enable removed-area highlight"><span class="track"></span></label>
-        </div>
-        <div class="cbody off" id="hlBody">
-          <div class="hint" style="margin-top:0" data-i18n="t.hldesc">Paints removed regions in the chosen color, for checking your settings. It never affects the exported file.</div>
-          <span class="eyebrow" data-i18n="t.marker">Marker color</span>
-          <div class="swatches" id="swatches" role="group">
-            <button class="swatch" data-c="magenta" style="background:#e83fce" aria-pressed="true" aria-label="Magenta"></button>
-            <button class="swatch" data-c="green"   style="background:#33c25a" aria-label="Green"></button>
-            <button class="swatch" data-c="cyan"    style="background:#1fb8d6" aria-label="Cyan"></button>
-            <button class="swatch" data-c="red"     style="background:#e04040" aria-label="Red"></button>
-            <button class="swatch" data-c="yellow"  style="background:#e0b020" aria-label="Yellow"></button>
-          </div>
-          <label class="toggle" style="margin-top:var(--s4)">
-            <input type="checkbox" id="blinkOn"><span class="track"></span><span data-i18n="t.blink">Blink</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="readout">
-        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
-          <span class="live"><span class="dot" id="sizeDot"></span><span class="sizehint" id="sizeText">–</span></span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.sat">Saturation</span><span class="rrow__value" id="roSat" style="font-size:16px">–</span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.val">Value / brightness</span><span class="rrow__value" id="roVal" style="font-size:16px">–</span></div>
-        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.removed">Removed</span>
-          <span class="rrow__value" id="roRemoved" data-copy="0%">0<span class="u">%</span></span></div>
-        <div class="copyhint" data-i18n="t.copyhint">Click the removed amount to copy.</div>
-      </div>
-
-      <div class="btnrow">
-        <button class="btn btn--primary btn--block" id="exportBtn" disabled data-i18n="t.export">Export transparent PNG</button>
-      </div>
     </div>
 
-    <!-- 右: 取り消し・リセット → 彩度・明度・マスク（編集群） -->
+    <!-- 右: 取り消し・リセット → 彩度・明度・マスク（編集群）→ 除去ハイライト・出力・書き出し -->
     <div>
       <div class="btnrow" style="margin-top:0;margin-bottom:var(--s4)">
         <button class="btn btn--secondary" id="undoBtn" disabled data-i18n="t.undo">Undo</button>
@@ -235,6 +209,41 @@
           <input type="range" id="feather" min="0" max="30" value="2">
           <div class="hint" data-i18n="t.featherdesc">Blurs the cutout outline to soften jagged edges.</div>
         </div>
+      </div>
+
+      <div class="card" style="margin-top:var(--s4);margin-bottom:var(--s4)">
+        <div class="chanhead">
+          <label class="label" data-i18n="t.hl">Removed-area highlight</label>
+          <label class="toggle"><input type="checkbox" id="hlOn" aria-label="Enable removed-area highlight"><span class="track"></span></label>
+        </div>
+        <div class="cbody off" id="hlBody">
+          <div class="hint" style="margin-top:0" data-i18n="t.hldesc">Paints removed regions in the chosen color, for checking your settings. It never affects the exported file.</div>
+          <span class="eyebrow" data-i18n="t.marker">Marker color</span>
+          <div class="swatches" id="swatches" role="group">
+            <button class="swatch" data-c="magenta" style="background:#e83fce" aria-pressed="true" aria-label="Magenta"></button>
+            <button class="swatch" data-c="green"   style="background:#33c25a" aria-label="Green"></button>
+            <button class="swatch" data-c="cyan"    style="background:#1fb8d6" aria-label="Cyan"></button>
+            <button class="swatch" data-c="red"     style="background:#e04040" aria-label="Red"></button>
+            <button class="swatch" data-c="yellow"  style="background:#e0b020" aria-label="Yellow"></button>
+          </div>
+          <label class="toggle" style="margin-top:var(--s4)">
+            <input type="checkbox" id="blinkOn"><span class="track"></span><span data-i18n="t.blink">Blink</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.output">Output</span>
+          <span class="live"><span class="dot" id="sizeDot"></span><span class="sizehint" id="sizeText">–</span></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.sat">Saturation</span><span class="rrow__value" id="roSat" style="font-size:16px">–</span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.val">Value / brightness</span><span class="rrow__value" id="roVal" style="font-size:16px">–</span></div>
+        <div class="rrow rrow--hero"><span class="rrow__label" data-i18n="t.removed">Removed</span>
+          <span class="rrow__value" id="roRemoved" data-copy="0%">0<span class="u">%</span></span></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click the removed amount to copy.</div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn btn--primary btn--block" id="exportBtn" disabled data-i18n="t.export">Export transparent PNG</button>
       </div>
     </div>
   </div>
@@ -616,6 +625,7 @@
       P = clone(DEFAULTS); undoStack = [];
       syncControlsFromState();
       stage.classList.add("loaded");
+      document.getElementById("pinview").classList.remove("pin--idle");
       view.classList.remove("hidden");
       $("exportBtn").disabled = false;
       $("resetBtn").disabled = false;

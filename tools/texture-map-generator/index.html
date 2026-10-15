@@ -36,6 +36,9 @@
   #out-wrap{ min-height:200px; display:flex; align-items:center; justify-content:center; }
   #out-canvas{ display:block; width:100%; height:auto; }
   #out-canvas[hidden]{ display:none; }
+  /* 貼り付けたプレビューは画面の高さに収める */
+  .pin__view #out-canvas{ width:auto; max-width:100%; max-height:calc(100vh - 130px); margin:0 auto; }
+  @media (max-width:760px){ .pin__view #out-canvas{ max-height:36vh; } .pin__view #out-wrap{ min-height:0; } }
   .out-empty{ color:var(--text-3); font-size:13px; padding:var(--s7) var(--s5); text-align:center; }
   .out-empty[hidden]{ display:none; }
 
@@ -178,16 +181,8 @@
       <div class="btnrow">
         <button class="btn btn--secondary" id="reset-btn" disabled data-i18n="t.reset">Reset settings</button>
       </div>
-    </div>
 
-    <!-- 右: 出力 -->
-    <div>
-      <div class="preview" id="out-wrap" style="margin-bottom:var(--s4)">
-        <canvas id="out-canvas" hidden></canvas>
-        <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the generated map here.</div>
-      </div>
-
-      <div class="card" style="margin-bottom:var(--s4)">
+      <div class="card" style="margin-top:var(--s4);margin-bottom:var(--s4)">
         <div class="badges" id="badges"></div>
       </div>
 
@@ -199,6 +194,15 @@
         <button class="btn btn--secondary" id="dl-dx" disabled data-i18n="t.dldx">Download DirectX (Y−)</button>
       </div>
       <div class="hint" data-i18n="t.tileHint">Gradients, smoothing, and the cavity blur all sample with wrap-around, so seamless input stays seamless.</div>
+    </div>
+
+    <!-- 右: 出力（画面に貼り付く） -->
+    <div class="pin__view pin--idle" id="pinview">
+      <div class="preview" id="out-wrap">
+        <canvas id="out-canvas" hidden></canvas>
+        <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the generated map here.</div>
+      </div>
+
     </div>
   </div>
 </main>
@@ -481,6 +485,7 @@
 
       el.outCanvas.width = ww; el.outCanvas.height = wh;
       el.outCanvas.hidden = false; el.outEmpty.hidden = true;
+      document.getElementById("pinview").classList.remove("pin--idle");
 
       state.baseName = file.name.replace(/\.[^.]+$/, "") || "map";
 

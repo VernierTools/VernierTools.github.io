@@ -15,7 +15,21 @@
 <style>
   .stage{ position:relative; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg);
     overflow:hidden; display:flex; align-items:center; justify-content:center; min-height:200px; }
-  .stage canvas{ display:block; max-width:100%; max-height:72vh; width:auto; height:auto; image-rendering:auto; }
+  .stage canvas{ display:block; max-width:100%; max-height:calc(100vh - 290px); width:auto; height:auto; image-rendering:auto; }
+  @media (max-width:760px){
+    .pin__view .stage{ min-height:0; }
+    .pin__view .stage canvas{ max-height:36vh; }
+    .pin__view .filemeta{ display:none; }
+    /* ボタンは 1 行に詰めて、貼り付く部分を低く保つ */
+    .pin__view #viewcard{ padding:var(--s3) !important; }
+    .pin__view .btnrow{ flex-wrap:nowrap; overflow-x:auto; gap:6px; margin-top:var(--s2) !important; }
+    .pin__view .btnrow .btn{ height:32px; padding:0 10px; font-size:12px; white-space:nowrap; flex:0 0 auto; }
+    .pin__view .btnrow .btn svg{ width:14px; height:14px; }
+    .pin__view .btnrow{ scrollbar-width:none; }
+    .pin__view .btnrow::-webkit-scrollbar{ display:none; }
+    .pin__view #unload span{ display:none; }
+    .pin__view.pin--free .stage canvas{ max-height:none; }
+  }
   .stage.busy::after{ content:""; position:absolute; inset:0; background:rgba(0,0,0,.35); }
   .stage__hint{ position:absolute; left:10px; top:10px; font-size:11.5px; color:#fff; background:rgba(0,0,0,.55);
     border-radius:var(--r-sm); padding:2px 8px; pointer-events:none; }
@@ -53,7 +67,9 @@
     <p data-i18n="t.desc">Make a photo look as if it went through film, an old black-and-white plate, an early digital camera, a CRT, VHS or the early web — by modelling each medium, not by stacking filters.</p>
   </div>
 
-  <div class="card" id="loadcard" style="margin-bottom:var(--s5)">
+  <div class="pin">
+  <div class="pin__view pin--idle" id="pinview">
+  <div class="card" id="loadcard">
     <div class="drop" id="drop">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
       <b data-i18n="t.droptitle">Drop an image here</b>
@@ -63,7 +79,7 @@
     <div class="badge badge--neg" id="loaderr" hidden style="margin-top:var(--s3)"></div>
   </div>
 
-  <div class="card" id="viewcard" hidden style="padding:var(--s4);margin-bottom:var(--s5)">
+  <div class="card" id="viewcard" hidden style="padding:var(--s4)">
     <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
     <div class="filemeta" id="filemeta"></div>
     <div class="btnrow" style="margin-top:var(--s4)">
@@ -75,14 +91,17 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
         <span data-i18n="t.reseed">New randomness</span>
       </button>
-      <button class="btn btn--secondary" id="unload">
+      <button class="btn btn--secondary" id="unload" aria-label="Another image">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         <span data-i18n="t.unload">Another image</span>
       </button>
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:var(--s5)">
+  </div>
+
+  <div class="pin__ctrl">
+  <div class="card">
     <div class="row2">
       <div class="field" style="margin-bottom:0">
         <label class="label" for="mode" data-i18n="t.mode">Medium</label>
@@ -96,7 +115,7 @@
     </div>
   </div>
 
-  <div class="card" id="exportcard" hidden style="margin-bottom:var(--s5)">
+  <div class="card" id="exportcard" hidden>
     <div class="card__title" data-i18n="t.export">Export</div>
     <div class="row2">
       <div class="field" style="margin-bottom:0">
@@ -123,7 +142,9 @@
     </div>
   </div>
 
-  <div class="card" id="params" style="margin-bottom:var(--s5)"></div>
+  <div class="card" id="params"></div>
+  </div>
+  </div>
 
   <div class="sigrow">
     <div class="readout">
@@ -196,6 +217,7 @@ async function load(file){
   img = bmp; imgW = s.w; imgH = s.h; fileName = (file.name || "image").replace(/\.[^.]+$/, "");
   eng.upload(img, imgW, imgH, true);
   $("loadcard").hidden = true; $("viewcard").hidden = false; $("exportcard").hidden = false;
+  $("pinview").classList.remove("pin--idle");
   $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + srcW + "×" + srcH + '</span>' +
     '<span class="badge badge--muted"><span class="d"></span>' + esc(file.name || "") + '</span>';
   updateReadout(); updateExportNote(); render();
@@ -261,7 +283,9 @@ $("file").addEventListener("change", function(e){ if (e.target.files[0]) load(e.
 $("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) load(f); });
 $("bypass").addEventListener("click", function(){ bypass = !bypass; $("bypass").setAttribute("aria-pressed", String(bypass)); render(); });
 $("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.random() * 9999); render(); });
-$("unload").addEventListener("click", function(){ img = null; $("viewcard").hidden = true; $("exportcard").hidden = true; $("loadcard").hidden = false; });
+$("unload").addEventListener("click", function(){ img = null; $("viewcard").hidden = true; $("exportcard").hidden = true; $("loadcard").hidden = false; $("pinview").classList.add("pin--idle"); });
+// スマホ幅：プレビューをタップすると貼り付けをやめて大きく表示（もう一度タップで戻す）
+$("stage").addEventListener("click", function(){ if (matchMedia("(max-width:760px)").matches) $("pinview").classList.toggle("pin--free"); });
 $("save").addEventListener("click", save);
 $("ex-size").addEventListener("change", function(){ updateExportNote(); render(); });
 $("mode").addEventListener("change", function(){ var m = $("mode").value, first = Object.keys(E.PRESETS[m])[0]; setMode(m, first); });

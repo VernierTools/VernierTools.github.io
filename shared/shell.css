@@ -144,6 +144,22 @@ button{ font-family:inherit; }
 .work--wide{ grid-template-columns:1.1fr .8fr; }
 @media (max-width:760px){ .work,.work--wide{ grid-template-columns:1fr; } }
 
+/* 結果を見ながらパラメーターを動かすツール用：プレビューは画面に貼り付いたまま、操作欄だけが流れる。
+   PC幅は左にプレビュー・右に操作欄。スマホ幅はプレビューを上に貼り付ける。
+   プレビューの媒体（canvas 等）の高さは各ツールで、PC は画面の高さに収まるように、スマホは 36vh 程度に抑える */
+.pin{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:var(--s5); align-items:start; margin-bottom:var(--s5); }
+/* .pin の外（既存の .work の列など）でも、列に pin__view を付ければ同じように貼り付く */
+.pin__view{ position:sticky; top:calc(73px + var(--s4)); z-index:5; min-width:0; }
+.pin__ctrl{ min-width:0; }
+.pin__view.pin--idle{ position:static; }   /* 読み込む前（ドロップ欄だけ）は貼り付けない */
+.pin__view > .card + .card, .pin__ctrl > .card + .card{ margin-top:var(--s4); }
+@media (max-width:760px){
+  .pin{ grid-template-columns:minmax(0,1fr); gap:var(--s4); }
+  .pin__view{ top:73px; order:-1; margin:0 calc(-1 * var(--s5)); padding:var(--s2) var(--s5); background:var(--bg);
+    box-shadow:0 1px 0 var(--border); }
+  .pin__view.pin--free{ position:static; }   /* タップで拡大したときは貼り付けをやめる */
+}
+
 /* =========================================================================
    CONTROLS
    ========================================================================= */
