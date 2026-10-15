@@ -169,6 +169,7 @@
   </div>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -725,6 +726,14 @@
       schedulePreview();
     }
   });
+  // 設定ファイル（JSON）は、ページのどこにドロップ・貼り付けしても読み込む（今のメモに足すので確認はしない）
+  FileDrop.attach({ accept: ".json,application/json", kind: "json", formats: "JSON", confirm: false,
+    onFile: function (f) {
+      f.text().then(function (txt) {
+        var n = importData(JSON.parse(txt)); save(); renderAll();
+        FileDrop.toast(Shell.t("t.imported").replace("{n}", n));
+      }).catch(function () { FileDrop.toast(Shell.t("t.importFail")); });
+    } });
   insp.addEventListener("change", function (e) {
     if (e.target.id === "preset" && e.target.value) {
       var p = e.target.value;

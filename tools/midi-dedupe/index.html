@@ -129,6 +129,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -667,17 +668,9 @@
     rd.readAsArrayBuffer(f);
   }
 
-  drop.addEventListener("click", function () { fileIn.click(); });
-  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileIn.click(); } });
-  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-  drop.addEventListener("dragleave", function () { drop.classList.remove("dragover"); });
-  drop.addEventListener("drop", function (e) {
-    e.preventDefault(); drop.classList.remove("dragover");
-    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    handleFile(f);
-  });
-  fileIn.addEventListener("change", function () { handleFile(this.files[0]); this.value = ""; });
-  $("btn-change").addEventListener("click", function () { fileIn.click(); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept: ".mid,.midi,audio/midi", kind: "midi", formats: "MID, MIDI", input: fileIn, zone: drop, fillZone: true,
+    replace: $("btn-change"), hasFile: function () { return !!original; }, onFile: handleFile });
 
   tolSlider.addEventListener("input", recompute);
 

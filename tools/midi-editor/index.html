@@ -433,9 +433,9 @@
   </div>
 </div>
 
-<div class="dropcue" id="dropcue"><span data-i18n="io.drop">Drop a .mid file to open</span></div>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -2845,13 +2845,11 @@
     }
   }
   $("btn-import").addEventListener("click", function () { $("file-in").click(); });
-  $("file-in").addEventListener("change", function () {
-    var f = this.files[0]; if (!f) return;
-    var rd = new FileReader();
-    rd.onload = function () { importArrayBuffer(rd.result, f.name); };
-    rd.readAsArrayBuffer(f);
-    this.value = "";
-  });
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 開いているノートがあるときに別の .mid を落とす・貼り付けると、置き換えてよいか確認する
+  function openMidi(f) { var rd = new FileReader(); rd.onload = function () { importArrayBuffer(rd.result, f.name); }; rd.readAsArrayBuffer(f); }
+  FileDrop.attach({ accept: ".mid,.midi,audio/midi", kind: "midi", formats: "MID, MIDI", input: $("file-in"),
+    hasFile: function () { return doc.notes.length > 0; }, onFile: openMidi });
   $("btn-export").addEventListener("click", function () {
     var data = buildSMF();
     var blob = new Blob([data], { type: "audio/midi" });
@@ -2863,18 +2861,7 @@
     dirty = false; setStatus(fmtT("io.exported", { name: name }));
   });
 
-  // whole-page drag & drop
-  var dropcue = $("dropcue"), dragDepth = 0;
-  window.addEventListener("dragenter", function (e) { if (hasFile(e)) { e.preventDefault(); dragDepth++; dropcue.classList.add("on"); } });
-  window.addEventListener("dragover", function (e) { if (hasFile(e)) e.preventDefault(); });
-  window.addEventListener("dragleave", function (e) { dragDepth--; if (dragDepth <= 0) { dragDepth = 0; dropcue.classList.remove("on"); } });
-  window.addEventListener("drop", function (e) {
-    if (!hasFile(e)) return;
-    e.preventDefault(); dragDepth = 0; dropcue.classList.remove("on");
-    var f = e.dataTransfer.files[0]; if (!f) return;
-    var rd = new FileReader(); rd.onload = function () { importArrayBuffer(rd.result, f.name); }; rd.readAsArrayBuffer(f);
-  });
-  function hasFile(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0; }
+  // ページ全体へのドロップは FileDrop が受け持つ（案内も共通のものを出す）
 
   /* ---- Web MIDI (input capture only) ---- */
   var midiAccess = null, midiOn = false, recHeld = {};

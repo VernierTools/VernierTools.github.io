@@ -138,6 +138,7 @@
   </div>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -470,19 +471,26 @@
     var el = $(id);
     el.addEventListener("click", slotClick);
     el.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("tslot")) { e.preventDefault(); slotClick(e); } });
-    el.addEventListener("dragover", function (e) { var s = e.target.closest(".tslot"); if (s) { e.preventDefault(); s.classList.add("dragover"); } });
+    el.addEventListener("dragover", function (e) { var s = e.target.closest(".tslot"); el.querySelectorAll(".tslot").forEach(function (x) { x.classList.toggle("dragover", x === s); }); });
     el.addEventListener("dragleave", function (e) { var s = e.target.closest(".tslot"); if (s) s.classList.remove("dragover"); });
-    el.addEventListener("drop", function (e) {
-      var s = e.target.closest(".tslot"); if (!s) return; e.preventDefault();
-      var f = e.dataTransfer.files[0];
-      if (s.hasAttribute("data-frame")) readImage(f, function (u) { S.frame = u; buildThumbs(); render(); });
-      else readImage(f, function (u) { setThumb(+s.getAttribute("data-k"), u); });
-    });
   });
-  $("file").addEventListener("change", function () {
-    var f = this.files[0], t = pickTarget; this.value = "";
-    readImage(f, function (u) { if (t === "frame") { S.frame = u; buildThumbs(); render(); } else setThumb(t, u); });
-  });
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 枠にドロップしたらその枠へ。それ以外のドロップと貼り付けは、空いているサムネイル枠（無ければ最初の枠）へ
+  function slotFor(target) {
+    var s = target && target.closest && target.closest(".tslot");
+    if (s) return s.hasAttribute("data-frame") ? "frame" : +s.getAttribute("data-k");
+    var arr = S.thumbs[S.kind], k = arr.indexOf(null);
+    if (k >= 0) return k;
+    return arr.length < 3 ? arr.length : 0;
+  }
+  function filled(slot) { return slot === "frame" ? !!S.frame : !!S.thumbs[S.kind][slot]; }
+  FileDrop.attach({ accept: "image/*", kind: "image", input: $("file"),
+    hasFile: function (target) { return filled(slotFor(target)); },
+    onFile: function (f, how, target) {
+      var t = how === "pick" ? pickTarget : slotFor(target);
+      document.querySelectorAll(".tslot.dragover").forEach(function (x) { x.classList.remove("dragover"); });
+      readImage(f, function (u) { if (t === "frame") { S.frame = u; buildThumbs(); render(); } else setThumb(t, u); });
+    } });
   $("in-title").addEventListener("input", function () { S.title = this.value; render(); });
   $("in-channel").addEventListener("input", function () { S.channel = this.value; render(); });
   $("in-dur").addEventListener("input", function () { S.dur = this.value.trim(); render(); });

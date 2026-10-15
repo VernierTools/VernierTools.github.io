@@ -275,6 +275,7 @@
   </section>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="models.js"></script>
 <script src="exr.js"></script>
 <script src="png16.js"></script>
@@ -319,7 +320,7 @@ var I18N = {
     "t.hDiv": "Normalized by the focal length in pixels. The formula runs undistorted → distorted, the reverse of the textbook division model.",
     "t.hNuke": "Normalized by half the larger image side; focal length is not used. K1/K2 = Nuke k0/k1; P1/P2 = Nuke's anamorphic k2/k3, not tangential terms.",
     "t.hBrown": "Normalized by the focal length in pixels. P1/P2 are swapped relative to OpenCV; K4 is an r⁸ term.",
-    "t.stmapFile": "STMap file", "t.dropHint": "Drop an STMap (EXR or PNG) here, or click to choose",
+    "t.stmapFile": "STMap file", "t.dropHint": "Click to choose an STMap (EXR or PNG), or drop or paste it anywhere on the page",
     "t.dropNote": "Read locally in your browser — nothing is uploaded. EXR: uncompressed, RLE, ZIP, ZIPS (not PIZ/DWA).",
     "t.fitTo": "Fit to", "t.mapDir": "Map direction", "t.dirAuto": "Detect automatically",
     "t.estCenter": "Estimate the optical center",
@@ -371,7 +372,7 @@ var I18N = {
     "t.hDiv": "焦点距離（px）で正規化。式は「真っ直ぐ → 歪み」の向きで、教科書的なDivisionモデルとは逆です。",
     "t.hNuke": "画像の長辺の半分で正規化し、焦点距離は使いません。K1/K2 = Nukeのk0/k1、P1/P2は接線歪みではなくNukeアナモフィックのk2/k3です。",
     "t.hBrown": "焦点距離（px）で正規化。P1/P2の並びはOpenCVと逆で、K4はr⁸の項です。",
-    "t.stmapFile": "STMapファイル", "t.dropHint": "STMap（EXR または PNG）をここにドロップ、またはクリックして選択",
+    "t.stmapFile": "STMapファイル", "t.dropHint": "クリックして STMap（EXR または PNG）を選ぶか、ページのどこかにドロップ・貼り付け",
     "t.dropNote": "ブラウザ内で読み込み、アップロードはしません。EXRは無圧縮・RLE・ZIP・ZIPSに対応（PIZ・DWAは非対応）。",
     "t.fitTo": "当てはめ先", "t.mapDir": "マップの種類", "t.dirAuto": "自動判定",
     "t.estCenter": "光学中心も推定する",
@@ -854,14 +855,11 @@ function init() {
 
   // STMap → 係数
   var drop = $("ana-drop"), input = $("ana-file");
-  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
-  ["dragenter", "dragover"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-over"); });
-  });
-  ["dragleave", "drop"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-over"); });
-  });
-  drop.addEventListener("drop", function (e) { loadFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 別のタブを開いているときにドロップしても、「STMap → 係数」のタブに切り替えて読み込む
+  FileDrop.attach({ accept: ".exr,.png,image/png,image/x-exr", kind: "exr", formats: "EXR, PNG", input: input, owner: drop,
+    hasFile: function () { return !!ana.name; },
+    onFile: function (f) { if ($("panel-ana").hidden) $("tab-ana").click(); loadFile(f); } });
   $("ana-model").addEventListener("change", function () { S.ana.model = this.value; writeHash(); fitNow(); });
   $("ana-dir").addEventListener("change", function () { S.ana.dir = this.value; writeHash(); fitNow(); });
   $("ana-est").addEventListener("change", function () { S.ana.est = this.checked; writeHash(); fitNow(); });

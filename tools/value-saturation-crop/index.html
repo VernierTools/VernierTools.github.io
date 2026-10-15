@@ -250,6 +250,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -640,24 +641,11 @@
     };
     im.src = url;
   }
-  fileInput.addEventListener("change", function (e) { loadImage(e.target.files[0]); });
-  reloadBtn.addEventListener("click", function (e) { e.stopPropagation(); fileInput.click(); });
-  stage.addEventListener("click", function (e) {
-    if (origPrev) return;
-    if (e.target.closest("#reloadBtn")) return;
-    fileInput.click();
-  });
-  stage.addEventListener("dragover", function (e) { e.preventDefault(); stage.classList.add("dragover"); });
-  stage.addEventListener("dragleave", function () { stage.classList.remove("dragover"); });
-  stage.addEventListener("drop", function (e) {
-    e.preventDefault(); stage.classList.remove("dragover");
-    var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadImage(f);
-  });
-  window.addEventListener("paste", function (e) {
-    var items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (var i = 0; i < items.length; i++) if (items[i].type.indexOf("image/") === 0) { loadImage(items[i].getAsFile()); break; }
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 画像が無いうちはプレビュー自体がドロップ欄で、読み込んだ後のクリックは比較のつまみに使う
+  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: stage,
+    zoneClickable: function () { return !origPrev; }, replace: reloadBtn,
+    hasFile: function () { return !!origPrev; }, onFile: loadImage });
 
   // ── i18n / init ──────────────────────────────────────────────────────
   function onSettingsChange() { syncControlsFromState(); updateReadout(); }

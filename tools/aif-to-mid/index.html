@@ -173,6 +173,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -449,20 +450,9 @@
   }
 
   /* ---------- 入力 ---------- */
-  drop.addEventListener("click", function () { input.click(); });
-  drop.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
-  });
-  input.addEventListener("change", function (e) { handle(e.target.files); input.value = ""; });
-  ["dragenter", "dragover"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-  });
-  ["dragleave", "drop"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); });
-  });
-  drop.addEventListener("drop", function (e) { handle(e.dataTransfer.files); });
-  document.addEventListener("dragover", function (e) { e.preventDefault(); });
-  document.addEventListener("drop", function (e) { e.preventDefault(); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け）。複数のファイルを一覧に足していく
+  FileDrop.attach({ accept: "audio/aiff,audio/x-aiff,.aif,.aiff,.aifc", kind: "audio", formats: "AIFF, AIF, AIFC", multiple: true,
+    input: input, zone: drop, fillZone: true, onFile: handle, loaded: function () { return flist.children.length > 0; } });
 
   flist.addEventListener("click", function (e) {
     var sb = e.target.closest(".frow__save");

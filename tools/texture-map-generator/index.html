@@ -208,6 +208,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -553,15 +554,11 @@
   }
 
   /* ---- ドロップゾーン ---- */
-  el.dropZone.addEventListener("click", function(){ el.fileInput.click(); });
-  el.dropZone.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); el.fileInput.click(); } });
-  el.dropZone.addEventListener("dragover", function(e){ e.preventDefault(); el.dropZone.classList.add("dragover"); });
-  el.dropZone.addEventListener("dragleave", function(){ el.dropZone.classList.remove("dragover"); });
-  el.dropZone.addEventListener("drop", function(e){
-    e.preventDefault(); el.dropZone.classList.remove("dragover");
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-  });
-  el.fileInput.addEventListener("change", function(){ if (el.fileInput.files[0]) loadFile(el.fileInput.files[0]); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 読み込んだ後もこの欄が「別の画像を開く」を兼ねる
+  FileDrop.attach({ accept:"image/*", kind:"image", input:el.fileInput, zone:el.dropZone,
+    replace:document.querySelector(".drop-loaded__change"),
+    hasFile:function(){ return el.dropZone.classList.contains("has-file"); }, onFile:loadFile });
 
   /* ---- コントロール配線 ---- */
   el.maptype.addEventListener("change", function(){ applyType(el.maptype.value); });
@@ -602,8 +599,8 @@
         "t.title": "Texture map generator",
         "t.desc": "Roughness, specular, alpha, displacement, approximate metallic, cavity (pseudo AO), and normal maps — all from one texture.",
         "t.texture": "Texture",
-        "t.dropTitle": "Click or drop an image",
-        "t.dropHint": "PNG / JPG / WebP — ideally a seamless texture",
+        "t.dropTitle": "Click to choose, or drop it anywhere on the page",
+        "t.dropHint": "PNG / JPG / WebP — ideally a seamless texture. You can also paste it.",
         "t.change": "Change",
         "t.mapType": "Map type",
         "t.pRough": "Roughness", "t.pSpec": "Specular", "t.pAlpha": "Alpha / Opacity",
@@ -637,8 +634,8 @@
         "t.title": "テクスチャマップ生成",
         "t.desc": "ラフネス・スペキュラー・アルファ・ディスプレイスメント・簡易メタリック・カビティ(疑似AO)・ノーマルマップを、1枚のテクスチャから生成。",
         "t.texture": "テクスチャ",
-        "t.dropTitle": "クリックまたはドロップして画像を読み込み",
-        "t.dropHint": "PNG / JPG / WebP — シームレステクスチャ推奨",
+        "t.dropTitle": "クリックして選ぶか、ページのどこかにドロップ",
+        "t.dropHint": "PNG / JPG / WebP — シームレステクスチャ推奨。貼り付けでも開けます。",
         "t.change": "変更",
         "t.mapType": "マップ種類",
         "t.pRough": "ラフネス", "t.pSpec": "スペキュラー", "t.pAlpha": "アルファ／不透明度",

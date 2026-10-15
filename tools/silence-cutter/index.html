@@ -132,6 +132,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -369,21 +370,10 @@
     });
   }
 
-  dropEl.addEventListener("click", function () { fileInput.click(); });
-  dropEl.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
-  });
-  fileInput.addEventListener("change", function () { loadFile(fileInput.files[0]); });
-  ["dragenter", "dragover"].forEach(function (ev) {
-    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("dragover"); });
-  });
-  ["dragleave", "drop"].forEach(function (ev) {
-    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("dragover"); });
-  });
-  dropEl.addEventListener("drop", function (e) {
-    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) loadFile(f);
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm", kind: "audio",
+    formats: "WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", input: fileInput, zone: dropEl, fillZone: true,
+    hasFile: function () { return !!analysis; }, onFile: loadFile });
 
   /* ---------------------------------------------------------------
      waveform click-to-seek

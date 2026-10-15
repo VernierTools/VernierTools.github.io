@@ -192,6 +192,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="../../shared/retro-engine.js"></script>
 <script>
 "use strict";
@@ -376,11 +377,9 @@ function note(el, msg, warn){ el.hidden = false; el.textContent = msg; el.style.
 /* =========================================================================
    4. 配線
    ========================================================================= */
-$("drop").addEventListener("click", function(){ $("file").click(); });
-$("file").addEventListener("change", function(e){ if (e.target.files[0]) loadVideo(e.target.files[0]); e.target.value = ""; });
-["dragenter","dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("dragover"); }); });
-["dragleave","drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); }); });
-$("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) loadVideo(f); });
+// 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+FileDrop.attach({ accept:"video/*", kind:"video", input:$("file"), zone:$("drop"), fillZone:true, formats:"MP4, MOV, WebM",
+  replace:$("unload"), hasFile:function(){ return ready; }, onFile:loadVideo });
 $("play").addEventListener("click", function(){ setPlaying(!playing); });
 $("scrub").addEventListener("input", function(){ if (vid) vid.currentTime = ($("scrub").value/1000)*vid.duration; });
 $("bypass").addEventListener("click", function(){

@@ -161,6 +161,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 (function(){
   "use strict";
@@ -169,8 +170,8 @@
     en: {
       "t.title":"Average color extractor",
       "t.desc":"Extract the average and median colors from an image. Everything runs in your browser — nothing is uploaded.",
-      "t.dropTitle":"Drop an image here",
-      "t.dropHint":"or paste from the clipboard, or choose a file",
+      "t.dropTitle":"Drop an image anywhere on the page",
+      "t.dropHint":"or paste it, or choose a file",
       "t.choose":"Choose image",
       "t.change":"Change image",
       "t.clear":"Clear",
@@ -190,8 +191,8 @@
     ja: {
       "t.title":"平均色抽出",
       "t.desc":"画像から平均色と中央値の色を抽出します。処理はすべてブラウザ内で完結し、画像は送信されません。",
-      "t.dropTitle":"ここに画像をドロップ",
-      "t.dropHint":"クリップボードから貼り付け、またはファイルを選択",
+      "t.dropTitle":"ページのどこかに画像をドロップ",
+      "t.dropHint":"貼り付けやファイル選択でも開けます",
       "t.choose":"画像を選択",
       "t.change":"画像を変更",
       "t.clear":"クリア",
@@ -386,47 +387,12 @@
   }
 
   /* ---------- イベント ---------- */
-  function pick(){ els.input.click(); }
-  els.choose.addEventListener("click",pick);
-  els.change.addEventListener("click",pick);
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  var fd=FileDrop.attach({ accept:"image/*", kind:"image", input:els.input, zone:els.dropzone,
+    zoneClickable:function(){ return !els.dropzone.classList.contains("has-image"); }, replace:els.change,
+    hasFile:function(){ return els.dropzone.classList.contains("has-image"); }, onFile:loadFile });
+  els.choose.addEventListener("click",function(e){ e.stopPropagation(); fd.pick(); });
   els.clear.addEventListener("click",resetView);
-  // 同じファイルを続けて選び直せるよう、開く前に値を空にする。
-  els.input.addEventListener("click",function(){ this.value=""; });
-  els.input.addEventListener("change",function(){ if(this.files && this.files[0]) loadFile(this.files[0]); });
-
-  // ドラッグ＆ドロップ。子要素をまたぐと dragleave が発火するため、深さを数えてちらつきを防ぐ。
-  var dragDepth=0;
-  els.dropzone.addEventListener("dragenter",function(e){
-    e.preventDefault(); dragDepth++; els.dropzone.classList.add("is-over");
-  });
-  els.dropzone.addEventListener("dragover",function(e){
-    e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect="copy";
-  });
-  els.dropzone.addEventListener("dragleave",function(){
-    dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) els.dropzone.classList.remove("is-over");
-  });
-  els.dropzone.addEventListener("drop",function(e){
-    e.preventDefault(); dragDepth=0; els.dropzone.classList.remove("is-over");
-    var files=e.dataTransfer && e.dataTransfer.files;
-    if(files && files[0]) loadFile(files[0]);
-  });
-  // ページ外へドロップしてブラウザが画像を開いてしまうのを防ぐ。
-  ["dragover","drop"].forEach(function(type){
-    window.addEventListener(type,function(e){ if(!els.dropzone.contains(e.target)) e.preventDefault(); });
-  });
-
-  // クリップボードからの貼り付け。
-  document.addEventListener("paste",function(e){
-    var items=e.clipboardData && e.clipboardData.items;
-    if(!items) return;
-    for(var i=0;i<items.length;i++){
-      if(items[i].type && items[i].type.indexOf("image/")===0){
-        var f=items[i].getAsFile();
-        if(f){ e.preventDefault(); loadFile(f); }
-        return;
-      }
-    }
-  });
 
   // スウォッチはキーボードでもコピーできるようにする（クリックは Shell の [data-copy] が処理）。
   ["mean-swatch","median-swatch"].forEach(function(id){

@@ -298,6 +298,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="player.js"></script>
 <script src="consent.js"></script>
 <script>
@@ -553,18 +554,10 @@
       (f.size / 1048576).toFixed(2) + " MB / " + (f.type || T("t.unknownType", "種別不明"));
     $("runAnalyze").disabled = false;
   }
-  $("drop").addEventListener("click", function () { $("pick").click(); });
-  $("drop").addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("pick").click(); }
-  });
-  $("pick").addEventListener("change", function (e) { setFile(e.target.files[0]); });
-  ["dragenter", "dragover"].forEach(function (t) {
-    $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.add("dragover"); });
-  });
-  ["dragleave", "drop"].forEach(function (t) {
-    $("drop").addEventListener(t, function (e) { e.preventDefault(); $("drop").classList.remove("dragover"); });
-  });
-  $("drop").addEventListener("drop", function (e) { setFile(e.dataTransfer.files[0]); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 選んだ後もこの欄にファイル名が出て、クリックで別の動画を選べる
+  FileDrop.attach({ accept: "video/mp4,video/quicktime,.mp4,.mov", kind: "video", formats: "MP4, MOV", input: $("pick"),
+    zone: $("drop"), hasFile: function () { return !!file; }, onFile: setFile });
 
   /* ---- 解析の実行 ---- */
   var aworker = null;
@@ -760,8 +753,8 @@
           "t.title": "ポリゴンショック・リスクチェッカー",
           "t.desc": "閃光（輝度・赤）の検出、5基準（NHK・民放連 / ITU-R / Ofcom / WCAG 2.3.1 / WCAG 2.3.2）と参考1件（2024年提案）の並列判定、空間パターン（縞模様）の参考検出、タイムライン表示、プレビュープレイヤーが動作します。HDR映像には対応しておらず、検出した場合は解析を行いません。判定結果は参考用であり、医療・認証目的には使用できません。実機での網羅的な動作確認が完了していないため、実験的な位置づけとしています。",
           "t.fileLabel": "動画ファイル（MP4 / MOV）",
-          "t.dropMain": "ここにドロップ",
-          "t.dropSub": "またはクリックして選択（アップロードされません）",
+          "t.dropMain": "ページのどこかにドロップ",
+          "t.dropSub": "またはクリックして選択・貼り付け（アップロードされません）",
           "t.margin": "マージン",
           "t.margin0": "0%（公式閾値のみ）",
           "t.margin10": "10%（既定）",
@@ -819,8 +812,8 @@
           "t.title": "Photosensitivity risk checker",
           "t.desc": "Flash detection (luminance and red), parallel checks against five standards (Japanese TV / ITU-R / Ofcom / WCAG 2.3.1 / WCAG 2.3.2) plus one reference criterion (the 2024 proposal), spatial stripe patterns (reference only), a timeline and a preview player all work. HDR video is not supported and will not be analysed. Results are for guidance only and must not be used for medical or certification purposes. Real-device testing is not yet exhaustive, so this tool is marked experimental.",
           "t.fileLabel": "Video file (MP4 / MOV)",
-          "t.dropMain": "Drop a file here",
-          "t.dropSub": "or click to choose (nothing is uploaded)",
+          "t.dropMain": "Drop a file anywhere on the page",
+          "t.dropSub": "or click to choose, or paste it (nothing is uploaded)",
           "t.margin": "Safety margin",
           "t.margin0": "0% (official thresholds only)",
           "t.margin10": "10% (default)",

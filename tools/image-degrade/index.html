@@ -160,6 +160,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="../../shared/retro-engine.js"></script>
 <script>
 "use strict";
@@ -276,14 +277,11 @@ function setMode(m, preset){
   buildParams(); updateReadout(); updateExportNote(); render();
 }
 
-$("drop").addEventListener("click", function(){ $("file").click(); });
-$("file").addEventListener("change", function(e){ if (e.target.files[0]) load(e.target.files[0]); e.target.value = ""; });
-["dragenter","dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("dragover"); }); });
-["dragleave","drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); }); });
-$("drop").addEventListener("drop", function(e){ var f = e.dataTransfer.files[0]; if (f) load(f); });
+// 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+FileDrop.attach({ accept:"image/*", kind:"image", input:$("file"), zone:$("drop"), fillZone:true,
+  formats:"JPEG, PNG, WebP, HEIC (Safari)", replace:$("unload"), hasFile:function(){ return !!img; }, onFile:load });
 $("bypass").addEventListener("click", function(){ bypass = !bypass; $("bypass").setAttribute("aria-pressed", String(bypass)); render(); });
 $("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.random() * 9999); render(); });
-$("unload").addEventListener("click", function(){ img = null; $("viewcard").hidden = true; $("exportcard").hidden = true; $("loadcard").hidden = false; $("pinview").classList.add("pin--idle"); });
 // スマホ幅：プレビューをタップすると貼り付けをやめて大きく表示（もう一度タップで戻す）
 $("stage").addEventListener("click", function(){ if (matchMedia("(max-width:760px)").matches) $("pinview").classList.toggle("pin--free"); });
 $("save").addEventListener("click", save);

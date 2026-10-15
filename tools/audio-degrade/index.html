@@ -160,6 +160,7 @@
 </main>
 <script src="dsp.js"></script>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -312,17 +313,10 @@
     $("drop").hidden = true; $("loaded").hidden = false; $("export").disabled = false;
     drawWave(); schedule();
   }
-  $("drop").addEventListener("click", function () { $("file-input").click(); });
-  $("replace").addEventListener("click", function () { $("file-input").click(); });
-  $("drop").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file-input").click(); } });
-  $("file-input").addEventListener("change", function () { loadFile(this.files[0]); this.value = ""; });
-  // 読み込む前は点線の枠、読み込んだ後はカード全体（波形の上など）にドロップして差し替えられる
-  var card = $("audio-card"), dragDepth = 0;
-  function dragOn(on) { $("drop").classList.toggle("dragover", on); card.classList.toggle("dragover", on && !!A.src); }
-  card.addEventListener("dragenter", function (e) { e.preventDefault(); dragDepth++; dragOn(true); });
-  card.addEventListener("dragover", function (e) { e.preventDefault(); });
-  card.addEventListener("dragleave", function () { if (--dragDepth <= 0) { dragDepth = 0; dragOn(false); } });
-  card.addEventListener("drop", function (e) { e.preventDefault(); dragDepth = 0; dragOn(false); loadFile(e.dataTransfer.files[0]); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm", kind: "audio",
+    formats: "WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", input: $("file-input"), zone: $("drop"), fillZone: true,
+    replace: $("replace"), hasFile: function () { return !!A.src; }, onFile: loadFile });
 
   /* ---- 波形 ---- */
   function drawWave() {

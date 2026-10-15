@@ -297,6 +297,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -695,8 +696,13 @@
      選べなくなる既知の不具合があるため（video/* 相当として扱われてしまう）、
      拡張子の指定を併記して回避している（input の accept 属性を参照）。 */
   $("btn-choose-audio").addEventListener("click", function () { $("custom-audio-input").click(); });
-  $("custom-audio-input").addEventListener("change", function (e) {
-    var f = e.target.files && e.target.files[0]; if (!f) return;
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // 音声ファイルをページに落とすと、通知音として使う
+  FileDrop.attach({ accept: ".mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.caf,.aiff,.wma,audio/*", kind: "audio",
+    formats: "MP3, WAV, M4A, AAC, OGG, FLAC, CAF, AIFF, WMA", input: $("custom-audio-input"),
+    hasFile: function () { return !!customAudioName; }, onFile: setCustomAudio });
+  function setCustomAudio(f) {
+    if (!f) return;
     if (customAudioURL) URL.revokeObjectURL(customAudioURL);
     customAudioURL = URL.createObjectURL(f);
     customAudioName = f.name;
@@ -706,7 +712,7 @@
     $("custom-audio-name").textContent = tr("t.loaded", "Loaded:") + " " + f.name;
     $("btn-clear-audio").hidden = false;
     previewSound("custom");
-  });
+  }
   $("btn-clear-audio").addEventListener("click", function () {
     if (customAudioURL) URL.revokeObjectURL(customAudioURL);
     customAudioURL = null; customAudioName = null;

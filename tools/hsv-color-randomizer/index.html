@@ -263,6 +263,7 @@
   <canvas id="stage"></canvas>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -656,19 +657,9 @@
     };
     im.src = url;
   }
-  fileInput.addEventListener("change", function () { loadFile(fileInput.files[0]); });
-  drop.addEventListener("click", function () { fileInput.click(); });
-  changeBtn.addEventListener("click", function () { fileInput.click(); });
-
-  // ドラッグ&ドロップは投入口・比較ビューのどちらでも受ける
-  [drop, ba].forEach(function (el) {
-    el.addEventListener("dragover", function (e) { e.preventDefault(); el.classList.add("dragover"); });
-    el.addEventListener("dragleave", function () { el.classList.remove("dragover"); });
-    el.addEventListener("drop", function (e) {
-      e.preventDefault(); el.classList.remove("dragover");
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-    });
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: drop, fillZone: true,
+    replace: changeBtn, hasFile: function () { return !ba.hidden; }, onFile: loadFile });
 
   // ---------------- Before/After のつまみ ----------------
   var pos = 50, dragging = false;

@@ -233,6 +233,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -686,23 +687,10 @@
   });
 
   // ================= FILE / DROP / PASTE =================
-  $("file").addEventListener("change", function (e){ if (e.target.files[0]) loadImage(e.target.files[0]); });
-  $("open-btn").addEventListener("click", function (){ $("file").click(); });
-  view.addEventListener("click", function (){ if (!state.img) $("file").click(); });
-
-  var vp = $("viewport"), dropEl = $("drop"), dragN = 0;
-  vp.addEventListener("dragenter", function (e){ e.preventDefault(); dragN++; dropEl.classList.add("active"); });
-  vp.addEventListener("dragleave", function (){ if (--dragN <= 0){ dragN = 0; dropEl.classList.remove("active"); } });
-  vp.addEventListener("dragover",  function (e){ e.preventDefault(); });
-  vp.addEventListener("drop", function (e){
-    e.preventDefault(); dragN = 0; dropEl.classList.remove("active");
-    if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
-  });
-  window.addEventListener("paste", function (e){
-    var cd = e.clipboardData; if (!cd) return;
-    var items = cd.items || [];
-    for (var i = 0; i < items.length; i++){ if (items[i].kind === "file"){ loadImage(items[i].getAsFile()); break; } }
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept: "image/png,image/jpeg,image/webp", kind: "image", input: $("file"), zone: view,
+    zoneClickable: function (){ return !state.img; }, replace: $("open-btn"), openLabel: true,
+    hasFile: function (){ return !!state.img; }, onFile: loadImage });
 
   // ================= ERROR / NOTE =================
   function showErr(){ var t = $("err-txt"); t.textContent = T("t.error"); $("err").hidden = false; }

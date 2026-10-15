@@ -136,6 +136,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -750,12 +751,10 @@
     Shell.copy(lines.join("\n"), $("btn-copy-cmp"));
   });
 
-  drop.addEventListener("click", function () { fileInput.click(); });
-  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
-  fileInput.addEventListener("change", function () { if (fileInput.files.length) addFiles(fileInput.files); fileInput.value = ""; });
-  ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); }); });
-  ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); }); });
-  drop.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け）。複数のファイルを一覧に足していく
+  FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf", kind: "audio",
+    formats: "WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus, CAF", multiple: true, input: fileInput, zone: drop, fillZone: true, onFile: addFiles,
+    loaded: function () { return items.length > 0; } });
 
   /* ================= init ================= */
   Shell.init({

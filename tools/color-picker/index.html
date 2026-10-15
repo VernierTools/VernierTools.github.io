@@ -326,6 +326,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -625,12 +626,7 @@
     btZin.addEventListener("click", function () { zoomAt(canvas.width / 2, canvas.height / 2, 1.35); });
     btZout.addEventListener("click", function () { zoomAt(canvas.width / 2, canvas.height / 2, 1 / 1.35); });
 
-    wrap.addEventListener("dragenter", function (e) { e.preventDefault(); dragCounter++; if (dragCounter === 1) dropEl.classList.add("active"); });
-    wrap.addEventListener("dragleave", function () { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropEl.classList.remove("active"); } });
-    wrap.addEventListener("dragover", function (e) { e.preventDefault(); });
-    wrap.addEventListener("drop", function (e) { e.preventDefault(); dragCounter = 0; dropEl.classList.remove("active"); var f = e.dataTransfer.files[0]; if (f) loadImage(f); });
-
-    fileIn.addEventListener("change", function (e) { if (e.target.files[0]) { loadImage(e.target.files[0]); e.target.value = ""; } });
+    // ドロップ・貼り付け・ファイル選択は外側で FileDrop に任せる（A・B のどちらに入れるかもそこで決める）
     if (hintOpen) hintOpen.addEventListener("click", function () { fileIn.click(); });
     btFit.addEventListener("click", fit);
     btSel.addEventListener("click", function () { setSelMode(!st.selMode); });
@@ -669,14 +665,16 @@
   });
   eyeWrap.addEventListener("mouseleave", function () { active = null; });
 
-  window.addEventListener("paste", function (e) {
-    var items = e.clipboardData && e.clipboardData.items; if (!items) return;
-    for (var i = 0; i < items.length; i++) if (items[i].type.indexOf("image/") === 0) {
-      var f = items[i].getAsFile(); if (f) { (active || vA).loadImage(f); break; }
-    }
-  });
 
   var compare = false;
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // ドロップは落とした側（A / B）へ、貼り付けはマウスが乗っている側へ（比較していなければ A）
+  [[vA, $("inst-a")], [vB, $("inst-b")]].forEach(function (p) {
+    var v = p[0], box = p[1];
+    FileDrop.attach({ accept: "image/*", kind: "image", input: box.querySelector(".file-in"), owner: box,
+      active: function () { return v === vB ? (compare && active === vB) : !(compare && active === vB); },
+      hasFile: v.hasImage, onFile: function (f) { v.loadImage(f); } });
+  });
   $("toggle-compare").addEventListener("click", function () {
     compare = !compare; $("inst-b").hidden = !compare; eyeWrap.classList.toggle("compare", compare);
     $("toggle-compare").textContent = window.Shell ? Shell.t(compare ? "t.singleview" : "t.addcompare") : (compare ? "Single view" : "Add comparison");

@@ -176,6 +176,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="demux.js"></script>
 <script src="analyze.js"></script>
 <script>
@@ -202,10 +203,12 @@
 
   /* ---------- 読み込み ---------- */
   var drop = $("dropzone"), input = $("fileInput");
-  input.addEventListener("change", function () { if (input.files[0]) load(input.files[0]); input.value = ""; });
-  ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-drag"); }); });
-  ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-drag"); }); });
-  drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) load(f); });
+  // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
+  // この欄は label なので、クリックでのファイル選択はブラウザ標準のまま
+  var hasVideo = false;
+  FileDrop.attach({ accept: "video/*,.mkv,.mov,.webm,.mp4,.m4v", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
+    input: input, owner: drop, replace: $("anotherBtn"),
+    hasFile: function () { return hasVideo; }, onFile: function (f) { hasVideo = true; S.cancel = true; load(f); } });
 
   // 読み込めなかった理由を、分かる範囲で具体的に出す
   function loadErrorText(e, file) {
@@ -502,8 +505,8 @@
       en: {
         "t.title": "Actual frame rate measurer",
         "t.desc": "Find the frame rate a video really moves at — for example 24 fps footage inside a 60 fps file — by comparing its frames, not by trusting the file's setting.",
-        "t.dzmain": "Drop a video file here, or click to choose",
-        "t.dzsub": "MP4, MOV, WebM, MKV. Processed in your browser; nothing is uploaded.",
+        "t.dzmain": "Click to choose a video, or drop it anywhere on the page",
+        "t.dzsub": "MP4, MOV, WebM, MKV. You can also paste it. Processed in your browser; nothing is uploaded.",
         "t.reading": "Reading the file… {p}%",
         "t.err.format": "This doesn't look like an MP4, MOV, WebM or MKV file (extension: {ext}). The file may use another format with a video extension, or be damaged.",
         "t.err.other": "This is a {f} file, which isn't supported. Export or convert it to MP4, MOV, WebM or MKV and try again.",
@@ -555,8 +558,8 @@
       ja: {
         "t.title": "実測フレームレート測定",
         "t.desc": "ファイルの設定に惑わされず、映像が実際に何fpsで動いているかを調べます。60fpsのファイルの中身が24fps、といった場合も、フレームを比べて見つけます。",
-        "t.dzmain": "動画ファイルをドロップ、またはクリックして選択",
-        "t.dzsub": "MP4・MOV・WebM・MKV。ブラウザ内で処理し、どこにも送りません。",
+        "t.dzmain": "クリックして動画を選ぶか、ページのどこかにドロップ",
+        "t.dzsub": "MP4・MOV・WebM・MKV。貼り付けでも開けます。ブラウザ内で処理し、どこにも送りません。",
         "t.reading": "ファイルを読んでいます… {p}%",
         "t.err.format": "MP4・MOV・WebM・MKV のどれでもないようです（拡張子: {ext}）。拡張子と中身の形式が違うか、ファイルが壊れている可能性があります。",
         "t.err.other": "{f} 形式のファイルなので対応していません。MP4・MOV・WebM・MKV に書き出すか変換してから試してください。",

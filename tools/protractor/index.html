@@ -133,6 +133,7 @@
   </div>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -514,22 +515,10 @@
   }
   function showError(msg) { $("badges").innerHTML = '<span class="badge badge--neg"><span class="d" style="background:currentColor"></span>' + esc(msg) + "</span>"; }
   var input = $("file-input"), dz = $("dropzone"), depth = 0;
-  $("choose").addEventListener("click", function () { input.click(); });
-  $("btn-change").addEventListener("click", function () { input.click(); });
-  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
-  dz.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; dz.classList.add("is-over"); });
-  dz.addEventListener("dragover", function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; });
-  dz.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; dz.classList.remove("is-over"); } });
-  dz.addEventListener("drop", function (e) { e.preventDefault(); depth = 0; dz.classList.remove("is-over"); loadFile(e.dataTransfer.files[0]); });
-  // 計測中の画像の上にドロップしても差し替えられるようにする
-  stage.addEventListener("dragover", function (e) { e.preventDefault(); });
-  stage.addEventListener("drop", function (e) { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
-  document.addEventListener("paste", function (e) {
-    var items = (e.clipboardData && e.clipboardData.items) || [];
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === "file" && /^image\//.test(items[i].type)) { loadFile(items[i].getAsFile()); e.preventDefault(); return; }
-    }
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: input, zone: dz, replace: $("btn-change"),
+    hasFile: function () { return !!S.img; }, onFile: loadFile });
+  $("choose").addEventListener("click", function (e) { e.stopPropagation(); fd.pick(); });
 
   $("btn-fit").addEventListener("click", fitView);
   $("btn-100").addEventListener("click", function () { zoomAt(S.cssW / 2, S.cssH / 2, 1 / S.view.s); });
@@ -543,7 +532,7 @@
       en: {
         "t.title": "Protractor",
         "t.desc": "Load an image and click points to measure angles — between two edges, between two separate lines, or a tilt from horizontal.",
-        "t.dropTitle": "Drop an image here", "t.dropHint": "or paste from the clipboard, or choose a file", "t.choose": "Choose image",
+        "t.dropTitle": "Drop an image anywhere on the page", "t.dropHint": "or paste it, or choose a file", "t.choose": "Choose image",
         "t.fit": "Fit", "t.reset": "Clear points", "t.change": "Change image",
         "t.mode": "Measure",
         "t.m3": "Angle at a corner", "t.m3d": "3 points: vertex, then one point on each edge",
@@ -568,7 +557,7 @@
       ja: {
         "t.title": "分度器",
         "t.desc": "画像を読み込み、点をクリックして角度を測ります。2辺がなす角、離れた2本の線の角度、水平からの傾きに対応。",
-        "t.dropTitle": "ここに画像をドロップ", "t.dropHint": "クリップボードから貼り付け、またはファイルを選択", "t.choose": "画像を選択",
+        "t.dropTitle": "ページのどこかに画像をドロップ", "t.dropHint": "貼り付けやファイル選択でも開けます", "t.choose": "画像を選択",
         "t.fit": "全体表示", "t.reset": "点を消す", "t.change": "画像を変更",
         "t.mode": "測り方",
         "t.m3": "角の角度", "t.m3d": "3点: 頂点、それぞれの辺上の1点",

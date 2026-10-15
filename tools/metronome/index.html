@@ -470,6 +470,7 @@
 </div>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -1075,11 +1076,9 @@
      カスタムサウンド（波形トリマー）
      ============================================================ */
   var pendingBuffer = null, trimStart = 0, trimEnd = 1;
-  $("drop").addEventListener("click", function(){ $("fileInput").click(); });
-  $("drop").addEventListener("dragover", function(e){ e.preventDefault(); $("drop").classList.add("dragover"); });
-  $("drop").addEventListener("dragleave", function(){ $("drop").classList.remove("dragover"); });
-  $("drop").addEventListener("drop", function(e){ e.preventDefault(); $("drop").classList.remove("dragover"); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
-  $("fileInput").addEventListener("change", function(e){ if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept:"audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus", kind:"audio",
+    input:$("fileInput"), zone:$("drop"), hasFile:function(){ return !$("wfEditor").hidden; }, onFile:loadAudioFile });
 
   function loadAudioFile(file){
     $("wfDecodeError").hidden = true;
@@ -1266,7 +1265,7 @@
         "t.practice":"Practice tools","t.countin":"Count-in","t.bars":"Bars",
         "t.trainer":"Tempo trainer","t.endbpm":"Target BPM","t.step":"+BPM","t.everybars":"Every N bars",
         "t.randmute":"Random mute","t.swing":"Swing",
-        "t.customsound":"Custom sounds","t.dropb":"Choose an audio file","t.dropt":"or drop it here",
+        "t.customsound":"Custom sounds","t.dropb":"Choose an audio file","t.dropt":"or drop or paste it anywhere on the page",
         "t.droph":"Trim it so the sound's attack starts exactly at playback.",
         "t.preview":"▶ Preview","t.addsound":"Add to sound list",
         "t.decodeerror":"Couldn't read this file as audio — try a different file or format.",
@@ -1291,7 +1290,7 @@
         "t.practice":"練習ツール","t.countin":"カウントイン","t.bars":"小節数",
         "t.trainer":"テンポトレーナー","t.endbpm":"目標BPM","t.step":"+BPM","t.everybars":"何小節ごと",
         "t.randmute":"ランダムミュート","t.swing":"スウィング",
-        "t.customsound":"カスタムサウンド","t.dropb":"音声ファイルを選択","t.dropt":"またはここにドロップ",
+        "t.customsound":"カスタムサウンド","t.dropb":"音声ファイルを選択","t.dropt":"またはページのどこかにドロップ・貼り付け",
         "t.droph":"再生時にアタックが即座に鳴るよう、波形の前後を切り取れます。",
         "t.preview":"▶ プレビュー","t.addsound":"サウンド一覧に追加",
         "t.decodeerror":"このファイルは音声として読み込めませんでした。別のファイルや形式を試してください。",

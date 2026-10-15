@@ -329,6 +329,7 @@
 <video id="vid" playsinline muted style="display:none"></video>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
 (function () {
@@ -597,18 +598,9 @@
   }
 
   var drop = $("drop"), fileInput = $("file");
-  drop.addEventListener("click", function(){ fileInput.click(); });
-  drop.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); fileInput.click(); } });
-  fileInput.addEventListener("change", function(){ if (fileInput.files[0]) loadFile(fileInput.files[0]); });
-  ["dragenter","dragover"].forEach(function(t){
-    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add("dragover"); });
-  });
-  ["dragleave","drop"].forEach(function(t){
-    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove("dragover"); });
-  });
-  drop.addEventListener("drop", function(e){
-    if (e.dataTransfer && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-  });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  FileDrop.attach({ accept:"image/*", kind:"image", input:fileInput, zone:drop, fillZone:true,
+    hasFile:function(){ return hasFrame; }, onFile:loadFile });
 
   // ---- palette ----
   function parseColors(text){

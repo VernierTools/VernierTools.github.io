@@ -201,6 +201,7 @@
   </div>
 </main>
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
 <script src="gif.js"></script>
 <script src="webp.js"></script>
 <script>
@@ -449,15 +450,10 @@
 
   /* ---------------- 配線 ---------------- */
   var input = $("file-input"), dz = $("dropzone"), depth = 0;
-  $("choose").addEventListener("click", function () { input.click(); });
-  $("btn-change").addEventListener("click", function () { input.click(); });
-  input.addEventListener("change", function () { loadFile(input.files[0]); input.value = ""; });
-  dz.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; dz.classList.add("is-over"); });
-  dz.addEventListener("dragover", function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; });
-  dz.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; dz.classList.remove("is-over"); } });
-  dz.addEventListener("drop", function (e) { e.preventDefault(); depth = 0; dz.classList.remove("is-over"); loadFile(e.dataTransfer.files[0]); });
-  $("loaded").addEventListener("dragover", function (e) { e.preventDefault(); });
-  $("loaded").addEventListener("drop", function (e) { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+  // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
+  var fd = FileDrop.attach({ accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
+    input: input, zone: dz, replace: $("btn-change"), hasFile: function () { return !!S.file; }, onFile: loadFile });
+  $("choose").addEventListener("click", function (e) { e.stopPropagation(); fd.pick(); });
 
   $("set-start").addEventListener("click", function () { $("in-start").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
   $("set-end").addEventListener("click", function () { $("in-end").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
@@ -487,7 +483,7 @@
       en: {
         "t.title": "Video to GIF",
         "t.desc": "Turn a short clip into an animated GIF or WebP, entirely in your browser. Works with any video your browser can play — MP4, MOV, WebM.",
-        "t.dropTitle": "Drop a video here", "t.dropHint": "MP4, MOV, WebM — anything your browser can play. Nothing is uploaded.",
+        "t.dropTitle": "Drop a video anywhere on the page", "t.dropHint": "MP4, MOV, WebM — anything your browser can play. You can also paste it. Nothing is uploaded.",
         "t.choose": "Choose video", "t.change": "Change video",
         "t.trim": "Clip", "t.start": "Start", "t.end": "End", "t.setStart": "Use current time", "t.setEnd": "Use current time",
         "t.output": "Output", "t.fps": "Frame rate", "t.width": "Width", "t.speed": "Speed", "t.loop": "Loop forever",
@@ -508,7 +504,7 @@
       ja: {
         "t.title": "動画→GIF変換",
         "t.desc": "短い動画をアニメーションGIFまたはWebPに変換します。処理はすべてブラウザ内。MP4・MOV・WebMなど、ブラウザで再生できる動画に対応。",
-        "t.dropTitle": "ここに動画をドロップ", "t.dropHint": "MP4・MOV・WebMなど、ブラウザで再生できる形式。アップロードはしません。",
+        "t.dropTitle": "ページのどこかに動画をドロップ", "t.dropHint": "MP4・MOV・WebMなど、ブラウザで再生できる形式。貼り付けでも開けます。アップロードはしません。",
         "t.choose": "動画を選択", "t.change": "動画を変更",
         "t.trim": "範囲", "t.start": "開始", "t.end": "終了", "t.setStart": "現在位置を開始に", "t.setEnd": "現在位置を終了に",
         "t.output": "出力", "t.fps": "フレームレート", "t.width": "幅", "t.speed": "速度", "t.loop": "繰り返し再生",
