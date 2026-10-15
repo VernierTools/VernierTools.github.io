@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Romaji–kana converter — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* 入力と出力を同じ大きさで左右に並べ、間に入れ替えボタン */
+  .pair{ display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--s3); align-items:start; margin-bottom:var(--s5); }
+  .pair__mid{ display:flex; align-items:center; justify-content:center; padding-top:66px; }
+  @media (max-width:760px){
+    .pair{ grid-template-columns:minmax(0,1fr); }
+    .pair__mid{ padding-top:0; }
+    .pair__mid .btn svg{ transform:rotate(90deg); }
+  }
+  .pane__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); min-height:38px; margin-bottom:var(--s2); }
+  .pane__head .label{ margin:0; }
+  .pane__head .select{ width:auto; min-width:0; flex:0 1 230px; }
+  .pane__foot{ display:flex; flex-wrap:wrap; gap:var(--s2); align-items:center; margin-top:var(--s2); min-height:28px; }
+
+  /* ハイライト付きテキスト欄（textarea + 背後のマーク描画レイヤー） */
+  .editorwrap{ position:relative; }
+  .ed-backdrop,.ta{
+    box-sizing:border-box; width:100%; height:300px;
+    font-family:var(--font-sans); font-size:15px; line-height:1.75; letter-spacing:normal;
+    padding:10px 12px; border:1px solid var(--border-strong); border-radius:var(--r);
+    white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; overflow:auto; margin:0;
+  }
+  .ed-backdrop{ position:absolute; inset:0; color:transparent; background:var(--surface); pointer-events:none; z-index:1; }
+  .ed-backdrop mark{ color:transparent; border-radius:2px; background:var(--neg-tint); }
+  .ta{ position:relative; z-index:2; resize:vertical; background:transparent; color:var(--text); caret-color:var(--text);
+    transition:border-color var(--tap), box-shadow var(--tap); }
+  .ta:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
+  .ta::placeholder{ color:var(--text-3); }
+  .ta[readonly]{ resize:none; }
+  .legend{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-3); }
+  .legend i{ width:12px; height:12px; border-radius:2px; background:var(--neg-tint); display:inline-block; }
+
+  .opts{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:var(--s4) var(--s5); }
+  .opts .field{ margin-bottom:0; }
+  .note{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:4px; }
+  .limits{ margin:0; padding-left:1.1em; font-size:12.5px; color:var(--text-2); line-height:1.6; }
+  .limits li + li{ margin-top:var(--s2); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.text">Text</span></div>
+    <h1 data-i18n="t.title">Romaji–kana converter</h1>
+    <p data-i18n="t.desc">Convert between romaji, hiragana and katakana. The input is detected automatically, and text that mixes them is converted piece by piece.</p>
+  </div>
+
+  <div class="pair">
+    <div>
+      <div class="pane__head">
+        <label class="label" for="ta-in" data-i18n="t.input">Input</label>
+        <span class="badge badge--muted" id="detected"><span class="d"></span><span></span></span>
+      </div>
+      <div class="editorwrap">
+        <div class="ed-backdrop" id="bd-in" aria-hidden="true"></div>
+        <textarea id="ta-in" class="ta" spellcheck="false" autocomplete="off" data-i18n-ph="t.inputPh"></textarea>
+      </div>
+      <div class="pane__foot" id="counts"></div>
+    </div>
+
+    <div class="pair__mid">
+      <button class="btn btn--secondary" id="swap" type="button" title="Swap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg>
+      </button>
+    </div>
+
+    <div>
+      <div class="pane__head">
+        <label class="label" for="target" data-i18n="t.output">Output</label>
+        <select class="select" id="target"></select>
+      </div>
+      <div class="editorwrap">
+        <div class="ed-backdrop" id="bd-out" aria-hidden="true"></div>
+        <textarea id="ta-out" class="ta" readonly spellcheck="false"></textarea>
+      </div>
+      <div class="pane__foot">
+        <button class="btn btn--secondary btn--sm" id="copy" type="button" style="height:30px;padding:0 12px;font-size:12.5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+          <span data-i18n="t.copy">Copy</span>
+        </button>
+        <span class="legend" id="legend" hidden><i></i><span data-i18n="t.legend">Left as is (kanji, English, etc.)</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.options">Options</div>
+    <div class="opts">
+      <div class="field" data-for="romaji">
+        <label class="label" for="o-system" data-i18n="o.system">Romanisation</label>
+        <select class="select" id="o-system"></select>
+        <div class="note" id="sysnote"></div>
+      </div>
+      <div class="field" data-for="romaji">
+        <label class="label" for="o-long" data-i18n="o.long">Long vowels</label>
+        <select class="select" id="o-long"></select>
+      </div>
+      <div class="field" data-for="romaji">
+        <label class="label" for="o-case" data-i18n="o.case">Letter case</label>
+        <select class="select" id="o-case"></select>
+      </div>
+      <div class="field" data-for="romaji">
+        <label class="label" for="o-nsep" data-i18n="o.nsep">ん before a vowel or y</label>
+        <select class="select" id="o-nsep"></select>
+      </div>
+      <div class="field" data-for="romaji" id="f-nbmp">
+        <label class="label" for="o-nbmp" data-i18n="o.nbmp">ん before b, m, p</label>
+        <select class="select" id="o-nbmp"></select>
+      </div>
+      <div class="field" data-for="romaji">
+        <label class="label" for="o-punct" data-i18n="o.punct">Japanese punctuation</label>
+        <select class="select" id="o-punct"></select>
+      </div>
+      <div class="field" data-for="kana">
+        <label class="label" for="o-macron" data-i18n="o.macron">Long-vowel marks (ō, ô) into kana</label>
+        <select class="select" id="o-macron"></select>
+        <div class="note" data-i18n="o.macronNote">ō can be おう (とうきょう) or おお (おおの); the spelling alone can't tell which.</div>
+      </div>
+      <div class="field">
+        <label class="label" for="o-protect" data-i18n="o.protect">Text in quotes</label>
+        <select class="select" id="o-protect"></select>
+        <div class="note" data-i18n="o.protectNote">Use "…" or `…` around English words that would otherwise be read as romaji (name, kite …).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s7)">
+    <div class="card__title" data-i18n="t.limits">Good to know</div>
+    <ul class="limits">
+      <li data-i18n="l.kanji">Kanji can't be converted, because reading them needs a dictionary. They are left as they are and highlighted.</li>
+      <li data-i18n="l.english">A word written in Latin letters is converted only if it can be read as romaji. English words like "Tower" stay as they are, but ones like "name" or "kite" are read as romaji — put them in quotes.</li>
+      <li data-i18n="l.particle">Romaji can't tell the particles は, へ, を from わ, え, お, so "wa", "e", "o" become わ, え, お ("wo" becomes を).</li>
+      <li data-i18n="l.long">Kana to romaji treats おう and おお as one long ō, even across a word boundary (思う becomes omō).</li>
+      <li data-i18n="l.space">Kana has no spaces between words, so the romaji comes out joined (わたしは → watashiha).</li>
+    </ul>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   Romaji–kana converter — Vernier
+   入力を「かなの連なり / ラテン文字の単語 / 漢字 / 引用符で囲んだ所 / その他」に分け、
+   それぞれを変換する（混ざっていても部分ごとに正しく変換できる）。
+   かな → ローマ字は、まずモーラ（きゃ・っ・ん・ー など）に区切り、日本式の綴りを経由して各方式へ。
+   ローマ字 → かなは、最長一致で音節表を引き、読み切れない単語は英語とみなしてそのまま残す。
+   ========================================================================= */
+(function () {
+var $ = function (id) { return document.getElementById(id); };
+function t(k) { return Shell.t(k); }
+function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+/* ---------------------------------------------------------------- かな表 */
+// 1 文字のかな → 日本式の綴り（ここから各方式へ変える）
+var SINGLE = {
+  "あ":"a","い":"i","う":"u","え":"e","お":"o",
+  "か":"ka","き":"ki","く":"ku","け":"ke","こ":"ko","が":"ga","ぎ":"gi","ぐ":"gu","げ":"ge","ご":"go",
+  "さ":"sa","し":"si","す":"su","せ":"se","そ":"so","ざ":"za","じ":"zi","ず":"zu","ぜ":"ze","ぞ":"zo",
+  "た":"ta","ち":"ti","つ":"tu","て":"te","と":"to","だ":"da","ぢ":"di","づ":"du","で":"de","ど":"do",
+  "な":"na","に":"ni","ぬ":"nu","ね":"ne","の":"no",
+  "は":"ha","ひ":"hi","ふ":"hu","へ":"he","ほ":"ho","ば":"ba","び":"bi","ぶ":"bu","べ":"be","ぼ":"bo",
+  "ぱ":"pa","ぴ":"pi","ぷ":"pu","ぺ":"pe","ぽ":"po",
+  "ま":"ma","み":"mi","む":"mu","め":"me","も":"mo","や":"ya","ゆ":"yu","よ":"yo",
+  "ら":"ra","り":"ri","る":"ru","れ":"re","ろ":"ro","わ":"wa","ゐ":"wi","ゑ":"we","を":"wo","ゔ":"vu",
+  "ぁ":"a","ぃ":"i","ぅ":"u","ぇ":"e","ぉ":"o","ゃ":"ya","ゅ":"yu","ょ":"yo","ゎ":"wa","ゕ":"ka","ゖ":"ke"
+};
+var I_ROW = "きぎしじちぢにひびぴみり";
+var SMALL_Y = "ゃゅょ", SMALL_V = "ぁぃぅぇぉ";
+// 小さい母音を伴う外来音。[ヘボン式・パスポート, 訓令式・日本式]
+var LOAN = {
+  "ふぁ":["fa"],"ふぃ":["fi"],"ふぇ":["fe"],"ふぉ":["fo"],"ふゅ":["fyu"],
+  "てぃ":["ti"],"とぅ":["tu"],"でぃ":["di"],"どぅ":["du"],"てゅ":["tyu"],"でゅ":["dyu"],
+  "うぃ":["wi"],"うぇ":["we"],"うぉ":["wo"],
+  "ゔぁ":["va"],"ゔぃ":["vi"],"ゔぇ":["ve"],"ゔぉ":["vo"],"ゔゅ":["vyu"],
+  "しぇ":["she","sye"],"ちぇ":["che","tye"],"じぇ":["je","zye"],"ぢぇ":["je","dye"],
+  "つぁ":["tsa"],"つぃ":["tsi"],"つぇ":["tse"],"つぉ":["tso"],"いぇ":["ye"],
+  "くぁ":["kwa"],"くぃ":["kwi"],"くぇ":["kwe"],"くぉ":["kwo"],"ぐぁ":["gwa"],
+  "すぃ":["si"],"ずぃ":["zi"]
+};
+var HEP = { si:"shi", ti:"chi", tu:"tsu", hu:"fu", zi:"ji", di:"ji", du:"zu", wo:"o", wi:"i", we:"e",
+  sya:"sha", syu:"shu", syo:"sho", tya:"cha", tyu:"chu", tyo:"cho", zya:"ja", zyu:"ju", zyo:"jo", dya:"ja", dyu:"ju", dyo:"jo" };
+var KUN = { di:"zi", du:"zu", dya:"zya", dyu:"zyu", dyo:"zyo", wo:"o", wi:"i", we:"e" };
+
+function toHira(s) {
+  return s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); })
+    .replace(/[ヽヾ]/g, function (c) { return c === "ヽ" ? "ゝ" : "ゞ"; });
+}
+function toKata(s) {
+  return s.replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); })
+    .replace(/[ゝゞ]/g, function (c) { return c === "ゝ" ? "ヽ" : "ヾ"; });
+}
+// 半角カタカナ・全角英字は先にふつうの形へ（濁点も 1 文字にまとまる）
+function normalizeInput(s) {
+  return s.replace(/[｡-ﾟ]+/g, function (m) { return m.normalize("NFKC"); })
+          .replace(/[Ａ-Ｚａ-ｚ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+}
+// 踊り字（ゝゞ）は直前のかなに置き換える
+var VOICE = "かきくけこさしすせそたちつてとはひふへほ";
+function expandIteration(h) {
+  var out = "";
+  for (var i = 0; i < h.length; i++) {
+    var c = h[i];
+    if ((c === "ゝ" || c === "ゞ") && out) {
+      var prev = out[out.length - 1];
+      if (c === "ゞ" && VOICE.indexOf(prev) >= 0) prev = String.fromCharCode(prev.charCodeAt(0) + 1);
+      out += prev;
+    } else out += c;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------- かな → ローマ字 */
+function morae(h) {   // ひらがなをモーラに区切る
+  var m = [];
+  for (var i = 0; i < h.length; i++) {
+    var c = h[i], n = h[i + 1];
+    if (n && SMALL_Y.indexOf(n) >= 0 && I_ROW.indexOf(c) >= 0) { m.push(c + n); i++; continue; }
+    if (n && (SMALL_V.indexOf(n) >= 0 || SMALL_Y.indexOf(n) >= 0) && LOAN[c + n]) { m.push(c + n); i++; continue; }
+    m.push(c);
+  }
+  return m;
+}
+function canonOf(mo) {   // モーラ → 日本式の綴り（外来音は null、記号は null）
+  if (mo.length === 2 && SMALL_Y.indexOf(mo[1]) >= 0 && I_ROW.indexOf(mo[0]) >= 0)
+    return SINGLE[mo[0]].slice(0, -1) + SINGLE[mo[1]];
+  return SINGLE[mo] || null;
+}
+function spell(mo, sys) {
+  if (LOAN[mo]) { var L = LOAN[mo]; return (sys === "kunrei" || sys === "nihon") && L[1] ? L[1] : L[0]; }
+  if (mo.length === 2 && !canonOf(mo)) {   // 表に無い組み合わせ：前の音の母音を小さい母音に差し替える
+    var a = spell(mo[0], sys), v = SINGLE[mo[1]] || "";
+    return a ? a.replace(/[aiueo]$/, "") + v : null;
+  }
+  var c = canonOf(mo); if (!c) return null;
+  if (sys === "hepburn" || sys === "passport") return HEP[c] || c;
+  if (sys === "kunrei") return KUN[c] || c;
+  return c;
+}
+var MACRON = { a:"ā", i:"ī", u:"ū", e:"ē", o:"ō" }, CIRC = { a:"â", i:"î", u:"û", e:"ê", o:"ô" };
+// 長音：prev = 直前の母音、kind = "kana"（おう・おお 等）か "bar"（ー）
+function longVowel(v, style) {
+  if (style === "macron") return { rep: MACRON[v], replace: true };
+  if (style === "circ") return { rep: CIRC[v], replace: true };
+  if (style === "h") return v === "o" ? { rep: "oh", replace: true } : { rep: v, replace: true };
+  if (style === "omit") return { rep: v, replace: true };
+  return null;   // "double"：かなの綴りどおり
+}
+function kanaToRomaji(h, o) {
+  var sys = o.system, ms = morae(expandIteration(h)), out = "", lastV = "", pendingSokuon = false;
+  for (var i = 0; i < ms.length; i++) {
+    var mo = ms[i], next = ms[i + 1];
+    if (mo === "っ") {
+      if (next && spell(next, sys)) { pendingSokuon = true; continue; }
+      out += "'"; lastV = ""; continue;   // 語末の っ（あっ など）
+    }
+    if (mo === "ん") {
+      var nr = next ? spell(next, sys) : null;
+      var letter = "n";
+      if (nr && /^[bmp]/.test(nr) && (sys === "passport" || (sys === "hepburn" && o.nbmp === "m"))) letter = "m";
+      out += letter;
+      if (nr && /^[aiueoy]/.test(nr)) out += o.nsep === "apos" ? "'" : o.nsep === "hyphen" ? "-" : "";
+      lastV = ""; continue;
+    }
+    if (mo === "ー") {
+      if (lastV) {
+        var lv = longVowel(lastV, o.long);
+        if (lv) out = out.slice(0, -1) + lv.rep;
+        else out += lastV;
+      }
+      lastV = ""; continue;
+    }
+    var r = spell(mo, sys);
+    if (r === null) { out += mo; lastV = ""; continue; }
+    // 長音（おう・おお・うう・ああ・ええ）。いい・えい はヘボン式でも重ねて書く
+    if (lastV && r.length === 1 && "aiueo".indexOf(r) >= 0 && !pendingSokuon) {
+      var isLong = (lastV === "o" && (r === "u" || r === "o")) || (lastV === r && r !== "i");
+      if (sys === "passport") isLong = (lastV === "o" && (r === "u" || r === "o")) || (lastV === "u" && r === "u");
+      if (isLong) {
+        var lv2 = longVowel(lastV, o.long);
+        if (lv2) { out = out.slice(0, -1) + lv2.rep; lastV = ""; continue; }
+      }
+    }
+    if (pendingSokuon) {
+      out += (/^ch/.test(r) ? "t" : r[0]);   // ヘボン式は っち を tch と書く
+      pendingSokuon = false;
+    }
+    out += r;
+    lastV = /[aiueo]$/.test(r) ? r[r.length - 1] : "";
+  }
+  return out;
+}
+
+/* ------------------------------------------------------- ローマ字 → かな */
+var ROMA = {};
+(function build() {
+  function add(sp, kana) { if (!(sp in ROMA)) ROMA[sp] = kana; }
+  // 優先する読みを先に登録（ji → じ、zu → ず、o → お、ti → ち など）
+  ["じ","ず","お","い","え","ち","ぢ","づ"].forEach(function (k) { add(SINGLE[k], k); add(HEP[SINGLE[k]] || SINGLE[k], k); });
+  Object.keys(SINGLE).forEach(function (k) {
+    if ("ぁぃぅぇぉゃゅょゎゕゖゐゑ".indexOf(k) >= 0) return;
+    var c = SINGLE[k]; add(c, k); if (HEP[c]) add(HEP[c], k);
+  });
+  I_ROW.split("").forEach(function (k) {
+    SMALL_Y.split("").forEach(function (y) {
+      var c = SINGLE[k].slice(0, -1) + SINGLE[y];
+      add(c, k + y); if (HEP[c]) add(HEP[c], k + y); if (KUN[c]) add(KUN[c], k + y);
+    });
+  });
+  Object.keys(LOAN).forEach(function (k) { LOAN[k].forEach(function (sp) { add(sp, k); }); });
+  // 入力でよく使われる別の綴り
+  [["jya","じゃ"],["jyu","じゅ"],["jyo","じょ"],["cya","ちゃ"],["cyu","ちゅ"],["cyo","ちょ"],["thi","てぃ"],["dhi","でぃ"],
+   ["twu","とぅ"],["dwu","どぅ"],["tsi","つぃ"],["wye","ゑ"],["wyi","ゐ"]].forEach(function (p) { add(p[0], p[1]); });
+})();
+var MAXLEN = 4;
+var LONGMARK = { "ā":"a","ī":"i","ū":"u","ē":"e","ō":"o","â":"a","î":"i","û":"u","ê":"e","ô":"o" };
+// 1 単語を読む。読み切れなければ null（英単語として残す）
+function romajiToKana(word, o) {
+  // 長音記号は「母音 + ^」に分けておき、^ で直前の母音を伸ばす
+  var w = word.normalize("NFC").toLowerCase().replace(/[āīūēōâîûêô]/g, function (m) { return LONGMARK[m] + "^"; });
+  var out = "", i = 0, lastV = "";
+  function longKana(v) {
+    if (o.macron === "bar") return "ー";
+    if (v === "o") return o.macron === "oo" ? "お" : "う";
+    return { a:"あ", i:"い", u:"う", e:"え" }[v];
+  }
+  while (i < w.length) {
+    var c = w[i], n = w[i + 1];
+    if (c === "'") { i++; continue; }
+    if (c === "^") { if (!lastV) return null; out += longKana(lastV); lastV = ""; i++; continue; }
+    if (c === "n") {
+      if (n === undefined || n === "'") { out += "ん"; i += n === "'" ? 2 : 1; lastV = ""; continue; }
+      if (n === "n") {
+        var n2 = w[i + 2];
+        if (n2 !== undefined && /[aiueoy]/.test(n2)) { out += "ん"; i += 1; lastV = ""; continue; }
+        out += "ん"; i += 2; lastV = ""; continue;
+      }
+      if (!/[aiueoy]/.test(n)) { out += "ん"; i++; lastV = ""; continue; }
+    }
+    if (c === "m" && n && "bmp".indexOf(n) >= 0) { out += "ん"; i++; continue; }   // shimbun
+    if (c === "h" && i > 0 && w[i - 1] === "o" && (n === undefined || !/[aiueoy]/.test(n))) { out += longKana("o"); i++; continue; }   // パスポートの OH
+    if (c === "t" && n === "c" && w[i + 2] === "h") { out += "っ"; i++; continue; }   // matcha
+    if (n === c && /[bcdfghjkmprstvwz]/.test(c)) { out += "っ"; i++; continue; }
+    var hit = null;
+    for (var L = MAXLEN; L >= 1; L--) {
+      var sp = w.substr(i, L);
+      if (ROMA[sp]) { hit = sp; break; }
+    }
+    // 単独の子音は読めない（"n" は上で処理済み）
+    if (!hit || (hit.length === 1 && "aiueo".indexOf(hit) < 0)) return null;
+    out += ROMA[hit]; i += hit.length;
+    lastV = /[aiueo]$/.test(hit) ? hit[hit.length - 1] : "";
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------ 区切り */
+var RE_KANA = /[ぁ-ゖゝゞァ-ヺーヽヾ]/;
+var RE_KANJI = /[\p{Script=Han}々〆]/u;
+var RE_LATIN = /[A-Za-zĀāĪīŪūĒēŌōÂâÎîÛûÊêÔô]/;
+function segment(s, protect) {
+  var segs = [], i = 0;
+  while (i < s.length) {
+    var c = s[i];
+    // 引用符で囲んだ所はそのまま
+    if (protect && (c === '"' || c === "“" || c === "`")) {
+      var close = c === "“" ? "”" : c, j = s.indexOf(close, i + 1);
+      if (j > i) { segs.push({ k: "quote", s: s.slice(i, j + 1) }); i = j + 1; continue; }
+    }
+    var kind = RE_KANA.test(c) ? "kana" : RE_KANJI.test(c) ? "kanji" : RE_LATIN.test(c) ? "latin" : "other";
+    var j2 = i + 1;
+    while (j2 < s.length) {
+      var d = s[j2];
+      if (kind === "latin" && d === "'" && RE_LATIN.test(s[j2 + 1] || "")) { j2 += 1; continue; }
+      var k2 = RE_KANA.test(d) ? "kana" : RE_KANJI.test(d) ? "kanji" : RE_LATIN.test(d) ? "latin" : "other";
+      if (k2 !== kind) break;
+      j2++;
+    }
+    var piece = s.slice(i, j2);
+    if (kind === "latin") {
+      // 大文字小文字の混ざり方が名前らしくない語（iPhone 等）は英語扱い
+      var casing = /^[^A-Z]*$/.test(piece) || /^[^a-z]*$/.test(piece) || /^[A-ZĀĪŪĒŌÂÎÛÊÔ][^A-Z]*$/.test(piece);
+      segs.push({ k: "latin", s: piece, casing: casing });
+    } else segs.push({ k: kind, s: piece });
+    i = j2;
+  }
+  return segs;
+}
+
+/* ------------------------------------------------------------ 変換 */
+var PUNCT = { "、":", ", "。":". ", "「":"\"", "」":"\"", "『":"\"", "』":"\"", "・":" ", "　":" ", "！":"!", "？":"?", "（":"(", "）":")", "：":":", "〜":"~", "～":"~" };
+// "auto"：ローマ字で書かれていた語は元の大文字の付け方に合わせ、かなから作った所は小文字
+function caseOf(src) {
+  if (src.length > 1 && /^[^a-zāīūēōâîûêô]*$/.test(src)) return "upper";
+  if (/^[A-ZĀĪŪĒŌÂÎÛÊÔ]/.test(src)) return "title";
+  return "lower";
+}
+function applyCase(s, mode) {
+  if (mode === "auto") mode = "lower";
+  if (mode === "upper") return s.toUpperCase();
+  if (mode === "title") return s.replace(/(^|[\s"'(\-])([a-zāīūēōâîûêô])/g, function (m, a, b) { return a + b.toUpperCase(); });
+  return s;
+}
+function detect(segs, o) {
+  var d = { hira: 0, kata: 0, romaji: 0, english: 0, kanji: 0 };
+  segs.forEach(function (g) {
+    if (g.k === "kana") {
+      for (var i = 0; i < g.s.length; i++) {
+        var c = g.s[i];
+        if (c >= "ぁ" && c <= "ゞ") d.hira++;
+        else if (c !== "ー") d.kata++;
+      }
+    } else if (g.k === "kanji") d.kanji += g.s.length;
+    else if (g.k === "latin") {
+      g.kana = g.casing ? romajiToKana(g.s, o) : null;
+      if (g.kana !== null) d.romaji += g.s.length; else d.english += g.s.length;
+    }
+  });
+  return d;
+}
+function convert(segs, target, o) {
+  var parts = [];   // { s, keep }  keep = 変換できずにそのまま残した所
+  segs.forEach(function (g, idx) {
+    var prev = segs[idx - 1], next = segs[idx + 1];
+    if (g.k === "kana") {
+      var h = expandIteration(toHira(g.s));
+      if (target === "hira") parts.push({ s: h });
+      else if (target === "kata") parts.push({ s: toKata(h) });
+      else {
+        var r = applyCase(kanaToRomaji(h, o), o.case);
+        // かなとラテン文字がくっついていたら、ローマ字では空白を入れる
+        if (prev && (prev.k === "latin" || prev.k === "kanji")) r = " " + r;
+        if (next && (next.k === "latin" || next.k === "kanji")) r = r + " ";
+        parts.push({ s: r });
+      }
+    } else if (g.k === "latin") {
+      if (g.kana === null || g.kana === undefined) { parts.push({ s: g.s, keep: true }); return; }
+      if (target === "hira") parts.push({ s: g.kana });
+      else if (target === "kata") parts.push({ s: toKata(g.kana) });
+      else parts.push({ s: applyCase(kanaToRomaji(g.kana, o), o.case === "auto" ? caseOf(g.s) : o.case) });
+    } else if (g.k === "kanji") {
+      parts.push({ s: g.s, keep: true });
+    } else if (g.k === "other" && target === "romaji" && o.punct === "ascii") {
+      var x = g.s.replace(/[、。「」『』・　！？（）：〜～]/g, function (c, at) {
+        var r = PUNCT[c];
+        // 開きかっこは前の語と、閉じかっこは後ろの語と離す
+        if ("「『".indexOf(c) >= 0 && (at > 0 || (prev && !/\s$/.test(prev.s)))) r = " " + r;
+        if ("」』".indexOf(c) >= 0) r = r + " ";
+        return r;
+      });
+      x = x.replace(/ +\n/g, "\n").replace(/ {2,}/g, " ");
+      parts.push({ s: x });
+    } else parts.push({ s: g.s });
+  });
+  // 句読点の後ろに付けた空白が、元からある空白や行末と重ならないように
+  if (target === "romaji") {
+    for (var i = 0; i < parts.length - 1; i++) {
+      if (/ $/.test(parts[i].s) && /^[\s,.!?)]/.test(parts[i + 1].s)) parts[i].s = parts[i].s.replace(/ $/, "");
+    }
+    if (parts.length && !parts[parts.length - 1].keep) parts[parts.length - 1].s = parts[parts.length - 1].s.replace(/ +$/, "");
+  }
+  return parts;
+}
+
+/* ------------------------------------------------------------ UI */
+var taIn = $("ta-in"), taOut = $("ta-out"), bdIn = $("bd-in"), bdOut = $("bd-out");
+var target = "romaji";
+var SYS_DEFAULTS = {   // 方式を変えたら、その方式で普通の書き方に揃える
+  hepburn: { long: "macron", case: "auto" }, passport: { long: "omit", case: "upper" },
+  kunrei: { long: "circ", case: "auto" }, nihon: { long: "circ", case: "auto" }
+};
+var OPTS = {
+  system: ["hepburn", "passport", "kunrei", "nihon"],
+  long: ["macron", "circ", "double", "h", "omit"],
+  case: ["auto", "lower", "title", "upper"],
+  nsep: ["apos", "hyphen", "none"],
+  nbmp: ["n", "m"],
+  punct: ["ascii", "keep"],
+  macron: ["ou", "oo", "bar"],
+  protect: ["on", "off"]
+};
+var O = { system: "hepburn", long: "macron", case: "auto", nsep: "apos", nbmp: "n", punct: "ascii", macron: "ou", protect: "on" };
+try { var saved = JSON.parse(localStorage.getItem("rk.opts") || "null"); if (saved) for (var k in saved) if (OPTS[k] && OPTS[k].indexOf(saved[k]) >= 0) O[k] = saved[k]; } catch (e) {}
+function saveOpts() { try { localStorage.setItem("rk.opts", JSON.stringify(O)); } catch (e) {} }
+
+function buildOptions() {
+  $("swap").title = t("t.swap"); $("swap").setAttribute("aria-label", t("t.swap"));
+  Object.keys(OPTS).forEach(function (k) {
+    var el = $("o-" + k);
+    el.innerHTML = OPTS[k].map(function (v) { return '<option value="' + v + '">' + esc(t("v." + k + "." + v)) + '</option>'; }).join("");
+    el.value = O[k];
+  });
+  $("sysnote").textContent = t("n." + O.system);
+}
+function buildTarget(det) {
+  var only = null, kinds = [];
+  if (det.hira) kinds.push("hira"); if (det.kata) kinds.push("kata"); if (det.romaji) kinds.push("romaji");
+  if (kinds.length === 1) only = kinds[0];
+  // 検出されたものだけの入力なら、その種類は出力に選べない（ローマ字は方式の変換として残す）
+  var list = ["hira", "kata", "romaji"];
+  $("target").innerHTML = list.map(function (v) {
+    var dis = only === v && v !== "romaji";
+    var label = v === "romaji" && only === "romaji" ? t("tg.romaji2") : t("tg." + v);
+    return '<option value="' + v + '"' + (dis ? " disabled" : "") + '>' + esc(label) + '</option>';
+  }).join("");
+  if (only && only !== "romaji" && target === only) target = "romaji";
+  if (only === "romaji" && target === "romaji" && !$("target").dataset.user) target = "hira";
+  $("target").value = target;
+}
+function highlight(bd, parts) {
+  bd.innerHTML = parts.map(function (p) { return p.keep ? "<mark>" + esc(p.s) + "</mark>" : esc(p.s); }).join("") + "\n";
+}
+function run() {
+  var raw = normalizeInput(taIn.value);
+  var segs = segment(raw, O.protect === "on");
+  var det = detect(segs, O);
+  buildTarget(det);
+  var parts = convert(segs, target, O);
+  taOut.value = parts.map(function (p) { return p.s; }).join("");
+  highlight(bdOut, parts);
+  // 入力側も、変換されない所に印を付ける
+  var inParts = segs.map(function (g) { return { s: g.s, keep: g.k === "kanji" || (g.k === "latin" && g.kana === null) }; });
+  highlight(bdIn, inParts);
+  $("legend").hidden = !parts.some(function (p) { return p.keep; });
+  // 検出結果
+  var kinds = [];
+  if (det.hira) kinds.push(t("k.hira")); if (det.kata) kinds.push(t("k.kata")); if (det.romaji) kinds.push(t("k.romaji"));
+  var lab = !kinds.length ? t("k.none") : kinds.length === 1 ? kinds[0] : kinds.join(t("k.sep")) + t("k.mixed");
+  $("detected").lastChild.textContent = lab;
+  var cnt = [];
+  [["hira", det.hira], ["kata", det.kata], ["romaji", det.romaji], ["kanji", det.kanji], ["english", det.english]].forEach(function (p) {
+    if (p[1]) cnt.push('<span class="badge badge--muted"><span class="d"></span>' + esc(t("c." + p[0]).replace("{n}", p[1])) + '</span>');
+  });
+  $("counts").innerHTML = cnt.join("");
+  // ローマ字のときだけローマ字の設定、かなのときだけかなの設定を出す
+  document.querySelectorAll("[data-for]").forEach(function (f) {
+    var need = f.getAttribute("data-for");
+    f.hidden = need === "romaji" ? target !== "romaji" : (target === "romaji" || !det.romaji);
+  });
+  $("f-nbmp").hidden = target !== "romaji" || O.system !== "hepburn";
+  syncScroll();
+}
+function syncScroll() { bdIn.scrollTop = taIn.scrollTop; bdOut.scrollTop = taOut.scrollTop; }
+
+taIn.addEventListener("input", run);
+taIn.addEventListener("scroll", syncScroll);
+taOut.addEventListener("scroll", syncScroll);
+$("target").addEventListener("change", function () { target = $("target").value; $("target").dataset.user = "1"; run(); });
+Object.keys(OPTS).forEach(function (k) {
+  $("o-" + k).addEventListener("change", function () {
+    O[k] = $("o-" + k).value;
+    if (k === "system") { var d = SYS_DEFAULTS[O.system]; O.long = d.long; O.case = d.case; buildOptions(); }
+    if (k === "system") $("sysnote").textContent = t("n." + O.system);
+    saveOpts(); run();
+  });
+});
+$("swap").addEventListener("click", function () {
+  taIn.value = taOut.value; $("target").dataset.user = ""; run(); taIn.focus();
+});
+$("copy").addEventListener("click", function (e) { Shell.copy(taOut.value, e.currentTarget); });
+// 入力欄の高さを変えたら出力欄も同じ高さに
+if (window.ResizeObserver) new ResizeObserver(function () {
+  var h = taIn.offsetHeight; if (h && taOut.offsetHeight !== h) taOut.style.height = h + "px";
+}).observe(taIn);
+
+/* ------------------------------------------------------------ 文言 */
+var EN = {
+  "t.title":"Romaji–kana converter",
+  "t.desc":"Convert between romaji, hiragana and katakana. The input is detected automatically, and text that mixes them is converted piece by piece.",
+  "t.input":"Input (detected automatically)","t.inputPh":"Type or paste romaji, hiragana or katakana — e.g. Tōkyō e ikimasu / とうきょうタワー",
+  "t.output":"Output","t.swap":"Use the output as input","t.copy":"Copy","t.legend":"Left as is (kanji, English, etc.)",
+  "t.options":"Options","t.limits":"Good to know",
+  "tg.hira":"Hiragana","tg.kata":"Katakana","tg.romaji":"Romaji","tg.romaji2":"Romaji (change the system)",
+  "k.hira":"Hiragana","k.kata":"Katakana","k.romaji":"Romaji","k.none":"Nothing to convert","k.sep":" + ","k.mixed":" (mixed)",
+  "c.hira":"Hiragana {n}","c.kata":"Katakana {n}","c.romaji":"Romaji {n}","c.kanji":"Kanji {n} (left as is)","c.english":"Other Latin {n} (left as is)",
+  "o.system":"Romanisation","o.long":"Long vowels","o.case":"Letter case","o.nsep":"ん before a vowel or y","o.nbmp":"ん before b, m, p",
+  "o.punct":"Japanese punctuation","o.macron":"Long-vowel marks (ō, ô) into kana",
+  "o.macronNote":"ō can be おう (とうきょう) or おお (おおの); the spelling alone can't tell which.",
+  "o.protect":"Text in quotes","o.protectNote":"Use \"…\" or `…` around English words that would otherwise be read as romaji (name, kite …).",
+  "v.system.hepburn":"Hepburn","v.system.passport":"Passport (Hepburn)","v.system.kunrei":"Kunrei-shiki","v.system.nihon":"Nihon-shiki",
+  "v.long.macron":"Macron (Tōkyō)","v.long.circ":"Circumflex (Tôkyô)","v.long.double":"As spelled (Toukyou)","v.long.h":"With h (Ohno)","v.long.omit":"Left out (Tokyo)",
+  "v.case.auto":"As typed (kana → lower case)","v.case.lower":"lower case","v.case.title":"Capitalised (Tōkyō)","v.case.upper":"UPPER CASE",
+  "v.nsep.apos":"Apostrophe (kan'i)","v.nsep.hyphen":"Hyphen (kan-i)","v.nsep.none":"Nothing (kani)",
+  "v.nbmp.n":"n (shinbun)","v.nbmp.m":"m (shimbun)",
+  "v.punct.ascii":"Convert (、。「」 → , . \" \")","v.punct.keep":"Keep as is",
+  "v.macron.ou":"ō → おう (とうきょう)","v.macron.oo":"ō → おお (おおの)","v.macron.bar":"ō → ー (long mark)",
+  "v.protect.on":"Don't convert","v.protect.off":"Convert too",
+  "n.hepburn":"The most common style: shi, chi, tsu, fu, ji. ん before b/m/p can be n or m.",
+  "n.passport":"Japanese passports: Hepburn without long-vowel marks, M before B/M/P, OH allowed for long O.",
+  "n.kunrei":"The ISO 3602 / government style: si, ti, tu, hu, zi, sya.",
+  "n.nihon":"Like Kunrei, but keeps ぢ di, づ du, を wo.",
+  "l.kanji":"Kanji can't be converted, because reading them needs a dictionary. They are left as they are and highlighted.",
+  "l.english":"A word written in Latin letters is converted only if it can be read as romaji. English words like \"Tower\" stay as they are, but ones like \"name\" or \"kite\" are read as romaji — put them in quotes.",
+  "l.particle":"Romaji can't tell the particles は, へ, を from わ, え, お, so \"wa\", \"e\", \"o\" become わ, え, お (\"wo\" becomes を).",
+  "l.long":"Kana to romaji treats おう and おお as one long ō, even across a word boundary (思う becomes omō).",
+  "l.space":"Kana has no spaces between words, so the romaji comes out joined (わたしは → watashiha)."
+};
+var JA = {
+  "t.title":"ローマ字・かな変換",
+  "t.desc":"ローマ字・ひらがな・カタカナを相互に変換します。入力の種類は自動で判定し、混ざっていても部分ごとに変換します。",
+  "t.input":"入力（自動検出）","t.inputPh":"ローマ字・ひらがな・カタカナを入力 — 例：Tōkyō e ikimasu / とうきょうタワー",
+  "t.output":"出力","t.swap":"出力を入力に戻す","t.copy":"コピー","t.legend":"変換せずに残した所（漢字・英語など）",
+  "t.options":"設定","t.limits":"知っておきたいこと",
+  "tg.hira":"ひらがな","tg.kata":"カタカナ","tg.romaji":"ローマ字","tg.romaji2":"ローマ字（方式を変える）",
+  "k.hira":"ひらがな","k.kata":"カタカナ","k.romaji":"ローマ字","k.none":"変換できる文字なし","k.sep":"・","k.mixed":"（混在）",
+  "c.hira":"ひらがな {n}","c.kata":"カタカナ {n}","c.romaji":"ローマ字 {n}","c.kanji":"漢字 {n}（そのまま）","c.english":"その他の英字 {n}（そのまま）",
+  "o.system":"ローマ字の方式","o.long":"長音の書き方","o.case":"大文字・小文字","o.nsep":"母音・y の前の「ん」","o.nbmp":"b・m・p の前の「ん」",
+  "o.punct":"日本語の句読点","o.macron":"長音記号（ō・ô）をかなにするとき",
+  "o.macronNote":"ō は「おう」（とうきょう）とも「おお」（おおの）とも読めて、綴りだけでは区別できません。",
+  "o.protect":"引用符で囲んだ所","o.protectNote":"ローマ字として読めてしまう英単語（name・kite など）は \"…\" か `…` で囲んでください。",
+  "v.system.hepburn":"ヘボン式","v.system.passport":"パスポート式（ヘボン式）","v.system.kunrei":"訓令式","v.system.nihon":"日本式",
+  "v.long.macron":"マクロン（Tōkyō）","v.long.circ":"山形（Tôkyô）","v.long.double":"かなの綴りどおり（Toukyou）","v.long.h":"h を付ける（Ohno）","v.long.omit":"書かない（Tokyo）",
+  "v.case.auto":"入力に合わせる（かなは小文字）","v.case.lower":"すべて小文字","v.case.title":"先頭だけ大文字（Tōkyō）","v.case.upper":"すべて大文字",
+  "v.nsep.apos":"アポストロフィ（kan'i）","v.nsep.hyphen":"ハイフン（kan-i）","v.nsep.none":"付けない（kani）",
+  "v.nbmp.n":"n（shinbun）","v.nbmp.m":"m（shimbun）",
+  "v.punct.ascii":"変換する（、。「」 → , . \" \"）","v.punct.keep":"そのまま",
+  "v.macron.ou":"ō → おう（とうきょう）","v.macron.oo":"ō → おお（おおの）","v.macron.bar":"ō → ー（長音符）",
+  "v.protect.on":"変換しない","v.protect.off":"変換する",
+  "n.hepburn":"最も一般的な書き方：shi・chi・tsu・fu・ji。b・m・p の前の「ん」は n と m を選べます。",
+  "n.passport":"日本のパスポートの書き方：長音記号を使わず、B・M・P の前の「ン」は M。長い「オ」は OH も可。",
+  "n.kunrei":"ISO 3602・内閣告示の書き方：si・ti・tu・hu・zi・sya。",
+  "n.nihon":"訓令式とほぼ同じで、ぢ di・づ du・を wo を区別します。",
+  "l.kanji":"漢字は読み方の辞書が必要なので変換できません。そのまま残し、色を付けて示します。",
+  "l.english":"英字の単語は、ローマ字として読めるものだけ変換します。「Tower」のような英単語は残りますが、「name」「kite」のようにローマ字としても読めるものは変換されてしまうので、引用符で囲んでください。",
+  "l.particle":"ローマ字では助詞の「は・へ・を」と「わ・え・お」を区別できないので、wa・e・o は わ・え・お にします（wo は を）。",
+  "l.long":"かな → ローマ字では、「おう」「おお」を語の境目でも長い ō として扱います（思う → omō）。",
+  "l.space":"かなには単語の区切りが無いので、ローマ字はつながったまま出ます（わたしは → watashiha）。"
+};
+
+Shell.init({ id: "romaji-kana", strings: { en: EN, ja: JA }, onSettingsChange: function () { buildOptions(); run(); } });
+buildOptions();
+run();
+})();
+</script>
+</body>
+</html>

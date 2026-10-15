@@ -1751,6 +1751,37 @@
       "added": "2026-08-05"
     },
     {
+      "id": "romaji-kana",
+      "type": "web",
+      "path": "tools/romaji-kana/",
+      "categories": [
+        "text"
+      ],
+      "name": {
+        "en": "Romaji–kana converter",
+        "ja": "ローマ字・かな変換"
+      },
+      "description": {
+        "en": "Convert between romaji, hiragana and katakana, even when they're mixed.",
+        "ja": "ローマ字・ひらがな・カタカナを相互変換。混ざった文も部分ごとに。"
+      },
+      "keywords": [
+        "romaji",
+        "hiragana",
+        "katakana",
+        "hepburn",
+        "kunrei",
+        "passport",
+        "ローマ字",
+        "ひらがな",
+        "カタカナ",
+        "ヘボン式",
+        "訓令式",
+        "パスポート"
+      ],
+      "added": "2026-10-15"
+    },
+    {
       "id": "punctuation-dedupe",
       "type": "web",
       "path": "tools/punctuation-dedupe/",
