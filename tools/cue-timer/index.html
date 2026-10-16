@@ -695,11 +695,11 @@
      iOS Safari は accept="audio/*" 単体だと音声ファイルがピッカー上でグレーアウトして
      選べなくなる既知の不具合があるため（video/* 相当として扱われてしまう）、
      拡張子の指定を併記して回避している（input の accept 属性を参照）。 */
-  $("btn-choose-audio").addEventListener("click", function () { $("custom-audio-input").click(); });
   // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 音声ファイルをページに落とすと、通知音として使う
   FileDrop.attach({ accept: ".mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.caf,.aiff,.wma,audio/*", kind: "audio",
     formats: "MP3, WAV, M4A, AAC, OGG, FLAC, CAF, AIFF, WMA", input: $("custom-audio-input"),
+    replace: $("btn-choose-audio"), openLabel: true,
     hasFile: function () { return !!customAudioName; }, onFile: setCustomAudio });
   function setCustomAudio(f) {
     if (!f) return;

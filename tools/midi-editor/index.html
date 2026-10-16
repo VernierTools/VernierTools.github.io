@@ -2844,11 +2844,11 @@
       setStatus(err.message || T("io.badfile"), true);
     }
   }
-  $("btn-import").addEventListener("click", function () { $("file-in").click(); });
   // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 開いているノートがあるときに別の .mid を落とす・貼り付けると、置き換えてよいか確認する
   function openMidi(f) { var rd = new FileReader(); rd.onload = function () { importArrayBuffer(rd.result, f.name); }; rd.readAsArrayBuffer(f); }
   FileDrop.attach({ accept: ".mid,.midi,audio/midi", kind: "midi", formats: "MID, MIDI", input: $("file-in"),
+    replace: $("btn-import"), openLabel: true, restyle: false,
     hasFile: function () { return doc.notes.length > 0; }, onFile: openMidi });
   $("btn-export").addEventListener("click", function () {
     var data = buildSMF();

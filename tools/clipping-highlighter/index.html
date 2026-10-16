@@ -29,17 +29,9 @@
   .ch-view:active{ cursor:grabbing; }
   .ch-view:focus-visible{ outline:none; box-shadow:inset 0 0 0 3px var(--accent-ring); }
 
-  .ch-empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:var(--s2); pointer-events:none; color:var(--text-3); text-align:center; padding:0 var(--s4); }
-  .ch-empty svg{ width:30px; height:30px; color:var(--text-3); }
-  .ch-empty__t{ font-size:12.5px; color:var(--text-2); }
-  .ch-empty__s{ font-size:11px; }
+  /* 読み込む前は、表示枠の内側に共通のドロップ欄を出す */
+  .ch-empty{ position:absolute; inset:var(--s3); width:auto !important; min-height:0 !important; z-index:2; }
   .ch-empty.hidden{ display:none; }
-
-  .ch-drop{ position:absolute; inset:0; display:none; align-items:center; justify-content:center;
-    background:var(--accent-tint); border:2px dashed var(--accent); border-radius:var(--r-lg);
-    color:var(--accent); font-size:13px; font-weight:600; pointer-events:none; z-index:5; }
-  .ch-drop.active{ display:flex; }
 
   /* ---- zoom bar ---- */
   .ch-zoombar{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s3); }
@@ -106,12 +98,7 @@
     <div>
       <div class="ch-viewport" id="viewport">
         <canvas class="ch-view" id="view" tabindex="0" role="img" aria-label="Image preview — drag to pan, scroll to zoom"></canvas>
-        <div class="ch-empty" id="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
-          <div class="ch-empty__t" data-i18n="t.empty1">Open, drop, or paste an image</div>
-          <div class="ch-empty__s" data-i18n="t.formats">PNG · JPEG · WebP</div>
-        </div>
-        <div class="ch-drop" id="drop" data-i18n="t.dropnow">Drop to open</div>
+        <div class="ch-empty" id="empty"></div>
       </div>
 
       <div class="ch-zoombar">
@@ -163,7 +150,6 @@
         </button>
         <input type="file" id="file" accept="image/png,image/jpeg,image/webp" style="display:none">
         <span id="live-status" aria-live="polite" class="mono" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></span>
-        <div class="note" data-i18n="t.drophint">Drop, paste (Ctrl+V), or click to open.</div>
         <div class="badge badge--muted" id="scale-note" hidden style="margin-top:var(--s3)"><span class="d"></span><span id="scale-note-txt"></span></div>
         <div class="badge badge--neg" id="err" hidden><span class="d"></span><span id="err-txt"></span></div>
       </div>
@@ -688,8 +674,8 @@
 
   // ================= FILE / DROP / PASTE =================
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "image/png,image/jpeg,image/webp", kind: "image", input: $("file"), zone: view,
-    zoneClickable: function (){ return !state.img; }, replace: $("open-btn"), openLabel: true,
+  FileDrop.attach({ accept: "image/png,image/jpeg,image/webp", kind: "image", formats: "PNG, JPEG, WebP", input: $("file"),
+    zone: $("empty"), fillZone: true, replace: $("open-btn"), openLabel: true,
     hasFile: function (){ return !!state.img; }, onFile: loadImage });
 
   // ================= ERROR / NOTE =================

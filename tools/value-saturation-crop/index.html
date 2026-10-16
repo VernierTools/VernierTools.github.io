@@ -59,7 +59,7 @@
 
   /* ---- preview stage ---- */
   .stage{ position:relative; min-height:220px; display:flex; align-items:center; justify-content:center; margin-bottom:var(--s4); }
-  .stage:not(.loaded){ cursor:pointer; }
+  .stage:not(.loaded){ border:0; background:none; min-height:0; }
   .stage canvas{ display:block; width:100%; height:auto; }
   .stage canvas.hidden{ display:none; }
   /* 貼り付けたプレビューは画面の高さに収める。比較のつまみはステージ幅基準なので、ステージを画像の幅に合わせる */
@@ -111,13 +111,7 @@
         <canvas id="view" class="hidden"></canvas>
         <div class="compare-tags" id="ctags"><span data-i18n="t.before">Before</span><span data-i18n="t.after">After</span></div>
         <div class="handle" id="handle"></div>
-        <div class="stage-empty" id="emptyState">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l4.5-4.5a2 2 0 0 1 2.8 0L17 17"/><circle cx="15" cy="8" r="1.6"/>
-          </svg>
-          <b data-i18n="t.emptytitle">No image loaded</b>
-          <small data-i18n="t.emptydesc">Click, drag &amp; drop, or paste an image to begin.</small>
-        </div>
+        <div class="stage-empty" id="emptyState"></div>
         <button type="button" class="btn btn--secondary stage__reload" id="reloadBtn" data-i18n="t.loadanother">Load a different image</button>
       </div>
       <input type="file" id="file" accept="image/*" hidden>
@@ -643,8 +637,7 @@
   }
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 画像が無いうちはプレビュー自体がドロップ欄で、読み込んだ後のクリックは比較のつまみに使う
-  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: stage,
-    zoneClickable: function () { return !origPrev; }, replace: reloadBtn,
+  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: emptyState, fillZone: true, replace: reloadBtn,
     hasFile: function () { return !!origPrev; }, onFile: loadImage });
 
   // ── i18n / init ──────────────────────────────────────────────────────

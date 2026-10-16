@@ -20,14 +20,6 @@
   .wizard-head p{ color:var(--text-2); font-size:14px; line-height:1.6; }
   .wizard-icon{ width:44px; height:44px; margin:0 auto var(--s4); color:var(--accent); }
   .wizard-icon svg{ width:100%; height:100%; }
-  .dropzone{ display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative;
-    border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface);
-    padding:var(--s7) var(--s4); text-align:center; cursor:pointer; transition:all var(--tap); }
-  .dropzone:hover, .dropzone.is-drag{ border-color:var(--accent); background:var(--accent-tint); }
-  .dropzone svg{ width:32px; height:32px; color:var(--text-3); margin-bottom:var(--s3); flex:none; }
-  .dropzone .dz-main{ font-size:14px; color:var(--text-2); }
-  .dropzone .dz-sub{ font-size:12px; color:var(--text-3); margin-top:4px; }
-  .dropzone input[type="file"]{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
   .statusline{ margin-top:var(--s4); font-size:13px; color:var(--text-2); text-align:center; font-variant-numeric:tabular-nums; }
   .errbox{ margin-top:var(--s4); font-size:13px; color:var(--neg); background:var(--neg-tint); border-radius:var(--r); padding:var(--s3) var(--s4); line-height:1.55; }
 
@@ -81,12 +73,9 @@
         <h1 data-i18n="t.title">Actual frame rate measurer</h1>
         <p data-i18n="t.desc">Find the frame rate a video really moves at — for example 24 fps footage inside a 60 fps file — by comparing its frames, not by trusting the file's setting.</p>
       </div>
-      <label class="dropzone" id="dropzone">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
-        <div class="dz-main" data-i18n="t.dzmain">Drop a video file here, or click to choose</div>
-        <div class="dz-sub" data-i18n="t.dzsub">MP4, MOV, WebM, MKV. Processed in your browser; nothing is uploaded.</div>
-        <input type="file" id="fileInput" accept="video/*,.mkv,.mov,.webm,.mp4,.m4v">
-      </label>
+      <div class="drop" id="dropzone">
+        <input type="file" id="fileInput" accept="video/*,.mkv,.mov,.webm,.mp4,.m4v" hidden>
+      </div>
       <div class="statusline" id="introStatus" hidden></div>
       <div class="errbox" id="introErr" hidden></div>
     </div>
@@ -207,7 +196,7 @@
   // この欄は label なので、クリックでのファイル選択はブラウザ標準のまま
   var hasVideo = false;
   FileDrop.attach({ accept: "video/*,.mkv,.mov,.webm,.mp4,.m4v", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
-    input: input, owner: drop, replace: $("anotherBtn"),
+    input: input, zone: drop, fillZone: true, replace: $("anotherBtn"),
     hasFile: function () { return hasVideo; }, onFile: function (f) { hasVideo = true; S.cancel = true; load(f); } });
 
   // 読み込めなかった理由を、分かる範囲で具体的に出す

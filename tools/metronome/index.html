@@ -359,11 +359,9 @@
       <div class="card">
         <div class="card__title" data-i18n="t.customsound">Custom sounds</div>
         <div class="drop" id="drop">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          <div><b data-i18n="t.dropb">Choose an audio file</b> <span data-i18n="t.dropt">or drop it here</span></div>
-          <small data-i18n="t.droph">Trim it so the sound's attack starts exactly at playback.</small>
-          <input type="file" id="fileInput" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus" style="display:none">
+          <input type="file" id="fileInput" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus" hidden>
         </div>
+        <div class="hint" data-i18n="t.droph">Trim it so the sound's attack starts exactly at playback.</div>
         <div class="hint" id="wfDecodeError" hidden style="color:var(--neg)" data-i18n="t.decodeerror">Couldn't read this file as audio — try a different file or format.</div>
         <div id="wfEditor" hidden>
           <div class="wfcanvas-wrap">
@@ -1078,7 +1076,7 @@
   var pendingBuffer = null, trimStart = 0, trimEnd = 1;
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
   FileDrop.attach({ accept:"audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus", kind:"audio",
-    input:$("fileInput"), zone:$("drop"), hasFile:function(){ return !$("wfEditor").hidden; }, onFile:loadAudioFile });
+    input:$("fileInput"), zone:$("drop"), fillZone:true, formats:"WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", hasFile:function(){ return !$("wfEditor").hidden; }, onFile:loadAudioFile });
 
   function loadAudioFile(file){
     $("wfDecodeError").hidden = true;

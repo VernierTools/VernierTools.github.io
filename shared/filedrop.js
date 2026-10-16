@@ -19,6 +19,7 @@
        multiple: true,               // 複数ファイルを一覧に足すツール。onFile には File の配列が渡る
        loaded: function(){ ... },    // multiple のとき、一覧に何か入っているか（欄の文言の切り替え用）
        openLabel: true,              // replace のボタンが読み込み前から見えているとき：開く前は「〇〇を開く」と出す
+       restyle: false,               // ツールバーの中など、ボタンの大きさをまわりに合わせたいとき（文言とアイコンだけ共通にする）
        hasFile: function(target){ return !!img; },          // target = ドロップした要素（貼り付け・選択では null）
        onFile: function(file, how, target){ ... }   // how = "pick" | "drop" | "paste"
      });
@@ -192,7 +193,7 @@ function attach(o) {
   function deliver(file, how, target) {
     o.onFile(file, how, target || null);
     // 読み込みは非同期のことが多いので、少し後にも文言（「別の〇〇を開く」等）を更新する
-    relabel(); setTimeout(relabel, 600); setTimeout(relabel, 2500);
+    relabel(); setTimeout(relabel, 300); setTimeout(relabel, 1000); setTimeout(relabel, 3000);
   }
   var h = {
     o: o,
@@ -202,7 +203,7 @@ function attach(o) {
         // 何件でも受け取るツール（一覧に足していく）。足すだけなので置き換えの確認はしない
         var ok = Array.prototype.filter.call(files, function (f) { return accepts(f, o.accept); });
         if (ok.length < files.length) toast(fmt(L().badType, { formats: formats }));
-        if (ok.length) { o.onFile(ok, how, target || null); relabel(); setTimeout(relabel, 600); setTimeout(relabel, 2500); }
+        if (ok.length) { o.onFile(ok, how, target || null); relabel(); setTimeout(relabel, 300); setTimeout(relabel, 1000); setTimeout(relabel, 3000); }
         return;
       }
       var file = files[0];
@@ -252,7 +253,14 @@ function attach(o) {
       // 「別の〇〇を開く」ボタンは、どのツールでも同じアイコンと文言にする（まだ何も開いていなければ「〇〇を開く」）
       var label = fmt(loaded || !o.openLabel ? L().another : L().open, { kind: kindName(o.kind) });
       o.replace.removeAttribute("data-i18n");   // 言語切り替えで Shell に上書きされないように
+      // ボタンの中にファイル入力があれば（label の中など）、消さないように外へ出しておく
+      Array.prototype.forEach.call(o.replace.querySelectorAll('input[type="file"]'), function (el) { el.hidden = true; document.body.appendChild(el); });
       o.replace.innerHTML = OPEN_ICON + "<span>" + esc(label) + "</span>";
+      // 見た目も全ツールで同じボタンにそろえる（位置決めのためのクラスは残す）
+      if (o.restyle !== false && /^(BUTTON|LABEL|A)$/.test(o.replace.tagName)) {
+        o.replace.classList.remove("btn--ghost", "btn--primary", "btn--sm", "btn--block");
+        o.replace.classList.add("btn", "btn--secondary", "fd-another");
+      }
       o.replace.setAttribute("aria-label", label); o.replace.title = label;
     }
   }
@@ -267,7 +275,7 @@ function attach(o) {
 function fillZone(z, kind, formats, loaded) {
   var l = L(), key = MAC ? "⌘V" : "Ctrl+V";
   var keep = Array.prototype.slice.call(z.querySelectorAll('input[type="file"]'));   // 欄の中にある input は残す
-  z.classList.add("drop");
+  z.classList.add("drop", "fd-zone");
   z.innerHTML =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>' +
     '<b>' + esc(loaded ? fmt(l.chooseAnother, { kind: kindName(kind) }) : l.choose) + '</b>' +

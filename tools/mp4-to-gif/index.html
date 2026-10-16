@@ -13,18 +13,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  /* ---- 入力（ドロップ領域）: 他の画像ツールと同じ見た目 ---- */
-  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
-    display:flex; align-items:center; justify-content:center; min-height:260px; padding:var(--s5);
-    transition:border-color var(--tap), background var(--tap); }
-  .dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
-  .dropzone__empty{ text-align:center; max-width:40ch; }
-  .dropzone__icon{ width:48px; height:48px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
-    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-3); }
-  .dropzone__icon svg{ width:24px; height:24px; }
-  .dropzone__title{ font-size:15px; font-weight:600; }
-  .dropzone__hint{ color:var(--text-3); font-size:12.5px; margin-top:6px; }
-  .dropzone__actions{ display:flex; justify-content:center; margin-top:var(--s4); }
   #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 
   .vid{ display:block; width:100%; max-height:360px; background:#000; border-radius:var(--r); }
@@ -66,20 +54,8 @@
     <!-- 左: 動画と設定 -->
     <div>
       <section class="card">
-        <div class="dropzone" id="dropzone">
-          <input id="file-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv">
-          <div class="dropzone__empty">
-            <div class="dropzone__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9.5 5 2.5-5 2.5z"/>
-              </svg>
-            </div>
-            <div class="dropzone__title" data-i18n="t.dropTitle">Drop a video here</div>
-            <div class="dropzone__hint" data-i18n="t.dropHint">MP4, MOV, WebM — anything your browser can play. Nothing is uploaded.</div>
-            <div class="dropzone__actions">
-              <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose video</button>
-            </div>
-          </div>
+        <div class="drop" id="dropzone">
+          <input id="file-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv" hidden>
         </div>
         <div id="loaded" hidden>
           <video class="vid" id="vid" controls muted playsinline preload="auto"></video>
@@ -451,9 +427,8 @@
   /* ---------------- 配線 ---------------- */
   var input = $("file-input"), dz = $("dropzone"), depth = 0;
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  var fd = FileDrop.attach({ accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
-    input: input, zone: dz, replace: $("btn-change"), hasFile: function () { return !!S.file; }, onFile: loadFile });
-  $("choose").addEventListener("click", function (e) { e.stopPropagation(); fd.pick(); });
+  FileDrop.attach({ accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
+    input: input, zone: dz, fillZone: true, replace: $("btn-change"), hasFile: function () { return !!S.file; }, onFile: loadFile });
 
   $("set-start").addEventListener("click", function () { $("in-start").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
   $("set-end").addEventListener("click", function () { $("in-end").value = vid.currentTime.toFixed(2); clearOutput(); update(); });

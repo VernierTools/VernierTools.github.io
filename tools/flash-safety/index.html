@@ -202,6 +202,7 @@
     .premise-grid{ grid-template-columns:1fr; }
     .premise-grid li:nth-child(2){ border-top:1px solid var(--border); }
   }
+  .fs-picked{ margin-top:var(--s2); font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; }
 </style>
 </head>
 <body>
@@ -227,11 +228,8 @@
       <div class="card fill">
       <div class="field">
       <label class="label" for="pick" data-i18n="t.fileLabel">動画ファイル（MP4 / MOV）</label>
-      <div class="drop" id="drop" role="button" tabindex="0">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      <b data-i18n="t.dropMain">ここにドロップ</b>
-      <small data-i18n="t.dropSub">またはクリックして選択（アップロードされません）</small>
-      </div>
+      <div class="drop" id="drop"></div>
+      <div class="fs-picked" id="picked" hidden></div>
       <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
       </div>
       <div class="field">
@@ -549,15 +547,14 @@
   function setFile(f) {
     if (!f) return;
     file = f;
-    $("drop").querySelector("b").textContent = f.name;
-    $("drop").querySelector("small").textContent =
-      (f.size / 1048576).toFixed(2) + " MB / " + (f.type || T("t.unknownType", "種別不明"));
+    $("picked").hidden = false;
+    $("picked").textContent = f.name + " — " + (f.size / 1048576).toFixed(2) + " MB / " + (f.type || T("t.unknownType", "種別不明"));
     $("runAnalyze").disabled = false;
   }
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 選んだ後もこの欄にファイル名が出て、クリックで別の動画を選べる
   FileDrop.attach({ accept: "video/mp4,video/quicktime,.mp4,.mov", kind: "video", formats: "MP4, MOV", input: $("pick"),
-    zone: $("drop"), hasFile: function () { return !!file; }, onFile: setFile });
+    zone: $("drop"), fillZone: true, hasFile: function () { return !!file; }, onFile: setFile });
 
   /* ---- 解析の実行 ---- */
   var aworker = null;

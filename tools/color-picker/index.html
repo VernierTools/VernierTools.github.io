@@ -41,17 +41,9 @@
   .eye-canvas.frozen{ cursor:pointer; }
   .eye-view.frozen{ outline:2px solid var(--accent); outline-offset:-2px; }
 
-  .eye-hint{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
-    justify-content:center; gap:var(--s3); text-align:center; padding:var(--s5); transition:opacity var(--tap); }
-  .eye-hint.hidden{ opacity:0; pointer-events:none; }
-  .eye-hint svg{ width:34px; height:34px; color:var(--text-3); }
-  .eye-hint__t{ font-size:13px; font-weight:600; color:var(--text); }
-  .eye-hint__d{ font-size:12px; color:var(--text-3); line-height:1.6; }
-  .eye-hint__open{ margin-top:var(--s1); }
-  .eye-drop{ position:absolute; inset:0; z-index:5; display:none; align-items:center; justify-content:center;
-    background:var(--accent-tint); border:2px dashed var(--accent); color:var(--accent);
-    font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; pointer-events:none; }
-  .eye-drop.active{ display:flex; }
+  /* 画像が無いうちは、表示枠の内側に共通のドロップ欄を出す */
+  .eye-hint{ position:absolute; inset:var(--s3); width:auto !important; min-height:0 !important; z-index:2; }
+  .eye-hint.hidden{ display:none; }
   .eye-frozen{ position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:4;
     background:var(--accent); color:#fff; font-family:var(--font-mono); font-size:10px; font-weight:600;
     letter-spacing:.08em; padding:3px 10px; border-radius:var(--r-sm); pointer-events:none;
@@ -167,13 +159,7 @@
         </div>
         <div class="eye-view canvas-wrap">
           <canvas class="eye-canvas"></canvas>
-          <div class="eye-hint eye-hint-el">
-            <svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5" width="30" height="23" rx="2"/><path d="M3 22l8-7 6 5 5-4 9 7"/><circle cx="11" cy="13" r="2.5"/></svg>
-            <div class="eye-hint__t" data-i18n="t.hinttitle">Drop an image here</div>
-            <div class="eye-hint__d" data-i18n="t.hintdesc">Drag &amp; drop, paste, or open a file. Everything stays on your device.</div>
-            <button class="btn btn--secondary btn--sm eye-hint__open hint-open" data-i18n="t.open">Open image</button>
-          </div>
-          <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
+          <div class="eye-hint eye-hint-el"></div>
           <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
           <div class="eye-zoom">
             <button type="button" class="bt-zin" aria-label="Zoom in">+</button>
@@ -244,13 +230,7 @@
         </div>
         <div class="eye-view canvas-wrap">
           <canvas class="eye-canvas"></canvas>
-          <div class="eye-hint eye-hint-el">
-            <svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5" width="30" height="23" rx="2"/><path d="M3 22l8-7 6 5 5-4 9 7"/><circle cx="11" cy="13" r="2.5"/></svg>
-            <div class="eye-hint__t" data-i18n="t.hinttitle">Drop an image here</div>
-            <div class="eye-hint__d" data-i18n="t.hintdesc">Drag &amp; drop, paste, or open a file. Everything stays on your device.</div>
-            <button class="btn btn--secondary btn--sm eye-hint__open hint-open" data-i18n="t.open">Open image</button>
-          </div>
-          <div class="eye-drop eye-drop-el" data-i18n="t.drop">Drop image here</div>
+          <div class="eye-hint eye-hint-el"></div>
           <div class="eye-frozen eye-frozen-el" data-i18n="t.frozen">Frozen</div>
           <div class="eye-zoom">
             <button type="button" class="bt-zin" aria-label="Zoom in">+</button>
@@ -672,6 +652,7 @@
   [[vA, $("inst-a")], [vB, $("inst-b")]].forEach(function (p) {
     var v = p[0], box = p[1];
     FileDrop.attach({ accept: "image/*", kind: "image", input: box.querySelector(".file-in"), owner: box,
+      zone: box.querySelector(".eye-hint-el"), fillZone: true, replace: box.querySelector("label.btn"), openLabel: true,
       active: function () { return v === vB ? (compare && active === vB) : !(compare && active === vB); },
       hasFile: v.hasImage, onFile: function (f) { v.loadImage(f); } });
   });

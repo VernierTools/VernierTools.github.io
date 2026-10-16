@@ -16,11 +16,11 @@
   .sliderrow{ margin-top:2px; }
   .sliderrow .val{ min-width:56px; }
 
-  .drop{ position:relative; }
-  .drop-empty{ display:flex; flex-direction:column; align-items:center; }
-  .drop-loaded{ display:none; align-items:center; gap:var(--s3); text-align:left; width:100%; }
-  .drop.has-file .drop-empty{ display:none; }
-  .drop.has-file .drop-loaded{ display:flex; }
+  /* 読み込む前は共通のドロップ欄、読み込んだ後はサムネイル・名前と「別の画像を開く」 */
+  .drop-loaded{ display:none; align-items:center; gap:var(--s3); text-align:left; width:100%;
+    border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s3); background:var(--surface-2); }
+  .tm-in.has-file #drop-empty{ display:none; }
+  .tm-in.has-file .drop-loaded{ display:flex; }
   .drop-loaded__thumb{ width:56px; height:56px; border-radius:var(--r-sm); overflow:hidden; flex:0 0 auto;
     border:1px solid var(--border);
     background:repeating-conic-gradient(#0000 0 25%, color-mix(in srgb, var(--text-3) 8%, transparent) 0 50%) 0 0/12px 12px; }
@@ -28,7 +28,6 @@
   .drop-loaded__meta{ flex:1; min-width:0; }
   .drop-loaded__meta b{ display:block; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .drop-loaded__meta span{ display:block; font-size:12px; color:var(--text-3); margin-top:2px; }
-  .drop-loaded__change{ flex:0 0 auto; font-size:12px; color:var(--accent); font-weight:500; }
 
   .basishint{ font-size:11.5px; color:var(--text-3); margin-top:6px; line-height:1.4; }
   .basishint[hidden]{ display:none; }
@@ -61,19 +60,15 @@
       <div class="card">
         <div class="field">
           <label class="label" data-i18n="t.texture">Texture</label>
-          <div class="drop" id="drop" tabindex="0">
-            <div class="drop-empty" id="drop-empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5M7 9l5-5 5 5M12 4v13"/></svg>
-              <div><b data-i18n="t.dropTitle">Click or drop an image</b></div>
-              <small data-i18n="t.dropHint">PNG / JPG / WebP — ideally a seamless texture</small>
-            </div>
+          <div class="tm-in" id="drop">
+            <div class="drop" id="drop-empty"></div>
             <div class="drop-loaded" id="drop-loaded">
               <div class="drop-loaded__thumb"><img id="thumb-img" alt=""></div>
               <div class="drop-loaded__meta">
                 <b id="meta-name">—</b>
                 <span id="meta-dims">—</span>
               </div>
-              <span class="drop-loaded__change" data-i18n="t.change">Change</span>
+              <button type="button" class="btn btn--secondary" id="drop-change"></button>
             </div>
           </div>
           <input type="file" id="file-input" accept="image/*" hidden>
@@ -556,8 +551,8 @@
   /* ---- ドロップゾーン ---- */
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 読み込んだ後もこの欄が「別の画像を開く」を兼ねる
-  FileDrop.attach({ accept:"image/*", kind:"image", input:el.fileInput, zone:el.dropZone,
-    replace:document.querySelector(".drop-loaded__change"),
+  FileDrop.attach({ accept:"image/*", kind:"image", input:el.fileInput, zone:$("drop-empty"), fillZone:true,
+    replace:$("drop-change"),
     hasFile:function(){ return el.dropZone.classList.contains("has-file"); }, onFile:loadFile });
 
   /* ---- コントロール配線 ---- */

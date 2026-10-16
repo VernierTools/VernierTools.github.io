@@ -247,7 +247,14 @@ button{ font-family:inherit; }
 .tb-dialog__title{ font-size:15px; font-weight:600; }
 .tb-dialog__body{ margin:var(--s2) 0 0; font-size:13px; color:var(--text-2); line-height:1.6; word-break:break-word; }
 .tb-dialog__btns{ display:flex; justify-content:flex-end; gap:var(--s2); margin-top:var(--s5); }
-.drop small + small{ margin-top:2px; }
+/* FileDrop が描くドロップ欄。各ツールの .drop 上書きに負けないよう、大きさと余白をここで固定する */
+.drop.fd-zone{ display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;
+  width:100%; min-height:200px; padding:var(--s6) var(--s5); margin:0; text-align:center; gap:0; }
+.drop.fd-zone svg{ display:block; width:28px; height:28px; margin:0 0 var(--s3); color:var(--text-3); }
+.drop.fd-zone b{ display:block; font-size:14px; font-weight:600; color:var(--text); line-height:1.5; }
+.drop.fd-zone small{ display:block; margin-top:6px; font-size:12px; color:var(--text-3); line-height:1.5; }
+.drop.fd-zone small + small{ margin-top:2px; }
+.drop.fd-zone:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-ring); }
 
 /* =========================================================================
    BADGES / STATES
@@ -356,3 +363,7 @@ body.hub-stuck .tb-header{ border-bottom-color:transparent; }
 .foot{ padding:var(--s6) 0 var(--s8); color:var(--text-3); font-size:12.5px; border-top:1px solid var(--border); margin-top:var(--s6); }
 
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+
+/* FileDrop の「別の〇〇を開く」ボタン：どのツールでも同じ大きさ */
+button.btn.fd-another, label.btn.fd-another{ height:36px; padding:0 14px; font-size:13px; gap:6px; white-space:nowrap; }
+button.btn.fd-another svg, label.btn.fd-another svg{ width:16px; height:16px; }

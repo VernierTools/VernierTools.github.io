@@ -14,19 +14,10 @@
 <meta name="theme-color" content="#5457E5">
 <style>
   /* ---- 入力（ドロップ領域 / プレビュー） ---- */
-  .dropzone{ border:1.5px dashed var(--border-strong); border-radius:var(--r-lg); background:var(--surface-2);
-    display:flex; align-items:center; justify-content:center; min-height:280px; padding:var(--s5);
-    transition:border-color var(--tap), background var(--tap); }
-  .dropzone.is-over{ border-color:var(--accent); background:var(--accent-tint); }
-  .dropzone.has-image{ border-style:solid; border-color:var(--border); background:var(--surface);
+  .dropzone{ border-radius:var(--r-lg); }
+  .dropzone input[type="file"]{ display:none; }
+  .dropzone.has-image{ border:1px solid var(--border); background:var(--surface);
     min-height:0; padding:var(--s3); }
-  .dropzone__empty{ text-align:center; max-width:36ch; }
-  .dropzone__icon{ width:48px; height:48px; margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center;
-    border:1px solid var(--border-strong); border-radius:var(--r-lg); background:var(--surface); color:var(--text-3); }
-  .dropzone__icon svg{ width:24px; height:24px; }
-  .dropzone__title{ font-size:15px; font-weight:600; }
-  .dropzone__hint{ color:var(--text-3); font-size:12.5px; margin-top:6px; }
-  .dropzone__actions{ display:flex; justify-content:center; margin-top:var(--s4); }
   #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
   .preview-wrap{ width:100%; display:flex; align-items:center; justify-content:center; }
   .preview-wrap img{ display:block; max-width:100%; max-height:380px; width:auto; height:auto;
@@ -60,7 +51,6 @@
   .note{ color:var(--text-3); font-size:12px; line-height:1.55; }
 
   @media (max-width:760px){
-    .dropzone{ min-height:220px; }
     .preview-wrap img{ max-height:300px; }
   }
 </style>
@@ -82,18 +72,7 @@
       <section class="card">
         <div class="dropzone" id="dropzone">
           <input id="file-input" type="file" accept="image/*">
-          <div class="dropzone__empty" id="drop-empty">
-            <div class="dropzone__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m3 16 5-5 4 4 2.5-2.5L21 19"/>
-              </svg>
-            </div>
-            <div class="dropzone__title" data-i18n="t.dropTitle">Drop an image here</div>
-            <div class="dropzone__hint" data-i18n="t.dropHint">or paste from the clipboard, or choose a file</div>
-            <div class="dropzone__actions">
-              <button class="btn btn--primary" id="choose" type="button" data-i18n="t.choose">Choose image</button>
-            </div>
-          </div>
+          <div class="drop" id="drop-empty"></div>
           <div class="preview-wrap" id="preview-wrap" hidden>
             <img id="preview" alt="">
           </div>
@@ -213,7 +192,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var els = {
-    dropzone:$("dropzone"), input:$("file-input"), choose:$("choose"), change:$("change"), clear:$("clear"),
+    dropzone:$("dropzone"), input:$("file-input"), change:$("change"), clear:$("clear"),
     empty:$("drop-empty"), previewWrap:$("preview-wrap"), preview:$("preview"),
     meta:$("meta"), name:$("file-name"), size:$("image-size"), pixels:$("pixel-count"), approx:$("approx-chip"),
     actions:$("actions"), placeholder:$("placeholder"), cardMean:$("card-mean"), cardMedian:$("card-median"),
@@ -388,10 +367,8 @@
 
   /* ---------- イベント ---------- */
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  var fd=FileDrop.attach({ accept:"image/*", kind:"image", input:els.input, zone:els.dropzone,
-    zoneClickable:function(){ return !els.dropzone.classList.contains("has-image"); }, replace:els.change,
+  FileDrop.attach({ accept:"image/*", kind:"image", input:els.input, zone:els.empty, fillZone:true, replace:els.change,
     hasFile:function(){ return els.dropzone.classList.contains("has-image"); }, onFile:loadFile });
-  els.choose.addEventListener("click",function(e){ e.stopPropagation(); fd.pick(); });
   els.clear.addEventListener("click",resetView);
 
   // スウォッチはキーボードでもコピーできるようにする（クリックは Shell の [data-copy] が処理）。
