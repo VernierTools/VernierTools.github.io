@@ -20,11 +20,10 @@
     background-image:linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%),
                      linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%);
     background-size:20px 20px; background-position:0 0, 10px 10px; }
-  .stage canvas{ display:block; max-width:100%; max-height:calc(100vh - 310px); width:auto; height:auto; }
+  .stage canvas{ display:block; max-width:100%; max-height:calc(100vh - 340px); width:auto; height:auto; }
   @media (max-width:760px){
     .pin__view .stage{ min-height:0; padding:var(--s2); }
     .pin__view .stage canvas{ max-height:36vh; }
-    .pin__view .filemeta{ display:none; }
     /* ボタンは 1 行に詰めて、貼り付く部分を低く保つ */
     .pin__view #viewcard{ padding:var(--s3) !important; }
     .pin__view .btnrow{ flex-wrap:nowrap; overflow-x:auto; gap:6px; margin-top:var(--s2) !important; }
@@ -32,7 +31,6 @@
     .pin__view .btnrow .btn svg{ width:14px; height:14px; }
     .pin__view .btnrow{ scrollbar-width:none; }
     .pin__view .btnrow::-webkit-scrollbar{ display:none; }
-    .pin__view #unload span{ display:none; }
     .pin__view.pin--free .stage canvas{ max-height:none; }
   }
   .stage.busy::after{ content:""; position:absolute; inset:0; background:rgba(0,0,0,.35); }
@@ -56,7 +54,6 @@
   .prow__note{ font-size:11px; color:var(--text-3); margin-top:4px; line-height:1.4; }
 
   .drop{ padding:var(--s7) var(--s5); }
-  .filemeta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
   .exnote{ font-size:11.5px; color:var(--text-3); margin-top:var(--s2); line-height:1.5; }
   .rrow__value{ font-size:18px; }
   .mech{ margin:0; padding-left:1.1em; font-size:12.5px; color:var(--text-2); line-height:1.6; }
@@ -86,7 +83,7 @@
 
   <div class="card" id="viewcard" hidden style="padding:var(--s4)">
     <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
-    <div class="filemeta" id="filemeta"></div>
+    <div id="filemeta" hidden></div>
     <div class="btnrow" style="margin-top:var(--s4)">
       <button class="btn btn--secondary" id="bypass" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -744,8 +741,7 @@ async function load(file){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   $("loadcard").hidden = true; $("viewcard").hidden = false; $("exportcard").hidden = false;
   $("pinview").classList.remove("pin--idle");
-  $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + srcW + "×" + srcH + '</span>' +
-    '<span class="badge badge--muted"><span class="d"></span>' + esc(file.name || "") + '</span>';
+  fd.show(file, [FileDrop.dims(srcW, srcH)]);
   update();
 }
 
@@ -842,8 +838,8 @@ function buildParams(){
 }
 
 // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-FileDrop.attach({ accept:"image/*", kind:"image", input:$("file"), zone:$("drop"), fillZone:true,
-  formats:"JPEG, PNG, WebP, HEIC (Safari)", replace:$("unload"), hasFile:function(){ return !!img; }, onFile:load });
+var fd = FileDrop.attach({ accept:"image/*", kind:"image", input:$("file"), zone:$("drop"), fillZone:true,
+  formats:"JPEG, PNG, WebP, HEIC (Safari)", replace:$("unload"), info:$("filemeta"), hasFile:function(){ return !!img; }, onFile:load });
 $("bypass").addEventListener("click", function(){ bypass = !bypass; $("bypass").setAttribute("aria-pressed", String(bypass)); render(); });
 $("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.random() * 9999); update(); });
 // スマホ幅：プレビューをタップすると貼り付けをやめて大きく表示（もう一度タップで戻す）

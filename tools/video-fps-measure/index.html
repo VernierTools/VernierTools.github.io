@@ -25,8 +25,7 @@
 
   /* ---- 結果 ---- */
   .resulthead{ display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s4); flex-wrap:wrap; }
-  .rh-file{ font-size:13px; color:var(--text-2); margin-top:6px; word-break:break-all; }
-  .rh-meta{ font-size:12px; color:var(--text-3); margin-top:2px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .resulthead > div{ flex:1 1 auto; min-width:0; }
   .modeseg{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .modeseg button{ appearance:none; cursor:pointer; font:inherit; font-size:13px; font-weight:500; height:38px;
     border:1px solid var(--border-strong); border-radius:var(--r); background:var(--surface); color:var(--text-2); transition:all var(--tap); }
@@ -88,8 +87,7 @@
       <div class="resulthead">
         <div>
           <h1 data-i18n="t.title">Actual frame rate measurer</h1>
-          <div class="rh-file" id="fileName"></div>
-          <div class="rh-meta" id="fileMeta"></div>
+          <div id="fileName" hidden></div>
         </div>
       </div>
     </div>
@@ -158,9 +156,7 @@
       <div class="notebox"><strong data-i18n="t.lim.h">What it can't tell</strong><br><span data-i18n="t.lim.p">Scenes with no motion at all are skipped. Videos converted by blending or interpolating frames have no repeated pictures, so they read as the file's own rate. Animation drawn on twos shows the rate the drawings change. ProRes, DNxHD, QuickTime Animation and some other codecs can't be decoded in a browser; only the timestamps are checked for those. MOV files with H.264, HEVC, PNG or Motion JPEG are fully analyzed.</span></div>
     </div>
 
-    <div class="btnrow btnrow--reset">
-      <button type="button" class="btn btn--secondary" id="anotherBtn"><span data-i18n="t.another">Analyze another file</span></button>
-    </div>
+    <button type="button" class="btn" id="anotherBtn"></button>
   </section>
 </main>
 
@@ -195,8 +191,8 @@
   // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // この欄は label なので、クリックでのファイル選択はブラウザ標準のまま
   var hasVideo = false;
-  FileDrop.attach({ accept: "video/*,.mkv,.mov,.webm,.mp4,.m4v", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
-    input: input, zone: drop, fillZone: true, replace: $("anotherBtn"),
+  var fd = FileDrop.attach({ accept: "video/*,.mkv,.mov,.webm,.mp4,.m4v", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
+    input: input, zone: drop, fillZone: true, replace: $("anotherBtn"), info: $("fileName"),
     hasFile: function () { return hasVideo; }, onFile: function (f) { hasVideo = true; S.cancel = true; load(f); } });
 
   // 読み込めなかった理由を、分かる範囲で具体的に出す
@@ -244,7 +240,6 @@
     setIntroStatus(null);
     S.file = file; S.reader = reader; S.info = info; S.ts = ts; S.cad = null; S.error = null;
     $("intro").hidden = true; $("result").hidden = false;
-    $("fileName").textContent = file.name;
     renderAll();
     window.scrollTo(0, 0);
     run();
@@ -399,7 +394,7 @@
   function renderAll() {
     if (!S.info) return;
     var info = S.info, ts = S.ts, cad = S.cad;
-    $("fileMeta").textContent = [info.container, info.codecName, info.width && info.height ? info.width + "×" + info.height : "", fmtDur(ts.span + (ts.medianGap || 0))].filter(Boolean).join(" · ");
+    fd.show(S.file, [FileDrop.dims(info.width, info.height), FileDrop.time(ts.span + (ts.medianGap || 0)), [info.container, info.codecName].filter(Boolean).join(" ")]);
 
     // ---- タイムスタンプ ----
     setVal("fileFps", fpsHTML(ts.avgFps, ts.snapped) + (ts.vfr ? ' <span class="u">' + esc(t("t.vfrshort")) + "</span>" : ""), fmtFps(ts.avgFps, ts.snapped));

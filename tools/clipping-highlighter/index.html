@@ -148,6 +148,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
           <span data-i18n="t.open">Open image</span>
         </button>
+        <div id="fileinfo" hidden></div>
         <input type="file" id="file" accept="image/png,image/jpeg,image/webp" style="display:none">
         <span id="live-status" aria-live="polite" class="mono" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></span>
         <div class="badge badge--muted" id="scale-note" hidden style="margin-top:var(--s3)"><span class="d"></span><span id="scale-note-txt"></span></div>
@@ -300,6 +301,7 @@
         $("empty").classList.add("hidden");
         updateScaleNote();
         $("live-status").textContent = state.ow + "×" + state.oh;
+        fd.show(file, [FileDrop.dims(state.ow, state.oh)]);
         fitToView();
         drawHistogram();
         buildOverlay();
@@ -674,8 +676,8 @@
 
   // ================= FILE / DROP / PASTE =================
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "image/png,image/jpeg,image/webp", kind: "image", formats: "PNG, JPEG, WebP", input: $("file"),
-    zone: $("empty"), fillZone: true, replace: $("open-btn"), openLabel: true,
+  var fd = FileDrop.attach({ accept: "image/png,image/jpeg,image/webp", kind: "image", formats: "PNG, JPEG, WebP", input: $("file"),
+    zone: $("empty"), fillZone: true, replace: $("open-btn"), openLabel: true, info: $("fileinfo"),
     hasFile: function (){ return !!state.img; }, onFile: loadImage });
 
   // ================= ERROR / NOTE =================

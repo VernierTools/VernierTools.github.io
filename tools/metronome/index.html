@@ -371,6 +371,8 @@
             <div class="wfhandle" id="wfHandleL"></div>
             <div class="wfhandle" id="wfHandleR"></div>
           </div>
+          <div id="wfFile" hidden></div>
+          <button class="btn" id="wfAnother" type="button"></button>
           <div class="btnrow">
             <button class="btn btn--secondary" id="wfPreview" data-i18n="t.preview">▶ Preview</button>
             <button class="btn btn--primary" id="wfAdd" data-i18n="t.addsound">Add to sound list</button>
@@ -1075,8 +1077,8 @@
      ============================================================ */
   var pendingBuffer = null, trimStart = 0, trimEnd = 1;
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept:"audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus", kind:"audio",
-    input:$("fileInput"), zone:$("drop"), fillZone:true, formats:"WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", hasFile:function(){ return !$("wfEditor").hidden; }, onFile:loadAudioFile });
+  var fd = FileDrop.attach({ accept:"audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.caf,.ogg,.oga,.opus", kind:"audio",
+    input:$("fileInput"), zone:$("drop"), fillZone:true, replace:$("wfAnother"), info:$("wfFile"), formats:"WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", hasFile:function(){ return !$("wfEditor").hidden; }, onFile:loadAudioFile });
 
   function loadAudioFile(file){
     $("wfDecodeError").hidden = true;
@@ -1084,9 +1086,10 @@
     reader.onload = function(){
       ctx().decodeAudioData(reader.result.slice(0), function(buf){
         pendingBuffer = buf; trimStart = 0; trimEnd = buf.duration;
-        $("wfEditor").hidden = false;
+        $("wfEditor").hidden = false; $("drop").hidden = true;
+        fd.show(file, [FileDrop.time(buf.duration), FileDrop.audioOf(file, buf.numberOfChannels)]);
         drawWaveform(); layoutHandles();
-      }, function(){ $("wfDecodeError").hidden = false; $("wfEditor").hidden = true; });
+      }, function(){ $("wfDecodeError").hidden = false; $("wfEditor").hidden = true; $("drop").hidden = false; fd.clear(); });
     };
     reader.onerror = function(){ $("wfDecodeError").hidden = false; };
     reader.readAsArrayBuffer(file);
@@ -1138,7 +1141,7 @@
     if (!pendingBuffer) return;
     var name = "Sound " + (ST.customSounds.length+1);
     ST.customSounds.push({ name:name, buffer:pendingBuffer, trimStart:trimStart, trimEnd:trimEnd });
-    pendingBuffer = null; $("wfEditor").hidden = true; $("fileInput").value = "";
+    pendingBuffer = null; $("wfEditor").hidden = true; $("drop").hidden = false; fd.clear(); fd.refresh(); $("fileInput").value = "";
     renderCustomList(); renderLayers();
   });
   function renderCustomList(){

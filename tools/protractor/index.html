@@ -72,8 +72,9 @@
             <span class="zoomlbl" id="zoomlbl"></span>
             <span class="sp"></span>
             <button class="btn btn--secondary" id="btn-reset" type="button" data-i18n="t.reset">Clear points</button>
-            <button class="btn btn--ghost" id="btn-change" type="button" data-i18n="t.change">Change image</button>
           </div>
+          <div id="fileinfo" hidden></div>
+          <button class="btn" id="btn-change" type="button"></button>
         </div>
       </section>
     </div>
@@ -484,6 +485,7 @@
       S.img = img; S.iw = img.naturalWidth; S.ih = img.naturalHeight; S.name = file.name || "clipboard";
       S.pts = []; S.sel = -1; S.cssW = 0;
       $("dropzone").hidden = true; $("stagewrap").hidden = false;
+      fd.show(file, [FileDrop.dims(S.iw, S.ih)]);
       resize(); update(); cv.focus({ preventScroll: true });
     };
     img.onerror = function () { URL.revokeObjectURL(url); showError(T("t.loadFail")); };
@@ -492,7 +494,7 @@
   function showError(msg) { $("badges").innerHTML = '<span class="badge badge--neg"><span class="d" style="background:currentColor"></span>' + esc(msg) + "</span>"; }
   var input = $("file-input"), dz = $("dropzone"), depth = 0;
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "image/*", kind: "image", input: input, zone: dz, fillZone: true, replace: $("btn-change"),
+  var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: input, zone: dz, fillZone: true, replace: $("btn-change"), info: $("fileinfo"),
     hasFile: function () { return !!S.img; }, onFile: loadFile });
 
   $("btn-fit").addEventListener("click", fitView);

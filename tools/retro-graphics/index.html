@@ -50,7 +50,6 @@
   .prow__note{ font-size:11px; color:var(--text-3); margin-top:4px; line-height:1.4; }
 
   .drop{ padding:var(--s6) var(--s5); }
-  .filemeta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
 
   .exportbar{ margin-top:var(--s4); }
   .pin__ctrl > .exportbar{ margin-top:var(--s4); }
@@ -66,7 +65,7 @@
     .stage{ aspect-ratio:16/10; }
   }
   /* 貼り付けたプレビューは、画面の高さに収まる幅まで縮める（--ar は映像の縦横比） */
-  .pin__view .stage{ width:min(100%, calc((100vh - 330px) * var(--ar, 1.3333))); margin:0 auto; }
+  .pin__view .stage{ width:min(100%, calc((100vh - 390px) * var(--ar, 1.3333))); margin:0 auto; }
   @media (max-width:760px){
     .pin__view .stage{ width:min(100%, calc(32vh * var(--ar, 1.6))); }
     .pin__view .transport{ margin-top:var(--s2); }
@@ -93,7 +92,6 @@
       <small data-i18n="t.dropsub">MP4, WebM, MOV — nothing leaves your device</small>
     </div>
     <input type="file" id="file" accept="video/*" hidden>
-    <div class="filemeta" id="filemeta" hidden></div>
   </div>
 
   <div class="card" id="playercard" hidden style="padding:var(--s4)">
@@ -107,6 +105,7 @@
       <input class="slider scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position">
       <span class="time" id="time">0:00 / 0:00</span>
     </div>
+    <div id="filemeta" hidden></div>
     <div class="btnrow" style="margin-top:var(--s4)">
       <button class="btn btn--secondary" id="bypass" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -280,10 +279,7 @@ function initVideoEl(){
     frameNo = 0; lastKey = null;
     ready = true;
     $("loadcard").hidden = true; $("playercard").hidden = false; $("exportcard").hidden = false;
-    $("filemeta").hidden = false;
-    $("filemeta").innerHTML = '<span class="badge badge--muted"><span class="d"></span>' + vw + "×" + vh + '</span>' +
-      '<span class="badge badge--muted"><span class="d"></span>' + fmtTime(vid.duration) + '</span>' +
-      '<span class="badge badge--muted"><span class="d"></span>' + esc(file ? file.name : "") + '</span>';
+    if (file) fd.show(file, [FileDrop.dims(vw, vh), FileDrop.time(vid.duration)]);
     updateReadout();
     vid.currentTime = 0;
   });
@@ -378,8 +374,8 @@ function note(el, msg, warn){ el.hidden = false; el.textContent = msg; el.style.
    4. 配線
    ========================================================================= */
 // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-FileDrop.attach({ accept:"video/*", kind:"video", input:$("file"), zone:$("drop"), fillZone:true, formats:"MP4, MOV, WebM",
-  replace:$("unload"), hasFile:function(){ return ready; }, onFile:loadVideo });
+var fd = FileDrop.attach({ accept:"video/*", kind:"video", input:$("file"), zone:$("drop"), fillZone:true, formats:"MP4, MOV, WebM",
+  replace:$("unload"), info:$("filemeta"), hasFile:function(){ return ready; }, onFile:loadVideo });
 $("play").addEventListener("click", function(){ setPlaying(!playing); });
 $("scrub").addEventListener("input", function(){ if (vid) vid.currentTime = ($("scrub").value/1000)*vid.duration; });
 $("bypass").addEventListener("click", function(){

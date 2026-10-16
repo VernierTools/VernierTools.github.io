@@ -185,6 +185,8 @@
         <small data-i18n="t.dropSub">or click to choose a file. Everything stays in this browser.</small>
       </div>
       <input type="file" id="file" accept="image/*" hidden>
+      <div id="fileinfo" hidden></div>
+      <button class="btn" id="change" type="button"></button>
     </div>
 
     <div class="srcpanel" id="pan-palette" hidden>
@@ -591,6 +593,8 @@
     img.onload = function(){
       setSourceCanvasFromImage(img);
       URL.revokeObjectURL(url);
+      drop.hidden = true;
+      fd.show(file, [FileDrop.dims(img.naturalWidth, img.naturalHeight)]);
       render();
     };
     img.onerror = function(){ URL.revokeObjectURL(url); };
@@ -599,8 +603,8 @@
 
   var drop = $("drop"), fileInput = $("file");
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept:"image/*", kind:"image", input:fileInput, zone:drop, fillZone:true,
-    hasFile:function(){ return hasFrame; }, onFile:loadFile });
+  var fd = FileDrop.attach({ accept:"image/*", kind:"image", input:fileInput, zone:drop, fillZone:true,
+    replace:$("change"), info:$("fileinfo"), hasFile:function(){ return hasFrame; }, onFile:loadFile });
 
   // ---- palette ----
   function parseColors(text){

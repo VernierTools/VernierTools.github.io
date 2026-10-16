@@ -39,7 +39,7 @@
   .ba canvas{ display:block; width:100%; height:auto; }
   /* 貼り付けたプレビューは画面の高さに収める（比較用の元画像は .ba いっぱいに重なるので、.ba ごと縮める） */
   .pin__view .ba{ width:fit-content; max-width:100%; margin:0 auto; }
-  .pin__view .ba > canvas{ width:auto; max-width:100%; max-height:calc(100vh - 210px); }
+  .pin__view .ba > canvas{ width:auto; max-width:100%; max-height:calc(100vh - 270px); }
   .pin__view .imgarea{ margin-bottom:0; }
   .pin__ctrl .work{ grid-template-columns:minmax(0,1fr); padding-bottom:0; }
   @media (max-width:760px){
@@ -90,7 +90,6 @@
 
   .readout.busy{ opacity:.5; }
   .notes{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
-  .fname{ font-size:11.5px; color:var(--text-3); line-height:1.5; word-break:break-all; }
   .off{ opacity:.45; pointer-events:none; }
   #stage{ display:none; }
 </style>
@@ -140,6 +139,7 @@
         </span>
       </div>
     </div>
+    <div id="fileinfo" hidden></div>
   </section>
   </div>
 
@@ -242,7 +242,6 @@
           <span class="rrow__label" style="display:block; margin-bottom:8px" data-i18n="t.palette">Palette</span>
           <div class="palette" id="palette"></div>
           <div class="notes" id="notes" style="margin-top:var(--s3)"></div>
-          <div class="fname" id="fileinfo" style="margin-top:var(--s3)"></div>
         </div>
         <div style="padding:0 var(--s4) var(--s4)">
           <button class="btn btn--secondary btn--block" id="download">
@@ -639,7 +638,7 @@
       beforeCtx.clearRect(0, 0, w, h);
       beforeCtx.drawImage(im, 0, 0, w, h);
 
-      fileinfo.textContent = f.name + " · " + im.naturalWidth + "×" + im.naturalHeight;
+      fd.show(f, [FileDrop.dims(im.naturalWidth, im.naturalHeight)]);
       outdim.textContent = w + "×" + h;
 
       drop.hidden = true;
@@ -658,8 +657,8 @@
     im.src = url;
   }
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: drop, fillZone: true,
-    replace: changeBtn, hasFile: function () { return !ba.hidden; }, onFile: loadFile });
+  var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: drop, fillZone: true,
+    replace: changeBtn, info: fileinfo, hasFile: function () { return !ba.hidden; }, onFile: loadFile });
 
   // ---------------- Before/After のつまみ ----------------
   var pos = 50, dragging = false;

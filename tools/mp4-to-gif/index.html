@@ -16,8 +16,6 @@
   #file-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 
   .vid{ display:block; width:100%; max-height:360px; background:#000; border-radius:var(--r); }
-  .meta{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
-  .meta .chip{ font-family:var(--font-mono); font-size:11.5px; }
   .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s3); }
   .row3 .field, .row2 .field{ margin-bottom:0; }
   .settime{ margin-top:6px; height:28px; padding:0 10px; font-size:12px; width:100%; }
@@ -59,10 +57,8 @@
         </div>
         <div id="loaded" hidden>
           <video class="vid" id="vid" controls muted playsinline preload="auto"></video>
-          <div class="meta" id="meta"></div>
-          <div class="actions" style="margin-top:var(--s3)">
-            <button class="btn btn--ghost" id="btn-change" type="button" data-i18n="t.change">Change video</button>
-          </div>
+          <div id="meta" hidden></div>
+          <button class="btn" id="btn-change" type="button"></button>
         </div>
       </section>
 
@@ -233,8 +229,7 @@
     $("in-end").value = (Math.min(S.dur, 5)).toFixed(2);           // 長い動画は最初の 5 秒を既定に
     $("in-width").value = Math.min(480, S.vw);
     $("in-start").max = $("in-end").max = S.dur.toFixed(2);
-    $("meta").innerHTML = [esc(S.file.name), S.vw + "×" + S.vh, fmtSec(S.dur), fmtBytes(S.file.size)]
-      .map(function (s) { return '<span class="chip">' + s + "</span>"; }).join("");
+    fd.show(S.file, [FileDrop.dims(S.vw, S.vh), FileDrop.time(S.dur)]);
     update();
   });
   vid.addEventListener("error", function () { if (S.url) fail(Shell.t("t.noPlay")); });
@@ -427,8 +422,8 @@
   /* ---------------- 配線 ---------------- */
   var input = $("file-input"), dz = $("dropzone"), depth = 0;
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
-    input: input, zone: dz, fillZone: true, replace: $("btn-change"), hasFile: function () { return !!S.file; }, onFile: loadFile });
+  var fd = FileDrop.attach({ accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", kind: "video", formats: "MP4, MOV, M4V, WebM, MKV",
+    input: input, zone: dz, fillZone: true, replace: $("btn-change"), info: $("meta"), hasFile: function () { return !!S.file; }, onFile: loadFile });
 
   $("set-start").addEventListener("click", function () { $("in-start").value = vid.currentTime.toFixed(2); clearOutput(); update(); });
   $("set-end").addEventListener("click", function () { $("in-end").value = vid.currentTime.toFixed(2); clearOutput(); update(); });

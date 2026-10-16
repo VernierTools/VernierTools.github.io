@@ -78,15 +78,14 @@
           </div>
         </div>
 
+        <div id="fileinfo" hidden></div>
         <div class="meta" id="meta" hidden>
-          <span class="chip" id="file-name"></span>
-          <span class="chip" id="image-size"></span>
           <span class="chip"><span data-i18n="t.pixels">Pixels</span>: <span class="mono" id="pixel-count">—</span></span>
           <span class="chip" id="approx-chip" hidden data-i18n="t.approx">Sampled (large image)</span>
         </div>
 
+        <button class="btn" id="change" type="button"></button>
         <div class="btnrow" id="actions" hidden>
-          <button class="btn btn--secondary" id="change" type="button" data-i18n="t.change">Change image</button>
           <button class="btn btn--ghost" id="clear" type="button" data-i18n="t.clear">Clear</button>
         </div>
 
@@ -194,7 +193,7 @@
   var els = {
     dropzone:$("dropzone"), input:$("file-input"), change:$("change"), clear:$("clear"),
     empty:$("drop-empty"), previewWrap:$("preview-wrap"), preview:$("preview"),
-    meta:$("meta"), name:$("file-name"), size:$("image-size"), pixels:$("pixel-count"), approx:$("approx-chip"),
+    meta:$("meta"), pixels:$("pixel-count"), approx:$("approx-chip"),
     actions:$("actions"), placeholder:$("placeholder"), cardMean:$("card-mean"), cardMedian:$("card-median"),
     error:$("error"), errorText:$("error-text")
   };
@@ -224,7 +223,7 @@
     els.preview.removeAttribute("src"); els.preview.alt = "";
     els.previewWrap.hidden = true; els.empty.hidden = false;
     els.dropzone.classList.remove("has-image");
-    els.meta.hidden = true; els.actions.hidden = true; els.approx.hidden = true;
+    els.meta.hidden = true; els.actions.hidden = true; els.approx.hidden = true; if (fd) fd.clear();
     els.cardMean.hidden = true; els.cardMedian.hidden = true; els.placeholder.hidden = false;
   }
 
@@ -319,9 +318,6 @@
 
   /* ---------- 読み込み ---------- */
   function renderMeta(){
-    els.name.textContent=state.fileName;
-    els.name.title=state.fileName;
-    els.size.textContent=state.w+" × "+state.h+" px";
     els.pixels.textContent=state.result ? fmtInt(state.result.count) : "—";
     els.approx.hidden=!state.sampled;
   }
@@ -357,6 +353,7 @@
       els.empty.hidden=true; els.previewWrap.hidden=false; els.dropzone.classList.add("has-image");
       els.meta.hidden=false; els.actions.hidden=false;
       renderMeta();
+      fd.show(file, [FileDrop.dims(state.w, state.h)]);
 
       setColor("mean",result.mean); setColor("median",result.median);
       els.placeholder.hidden=true; els.cardMean.hidden=false; els.cardMedian.hidden=false;
@@ -367,7 +364,7 @@
 
   /* ---------- イベント ---------- */
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept:"image/*", kind:"image", input:els.input, zone:els.empty, fillZone:true, replace:els.change,
+  var fd = FileDrop.attach({ accept:"image/*", kind:"image", input:els.input, zone:els.empty, fillZone:true, replace:els.change, info:$("fileinfo"),
     hasFile:function(){ return els.dropzone.classList.contains("has-image"); }, onFile:loadFile });
   els.clear.addEventListener("click",resetView);
 

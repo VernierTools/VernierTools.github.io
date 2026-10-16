@@ -13,9 +13,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5457E5">
 <style>
-  .filerow{ display:flex; align-items:center; gap:var(--s3); }
-  .filerow .name{ font-size:13px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .filerow .change{ flex:0 0 auto; }
   .statusline{ font-size:12.5px; color:var(--text-3); margin-top:var(--s3); min-height:16px; }
   .statusline.neg{ color:var(--neg); }
   .rrow__value.mono{ font-family:var(--font-mono); }
@@ -88,14 +85,9 @@
           <small data-i18n="t.dropsmall">.mid / .midi — processed locally, never uploaded</small>
         </div>
         <input type="file" id="file-in" accept=".mid,.midi,audio/midi" hidden>
+        <div id="card-loaded" hidden></div>
+        <button class="btn" id="btn-change" type="button"></button>
         <div class="statusline" id="status"></div>
-      </div>
-      <div class="card" id="card-loaded" hidden>
-        <label class="label" data-i18n="t.loaded">Loaded file</label>
-        <div class="filerow">
-          <span class="name" id="fname">—</span>
-          <button class="btn btn--ghost change" id="btn-change" data-i18n="t.change">Load another</button>
-        </div>
       </div>
       <div class="card" id="card-settings" hidden>
         <div class="field">
@@ -615,7 +607,7 @@
      wiring
      ===================================================================== */
   var drop = $("drop"), fileIn = $("file-in"), statusEl = $("status");
-  var cardLoaded = $("card-loaded"), cardSettings = $("card-settings"), fname = $("fname");
+  var cardLoaded = $("card-loaded"), cardSettings = $("card-settings");
   var readout = $("readout"), btnDownload = $("btn-download"), cardRoll = $("card-roll"), rollHint = $("roll-hint");
   var tolSlider = $("d-tol"), tolVal = $("d-tol-val");
   var original = null, importedName = null, lastKept = null;
@@ -645,7 +637,6 @@
         stopPlay();
         original = parseMIDI(rd.result);
         importedName = baseName(f.name);
-        fname.textContent = f.name;
         cardLoaded.hidden = false; cardSettings.hidden = false; readout.hidden = false;
         recompute();
         setStatus(Shell.t("io.ok"));
@@ -653,12 +644,16 @@
         displayNotes = original.notes; // preview shows the original set, with duplicates outlined red
         curTimesig = original.timesig;
         buildTempoSegs(original.tempo);
+        var endTick = 0; original.notes.forEach(function (n) { endTick = Math.max(endTick, n.start + n.duration); });
+        drop.hidden = true;
+        fd.show(f, [FileDrop.count(original.notes.length, "note1", "notes"), FileDrop.time(tickToSec(endTick))]);
         computePitchRange(original.notes);
         playhead = 0;
         loaded = true;
         cardRoll.hidden = false; rollHint.hidden = false;
         requestAnimationFrame(function () { resizeRoll(); fitRollView(); drawAll(); updateRollPos(); });
       } catch (err) {
+        drop.hidden = false; fd.clear();
         original = null; btnDownload.disabled = true; readout.hidden = true; cardSettings.hidden = true;
         loaded = false; cardRoll.hidden = true; rollHint.hidden = true;
         setStatus(err.message || Shell.t("io.badfile"), true);
@@ -669,8 +664,8 @@
   }
 
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: ".mid,.midi,audio/midi", kind: "midi", formats: "MID, MIDI", input: fileIn, zone: drop, fillZone: true,
-    replace: $("btn-change"), hasFile: function () { return !!original; }, onFile: handleFile });
+  var fd = FileDrop.attach({ accept: ".mid,.midi,audio/midi", kind: "midi", formats: "MID, MIDI", input: fileIn, zone: drop, fillZone: true,
+    replace: $("btn-change"), info: cardLoaded, hasFile: function () { return !!original; }, onFile: handleFile });
 
   tolSlider.addEventListener("input", recompute);
 

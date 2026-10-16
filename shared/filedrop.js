@@ -20,10 +20,15 @@
        loaded: function(){ ... },    // multiple のとき、一覧に何か入っているか（欄の文言の切り替え用）
        openLabel: true,              // replace のボタンが読み込み前から見えているとき：開く前は「〇〇を開く」と出す
        restyle: false,               // ツールバーの中など、ボタンの大きさをまわりに合わせたいとき（文言とアイコンだけ共通にする）
+       info: el,                     // 開いているファイルの行（ファイル名・情報・「別の〇〇を開く」）を描く場所
        hasFile: function(target){ return !!img; },          // target = ドロップした要素（貼り付け・選択では null）
        onFile: function(file, how, target){ ... }   // how = "pick" | "drop" | "paste"
      });
      fd.pick();   // ファイル選択を開く
+     fd.show(file, [FileDrop.dims(w, h), FileDrop.time(sec)]);   // 読み込めたら、ファイル名・情報を出す（大きさは自動で足す）
+                                                                 // 音声は FileDrop.audioOf(file, ch)（元のレートをファイルから読む Promise）
+     fd.clear();  // 閉じたとき・読み込めなかったとき
+   info を渡すと、replace のボタンはその行の右端へ移る（openLabel のボタンは、開くまでは元の場所に置き、開いたら行へ移る）。
    ページに読み込み口が複数あるときは、active: function(){ return 今これが表示中か } で
    ページ全体のドロップ・貼り付けを受ける方を決める。
    ========================================================================= */
@@ -46,7 +51,8 @@ var S = {
     replaceB: "“{name}” will be opened instead of the one you're working on.",
     replaceOk: "Replace", cancel: "Cancel",
     badType: "This file can't be opened here. Supported: {formats}",
-    many: "Only the first file was opened."
+    many: "Only the first file was opened.",
+    mono: "mono", stereo: "stereo", ch: "{n} ch", tracks: "{n} tracks", track1: "1 track", notes: "{n} notes", note1: "1 note", pasted: "Pasted {kind}"
   },
   ja: {
     kind: { image: "画像", video: "動画", audio: "音声ファイル", midi: "MIDIファイル", json: "設定ファイル", exr: "STMap", file: "ファイル" },
@@ -61,13 +67,118 @@ var S = {
     replaceB: "作業中の{kind}の代わりに「{name}」を開きます。",
     replaceOk: "置き換える", cancel: "キャンセル",
     badType: "このファイルはここでは開けません。対応形式：{formats}",
-    many: "最初のファイルだけを開きました。"
+    many: "最初のファイルだけを開きました。",
+    mono: "モノラル", stereo: "ステレオ", ch: "{n} ch", tracks: "{n} トラック", track1: "1 トラック", notes: "{n} ノート", note1: "1 ノート", pasted: "貼り付けた{kind}"
   }
 };
 function L() { return (window.Shell && Shell.lang === "ja") ? S.ja : S.en; }
 function fmt(s, o) { return s.replace(/\{(\w+)\}/g, function (m, k) { return o[k] != null ? o[k] : m; }); }
 function kindName(k) { return L().kind[k] || L().kind.file; }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+/* ---- ファイル情報の書き方（全ツール共通） ---- */
+var KIND_ICON = {
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/>',
+  video: '<rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
+  audio: '<path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  midi: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v9M12 4v9M16 4v9M8 13v7M12 13v7M16 13v7"/>',
+  json: '<path d="M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1"/>',
+  exr: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'
+};
+function kindIcon(k) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (KIND_ICON[k] || KIND_ICON.file) + "</svg>";
+}
+function bytes(n) {
+  if (!(n >= 0)) return "";
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB";
+  if (n < 1073741824) return (n / 1048576).toFixed(n < 104857600 ? 1 : 0) + " MB";
+  return (n / 1073741824).toFixed(2) + " GB";
+}
+function dims(w, h) { return (w && h) ? w + "×" + h : ""; }
+// 長さ：1:05.3 / 0:04.0 / 1:02:03（1時間以上は小数を出さない）
+function time(sec) {
+  if (!isFinite(sec) || sec < 0) return "";
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  if (h) return h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + Math.floor(s);
+  var ss = s.toFixed(1); if (ss === "60.0") { m++; ss = "0.0"; }
+  return m + ":" + (parseFloat(ss) < 10 ? "0" : "") + ss;
+}
+function audioFmt(rate, ch) {
+  var l = L(), out = [];
+  if (rate) out.push((rate / 1000).toLocaleString("en", { maximumFractionDigits: 3 }) + " kHz");
+  if (ch) out.push(ch === 1 ? l.mono : ch === 2 ? l.stereo : fmt(l.ch, { n: ch }));
+  return out.join(" · ");
+}
+function count(n, one, many) { return lazy(function () { return n === 1 ? L()[one] : fmt(L()[many], { n: n.toLocaleString() }); }); }
+// 言葉を含む情報は、言語を切り替えたときに書き直せるよう、表示するときに文字にする
+function lazy(f) { return { toString: f }; }
+
+/* ---- 音声ファイルの元のサンプリングレートを、先頭のヘッダーから読む ----
+   decodeAudioData は再生側のレート（44.1 kHz など）に変換してしまうので、元の値はファイルから直接読む。
+   WAV / AIFF / FLAC / MP3 / Ogg Vorbis / M4A（AAC・ALAC）に対応。分からなければ 0 */
+function mp4Rate(ab) {
+  // 音声トラックの見本の説明（mp4a / alac）の中にある 16.16 固定小数のレート
+  var v = new DataView(ab), n = ab.byteLength;
+  for (var i = 4; i + 36 <= n; i++) {
+    var a = v.getUint32(i);
+    if (a === 0x6d703461 || a === 0x616c6163) {   // "mp4a" / "alac"
+      var rate = v.getUint32(i + 28) >>> 16;
+      if (rate >= 4000 && rate <= 384000 && v.getUint32(i - 4) > 36) return rate;
+    }
+  }
+  return 0;
+}
+function sniffRate(file) {
+  return file.slice(0, 65536).arrayBuffer().then(function (ab) {
+    var v = new DataView(ab), n = ab.byteLength;
+    function str(o, len) { var t = ""; for (var i = 0; i < len && o + i < n; i++) t += String.fromCharCode(v.getUint8(o + i)); return t; }
+    var head = str(0, 4), form = str(8, 4);
+    if (head === "RIFF" && form === "WAVE") {
+      for (var o = 12; o + 8 <= n;) {
+        var id = str(o, 4), sz = v.getUint32(o + 4, true);
+        if (id === "fmt ") return v.getUint32(o + 12, true);
+        o += 8 + sz + (sz & 1);
+      }
+    }
+    if (head === "FORM" && (form === "AIFF" || form === "AIFC")) {
+      for (var p = 12; p + 8 <= n;) {
+        var cid = str(p, 4), csz = v.getUint32(p + 4);
+        if (cid === "COMM") {   // 80 ビットの拡張精度で書かれている
+          var e = v.getUint16(p + 16) & 0x7fff, hi = v.getUint32(p + 18), lo = v.getUint32(p + 22);
+          return Math.round((hi * 4294967296 + lo) * Math.pow(2, e - 16383 - 63));
+        }
+        p += 8 + csz + (csz & 1);
+      }
+    }
+    if (head === "fLaC" && n >= 21) return (v.getUint8(18) << 12 | v.getUint8(19) << 4 | v.getUint8(20) >> 4);
+    if (head === "OggS") {
+      for (var q = 0; q + 16 < n; q++) if (v.getUint8(q) === 1 && str(q + 1, 6) === "vorbis") return v.getUint32(q + 12, true);
+      return 0;
+    }
+    if (str(4, 4) === "ftyp") {
+      // moov が末尾にあるファイルも多いので、先頭で見つからなければ最後の 1 MB も見る
+      var r0 = mp4Rate(ab);
+      return r0 || file.slice(Math.max(0, file.size - 1048576)).arrayBuffer().then(mp4Rate);
+    }
+    // MP3：ID3 タグを飛ばして、最初のフレームヘッダーを読む
+    var m = 0;
+    if (str(0, 3) === "ID3" && n > 10) m = 10 + ((v.getUint8(6) & 127) << 21 | (v.getUint8(7) & 127) << 14 | (v.getUint8(8) & 127) << 7 | (v.getUint8(9) & 127));
+    for (; m + 4 <= n; m++) {
+      if (v.getUint8(m) !== 0xff || (v.getUint8(m + 1) & 0xe0) !== 0xe0) continue;
+      var ver = (v.getUint8(m + 1) >> 3) & 3, layer = (v.getUint8(m + 1) >> 1) & 3, ri = (v.getUint8(m + 2) >> 2) & 3;
+      if (ver === 1 || layer === 0 || ri === 3) continue;
+      if (layer !== 1) return 0;   // MP3（Layer III）以外は扱わない（AAC の ADTS など）
+      return [44100, 48000, 32000][ri] / (ver === 3 ? 1 : ver === 2 ? 2 : 4);
+    }
+    return 0;
+  }).catch(function () { return 0; });
+}
+// 「48 kHz · ステレオ」。チャンネル数はデコード結果、レートはファイルの値（読めなければ出さない）
+function audioOf(file, ch) {
+  return sniffRate(file).then(function (rate) { return lazy(function () { return audioFmt(rate, ch); }); });
+}
 
 /* ---- accept の判定（MIME のワイルドカード・MIME・拡張子） ---- */
 function accepts(file, accept) {
@@ -190,7 +301,9 @@ function attach(o) {
   var formats = o.formats || formatsOf(o.accept || "");
   var busy = false;
 
+  var lastHow = "pick";
   function deliver(file, how, target) {
+    lastHow = how;
     o.onFile(file, how, target || null);
     // 読み込みは非同期のことが多いので、少し後にも文言（「別の〇〇を開く」等）を更新する
     relabel(); setTimeout(relabel, 300); setTimeout(relabel, 1000); setTimeout(relabel, 3000);
@@ -224,6 +337,42 @@ function attach(o) {
     input.value = "";
   }, true);
   function pick() { input.click(); }
+
+  // 開いているファイルの行
+  var bar = null, shown = null, home = null;
+  if (o.info) {
+    bar = o.info; bar.className = "fd-file"; bar.hidden = true;
+    bar.innerHTML = '<span class="fd-file__icon">' + kindIcon(o.kind) + '</span><span class="fd-file__text"><span class="fd-file__name"></span><span class="fd-file__meta"></span></span>';
+    if (o.replace && o.openLabel) { home = document.createComment("fd-open"); o.replace.parentNode.insertBefore(home, o.replace); }
+    else if (o.replace) bar.appendChild(o.replace);
+  }
+  function paint() {
+    if (!bar || !shown) return;
+    var f = shown.file || {}, name = f.name || "";
+    // 貼り付けた画像は「image.png」のような名前になるので、そのときは「貼り付けた画像」と出す
+    if (!name || (shown.how === "paste" && /^image\.\w+$/i.test(name))) name = fmt(L().pasted, { kind: kindName(o.kind) });
+    var parts = (shown.details || []).filter(function (x) { return x != null && !(x && typeof x.then === "function"); }).map(String)
+      .filter(function (x) { return x !== ""; });
+    if (f.size != null && o.showSize !== false) parts.push(bytes(f.size));
+    bar.querySelector(".fd-file__name").textContent = name;
+    bar.querySelector(".fd-file__name").title = name;
+    bar.querySelector(".fd-file__meta").textContent = parts.join(" · ");
+    bar.querySelector(".fd-file__meta").hidden = !parts.length;
+  }
+  function show(file, details) {
+    if (!bar) return;
+    var me = shown = { file: file, details: (details || []).slice(), how: lastHow }; bar.hidden = false; paint();
+    // 後から分かる情報（Promise）は、届いたらその位置に入れる
+    me.details.forEach(function (x, i) {
+      if (x && typeof x.then === "function") x.then(function (val) { if (shown === me) { me.details[i] = val; paint(); } });
+    });
+    if (home) bar.appendChild(o.replace);
+  }
+  function clear() {
+    shown = null; if (!bar) return;
+    bar.hidden = true;
+    if (home) home.parentNode.insertBefore(o.replace, home);
+  }
 
   if (o.zone) {
     var z = o.zone;
@@ -265,11 +414,11 @@ function attach(o) {
     }
   }
   relabel();
-  if (window.Shell && Shell.onSettingsChange) Shell.onSettingsChange(relabel);
+  if (window.Shell && Shell.onSettingsChange) Shell.onSettingsChange(function () { relabel(); paint(); });
 
   if (!handlers.length) installPageHandlers();
   handlers.push(h);
-  return { pick: pick, open: function (file) { h.take([file], "pick"); }, input: input, refresh: relabel };
+  return { pick: pick, open: function (file) { h.take([file], "pick"); }, input: input, refresh: relabel, show: show, clear: clear };
 }
 
 function fillZone(z, kind, formats, loaded) {
@@ -284,5 +433,6 @@ function fillZone(z, kind, formats, loaded) {
   keep.forEach(function (el) { z.appendChild(el); });
 }
 
-window.FileDrop = { attach: attach, accepts: accepts, confirmReplace: confirmReplace, toast: toast };
+window.FileDrop = { attach: attach, accepts: accepts, confirmReplace: confirmReplace, toast: toast,
+  bytes: bytes, dims: dims, time: time, audio: function (rate, ch) { return lazy(function () { return audioFmt(rate, ch); }); }, audioOf: audioOf, sampleRate: sniffRate, count: count };
 })();

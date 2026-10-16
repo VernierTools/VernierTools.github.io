@@ -202,7 +202,6 @@
     .premise-grid{ grid-template-columns:1fr; }
     .premise-grid li:nth-child(2){ border-top:1px solid var(--border); }
   }
-  .fs-picked{ margin-top:var(--s2); font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; }
 </style>
 </head>
 <body>
@@ -229,7 +228,8 @@
       <div class="field">
       <label class="label" for="pick" data-i18n="t.fileLabel">動画ファイル（MP4 / MOV）</label>
       <div class="drop" id="drop"></div>
-      <div class="fs-picked" id="picked" hidden></div>
+      <div id="picked" hidden></div>
+      <button class="btn" id="pick-another" type="button"></button>
       <input type="file" id="pick" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
       </div>
       <div class="field">
@@ -547,14 +547,19 @@
   function setFile(f) {
     if (!f) return;
     file = f;
-    $("picked").hidden = false;
-    $("picked").textContent = f.name + " — " + (f.size / 1048576).toFixed(2) + " MB / " + (f.type || T("t.unknownType", "種別不明"));
+    $("drop").hidden = true;
+    fd.show(f, []);
+    // 大きさと長さは、動画の先頭（メタデータ）だけ読んで出す
+    var v = document.createElement("video"), u = URL.createObjectURL(f);
+    v.preload = "metadata"; v.muted = true;
+    v.onloadedmetadata = function () { if (file === f) fd.show(f, [FileDrop.dims(v.videoWidth, v.videoHeight), FileDrop.time(v.duration)]); URL.revokeObjectURL(u); };
+    v.onerror = function () { URL.revokeObjectURL(u); };
+    v.src = u;
     $("runAnalyze").disabled = false;
   }
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
-  // 選んだ後もこの欄にファイル名が出て、クリックで別の動画を選べる
-  FileDrop.attach({ accept: "video/mp4,video/quicktime,.mp4,.mov", kind: "video", formats: "MP4, MOV", input: $("pick"),
-    zone: $("drop"), fillZone: true, hasFile: function () { return !!file; }, onFile: setFile });
+  var fd = FileDrop.attach({ accept: "video/mp4,video/quicktime,.mp4,.mov", kind: "video", formats: "MP4, MOV", input: $("pick"),
+    zone: $("drop"), fillZone: true, replace: $("pick-another"), info: $("picked"), hasFile: function () { return !!file; }, onFile: setFile });
 
   /* ---- 解析の実行 ---- */
   var aworker = null;

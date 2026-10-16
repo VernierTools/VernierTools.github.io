@@ -39,8 +39,6 @@
   .drop svg{ width:22px; height:22px; color:var(--text-3); }
   .drop input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
   .drop:focus-within{ box-shadow:0 0 0 3px var(--accent-ring); }
-  .drop__name{ font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; margin-top:var(--s2); }
-  .drop__name:empty{ display:none; }
   .rrow__value--sm{ font-size:17px; }
   .readout__head .btn{ height:28px; padding:0 10px; font-size:12px; }
   .progress{ height:4px; border-radius:2px; background:var(--border); overflow:hidden; flex:1 1 120px; max-width:200px; }
@@ -200,7 +198,8 @@
         <div class="drop" id="ana-drop">
           <input type="file" id="ana-file" accept=".exr,.png,image/png,image/x-exr" hidden>
         </div>
-        <div class="drop__name" id="ana-name"></div>
+        <div id="ana-name" hidden></div>
+        <button class="btn" id="ana-change" type="button"></button>
         <div class="hint" data-i18n="t.dropNote">Read locally in your browser — nothing is uploaded. EXR: uncompressed, RLE, ZIP, ZIPS (not PIZ/DWA).</div>
       </div>
       <div class="card">
@@ -642,11 +641,12 @@ function exportGen() {
    STMap → 係数
    ================================================================= */
 var ana = { fileId: 0, name: "", info: null, fit: null, busy: false, pending: false, error: "", restored: false };
-var anaTimer = null;
+var anaTimer = null, anaFd = null;
 function loadFile(file) {
   if (!file) return;
-  ana.fileId++; ana.name = file.name; ana.info = null; ana.fit = null; ana.error = ""; ana.restored = false;
-  $("ana-name").textContent = file.name;
+  ana.fileId++; ana.name = file.name; ana.file = file; ana.info = null; ana.fit = null; ana.error = ""; ana.restored = false;
+  $("ana-drop").hidden = true;
+  anaFd.show(file, []);
   renderAna(Shell.t("t.reading"));
   var id = ana.fileId;
   file.arrayBuffer().then(function (buf) {
@@ -724,7 +724,7 @@ function renderAna(status) {
   $("ana-copyall").disabled = !ana.fit; $("ana-togen").disabled = !ana.fit;
   if (ana.info) {
     var i = ana.info, dwTxt = (i.w !== i.W || i.h !== i.H) ? " · data " + i.w + "×" + i.h : "";
-    $("ana-name").textContent = ana.name + " — " + i.W + "×" + i.H + dwTxt + " · " + i.format;
+    anaFd.show(ana.file, [FileDrop.dims(i.W, i.H) + dwTxt, i.format]);
     if (i.lowPrecision) badges.push(badge("neg", Shell.t("t.lowPrec")));
     if (ana.restored) badges.push(badge("muted", Shell.t("t.metaFound")));
   }
@@ -856,7 +856,8 @@ function init() {
   var drop = $("ana-drop"), input = $("ana-file");
   // 読み込みは共通部品（ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 別のタブを開いているときにドロップしても、「STMap → 係数」のタブに切り替えて読み込む
-  FileDrop.attach({ accept: ".exr,.png,image/png,image/x-exr", kind: "exr", formats: "EXR, PNG", input: input, zone: drop, fillZone: true,
+  anaFd = FileDrop.attach({ accept: ".exr,.png,image/png,image/x-exr", kind: "exr", formats: "EXR, PNG", input: input, zone: drop, fillZone: true,
+    replace: $("ana-change"), info: $("ana-name"),
     hasFile: function () { return !!ana.name; },
     onFile: function (f) { if ($("panel-ana").hidden) $("tab-ana").click(); loadFile(f); } });
   $("ana-model").addEventListener("change", function () { S.ana.model = this.value; writeHash(); fitNow(); });

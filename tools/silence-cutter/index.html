@@ -43,8 +43,9 @@
           <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio file">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0l-4 4m4-4l4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
             <b data-i18n="t.dropb">Click to choose a file</b> <span data-i18n="t.dropor">or drag &amp; drop</span>
-            <small id="fileinfo" data-i18n="t.nofile">No file selected</small>
           </div>
+          <div id="fileinfo" hidden></div>
+          <button type="button" class="btn" id="replace"></button>
           <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
           <div class="badge badge--neg err" id="err" hidden></div>
         </div>
@@ -349,7 +350,8 @@
   function loadFile(file) {
     if (!file) return;
     resetForNewFile();
-    fileinfo.textContent = file.name;
+    dropEl.hidden = true;
+    fd.show(file, []);
     setErr(null);
     var ctx = ensureCtx();
     origURL = URL.createObjectURL(file);
@@ -359,20 +361,19 @@
     }).then(function (buf) {
       audioBuffer = buf;
       analysis = analyze(buf);
-      fileinfo.textContent = file.name + " — " + fmtTime(buf.duration) + "s, " + buf.sampleRate + " Hz, " +
-        buf.numberOfChannels + "ch";
+      fd.show(file, [FileDrop.time(buf.duration), FileDrop.audioOf(file, buf.numberOfChannels)]);
       waveWrap.classList.remove("disabled");
       cutBtn.disabled = false; playOrigBtn.disabled = false; previewBtn.disabled = false;
       refreshAll();
     }).catch(function (e) {
       setErr(Shell.t("t.decodeerr"));
-      fileinfo.textContent = file.name;
     });
   }
 
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
-  FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm", kind: "audio",
+  var fd = FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm", kind: "audio",
     formats: "WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus", input: fileInput, zone: dropEl, fillZone: true,
+    replace: $("replace"), info: fileinfo,
     hasFile: function () { return !!analysis; }, onFile: loadFile });
 
   /* ---------------------------------------------------------------

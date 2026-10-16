@@ -28,14 +28,6 @@
   .minilabel{ font-size:11px; color:var(--text-3); margin-bottom:4px; }
 
   /* ---- top card: file + channel ---- */
-  .toolrow{ display:flex; gap:var(--s5); flex-wrap:wrap; align-items:flex-start; }
-  .toolrow__file{ flex:0 0 auto; width:260px; max-width:100%; }
-  .drop{ padding:var(--s3) var(--s4); }
-  .drop svg{ width:20px; height:20px; }
-  .toolrow__info{ display:flex; flex-direction:column; gap:5px; justify-content:center; min-height:74px; }
-  .fi-name{ font-size:14px; font-weight:600; color:var(--text); max-width:44ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .fi-meta{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
-  .fi-meta .dot{ margin:0 6px; color:var(--text-3); }
   .fileerr{ margin-top:var(--s3); }
   .channelfield{ margin-top:var(--s5); max-width:340px; }
 
@@ -113,23 +105,14 @@
   </div>
 
   <div class="card">
-    <div class="toolrow">
-      <div class="toolrow__file">
-        <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop an audio file">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 9l5-6 5 6"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          <div><b data-i18n="t.dropTitle">Drop an audio file here</b></div>
-          <small data-i18n="t.dropHint">or click to choose — processed locally</small>
-        </div>
-        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf" hidden aria-hidden="true">
-      </div>
-      <div class="toolrow__info" id="file-info" hidden>
-        <div class="fi-name" id="fi-name">—</div>
-        <div class="fi-meta">
-          <span id="fi-duration">—</span><span class="dot">·</span><span id="fi-samplerate">—</span><span data-i18n="t.hz">Hz</span><span class="dot">·</span><span id="fi-channels">—</span><span data-i18n="t.ch">ch</span>
-        </div>
-        <button class="btn btn--ghost" id="change-file" style="align-self:flex-start;height:28px;padding:0 10px;font-size:12px;" data-i18n="t.changefile">Change file</button>
-      </div>
+    <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop an audio file">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 9l5-6 5 6"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <div><b data-i18n="t.dropTitle">Drop an audio file here</b></div>
+      <small data-i18n="t.dropHint">or click to choose — processed locally</small>
     </div>
+    <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf" hidden aria-hidden="true">
+    <div id="file-info" hidden></div>
+    <button class="btn" id="change-file" type="button"></button>
     <div class="badge badge--neg fileerr" id="file-error" hidden><span class="d"></span><span id="file-error-text"></span></div>
 
     <div class="field channelfield">
@@ -301,7 +284,6 @@
   var els = {
     dropzone: $("dropzone"), fileInput: $("file-input"), fileError: $("file-error"), fileErrorText: $("file-error-text"),
     fileInfo: $("file-info"), changeFile: $("change-file"),
-    fiName: $("fi-name"), fiDuration: $("fi-duration"), fiSamplerate: $("fi-samplerate"), fiChannels: $("fi-channels"),
     segChannel: $("seg-channel"), segFreqScale: $("seg-freqscale"), segColormap: $("seg-colormap"),
     fftSelect: $("fft-select"), dbCeil: $("db-ceil"), dbFloor: $("db-floor"),
     settingsToggle: $("settings-toggle"), settingsPopover: $("settings-popover"),
@@ -1121,12 +1103,9 @@
     var m = Math.floor(sec / 60), s = Math.floor(sec - m * 60), ms = Math.round((sec - Math.floor(sec)) * 1000);
     return m + ":" + (s < 10 ? "0" : "") + s + "." + (ms < 100 ? (ms < 10 ? "00" : "0") : "") + ms;
   }
-  function updateFileInfo(name, buf) {
-    els.fiName.textContent = name; els.fiName.title = name;
-    els.fiDuration.textContent = formatDurationFull(buf.duration);
-    els.fiSamplerate.textContent = buf.sampleRate.toLocaleString();
-    els.fiChannels.textContent = buf.numberOfChannels;
-    els.fileInfo.hidden = false;
+  function updateFileInfo(file, buf) {
+    els.dropzone.hidden = true;
+    fd.show(file, [FileDrop.time(buf.duration), FileDrop.audioOf(file, buf.numberOfChannels)]);
   }
   function updateChannelAvailability() {
     var stereo = !!state.bufferR;
@@ -1158,7 +1137,7 @@
       state.channelMode = state.bufferR ? "mid" : "left";
       updateChannelAvailability();
       syncSeg(els.segChannel, "data-ch", state.channelMode);
-      updateFileInfo(file.name, audioBuffer);
+      updateFileInfo(file, audioBuffer);
       els.zoomReset.disabled = true;
       els.playToggle.disabled = false;
       setPlayIcon(false);
@@ -1173,9 +1152,9 @@
 
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
   var hasAudio = false;
-  FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf", kind: "audio",
+  var fd = FileDrop.attach({ accept: "audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf", kind: "audio",
     formats: "WAV, MP3, M4A, AAC, FLAC, AIFF, OGG, Opus, CAF", input: els.fileInput, zone: els.dropzone, fillZone: true,
-    replace: els.changeFile, hasFile: function () { return hasAudio; }, onFile: function (f) { hasAudio = true; loadFile(f); } });
+    replace: els.changeFile, info: els.fileInfo, hasFile: function () { return hasAudio; }, onFile: function (f) { hasAudio = true; loadFile(f); } });
 
   /* =====================================================================
      control wiring

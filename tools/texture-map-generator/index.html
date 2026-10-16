@@ -16,18 +16,8 @@
   .sliderrow{ margin-top:2px; }
   .sliderrow .val{ min-width:56px; }
 
-  /* 読み込む前は共通のドロップ欄、読み込んだ後はサムネイル・名前と「別の画像を開く」 */
-  .drop-loaded{ display:none; align-items:center; gap:var(--s3); text-align:left; width:100%;
-    border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s3); background:var(--surface-2); }
   .tm-in.has-file #drop-empty{ display:none; }
-  .tm-in.has-file .drop-loaded{ display:flex; }
-  .drop-loaded__thumb{ width:56px; height:56px; border-radius:var(--r-sm); overflow:hidden; flex:0 0 auto;
-    border:1px solid var(--border);
-    background:repeating-conic-gradient(#0000 0 25%, color-mix(in srgb, var(--text-3) 8%, transparent) 0 50%) 0 0/12px 12px; }
-  .drop-loaded__thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .drop-loaded__meta{ flex:1; min-width:0; }
-  .drop-loaded__meta b{ display:block; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .drop-loaded__meta span{ display:block; font-size:12px; color:var(--text-3); margin-top:2px; }
+  .tm-in .fd-file{ margin-top:0; }
 
   .basishint{ font-size:11.5px; color:var(--text-3); margin-top:6px; line-height:1.4; }
   .basishint[hidden]{ display:none; }
@@ -62,14 +52,8 @@
           <label class="label" data-i18n="t.texture">Texture</label>
           <div class="tm-in" id="drop">
             <div class="drop" id="drop-empty"></div>
-            <div class="drop-loaded" id="drop-loaded">
-              <div class="drop-loaded__thumb"><img id="thumb-img" alt=""></div>
-              <div class="drop-loaded__meta">
-                <b id="meta-name">—</b>
-                <span id="meta-dims">—</span>
-              </div>
-              <button type="button" class="btn btn--secondary" id="drop-change"></button>
-            </div>
+            <div id="drop-loaded" hidden></div>
+            <button type="button" class="btn" id="drop-change"></button>
           </div>
           <input type="file" id="file-input" accept="image/*" hidden>
         </div>
@@ -213,8 +197,7 @@
   var WORK_MAX = 640;
 
   var el = {
-    dropZone: $("drop"), fileInput: $("file-input"), thumbImg: $("thumb-img"),
-    metaName: $("meta-name"), metaDims: $("meta-dims"),
+    dropZone: $("drop"), fileInput: $("file-input"),
     maptype: $("maptype"),
     basis: $("basis"), hintHue: $("hint-hue"), hintAlpha: $("hint-alpha"), invert: $("invert"),
     black: $("black"), blackVal: $("black-val"), white: $("white"), whiteVal: $("white-val"),
@@ -485,10 +468,9 @@
 
       state.baseName = file.name.replace(/\.[^.]+$/, "") || "map";
 
-      el.thumbImg.src = url;
-      el.metaName.textContent = file.name;
-      el.metaDims.textContent = iw + "\u00d7" + ih;
+      URL.revokeObjectURL(url);
       el.dropZone.classList.add("has-file");
+      fd.show(file, [FileDrop.dims(iw, ih)]);
 
       renderBadges(iw, ih, fw, fh);
       setControlsEnabled(true);
@@ -499,7 +481,7 @@
   }
 
   function renderBadges(iw, ih, fw, fh){
-    var html = '<span class="badge badge--muted">' + iw + '\u00d7' + ih + '</span>';
+    var html = "";   // 元の大きさはファイルの行に出す
     if (fw !== iw || fh !== ih){
       html += '<span class="badge badge--muted">' + Shell.t("t.resWork") + ' ' + fw + '\u00d7' + fh + '</span>';
     }
@@ -551,8 +533,8 @@
   /* ---- ドロップゾーン ---- */
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 読み込んだ後もこの欄が「別の画像を開く」を兼ねる
-  FileDrop.attach({ accept:"image/*", kind:"image", input:el.fileInput, zone:$("drop-empty"), fillZone:true,
-    replace:$("drop-change"),
+  var fd = FileDrop.attach({ accept:"image/*", kind:"image", input:el.fileInput, zone:$("drop-empty"), fillZone:true,
+    replace:$("drop-change"), info:$("drop-loaded"),
     hasFile:function(){ return el.dropZone.classList.contains("has-file"); }, onFile:loadFile });
 
   /* ---- コントロール配線 ---- */

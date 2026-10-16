@@ -64,7 +64,7 @@
   .stage canvas.hidden{ display:none; }
   /* 貼り付けたプレビューは画面の高さに収める。比較のつまみはステージ幅基準なので、ステージを画像の幅に合わせる */
   .pin__view .stage.loaded{ width:fit-content; max-width:100%; min-height:0; margin-left:auto; margin-right:auto; }
-  .pin__view .stage canvas{ width:auto; max-width:100%; max-height:calc(100vh - 270px); }
+  .pin__view .stage canvas{ width:auto; max-width:100%; max-height:calc(100vh - 330px); }
   @media (max-width:760px){
     .pin__view .stage{ margin-bottom:var(--s2); }
     .pin__view .stage canvas{ max-height:36vh; }
@@ -79,9 +79,6 @@
   .stage-empty small{ font-size:11.5px; }
   .stage.loaded .stage-empty{ display:none; }
   .stage.dragover{ outline:2px dashed var(--accent); outline-offset:-2px; }
-  .stage__reload{ position:absolute; top:var(--s3); right:var(--s3); z-index:5;
-    height:30px; padding:0 12px; font-size:12.5px; display:none; }
-  .stage.loaded .stage__reload{ display:inline-flex; }
   .compare-tags{ position:absolute; top:8px; left:0; right:0; display:none; justify-content:space-between;
     padding:0 8px; pointer-events:none; }
   .stage[data-compare="1"] .compare-tags{ display:flex; }
@@ -112,8 +109,9 @@
         <div class="compare-tags" id="ctags"><span data-i18n="t.before">Before</span><span data-i18n="t.after">After</span></div>
         <div class="handle" id="handle"></div>
         <div class="stage-empty" id="emptyState"></div>
-        <button type="button" class="btn btn--secondary stage__reload" id="reloadBtn" data-i18n="t.loadanother">Load a different image</button>
       </div>
+      <div id="fileinfo" hidden></div>
+      <button type="button" class="btn" id="reloadBtn"></button>
       <input type="file" id="file" accept="image/*" hidden>
 
       <div class="card bgcard">
@@ -627,6 +625,7 @@
       $("undoBtn").disabled = true;
       $("cmpBtn").disabled = false;
       if (compare) setCompare(false);
+      fd.show(file, [FileDrop.dims(im.naturalWidth, im.naturalHeight)]);
       scheduleRender();
     };
     im.onerror = function () {
@@ -637,7 +636,7 @@
   }
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）。
   // 画像が無いうちはプレビュー自体がドロップ欄で、読み込んだ後のクリックは比較のつまみに使う
-  FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: emptyState, fillZone: true, replace: reloadBtn,
+  var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: emptyState, fillZone: true, replace: reloadBtn, info: $("fileinfo"),
     hasFile: function () { return !!origPrev; }, onFile: loadImage });
 
   // ── i18n / init ──────────────────────────────────────────────────────

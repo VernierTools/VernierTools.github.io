@@ -23,6 +23,7 @@
   .eye-instances{ display:flex; flex-direction:column; gap:var(--s5); }
   .eye-inst{ display:flex; gap:var(--s4); align-items:flex-start; }
   .eye-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:var(--s2); }
+  .eye-main > .fd-file{ margin-top:0; }
   .eye-panel{ flex:0 0 260px; display:flex; flex-direction:column; gap:var(--s4); }
 
   .eye-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--s2); }
@@ -166,6 +167,7 @@
             <button type="button" class="bt-zout" aria-label="Zoom out">−</button>
           </div>
         </div>
+        <div class="eye-file"></div>
       </div>
       <aside class="eye-panel">
         <div class="card card--fold">
@@ -237,6 +239,7 @@
             <button type="button" class="bt-zout" aria-label="Zoom out">−</button>
           </div>
         </div>
+        <div class="eye-file"></div>
       </div>
       <aside class="eye-panel">
         <div class="card card--fold">
@@ -370,9 +373,9 @@
     }
     new ResizeObserver(function () { if (resizeDist()) drawDist(); }).observe(distSv);
 
-    function loadImage(fileOrImg) {
+    function loadImage(fileOrImg, done) {
       var use = function (img) { st.image = img; raw.width = img.width; raw.height = img.height; rawCtx.drawImage(img, 0, 0);
-        st.trail = []; hintEl.classList.add("hidden"); clearSel(); fit(); };
+        st.trail = []; hintEl.classList.add("hidden"); clearSel(); fit(); if (done) done(img); };
       if (fileOrImg instanceof Image) use(fileOrImg);
       else if (fileOrImg && fileOrImg.type && fileOrImg.type.indexOf("image/") === 0) {
         var rd = new FileReader(); rd.onload = function (e) { var im = new Image(); im.onload = function () { use(im); }; im.src = e.target.result; }; rd.readAsDataURL(fileOrImg);
@@ -651,10 +654,11 @@
   // ドロップは落とした側（A / B）へ、貼り付けはマウスが乗っている側へ（比較していなければ A）
   [[vA, $("inst-a")], [vB, $("inst-b")]].forEach(function (p) {
     var v = p[0], box = p[1];
-    FileDrop.attach({ accept: "image/*", kind: "image", input: box.querySelector(".file-in"), owner: box,
+    var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: box.querySelector(".file-in"), owner: box,
       zone: box.querySelector(".eye-hint-el"), fillZone: true, replace: box.querySelector("label.btn"), openLabel: true,
+      info: box.querySelector(".eye-file"),
       active: function () { return v === vB ? (compare && active === vB) : !(compare && active === vB); },
-      hasFile: v.hasImage, onFile: function (f) { v.loadImage(f); } });
+      hasFile: v.hasImage, onFile: function (f) { v.loadImage(f, function (img) { fd.show(f, [FileDrop.dims(img.width, img.height)]); }); } });
   });
   $("toggle-compare").addEventListener("click", function () {
     compare = !compare; $("inst-b").hidden = !compare; eyeWrap.classList.toggle("compare", compare);
