@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color difference (HSV / RGB) — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* 2 色を左右に並べ、間に入れ替えボタン */
+  .pair{ display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--s3); align-items:start; margin-bottom:var(--s5); }
+  .pair__mid{ display:flex; align-items:center; justify-content:center; padding-top:84px; }
+  .swapbtn{ width:40px; height:40px; padding:0; border-radius:50%; }
+  @media (max-width:760px){
+    .pair{ grid-template-columns:minmax(0,1fr); }
+    .pair__mid{ padding-top:0; }
+    .swapbtn svg{ transform:rotate(90deg); }
+  }
+  .ccard__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); margin-bottom:var(--s3); }
+  .ccard__head .card__title{ margin:0; }
+  .swatch{ position:relative; display:block; width:100%; height:120px; border-radius:var(--r-lg); border:1px solid var(--border-strong);
+    cursor:pointer; padding:0; appearance:none; }
+  .swatch:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
+  .swatch__hint{ position:absolute; right:10px; bottom:8px; font-size:11.5px; padding:2px 8px; border-radius:100px;
+    background:rgba(0,0,0,.45); color:#fff; pointer-events:none; }
+  .swatch input[type=color]{ position:absolute; inset:0; opacity:0; width:100%; height:100%; border:0; padding:0; cursor:pointer; }
+  .tri{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--s2); }
+  .tri .label{ margin-bottom:4px; }
+  .tri .input{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; padding:0 10px; }
+  .hexrow{ display:flex; gap:var(--s2); }
+  .hexrow .input{ font-family:var(--font-mono); text-transform:uppercase; }
+  .hexrow .btn{ flex:none; height:38px; padding:0 12px; }
+  .input.bad{ border-color:var(--neg); }
+  .fields{ margin-top:var(--s4); display:flex; flex-direction:column; gap:var(--s4); }
+
+  /* 結果 */
+  .results{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--s4); margin-bottom:var(--s5); }
+  @media (max-width:760px){ .results{ grid-template-columns:minmax(0,1fr); } }
+  .rrow__from{ display:block; font-size:11.5px; color:var(--text-3); margin-top:2px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .rrow__value.zero{ color:var(--text-3); }
+  .rrow__value.free{ font-size:14px; font-family:inherit; color:var(--text-2); }
+  .rnote{ font-size:12px; color:var(--text-3); padding:var(--s3) var(--s4); border-top:1px solid var(--border); line-height:1.6; }
+  .rnote:empty{ display:none; }
+  .rnote b{ color:var(--text-2); font-weight:600; }
+  .rfoot{ display:flex; align-items:center; justify-content:space-between; gap:var(--s2); flex-wrap:wrap; padding:var(--s3) var(--s4); border-top:1px solid var(--border); }
+  .check{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1 1 220px; min-width:0; font-size:12px; color:var(--text-2); }
+  .check .chipsw{ width:18px; height:18px; border-radius:4px; border:1px solid var(--border-strong); flex:none; }
+  .check .ok{ color:var(--pos); } .check .off{ color:var(--text-3); }
+  .rfoot .btn{ height:30px; padding:0 10px; font-size:12.5px; }
+
+  .optrow{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; }
+  .cd-seg{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; }
+  .cd-seg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px; color:var(--text-2);
+    height:28px; padding:0 12px; border-radius:7px; }
+  .cd-seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
+  .limits{ margin:0; padding-left:1.2em; font-size:13px; color:var(--text-2); line-height:1.7; }
+  .limits li + li{ margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span><span class="chip" data-i18n="sub.image.color">Color</span></div>
+    <h1 data-i18n="t.title">Color difference (HSV / RGB)</h1>
+    <p data-i18n="t.desc">Set two colors to see how far to move H, S, V or R, G, B to turn the first into the second.</p>
+  </div>
+
+  <div class="pair">
+    <section class="card ccard" id="card-a"></section>
+    <div class="pair__mid">
+      <button class="btn btn--secondary swapbtn" id="swap" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/></svg>
+      </button>
+    </div>
+    <section class="card ccard" id="card-b"></section>
+  </div>
+
+  <div class="results">
+    <div class="readout" id="ro-hsv"></div>
+    <div class="readout" id="ro-rgb"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s5)">
+    <div class="card__title" data-i18n="t.options">Display</div>
+    <div class="optrow">
+      <span class="label" style="margin:0" data-i18n="t.precision">HSV precision</span>
+      <div class="cd-seg" id="seg-prec" role="group">
+        <button type="button" data-v="0" data-i18n="v.int">Whole numbers</button>
+        <button type="button" data-v="1" data-i18n="v.dec1">1 decimal place</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s7)">
+    <div class="card__title" data-i18n="t.limits">Good to know</div>
+    <ul class="limits">
+      <li data-i18n="l.add">The values are amounts to add to the number fields of a color picker: S and V move in percentage points (40% → 54% is +14%), not by a ratio.</li>
+      <li data-i18n="l.hue">Hue goes round a circle, so the shorter way round is shown (within ±180°). The other way is shown underneath.</li>
+      <li data-i18n="l.gray">On a gray, black or white color the hue (and on black also the saturation) has no effect, so any value works.</li>
+      <li data-i18n="l.one">The result is exact for this one color. The same shift applied to a whole image moves other colors differently, and some will clip.</li>
+      <li data-i18n="l.hsl">HSV is not HSL: both call S “saturation”, but they are calculated differently, so check which one your software uses.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   Color difference (HSV / RGB) — Vernier
+   色 1 を色 2 にするには、HSV・RGB の各値をいくつ動かせばよいかを出す。
+   各色は「最後に打ち込んだ形」（HEX・RGB・HSV）を正として持ち、他の形はそこから求める。
+   こうすると、HSV を整数で打ち込んだときに差も整数のまま出る（RGB を経由した丸めで崩れない）。
+   ========================================================================= */
+(function () {
+var $ = function (id) { return document.getElementById(id); };
+var T = function (k) { return Shell.t(k); };
+var MINUS = "−";
+
+/* ---------------- 色の変換 ---------------- */
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+  if (d > 0) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return { h: h, s: mx ? d / mx * 100 : 0, v: mx * 100 };
+}
+function hsv2rgb(h, s, v) {
+  h = ((h % 360) + 360) % 360; s /= 100; v /= 100;
+  var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c, r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+function hex2(n) { n = Math.max(0, Math.min(255, Math.round(n))); return (n < 16 ? "0" : "") + n.toString(16).toUpperCase(); }
+function toHex(c) { return "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); }
+function parseHex(s) {
+  s = String(s || "").trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(s)) s = s.replace(/./g, "$&$&");
+  if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+  return { r: parseInt(s.slice(0, 2), 16), g: parseInt(s.slice(2, 4), 16), b: parseInt(s.slice(4, 6), 16) };
+}
+// 貼り付けた文字から色を読む（#hex・rgb(…)・「12, 34, 56」）
+function parseAny(s) {
+  var h = parseHex(s); if (h) return h;
+  var m = String(s).match(/(\d+(?:\.\d+)?)\s*[,\s]\s*(\d+(?:\.\d+)?)\s*[,\s]\s*(\d+(?:\.\d+)?)/);
+  if (m) { var c = { r: +m[1], g: +m[2], b: +m[3] }; if (c.r <= 255 && c.g <= 255 && c.b <= 255) return c; }
+  return null;
+}
+
+/* ---------------- 状態 ---------------- */
+// rgb は 0–255 の実数、hsv は H 0–360・S/V 0–100。src は最後に打ち込んだ形
+function fromRgb(c) { return { rgb: { r: c.r, g: c.g, b: c.b }, hsv: rgb2hsv(c.r, c.g, c.b) }; }
+function fromHsv(h) { return { rgb: hsv2rgb(h.h, h.s, h.v), hsv: { h: h.h, s: h.s, v: h.v } }; }
+var S = { a: fromHsv({ h: 200, s: 40, v: 50 }), b: fromHsv({ h: 223, s: 54, v: 89 }), prec: 0 };
+try {
+  var saved = JSON.parse(localStorage.getItem("cd.state") || "null");
+  if (saved && saved.a && saved.b) { S.a = fromHsv(saved.a); S.b = fromHsv(saved.b); S.prec = saved.prec ? 1 : 0; }
+} catch (e) {}
+function save() {
+  try { localStorage.setItem("cd.state", JSON.stringify({ a: S.a.hsv, b: S.b.hsv, prec: S.prec })); } catch (e) {}
+}
+
+/* ---------------- 色の欄 ---------------- */
+var EYE = !!window.EyeDropper;
+var ICON_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
+function buildCard(key) {
+  var el = $("card-" + key), p = key + "-";
+  el.innerHTML =
+    '<div class="ccard__head"><div class="card__title" data-i18n="t.color' + key.toUpperCase() + '"></div></div>' +
+    '<label class="swatch" id="' + p + 'sw"><input type="color" id="' + p + 'picker"><span class="swatch__hint" data-i18n="t.pick"></span></label>' +
+    '<div class="fields">' +
+    '<div><label class="label" for="' + p + 'hex">HEX</label><div class="hexrow"><input class="input" id="' + p + 'hex" spellcheck="false" autocomplete="off" maxlength="24">' +
+    (EYE ? '<button class="btn btn--secondary" id="' + p + 'eye" type="button">' + ICON_EYE + '<span data-i18n="t.eye"></span></button>' : "") + '</div></div>' +
+    '<div class="tri">' + ["h", "s", "v"].map(function (c) {
+      var mx = c === "h" ? 360 : 100;
+      return '<div><label class="label" for="' + p + c + '">' + c.toUpperCase() + (c === "h" ? " (°)" : " (%)") + '</label>' +
+        '<input class="input" id="' + p + c + '" type="number" inputmode="decimal" min="0" max="' + mx + '" step="1"></div>';
+    }).join("") + '</div>' +
+    '<div class="tri">' + ["r", "g", "b"].map(function (c) {
+      return '<div><label class="label" for="' + p + c + '">' + c.toUpperCase() + '</label>' +
+        '<input class="input" id="' + p + c + '" type="number" inputmode="numeric" min="0" max="255" step="1"></div>';
+    }).join("") + '</div>' +
+    '</div>';
+
+  function num(id) { var v = parseFloat($(p + id).value); return isFinite(v) ? v : null; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  $(p + "picker").addEventListener("input", function () { S[key] = fromRgb(parseHex(this.value)); update(key); });
+  $(p + "hex").addEventListener("input", function () {
+    var c = parseAny(this.value); this.classList.toggle("bad", !c && this.value.trim() !== "");
+    if (c) { S[key] = fromRgb(c); update(key, "hex"); }
+  });
+  $(p + "hex").addEventListener("blur", function () { this.classList.remove("bad"); fill(key); });
+  ["h", "s", "v"].forEach(function (c) {
+    $(p + c).addEventListener("input", function () {
+      var h = num("h"), s = num("s"), v = num("v"); if (h == null || s == null || v == null) return;
+      S[key] = fromHsv({ h: clamp(h, 0, 360) % 360, s: clamp(s, 0, 100), v: clamp(v, 0, 100) });
+      update(key, c);
+    });
+    $(p + c).addEventListener("blur", function () { fill(key); });
+  });
+  ["r", "g", "b"].forEach(function (c) {
+    $(p + c).addEventListener("input", function () {
+      var r = num("r"), g = num("g"), b = num("b"); if (r == null || g == null || b == null) return;
+      S[key] = fromRgb({ r: clamp(r, 0, 255), g: clamp(g, 0, 255), b: clamp(b, 0, 255) });
+      update(key, c);
+    });
+    $(p + c).addEventListener("blur", function () { fill(key); });
+  });
+  if (EYE) $(p + "eye").addEventListener("click", function () {
+    new EyeDropper().open().then(function (r) { S[key] = fromRgb(parseHex(r.sRGBHex)); update(key); }).catch(function () {});
+  });
+}
+// 欄に今の値を書く（打ち込み中の欄 skip はそのままにして、カーソルを飛ばさない）
+function fmtIn(v, d) { var m = Math.pow(10, d); return String(Math.round(v * m) / m); }
+function fill(key, skip) {
+  var c = S[key], p = key + "-", hex = toHex(c.rgb);
+  var sw = $(p + "sw"); sw.style.background = hex;
+  $(p + "picker").value = hex.toLowerCase();
+  if (skip !== "hex") { $(p + "hex").value = hex; $(p + "hex").classList.remove("bad"); }
+  var hd = S.prec ? 1 : 0;
+  if (skip !== "h") $(p + "h").value = fmtIn(c.hsv.h, hd);
+  if (skip !== "s") $(p + "s").value = fmtIn(c.hsv.s, hd);
+  if (skip !== "v") $(p + "v").value = fmtIn(c.hsv.v, hd);
+  ["r", "g", "b"].forEach(function (k) { if (skip !== k) $(p + k).value = String(Math.round(c.rgb[k])); });
+}
+
+/* ---------------- 差の計算 ---------------- */
+function round(v, d) { var m = Math.pow(10, d); return Math.round(v * m) / m; }
+function signed(v, d, unit) {
+  var r = round(v, d), s = Math.abs(r).toFixed(d);
+  if (r === 0) return { text: (0).toFixed(d), copy: (0).toFixed(d), zero: true };
+  return { text: (r > 0 ? "+" : MINUS) + s, copy: (r > 0 ? "+" : "-") + s, zero: false };
+}
+function hueDelta(h1, h2) {
+  var d = ((h2 - h1) % 360 + 540) % 360 - 180;   // −180 〜 +180
+  if (d === -180) d = 180;
+  return d;
+}
+var EPS = 1e-9;
+function compute() {
+  var a = S.a, b = S.b, d = S.prec ? 1 : 0;
+  var r = { hsv: {}, rgb: {} };
+  var aBlack = a.hsv.v < EPS, aGray = aBlack || a.hsv.s < EPS;
+  var bBlack = b.hsv.v < EPS, bGray = bBlack || b.hsv.s < EPS;
+  // 差は「表示している桁に丸めた値」どうしで取る（ピッカーに出る数字に足して、ちょうど目標の数字になるように）
+  var ah = round(a.hsv.h, d) % 360, as = round(a.hsv.s, d), av = round(a.hsv.v, d);
+  var bh = round(b.hsv.h, d) % 360, bs = round(b.hsv.s, d), bv = round(b.hsv.v, d);
+  r.dh = round(hueDelta(ah, bh), d);
+  r.ds = round(bs - as, d); r.dv = round(bv - av, d);
+  // 色相が意味を持たない場合（どちらかが灰色・黒・白）
+  r.hFree = bGray ? "target" : aGray ? "source" : null;
+  r.sFree = bBlack ? "target" : aBlack ? "source" : null;
+  r.dr = Math.round(b.rgb.r) - Math.round(a.rgb.r);
+  r.dg = Math.round(b.rgb.g) - Math.round(a.rgb.g);
+  r.db = Math.round(b.rgb.b) - Math.round(a.rgb.b);
+  // 確かめ算：色 1 に丸めた差を足して、色 2 と同じ 8 ビットの色になるか
+  var h = ah + r.dh, s = as + r.ds, v = av + r.dv;
+  if (r.hFree === "source") h = bh;
+  if (r.sFree === "source") s = bs;
+  var got = hsv2rgb(h, Math.max(0, Math.min(100, s)), Math.max(0, Math.min(100, v)));
+  r.check = toHex(got); r.target = toHex(b.rgb);
+  r.checkOff = Math.max(Math.abs(Math.round(got.r) - Math.round(b.rgb.r)), Math.abs(Math.round(got.g) - Math.round(b.rgb.g)), Math.abs(Math.round(got.b) - Math.round(b.rgb.b)));
+  return r;
+}
+
+/* ---------------- 表示 ---------------- */
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function fmtVal(v, d) { return round(v, d).toFixed(d); }
+function row(label, delta, unit, from, to, free) {
+  var val = free
+    ? '<span class="rrow__value free">' + esc(free) + '</span>'
+    : '<span class="rrow__value' + (delta.zero ? " zero" : "") + '" data-copy="' + esc(delta.copy) + '">' + esc(delta.text) + (unit ? '<span class="u">' + unit + '</span>' : "") + '</span>';
+  return '<div class="rrow"><span class="rrow__label">' + esc(label) + '<span class="rrow__from">' + esc(from) + ' → ' + esc(to) + '</span></span>' + val + '</div>';
+}
+function render() {
+  var r = compute(), a = S.a, b = S.b, d = S.prec ? 1 : 0, notes = [];
+  var dh = signed(r.dh, d), ds = signed(r.ds, d), dv = signed(r.dv, d);
+  var hFree = r.hFree === "target" ? T("f.hTarget") : r.hFree === "source" ? T("f.hSource").replace("{h}", fmtVal(b.hsv.h, d)) : null;
+  var sFree = r.sFree === "target" ? T("f.sTarget") : r.sFree === "source" ? T("f.sSource").replace("{s}", fmtVal(b.hsv.s, d)) : null;
+  if (!hFree && !dh.zero && Math.abs(round(r.dh, d)) > 0) {
+    var alt = r.dh > 0 ? r.dh - 360 : r.dh + 360;
+    notes.push(T("n.alt").replace("{v}", signed(alt, d).text + "°"));
+  }
+  if (r.hFree === "target") notes.push(T("n.grayB"));
+  else if (r.hFree === "source") notes.push(T("n.grayA"));
+  var hsvCopy = [hFree ? null : "H " + dh.copy, sFree ? null : "S " + ds.copy + "%", "V " + dv.copy + "%"].filter(Boolean).join(", ");
+  var hsvOk = r.checkOff === 0;
+  $("ro-hsv").innerHTML =
+    '<div class="readout__head"><span class="eyebrow">HSV</span></div>' +
+    row("H", dh, "°", fmtVal(a.hsv.h, d) + "°", fmtVal(b.hsv.h, d) + "°", hFree) +
+    row("S", ds, "%", fmtVal(a.hsv.s, d) + "%", fmtVal(b.hsv.s, d) + "%", sFree) +
+    row("V", dv, "%", fmtVal(a.hsv.v, d) + "%", fmtVal(b.hsv.v, d) + "%", null) +
+    '<div class="rnote">' + notes.map(esc).join("<br>") + '</div>' +
+    '<div class="rfoot"><span class="check"><span class="chipsw" style="background:' + r.check + '"></span>' +
+      '<span>' + esc(T("c.result")) + ' ' + r.check + '</span>' +
+      '<span class="' + (hsvOk ? "ok" : "off") + '">' + esc(hsvOk ? T("c.match") : T("c.off").replace("{n}", r.checkOff)) + '</span></span>' +
+      '<button class="btn btn--secondary" type="button" data-copy="' + esc(hsvCopy) + '">' + esc(T("t.copyAll")) + '</button></div>';
+  var dr = signed(r.dr, 0), dg = signed(r.dg, 0), db = signed(r.db, 0);
+  $("ro-rgb").innerHTML =
+    '<div class="readout__head"><span class="eyebrow">RGB</span><span class="eyebrow">0–255</span></div>' +
+    row("R", dr, "", String(Math.round(a.rgb.r)), String(Math.round(b.rgb.r))) +
+    row("G", dg, "", String(Math.round(a.rgb.g)), String(Math.round(b.rgb.g))) +
+    row("B", db, "", String(Math.round(a.rgb.b)), String(Math.round(b.rgb.b))) +
+    '<div class="rnote">' + esc(T("n.rgb")) + '</div>' +
+    '<div class="rfoot"><span class="check"><span class="chipsw" style="background:' + r.target + '"></span><span>' + esc(T("c.result")) + ' ' + r.target + '</span><span class="ok">' + esc(T("c.match")) + '</span></span>' +
+      '<button class="btn btn--secondary" type="button" data-copy="' + esc("R " + dr.copy + ", G " + dg.copy + ", B " + db.copy) + '">' + esc(T("t.copyAll")) + '</button></div>';
+}
+function update(key, skip) { if (key) fill(key, skip); render(); save(); }
+function refreshAll() {
+  fill("a"); fill("b");
+  document.querySelectorAll("#seg-prec button").forEach(function (b) { b.setAttribute("aria-pressed", String(+b.getAttribute("data-v") === S.prec)); });
+  ["a", "b"].forEach(function (k) { ["h", "s", "v"].forEach(function (c) { $(k + "-" + c).step = S.prec ? "0.1" : "1"; }); });
+  render();
+}
+
+/* ---------------- 文言 ---------------- */
+var EN = {
+  "t.title": "Color difference (HSV / RGB)",
+  "t.desc": "Set two colors to see how far to move H, S, V or R, G, B to turn the first into the second.",
+  "t.colorA": "Color 1 (from)", "t.colorB": "Color 2 (to)", "t.pick": "Click to pick", "t.eye": "Eyedropper",
+  "t.swap": "Swap colors", "t.copyAll": "Copy all", "t.options": "Display", "t.precision": "HSV precision",
+  "v.int": "Whole numbers", "v.dec1": "1 decimal place", "t.limits": "Good to know",
+  "f.hTarget": "Any value", "f.hSource": "Set to {h}°", "f.sTarget": "Any value", "f.sSource": "Set to {s}%",
+  "n.alt": "The other way round: {v}",
+  "n.grayA": "Color 1 is a gray (or black/white), so its hue has no effect: set H to the target value, then raise S.",
+  "n.grayB": "Color 2 is a gray (or black/white), so the hue doesn't matter: lower S to 0 (or V for black).",
+  "n.rgb": "R, G and B change independently, so these are always exact.",
+  "c.result": "Color 1 + these values =", "c.match": "matches color 2", "c.off": "{n} off in RGB: whole-number HSV can't hit this color exactly (1 decimal place matches)",
+  "l.add": "The values are amounts to add to the number fields of a color picker: S and V move in percentage points (40% → 54% is +14%), not by a ratio.",
+  "l.hue": "Hue goes round a circle, so the shorter way round is shown (within ±180°). The other way is shown underneath.",
+  "l.gray": "On a gray, black or white color the hue (and on black also the saturation) has no effect, so any value works.",
+  "l.one": "The result is exact for this one color. The same shift applied to a whole image moves other colors differently, and some will clip.",
+  "l.hsl": "HSV is not HSL: both call S “saturation”, but they are calculated differently, so check which one your software uses."
+};
+var JA = {
+  "t.title": "2色の差分（HSV・RGB）",
+  "t.desc": "2つの色を設定すると、1つ目の色を2つ目の色にするには H・S・V や R・G・B をそれぞれいくつ動かせばよいかを表示します。",
+  "t.colorA": "色1（元の色）", "t.colorB": "色2（目標の色）", "t.pick": "クリックで選ぶ", "t.eye": "スポイト",
+  "t.swap": "色を入れ替える", "t.copyAll": "まとめてコピー", "t.options": "表示", "t.precision": "HSV の桁数",
+  "v.int": "整数", "v.dec1": "小数第1位まで", "t.limits": "知っておきたいこと",
+  "f.hTarget": "どの値でもよい", "f.hSource": "{h}° に設定", "f.sTarget": "どの値でもよい", "f.sSource": "{s}% に設定",
+  "n.alt": "反対回りなら {v}",
+  "n.grayA": "色1は灰色（または黒・白）なので、色相が効いていません。H を目標の値に設定してから S を上げてください。",
+  "n.grayB": "色2は灰色（または黒・白）なので、色相はどの値でも同じです。S を 0 に（黒なら V を 0 に）してください。",
+  "n.rgb": "R・G・B はそれぞれ独立に動くので、常にこの値でぴったり一致します。",
+  "c.result": "色1 ＋ この値 ＝", "c.match": "色2と一致", "c.off": "RGB で {n} ずれ（整数の HSV ではこの色をぴったり表せないため。小数第1位にすると一致）",
+  "l.add": "表示する値は、カラーピッカーの数値欄に足す量です。S と V は割合ではなく目盛りの差で動きます（40% → 54% なら +14%）。",
+  "l.hue": "色相は円になっているので、近い方の回り方（±180° 以内）を表示します。反対回りの値はその下に出します。",
+  "l.gray": "灰色・黒・白では色相が（黒では彩度も）効かないので、どの値でも同じ色になります。",
+  "l.one": "答えが正確なのは、この1色についてだけです。同じ量を画像全体にかけると、他の色は違う動き方をし、上限・下限に張り付く色も出ます。",
+  "l.hsl": "HSV と HSL は別物です。どちらも S を「彩度」と呼びますが計算が違うので、使うソフトがどちらかを確かめてください。"
+};
+
+buildCard("a"); buildCard("b");
+$("swap").addEventListener("click", function () { var t = S.a; S.a = S.b; S.b = t; refreshAll(); save(); });
+$("seg-prec").addEventListener("click", function (e) {
+  var b = e.target.closest("button"); if (!b) return;
+  S.prec = +b.getAttribute("data-v"); refreshAll(); save();
+});
+Shell.init({ id: "color-delta", strings: { en: EN, ja: JA }, onSettingsChange: function () {
+  $("swap").setAttribute("aria-label", T("t.swap")); $("swap").title = T("t.swap"); refreshAll();
+} });
+refreshAll();
+})();
+</script>
+</body>
+</html>

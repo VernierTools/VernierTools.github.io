@@ -2126,6 +2126,36 @@
       "added": "2026-09-16"
     },
     {
+      "id": "color-delta",
+      "type": "web",
+      "path": "tools/color-delta/",
+      "categories": [
+        "image"
+      ],
+      "sub": "color",
+      "name": {
+        "en": "Color difference (HSV / RGB)",
+        "ja": "2色の差分（HSV・RGB）"
+      },
+      "description": {
+        "en": "How far to move H, S, V or R, G, B to turn one color into another.",
+        "ja": "ある色を別の色にするには HSV・RGB をいくつ動かせばよいかを表示。"
+      },
+      "keywords": [
+        "color difference",
+        "hsv",
+        "rgb",
+        "hue shift",
+        "delta",
+        "色差",
+        "差分",
+        "色相",
+        "彩度",
+        "明度"
+      ],
+      "added": "2026-10-17"
+    },
+    {
       "id": "ior-table",
       "type": "web",
       "path": "tools/ior-table/",
