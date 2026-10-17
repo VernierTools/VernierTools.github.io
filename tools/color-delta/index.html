@@ -38,6 +38,15 @@
   .hexrow .btn{ flex:none; height:38px; padding:0 12px; }
   .input.bad{ border-color:var(--neg); }
   .fields{ margin-top:var(--s4); display:flex; flex-direction:column; gap:var(--s4); }
+  /* Blender（0–1）の欄：一般の欄と分けて、まとまりで見せる */
+  .bl{ display:flex; flex-direction:column; gap:var(--s3); padding-top:var(--s4); border-top:1px solid var(--border); }
+  .bl__head{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2); }
+  .bl__head small{ font-size:11.5px; color:var(--text-3); }
+  .results .ro-wide{ grid-column:1 / -1; }
+  .ro-cols{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .ro-cols > div + div{ border-left:1px solid var(--border); }
+  .ro-cols .readout__head{ border-top:0; }
+  @media (max-width:760px){ .ro-cols{ grid-template-columns:minmax(0,1fr); } .ro-cols > div + div{ border-left:0; border-top:1px solid var(--border); } }
 
   /* 結果 */
   .results{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--s4); margin-bottom:var(--s5); }
@@ -84,6 +93,7 @@
   <div class="results">
     <div class="readout" id="ro-hsv"></div>
     <div class="readout" id="ro-rgb"></div>
+    <div class="readout ro-wide" id="ro-bl"></div>
   </div>
 
   <div class="card" style="margin-bottom:var(--s5)">
@@ -110,6 +120,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script>
 "use strict";
 /* =========================================================================
@@ -191,6 +202,15 @@ function buildCard(key) {
       return '<div><label class="label" for="' + p + c + '">' + c.toUpperCase() + '</label>' +
         '<input class="input" id="' + p + c + '" type="number" inputmode="numeric" min="0" max="255" step="1"></div>';
     }).join("") + '</div>' +
+    '<div class="bl"><div class="bl__head"><span class="eyebrow">Blender (0–1)</span><small data-i18n="t.blNote"></small></div>' +
+    '<div class="tri">' + ["bh", "bs", "bv"].map(function (c) {
+      return '<div><label class="label" for="' + p + c + '">' + c.slice(1).toUpperCase() + '</label>' +
+        '<input class="input" id="' + p + c + '" type="number" inputmode="decimal" min="0" max="1" step="0.001"></div>';
+    }).join("") + '</div>' +
+    '<div class="tri">' + ["lr", "lg", "lb"].map(function (c) {
+      return '<div><label class="label" for="' + p + c + '"><span data-i18n="t.lin' + c.slice(1).toUpperCase() + '"></span></label>' +
+        '<input class="input" id="' + p + c + '" type="number" inputmode="decimal" min="0" max="1" step="0.001"></div>';
+    }).join("") + '</div></div>' +
     '</div>';
 
   function num(id) { var v = parseFloat($(p + id).value); return isFinite(v) ? v : null; }
@@ -217,6 +237,22 @@ function buildCard(key) {
     });
     $(p + c).addEventListener("blur", function () { fill(key); });
   });
+  ["bh", "bs", "bv"].forEach(function (c) {
+    $(p + c).addEventListener("input", function () {
+      var h = num("bh"), s = num("bs"), v = num("bv"); if (h == null || s == null || v == null) return;
+      S[key] = fromHsv({ h: clamp(h, 0, 1) * 360 % 360, s: clamp(s, 0, 1) * 100, v: clamp(v, 0, 1) * 100 });
+      update(key, c);
+    });
+    $(p + c).addEventListener("blur", function () { fill(key); });
+  });
+  ["lr", "lg", "lb"].forEach(function (c) {
+    $(p + c).addEventListener("input", function () {
+      var r = num("lr"), g = num("lg"), b = num("lb"); if (r == null || g == null || b == null) return;
+      S[key] = fromRgb(BlenderColor.fromLinear(clamp(r, 0, 1), clamp(g, 0, 1), clamp(b, 0, 1)));
+      update(key, c);
+    });
+    $(p + c).addEventListener("blur", function () { fill(key); });
+  });
   if (EYE) $(p + "eye").addEventListener("click", function () {
     new EyeDropper().open().then(function (r) { S[key] = fromRgb(parseHex(r.sRGBHex)); update(key); }).catch(function () {});
   });
@@ -233,6 +269,14 @@ function fill(key, skip) {
   if (skip !== "s") $(p + "s").value = fmtIn(c.hsv.s, hd);
   if (skip !== "v") $(p + "v").value = fmtIn(c.hsv.v, hd);
   ["r", "g", "b"].forEach(function (k) { if (skip !== k) $(p + k).value = String(Math.round(c.rgb[k])); });
+  var bl = blOf(c);
+  ["bh", "bs", "bv"].forEach(function (k, i) { if (skip !== k) $(p + k).value = String(+BlenderColor.num(bl.hsv[i], i === 0)); });
+  ["lr", "lg", "lb"].forEach(function (k, i) { if (skip !== k) $(p + k).value = String(+BlenderColor.num(bl.lin[i])); });
+}
+// Blender の形（HSV は打ち込んだ値をそのまま 0–1 に、リニア RGB は sRGB から）
+function blOf(c) {
+  return { hsv: [c.hsv.h / 360, c.hsv.s / 100, c.hsv.v / 100],
+    lin: [BlenderColor.toLinear(c.rgb.r), BlenderColor.toLinear(c.rgb.g), BlenderColor.toLinear(c.rgb.b)] };
 }
 
 /* ---------------- 差の計算 ---------------- */
@@ -270,6 +314,15 @@ function compute() {
   if (r.sFree === "source") s = bs;
   var got = hsv2rgb(h, Math.max(0, Math.min(100, s)), Math.max(0, Math.min(100, v)));
   r.check = toHex(got); r.target = toHex(b.rgb);
+  // Blender（0–1）：小数 3 桁に丸めた値どうしの差
+  var A = blOf(a), Bc = blOf(b);
+  function r3(x) { return round(x, 3); }
+  r.bl = {
+    dh: r3(hueDelta(r3(A.hsv[0]) * 360, r3(Bc.hsv[0]) * 360) / 360),
+    ds: r3(r3(Bc.hsv[1]) - r3(A.hsv[1])), dv: r3(r3(Bc.hsv[2]) - r3(A.hsv[2])),
+    dr: r3(r3(Bc.lin[0]) - r3(A.lin[0])), dg: r3(r3(Bc.lin[1]) - r3(A.lin[1])), db: r3(r3(Bc.lin[2]) - r3(A.lin[2])),
+    a: A, b: Bc
+  };
   r.checkOff = Math.max(Math.abs(Math.round(got.r) - Math.round(b.rgb.r)), Math.abs(Math.round(got.g) - Math.round(b.rgb.g)), Math.abs(Math.round(got.b) - Math.round(b.rgb.b)));
   return r;
 }
@@ -315,6 +368,30 @@ function render() {
     '<div class="rnote">' + esc(T("n.rgb")) + '</div>' +
     '<div class="rfoot"><span class="check"><span class="chipsw" style="background:' + r.target + '"></span><span>' + esc(T("c.result")) + ' ' + r.target + '</span><span class="ok">' + esc(T("c.match")) + '</span></span>' +
       '<button class="btn btn--secondary" type="button" data-copy="' + esc("R " + dr.copy + ", G " + dg.copy + ", B " + db.copy) + '">' + esc(T("t.copyAll")) + '</button></div>';
+
+  // Blender（0–1）
+  var B = r.bl, n3 = BlenderColor.num;
+  var bh = signed(B.dh, 3), bs = signed(B.ds, 3), bv = signed(B.dv, 3);
+  var lr = signed(B.dr, 3), lg = signed(B.dg, 3), lb = signed(B.db, 3);
+  var bhFree = r.hFree === "target" ? T("f.hTarget") : r.hFree === "source" ? T("f.hSource01").replace("{h}", n3(B.b.hsv[0], true)) : null;
+  var bsFree = r.sFree === "target" ? T("f.sTarget") : r.sFree === "source" ? T("f.hSource01").replace("{h}", n3(B.b.hsv[1])) : null;
+  var bCopy = [bhFree ? null : "H " + bh.copy, bsFree ? null : "S " + bs.copy, "V " + bv.copy].filter(Boolean).join(", ");
+  $("ro-bl").innerHTML =
+    '<div class="readout__head"><span class="eyebrow">Blender (0–1)</span><span class="eyebrow" data-i18n="t.blHead">' + esc(T("t.blHead")) + '</span></div>' +
+    '<div class="ro-cols"><div>' +
+      '<div class="readout__head"><span class="eyebrow">HSV</span></div>' +
+      row("H", bh, "", n3(B.a.hsv[0], true), n3(B.b.hsv[0], true), bhFree) +
+      row("S", bs, "", n3(B.a.hsv[1]), n3(B.b.hsv[1]), bsFree) +
+      row("V", bv, "", n3(B.a.hsv[2]), n3(B.b.hsv[2]), null) +
+      '<div class="rfoot"><span class="check"></span><button class="btn btn--secondary" type="button" data-copy="' + esc(bCopy) + '">' + esc(T("t.copyAll")) + '</button></div>' +
+    '</div><div>' +
+      '<div class="readout__head"><span class="eyebrow" data-i18n="t.linRgb">' + esc(T("t.linRgb")) + '</span></div>' +
+      row("R", lr, "", n3(B.a.lin[0]), n3(B.b.lin[0])) +
+      row("G", lg, "", n3(B.a.lin[1]), n3(B.b.lin[1])) +
+      row("B", lb, "", n3(B.a.lin[2]), n3(B.b.lin[2])) +
+      '<div class="rfoot"><span class="check"></span><button class="btn btn--secondary" type="button" data-copy="' + esc("R " + lr.copy + ", G " + lg.copy + ", B " + lb.copy) + '">' + esc(T("t.copyAll")) + '</button></div>' +
+    '</div></div>' +
+    '<div class="rnote">' + esc(T("n.bl")) + '</div>';
 }
 function update(key, skip) { if (key) fill(key, skip); render(); save(); }
 function refreshAll() {
@@ -337,6 +414,9 @@ var EN = {
   "n.grayB": "Color 2 is a gray (or black/white), so the hue doesn't matter: lower S to 0 (or V for black).",
   "n.rgb": "R, G and B change independently, so these are always exact.",
   "c.result": "Color 1 + these values =", "c.match": "matches color 2", "c.off": "{n} off in RGB: whole-number HSV can't hit this color exactly (1 decimal place matches)",
+  "t.blNote": "Same as Blender's color picker", "t.blHead": "Color picker values", "t.linRgb": "Linear RGB",
+  "t.linR": "R (linear)", "t.linG": "G (linear)", "t.linB": "B (linear)", "f.hSource01": "Set to {h}",
+  "n.bl": "Blender shows H, S and V from 0 to 1, and its RGB fields hold linear values (the sRGB curve removed), so they don't match RGB ÷ 255. Its Hex field is the same as here.",
   "l.add": "The values are amounts to add to the number fields of a color picker: S and V move in percentage points (40% → 54% is +14%), not by a ratio.",
   "l.hue": "Hue goes round a circle, so the shorter way round is shown (within ±180°). The other way is shown underneath.",
   "l.gray": "On a gray, black or white color the hue (and on black also the saturation) has no effect, so any value works.",
@@ -355,6 +435,9 @@ var JA = {
   "n.grayB": "色2は灰色（または黒・白）なので、色相はどの値でも同じです。S を 0 に（黒なら V を 0 に）してください。",
   "n.rgb": "R・G・B はそれぞれ独立に動くので、常にこの値でぴったり一致します。",
   "c.result": "色1 ＋ この値 ＝", "c.match": "色2と一致", "c.off": "RGB で {n} ずれ（整数の HSV ではこの色をぴったり表せないため。小数第1位にすると一致）",
+  "t.blNote": "Blender のカラーピッカーと同じ値", "t.blHead": "カラーピッカーの値", "t.linRgb": "リニア RGB",
+  "t.linR": "R（リニア）", "t.linG": "G（リニア）", "t.linB": "B（リニア）", "f.hSource01": "{h} に設定",
+  "n.bl": "Blender は H・S・V を 0〜1 で表し、RGB の欄はリニア（sRGB のカーブを外した値）なので、RGB ÷ 255 とは一致しません。Hex の欄はここの HEX と同じです。",
   "l.add": "表示する値は、カラーピッカーの数値欄に足す量です。S と V は割合ではなく目盛りの差で動きます（40% → 54% なら +14%）。",
   "l.hue": "色相は円になっているので、近い方の回り方（±180° 以内）を表示します。反対回りの値はその下に出します。",
   "l.gray": "灰色・黒・白では色相が（黒では彩度も）効かないので、どの値でも同じ色になります。",

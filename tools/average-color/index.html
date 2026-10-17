@@ -40,6 +40,9 @@
     align-items:center; padding:var(--s3) 0; }
   .value-row + .value-row{ border-top:1px solid var(--border); }
   .value-rows{ margin-top:var(--s2); }
+  .bl-head{ font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3);
+    padding:var(--s3) 0 var(--s1); margin-top:var(--s2); border-top:1px solid var(--border); }
+  .bl-head + .value-row{ border-top:0; }
   .value-label{ font-size:11px; font-weight:600; letter-spacing:.05em; color:var(--text-3); }
   .value-code{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px;
     color:var(--text); overflow-wrap:anywhere; cursor:pointer; }
@@ -113,6 +116,9 @@
           <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="mean-hex">—</span><button class="copy-btn" data-copy-target="mean-hex" type="button" data-i18n="t.copy">Copy</button></div>
           <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="mean-rgb">—</span><button class="copy-btn" data-copy-target="mean-rgb" type="button" data-i18n="t.copy">Copy</button></div>
           <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="mean-hsv">—</span><button class="copy-btn" data-copy-target="mean-hsv" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="bl-head" data-i18n="t.blHead">Blender (0–1, linear RGB)</div>
+          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="mean-bhsv">—</span><button class="copy-btn" data-copy-target="mean-bhsv" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="mean-blin">—</span><button class="copy-btn" data-copy-target="mean-blin" type="button" data-i18n="t.copy">Copy</button></div>
         </div>
       </section>
 
@@ -128,6 +134,9 @@
           <div class="value-row"><span class="value-label">HEX</span><span class="value-code" id="median-hex">—</span><button class="copy-btn" data-copy-target="median-hex" type="button" data-i18n="t.copy">Copy</button></div>
           <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="median-rgb">—</span><button class="copy-btn" data-copy-target="median-rgb" type="button" data-i18n="t.copy">Copy</button></div>
           <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="median-hsv">—</span><button class="copy-btn" data-copy-target="median-hsv" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="bl-head" data-i18n="t.blHead">Blender (0–1, linear RGB)</div>
+          <div class="value-row"><span class="value-label">HSV</span><span class="value-code" id="median-bhsv">—</span><button class="copy-btn" data-copy-target="median-bhsv" type="button" data-i18n="t.copy">Copy</button></div>
+          <div class="value-row"><span class="value-label">RGB</span><span class="value-code" id="median-blin">—</span><button class="copy-btn" data-copy-target="median-blin" type="button" data-i18n="t.copy">Copy</button></div>
         </div>
       </section>
 
@@ -139,6 +148,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script src="../../shared/filedrop.js"></script>
 <script>
 (function(){
@@ -153,7 +163,7 @@
       "t.choose":"Choose image",
       "t.change":"Change image",
       "t.clear":"Clear",
-      "t.pixels":"Pixels",
+      "t.pixels":"Pixels", "t.blHead":"Blender (0–1, linear RGB)",
       "t.approx":"Sampled (large image)",
       "t.empty":"Load an image to see its average and median color.",
       "t.note":"The median is taken independently for R, G and B, then converted to HEX and HSV. Fully transparent pixels are ignored. Click a value to copy it.",
@@ -174,7 +184,7 @@
       "t.choose":"画像を選択",
       "t.change":"画像を変更",
       "t.clear":"クリア",
-      "t.pixels":"ピクセル数",
+      "t.pixels":"ピクセル数", "t.blHead":"Blender（0〜1・RGB はリニア）",
       "t.approx":"間引き解析（大きい画像）",
       "t.empty":"画像を読み込むと、平均色と中央値の色を表示します。",
       "t.note":"中央値はR・G・Bをそれぞれ個別に求め、そのRGB値をHEX／HSVへ変換します。完全に透明なピクセルは除外します。値をクリックするとコピーできます。",
@@ -314,6 +324,11 @@
     setValue(prefix+"-hex", hex, hex);
     setValue(prefix+"-rgb", rgb.display, rgb.copy);
     setValue(prefix+"-hsv", hsv.display, hsv.copy);
+    // Blender のカラーピッカーと同じ値（H・S・V は 0–1、RGB はリニア）。HEX と同じ 8 ビットの色から求める
+    var bl=BlenderColor.of(Math.round(c.r), Math.round(c.g), Math.round(c.b));
+    var bh=BlenderColor.text(bl.hsv, true), blin=BlenderColor.text(bl.lin);
+    setValue(prefix+"-bhsv", bh, bh);
+    setValue(prefix+"-blin", blin, blin);
   }
 
   /* ---------- 読み込み ---------- */

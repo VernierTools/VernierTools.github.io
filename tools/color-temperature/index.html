@@ -175,6 +175,10 @@
           <span class="rrow__label" data-i18n="t.hex">HEX</span>
           <span class="rrow__value" id="cur-hex" data-copy=""></span>
         </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.blLin">Linear RGB (Blender)</span>
+          <span class="rrow__value" id="cur-lin" data-copy=""></span>
+        </div>
         <div style="padding:var(--s4)">
           <button class="btn btn--primary btn--block" id="pin-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -202,6 +206,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script>
 "use strict";
 (function () {
@@ -285,6 +290,9 @@
     curK.setAttribute("data-copy", String(kelvin));
     curRGB.textContent = rgbText(c); curRGB.setAttribute("data-copy", rgbText(c));
     curHex.textContent = toHex(c);   curHex.setAttribute("data-copy", toHex(c));
+    // Blender の RGB 欄（リニア 0–1）に入れる値
+    var lin = BlenderColor.text(BlenderColor.of(c.r, c.g, c.b).lin);
+    $("cur-lin").textContent = lin; $("cur-lin").setAttribute("data-copy", lin);
     pinBtn.disabled = pins.length >= MAX_PINS;
   }
 
@@ -392,7 +400,7 @@
         "t.kelvin": "Color temperature", "t.fine": "Fine adjust", "t.presets": "Presets",
         "t.reset": "Reset to 5500K", "t.add": "Pin for comparison", "t.clear": "Clear all",
         "t.current": "Current", "t.liveupd": "Live", "t.output": "Comparison",
-        "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "Remove", "t.load": "Load this temperature",
+        "t.rgb": "RGB", "t.hex": "HEX", "t.blLin": "Linear RGB (Blender)", "t.remove": "Remove", "t.load": "Load this temperature",
         "t.custom": "Custom", "t.empty": "Nothing pinned yet — pin a temperature to compare.",
         "t.hint": "The preview updates as you drag. Pin a temperature to keep it for side-by-side comparison.",
         "t.copyhint": "Click any value to copy.",
@@ -408,7 +416,7 @@
         "t.kelvin": "色温度", "t.fine": "微調整", "t.presets": "プリセット",
         "t.reset": "5500Kに戻す", "t.add": "比較にピン留め", "t.clear": "すべて消す",
         "t.current": "現在値", "t.liveupd": "リアルタイム", "t.output": "比較",
-        "t.rgb": "RGB", "t.hex": "HEX", "t.remove": "削除", "t.load": "この色温度を読み込む",
+        "t.rgb": "RGB", "t.hex": "HEX", "t.blLin": "リニアRGB（Blender）", "t.remove": "削除", "t.load": "この色温度を読み込む",
         "t.custom": "カスタム", "t.empty": "まだ何もピン留めされていません。色温度を追加すると比較できます。",
         "t.hint": "ドラッグ中もプレビューがリアルタイムに更新されます。ピン留めすると並べて比較できます。",
         "t.copyhint": "数値をクリックでコピー。",

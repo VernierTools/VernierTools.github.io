@@ -146,11 +146,20 @@
         <div class="rrow"><span class="rrow__label" data-i18n="t.hsl">HSL</span><span class="rrow__value mono" id="out-hsl" data-copy="">hsl(0, 79.9%, 58.2%)</span></div>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
       </div>
+
+      <div class="readout mixreadout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow">Blender (0–1)</span><span class="eyebrow" data-i18n="t.blHead">Color picker values</span></div>
+        <div class="rrow"><span class="rrow__label">HSV</span><span class="rrow__value mono" id="out-bhsv" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">HSL</span><span class="rrow__value mono" id="out-bhsl" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.linear">Linear RGB</span><span class="rrow__value mono" id="out-blin" data-copy=""></span></div>
+        <div class="copyhint" data-i18n="t.blNote">Blender's RGB fields hold linear values, so they don't match RGB ÷ 255. Its Hex field matches the HEX above.</div>
+      </div>
     </div>
   </div>
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script src="spectral.js"></script>
 <script>
 "use strict";
@@ -267,6 +276,11 @@
     outRgb.textContent = rgbDisplay; outRgb.setAttribute("data-copy", mixed.r + ", " + mixed.g + ", " + mixed.b);
     var hslDisplay = "hsl(" + hsl.h + "\u00B0, " + hsl.s.toFixed(1) + "%, " + hsl.l.toFixed(1) + "%)";
     outHsl.textContent = hslDisplay; outHsl.setAttribute("data-copy", hsl.h + ", " + hsl.s.toFixed(1) + ", " + hsl.l.toFixed(1));
+    // Blender のカラーピッカーと同じ値（H・S・V・L は 0–1、RGB はリニア）
+    var bl = BlenderColor.of(mixed.r, mixed.g, mixed.b);
+    [["out-bhsv", BlenderColor.text(bl.hsv, true)], ["out-bhsl", BlenderColor.text(bl.hsl, true)], ["out-blin", BlenderColor.text(bl.lin)]].forEach(function (p) {
+      var el = $(p[0]); el.textContent = p[1]; el.setAttribute("data-copy", p[1]);
+    });
   }
 
   // ---- 行・比率バーの再構築（色の追加/削除・言語切替のときだけ呼ぶ） ----
@@ -413,6 +427,7 @@
           "t.hex": "HEX",
           "t.rgb": "RGB",
           "t.hsl": "HSL",
+          "t.linear": "Linear RGB", "t.blHead": "Color picker values", "t.blNote": "Blender's RGB fields hold linear values, so they don't match RGB ÷ 255. Its Hex field matches the HEX above.",
           "t.copyhint": "Click any value to copy.",
           "t.ratio": "Proportion"
         },
@@ -438,6 +453,7 @@
           "t.hex": "HEX",
           "t.rgb": "RGB",
           "t.hsl": "HSL",
+          "t.linear": "リニアRGB", "t.blHead": "カラーピッカーの値", "t.blNote": "Blender の RGB の欄はリニアの値なので、RGB ÷ 255 とは一致しません。Hex の欄は上の HEX と同じです。",
           "t.copyhint": "数値をクリックでコピー。",
           "t.ratio": "割合"
         }

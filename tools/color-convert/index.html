@@ -89,12 +89,19 @@
         <div class="rrow"><span class="rrow__label">HSL</span><span class="rrow__value small" id="ro-hsl" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">HSV</span><span class="rrow__value small" id="ro-hsv" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">CMYK</span><span class="rrow__value small" id="ro-cmyk" data-copy=""></span></div>
-        <div class="rrow"><span class="rrow__label" data-i18n="t.linear">Linear RGB</span><span class="rrow__value small" id="ro-linear" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">Lab</span><span class="rrow__value small" id="ro-lab" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">LCH</span><span class="rrow__value small" id="ro-lch" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">OKLab</span><span class="rrow__value small" id="ro-oklab" data-copy=""></span></div>
         <div class="rrow"><span class="rrow__label">OKLCH</span><span class="rrow__value small" id="ro-oklch" data-copy=""></span></div>
         <div class="copyhint" data-i18n="t.copyhint">Click any value to copy — ready to paste as-is, no function wrapper.</div>
+      </div>
+
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow">Blender (0–1)</span><span class="eyebrow" data-i18n="t.blHead">Color picker values</span></div>
+        <div class="rrow"><span class="rrow__label">HSV</span><span class="rrow__value small" id="ro-hsv01" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label">HSL</span><span class="rrow__value small" id="ro-hsl01" data-copy=""></span></div>
+        <div class="rrow"><span class="rrow__label" data-i18n="t.linear">Linear RGB</span><span class="rrow__value small" id="ro-linear" data-copy=""></span></div>
+        <div class="copyhint" data-i18n="t.blNote">Blender shows H, S, V and L from 0 to 1. Its RGB fields hold linear values, so they don't match RGB ÷ 255; its Hex field matches the HEX above.</div>
       </div>
 
       <div class="readout" style="margin-top:var(--s4)">
@@ -108,6 +115,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script>
 "use strict";
 (function () {
@@ -288,8 +296,25 @@
       channels: [{ key: "r", label: "R", min: 0, max: 1, step: 0.001 }, { key: "g", label: "G", min: 0, max: 1, step: 0.001 }, { key: "b", label: "B", min: 0, max: 1, step: 0.001 }],
       fromRgb: function (r, g, b) { return rgbToLinear(r, g, b); },
       toRgb: function (v) { return linearToRgb(v); },
-      core: function (v) { return round(v.r, 3) + ", " + round(v.g, 3) + ", " + round(v.b, 3); },
+      core: function (v) { return BlenderColor.text([v.r, v.g, v.b]); },   // Blender の RGB 欄と同じ小数 3 桁
       example: "0.375, 0.788, 0.489",
+      alphaStyle: "dec"
+    },
+    // Blender のカラーピッカーと同じ 0–1 の HSV・HSL（BlenderColor で変換）
+    hsv01: {
+      channels: [{ key: "h", label: "H", min: 0, max: 1, step: 0.001 }, { key: "s", label: "S", min: 0, max: 1, step: 0.001 }, { key: "v", label: "V", min: 0, max: 1, step: 0.001 }],
+      fromRgb: function (r, g, b) { var c = BlenderColor.of(r, g, b).hsv; return { h: c[0], s: c[1], v: c[2] }; },
+      toRgb: function (v) { return BlenderColor.fromHsv(v.h, v.s, v.v); },
+      core: function (v) { return BlenderColor.text([v.h, v.s, v.v], true); },
+      example: "0.642, 0.450, 0.910",
+      alphaStyle: "dec"
+    },
+    hsl01: {
+      channels: [{ key: "h", label: "H", min: 0, max: 1, step: 0.001 }, { key: "s", label: "S", min: 0, max: 1, step: 0.001 }, { key: "l", label: "L", min: 0, max: 1, step: 0.001 }],
+      fromRgb: function (r, g, b) { var c = BlenderColor.of(r, g, b).hsl; return { h: c[0], s: c[1], l: c[2] }; },
+      toRgb: function (v) { return BlenderColor.fromHsl(v.h, v.s, v.l); },
+      core: function (v) { return BlenderColor.text([v.h, v.s, v.l], true); },
+      example: "0.642, 0.450, 0.620",
       alphaStyle: "dec"
     },
     lab: {
@@ -321,9 +346,9 @@
       example: "86.3%, 0.108, 146.8"
     }
   };
-  var FMT_ORDER = ["hex", "rgb", "hsl", "hsv", "cmyk", "linear", "lab", "lch", "oklab", "oklch"];
+  var FMT_ORDER = ["hex", "rgb", "hsl", "hsv", "cmyk", "linear", "hsv01", "hsl01", "lab", "lch", "oklab", "oklch"];
   var FMT_LABEL = { hex: "HEX", rgb: "RGB", hsl: "HSL", hsv: "HSV", cmyk: "CMYK", lab: "Lab", lch: "LCH", oklab: "OKLab", oklch: "OKLCH" };
-  function fmtLabel(id) { return id === "linear" ? Shell.t("t.linear") : FMT_LABEL[id]; }
+  function fmtLabel(id) { return id === "linear" ? Shell.t("t.linear") : id === "hsv01" ? Shell.t("t.hsv01") : id === "hsl01" ? Shell.t("t.hsl01") : FMT_LABEL[id]; }
   function alphaSuffix(id, a) {
     if (a >= 1) return "";
     var f = FORMATS[id];
@@ -477,6 +502,8 @@
         "t.randomize": "Randomize", "t.reset": "Reset",
         "t.output": "Output", "t.copyhint": "Click any value to copy — ready to paste as-is, no function wrapper.",
         "t.linear": "Linear RGB",
+        "t.hsv01": "HSV (Blender, 0–1)", "t.hsl01": "HSL (Blender, 0–1)", "t.blHead": "Color picker values",
+        "t.blNote": "Blender shows H, S, V and L from 0 to 1. Its RGB fields hold linear values, so they don't match RGB ÷ 255; its Hex field matches the HEX above.",
         "t.contrast": "Contrast as background",
         "t.whitetext": "White text", "t.blacktext": "Black text",
         "t.alphanote": "Ratios above assume the color is fully opaque. With alpha under 100%, real contrast depends on what's behind it."
@@ -488,6 +515,8 @@
         "t.randomize": "ランダム", "t.reset": "リセット",
         "t.output": "出力", "t.copyhint": "数値をクリックでコピー。関数名なしでそのまま貼り付けられます。",
         "t.linear": "リニアRGB",
+        "t.hsv01": "HSV（Blender・0〜1）", "t.hsl01": "HSL（Blender・0〜1）", "t.blHead": "カラーピッカーの値",
+        "t.blNote": "Blender は H・S・V・L を 0〜1 で表します。RGB の欄はリニアの値なので RGB ÷ 255 とは一致しません。Hex の欄は上の HEX と同じです。",
         "t.contrast": "背景として使ったときのコントラスト",
         "t.whitetext": "白文字", "t.blacktext": "黒文字",
         "t.alphanote": "上記は不透明の場合の値です。アルファが100%未満のときは、背後の色によって実際のコントラストが変わります。"

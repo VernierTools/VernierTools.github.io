@@ -69,6 +69,10 @@
   .sel-sub{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:11.5px;
     color:var(--text-2); line-height:1.65; margin-top:2px; }
   .sel-sub .k{ color:var(--text-3); display:inline-block; width:30px; }
+  /* Blender（0–1）：H・S・V・L は 0–1、RGB はリニア（Blender の RGB 欄と同じ値） */
+  .bl-vals{ margin-top:var(--s3); padding-top:var(--s3); border-top:1px solid var(--border); }
+  .bl-head{ font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3); margin-bottom:4px; }
+  .bl-lin{ font-family:var(--font-sans, inherit); font-size:10.5px; color:var(--text-3); }
   .sel-sub .v{ cursor:pointer; border-radius:var(--r-sm); }
   .sel-hex:hover,.sel-sub .v:hover{ color:var(--accent); }
   .sel-hex:focus-visible,.sel-sub .v:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
@@ -185,6 +189,14 @@
               </div>
             </div>
           </div>
+          <div class="bl-vals">
+            <div class="bl-head">Blender (0–1)</div>
+            <div class="sel-sub">
+              <span class="k">HSV</span> <span class="v bhsv-el" tabindex="0" role="button" data-copy="">—</span><br>
+              <span class="k">HSL</span> <span class="v bhsl-el" tabindex="0" role="button" data-copy="">—</span><br>
+              <span class="k">RGB</span> <span class="v blin-el" tabindex="0" role="button" data-copy="">—</span> <span class="bl-lin" data-i18n="t.linear">linear</span>
+            </div>
+          </div>
           <div class="copyhint" data-i18n="t.copyhint">Tap any value to copy.</div>
           </div>
         </div>
@@ -257,6 +269,14 @@
               </div>
             </div>
           </div>
+          <div class="bl-vals">
+            <div class="bl-head">Blender (0–1)</div>
+            <div class="sel-sub">
+              <span class="k">HSV</span> <span class="v bhsv-el" tabindex="0" role="button" data-copy="">—</span><br>
+              <span class="k">HSL</span> <span class="v bhsl-el" tabindex="0" role="button" data-copy="">—</span><br>
+              <span class="k">RGB</span> <span class="v blin-el" tabindex="0" role="button" data-copy="">—</span> <span class="bl-lin" data-i18n="t.linear">linear</span>
+            </div>
+          </div>
           <div class="copyhint" data-i18n="t.copyhint">Tap any value to copy.</div>
           </div>
         </div>
@@ -309,6 +329,7 @@
 </main>
 
 <script src="../../shared/shell.js"></script>
+<script src="../../shared/blendercolor.js"></script>
 <script src="../../shared/filedrop.js"></script>
 <script>
 "use strict";
@@ -340,6 +361,7 @@
     var hintEl = q(".eye-hint-el"), dropEl = q(".eye-drop-el"), frozenEl = q(".eye-frozen-el");
     var stPos = q(".st-pos"), stSampled = q(".st-sampled"), stZoom = q(".st-zoom");
     var swatchEl = q(".swatch-el"), hexEl = q(".hex-el"), rgbEl = q(".rgb-el"), hsvEl = q(".hsv-el"), hslEl = q(".hsl-el");
+    var bhsvEl = q(".bhsv-el"), bhslEl = q(".bhsl-el"), blinEl = q(".blin-el");
     var tgTrail = q(".tg-trail"), tgDens = q(".tg-density"), slTrail = q(".sl-trail"), tlVal = q(".tl-val"), slDens = q(".sl-dens"), dsVal = q(".ds-val");
     var fileIn = q(".file-in"), btFit = q(".bt-fit"), btSel = q(".bt-sel"), btClearSel = q(".bt-clearsel"), btClearTrail = q(".bt-cleartrail"), hintOpen = q(".hint-open");
     var btZin = q(".bt-zin"), btZout = q(".bt-zout");
@@ -433,7 +455,7 @@
     }
 
     function updateReadout(col) {
-      if (!col) { swatchEl.style.background = "var(--surface-2)"; [hexEl, rgbEl, hsvEl, hslEl].forEach(function (el) { el.textContent = "—"; el.setAttribute("data-copy", ""); }); return; }
+      if (!col) { swatchEl.style.background = "var(--surface-2)"; [hexEl, rgbEl, hsvEl, hslEl, bhsvEl, bhslEl, blinEl].forEach(function (el) { el.textContent = "—"; el.setAttribute("data-copy", ""); }); return; }
       var hex = rgbToHex(col.r, col.g, col.b), Hr = Math.round(col.h) % 360, Sr = Math.round(col.s), Vr = Math.round(col.v), hsl = hsvToHsl(col.h, col.s, col.v);
       swatchEl.style.background = hex;
       var sRgb = col.r + ", " + col.g + ", " + col.b, sHsv = Hr + ", " + Sr + "%, " + Vr + "%", sHsl = Hr + ", " + Math.round(hsl.s) + "%, " + Math.round(hsl.l) + "%";
@@ -441,6 +463,10 @@
       rgbEl.textContent = sRgb; rgbEl.setAttribute("data-copy", sRgb);
       hsvEl.textContent = sHsv; hsvEl.setAttribute("data-copy", sHsv);
       hslEl.textContent = sHsl; hslEl.setAttribute("data-copy", sHsl);
+      var bl = BlenderColor.of(col.r, col.g, col.b);
+      [[bhsvEl, BlenderColor.text(bl.hsv, true)], [bhslEl, BlenderColor.text(bl.hsl, true)], [blinEl, BlenderColor.text(bl.lin)]].forEach(function (p) {
+        p[0].textContent = p[1]; p[0].setAttribute("data-copy", p[1]);
+      });
     }
 
     function drawDist() {
@@ -687,7 +713,7 @@
           "t.desc": "Sample colors from an image with an eyedropper and read them as HEX, RGB, HSV or HSL. Compare two images' HSV distributions side by side.",
           "t.open": "Open image", "t.fit": "Fit", "t.select": "Select area", "t.clearsel": "Clear area", "t.cleartrail": "Clear trail",
           "t.addcompare": "Add comparison", "t.singleview": "Single view",
-          "t.selcolor": "Selected color", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "Tap any value to copy.",
+          "t.selcolor": "Selected color", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.linear": "linear", "t.copyhint": "Tap any value to copy.",
           "t.dist": "HSV distribution", "t.trail": "Trail", "t.density": "Density heatmap", "t.traillen": "Trail length", "t.densitystr": "Heatmap strength",
           "t.hinttitle": "Drop an image here", "t.hintdesc": "Drag & drop, paste, or open a file. Everything stays on your device.",
           "t.drop": "Drop image here", "t.frozen": "Frozen",
@@ -705,7 +731,7 @@
           "t.desc": "画像からスポイトで色を抽出し、HEX・RGB・HSV・HSL で表示します。2枚の画像のHSV分布を並べて比較することもできます。",
           "t.open": "画像を開く", "t.fit": "全体表示", "t.select": "範囲選択", "t.clearsel": "範囲クリア", "t.cleartrail": "軌跡クリア",
           "t.addcompare": "比較を追加", "t.singleview": "単一表示に戻す",
-          "t.selcolor": "抽出した色", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.copyhint": "数値をタップでコピー。",
+          "t.selcolor": "抽出した色", "t.rgb": "RGB", "t.hsv": "HSV", "t.hsl": "HSL", "t.linear": "リニア", "t.copyhint": "数値をタップでコピー。",
           "t.dist": "HSV分布", "t.trail": "軌跡", "t.density": "密度ヒートマップ", "t.traillen": "軌跡の長さ", "t.densitystr": "ヒートマップの強さ",
           "t.hinttitle": "ここに画像をドロップ", "t.hintdesc": "ドラッグ&ドロップ・貼り付け・ファイルを開く。すべて端末内で処理されます。",
           "t.drop": "画像をドロップ", "t.frozen": "固定中",
