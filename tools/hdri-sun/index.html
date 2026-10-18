@@ -29,6 +29,11 @@
   .progress{ height:4px; border-radius:100px; background:var(--border); overflow:hidden; margin-top:var(--s3); }
   .progress > div{ height:100%; width:0; background:var(--accent); transition:width .15s; }
   .loadmsg{ font-size:12.5px; color:var(--text-2); margin-top:var(--s2); }
+  /* 別の HDRI を読み込んでいる間は、今のプレビューを暗くして、その上に進み具合を出す */
+  .busy{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.55); cursor:progress; }
+  .busy[hidden]{ display:none; }
+  .busy > div{ width:min(320px, 80%); background:var(--surface); border-radius:var(--r); padding:var(--s3) var(--s4); box-shadow:var(--shadow-md); }
+  .busy .loadmsg{ margin-top:0; }
   @media (max-width:760px){ .pin__view .stagebar, .pin__view .stagehint{ display:none; } }
 
   .badges .badge{ max-width:100%; }
@@ -99,7 +104,9 @@
       <div class="stage" id="stage">
         <canvas id="cv"></canvas>
         <svg id="ov" viewBox="0 0 1000 500" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="busy" id="busy" hidden><div id="busyin"></div></div>
       </div>
+      <div id="errslot"></div>
       <div id="fileinfo" hidden></div>
       <button class="btn" id="another" type="button"></button>
       <div class="stagebar">
@@ -196,8 +203,11 @@ function save() { try { localStorage.setItem("hs.state", JSON.stringify({ rot: S
 /* ---------------- 読み込み ---------------- */
 var worker = null, fd;
 function load(file) {
+  // 1 枚目は読み込み欄の中、2 枚目からはプレビューの上に進み具合とエラーを出す
+  if (img) { $("busyin").appendChild($("loading")); $("errslot").appendChild($("loaderr")); }
+  else { $("loadcard").appendChild($("loading")); $("loadcard").appendChild($("loaderr")); }
   $("loaderr").hidden = true;
-  $("loading").hidden = false; $("loadbar").style.width = "0%";
+  $("loading").hidden = false; $("busy").hidden = !img; $("loadbar").style.width = "0%";
   $("loadmsg").textContent = T("t.reading");
   file.arrayBuffer().then(function (buf) {
     if (worker) worker.terminate();
@@ -206,13 +216,23 @@ function load(file) {
       var m = ev.data;
       if (m.type === "progress") { $("loadbar").style.width = Math.round(m.value * 100) + "%"; $("loadmsg").textContent = T("t.decoding").replace("{p}", Math.round(m.value * 100)); return; }
       worker.terminate(); worker = null;
-      $("loading").hidden = true;
-      if (m.type === "error") { showErr(T("t.err") + " " + m.message); return; }
+      $("loading").hidden = true; $("busy").hidden = true;
+      if (m.type === "error") { showErr(T("t.err") + " " + reason(m.message)); return; }
       m.file = file; setImage(m);
     };
-    worker.onerror = function (e) { $("loading").hidden = true; showErr(T("t.err") + " " + (e.message || "")); };
+    worker.onerror = function (e) { $("loading").hidden = true; $("busy").hidden = true; showErr(T("t.err") + " " + (e.message || "")); };
     worker.postMessage({ buffer: buf, maxW: 2048 }, [buf]);
-  }).catch(function (e) { $("loading").hidden = true; showErr(T("t.err") + " " + e.message); });
+  }).catch(function (e) { $("loading").hidden = true; $("busy").hidden = true; showErr(T("t.err") + " " + e.message); });
+}
+// 読み込めなかった理由を、よくあるものは表示中の言語に言い換える
+function reason(msg) {
+  var m;
+  if (/damaged or incomplete|truncated|corrupt/i.test(msg)) return T("r.damaged");
+  if ((m = msg.match(/EXR compression (\S+) is not supported/))) return T("r.comp").replace("{c}", m[1]);
+  if (/Tiled EXR/.test(msg)) return T("r.tiled");
+  if (/Multi-part|Deep EXR/.test(msg)) return T("r.multi");
+  if (/Not a Radiance HDR|Not an OpenEXR/.test(msg)) return T("r.notHdr");
+  return msg;
 }
 function showErr(msg) { var el = $("loaderr"); el.hidden = false; el.innerHTML = '<span class="d"></span>' + esc(msg); }
 
@@ -483,7 +503,7 @@ function render() {
 fd = FileDrop.attach({ accept: ".hdr,.exr", kind: "hdri", formats: "HDR (Radiance), EXR", input: null, zone: $("drop"), fillZone: true,
   replace: $("another"), info: $("fileinfo"), hasFile: function () { return !!img; }, onFile: load });
 $("stage").addEventListener("click", function (e) {
-  if (!img) return;
+  if (!img || !$("busy").hidden) return;
   var r = this.getBoundingClientRect();
   seed = { u: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), v: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
   detect(); render();
@@ -498,6 +518,9 @@ var EN = {
   "t.title": "HDRI sun finder",
   "t.desc": "Load an HDRI to find the sun and get the rotation to type into a directional (sun) light in Blender, Unreal Engine, Unity and Maya — plus an estimate of its strength and color.",
   "t.reading": "Reading the file…", "t.decoding": "Decoding the HDRI… {p}%", "t.err": "Couldn't read this HDRI.",
+  "r.damaged": "The file is damaged or incomplete.", "r.comp": "EXR files compressed with {c} aren't supported. Use the .hdr version, or re-save with ZIP or PIZ.",
+  "r.tiled": "Tiled EXR files aren't supported. Re-save it as scanline.", "r.multi": "Multi-part and deep EXR files aren't supported.",
+  "r.notHdr": "This isn't a Radiance HDR or OpenEXR file.",
   "t.exposure": "Preview exposure", "t.auto": "Back to automatic", "t.copyAll": "Copy all",
   "t.clickhint": "If the wrong spot was picked, click the sun in the image. The brightest point near your click is used.",
   "t.howTitle": "How it works",
@@ -543,6 +566,9 @@ var JA = {
   "t.title": "HDRI 太陽位置検出",
   "t.desc": "HDRI を読み込むと太陽の位置を見つけ、Blender・Unreal Engine・Unity・Maya のディレクショナル（サン）ライトにそのまま入れられる回転の値を出します。太陽の明るさと色の推定も表示します。",
   "t.reading": "ファイルを読んでいます…", "t.decoding": "HDRI を展開しています… {p}%", "t.err": "この HDRI を読めませんでした。",
+  "r.damaged": "ファイルが壊れているか、途中で切れています。", "r.comp": "{c} で圧縮した EXR には対応していません。.hdr 版を使うか、ZIP か PIZ で保存し直してください。",
+  "r.tiled": "タイル形式の EXR には対応していません。スキャンライン形式で保存し直してください。", "r.multi": "マルチパート・ディープの EXR には対応していません。",
+  "r.notHdr": "Radiance HDR か OpenEXR のファイルではありません。",
   "t.exposure": "プレビューの露出", "t.auto": "自動に戻す", "t.copyAll": "まとめてコピー",
   "t.clickhint": "違う場所が選ばれたときは、画像の太陽をクリックしてください。クリックした近くの一番明るい点を使います。",
   "t.howTitle": "しくみ",

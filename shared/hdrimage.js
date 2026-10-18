@@ -371,12 +371,18 @@ function decodeEXR(buf, onRow, onProgress, onStart) {
   return one().then(function () { return { W: W, H: H, format: "EXR", compression: COMP_NAMES[comp] }; });
 }
 
+// 壊れた・途中で切れたファイルでは、範囲外の読み取りなど JavaScript 自体のエラーになる。そのままでは意味が分からないので言い換える
+function friendly(e) {
+  if (e instanceof RangeError || e instanceof TypeError) return new Error("The file is damaged or incomplete");
+  return e;
+}
 function decode(buf, onRow, onProgress, onStart) {
   try {
-    var dv = new DataView(buf);
-    if (buf.byteLength >= 4 && dv.getUint32(0, true) === 0x01312f76) return decodeEXR(buf, onRow, onProgress, onStart);
-    return decodeHDR(buf, onRow, onProgress, onStart);
-  } catch (e) { return Promise.reject(e); }
+    var dv = new DataView(buf), p;
+    if (buf.byteLength >= 4 && dv.getUint32(0, true) === 0x01312f76) p = decodeEXR(buf, onRow, onProgress, onStart);
+    else p = decodeHDR(buf, onRow, onProgress, onStart);
+    return p.catch(function (e) { throw friendly(e); });
+  } catch (e) { return Promise.reject(friendly(e)); }
 }
 
 root.HdrImage = { decode: decode };
