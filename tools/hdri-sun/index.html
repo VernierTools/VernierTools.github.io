@@ -147,7 +147,7 @@
   <div class="card" style="margin-bottom:var(--s7)">
     <div class="card__title" data-i18n="t.limits">Good to know</div>
     <ul class="limits">
-      <li data-i18n="l.equirect">The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS or ZIP) can be read. For EXR with PIZ or DWA compression, use the .hdr version or re-save with ZIP.</li>
+      <li data-i18n="l.equirect">The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS, ZIP or PIZ) can be read. For EXR with DWA, B44 or PXR24 compression, use the .hdr version or re-save with ZIP or PIZ.</li>
       <li data-i18n="l.default">The rotations assume each program shows the HDRI the default way: Blender's Environment Texture, Unreal's HDRI Backdrop, Unity's Skybox/Panoramic material and an Arnold Skydome Light in Maya. If you rotated the HDRI there, type that angle in the card.</li>
       <li data-i18n="l.check">Unreal and Maya can orient an HDRI differently depending on the version and the way it is set up (a Sky Light cubemap, other renderers, HDRP's HDRI Sky in Unity). Check the shadow direction once the first time.</li>
       <li data-i18n="l.cloudy">On overcast skies, indoors or at night there is no clear sun, so the brightest spot may be a lamp or a window. Click the right place in the image.</li>
@@ -533,7 +533,7 @@ var EN = {
   "e.why2": "The sun is separated from the sky around it by a simple rule (the excess over the sky 5–9° away, within 3°), so haze and clouds near the sun change the result.",
   "e.why3": "Unreal and Unity use their own units and exposure. Lux is only meaningful for a calibrated HDRI; otherwise match the sun : sky ratio.",
   "t.limits": "Good to know",
-  "l.equirect": "The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS or ZIP) can be read. For EXR with PIZ or DWA compression, use the .hdr version or re-save with ZIP.",
+  "l.equirect": "The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS, ZIP or PIZ) can be read. For EXR with DWA, B44 or PXR24 compression, use the .hdr version or re-save with ZIP or PIZ.",
   "l.default": "The rotations assume each program shows the HDRI the default way: Blender's Environment Texture, Unreal's HDRI Backdrop, Unity's Skybox/Panoramic material and an Arnold Skydome Light in Maya. If you rotated the HDRI there, type that angle in the card.",
   "l.check": "Unreal and Maya can orient an HDRI differently depending on the version and the way it is set up (a Sky Light cubemap, other renderers, HDRP's HDRI Sky in Unity). Check the shadow direction once the first time.",
   "l.cloudy": "On overcast skies, indoors or at night there is no clear sun, so the brightest spot may be a lamp or a window. Click the right place in the image.",
@@ -578,7 +578,7 @@ var JA = {
   "e.why2": "太陽と空は簡単な決まり（中心から 3° 以内で、5〜9° 離れた空の明るさを超えた分）で分けているので、太陽の近くのもやや雲で結果が変わります。",
   "e.why3": "Unreal と Unity は独自の単位と露出を使います。lux は明るさを校正した HDRI でだけ意味があり、それ以外では「太陽 : 空」の比で合わせてください。",
   "t.limits": "知っておきたいこと",
-  "l.equirect": "HDRI は正距円筒図法（横:縦 = 2:1、一般的な「lat-long」）である必要があります。Radiance の .hdr と OpenEXR（scanline。圧縮は無し・RLE・ZIPS・ZIP）を読めます。PIZ や DWA で圧縮した EXR は、.hdr 版を使うか ZIP で保存し直してください。",
+  "l.equirect": "HDRI は正距円筒図法（横:縦 = 2:1、一般的な「lat-long」）である必要があります。Radiance の .hdr と OpenEXR（scanline。圧縮は無し・RLE・ZIPS・ZIP・PIZ）を読めます。DWA・B44・PXR24 で圧縮した EXR は、.hdr 版を使うか ZIP か PIZ で保存し直してください。",
   "l.default": "回転の値は、各ソフトが HDRI を標準の向きで表示している前提です（Blender の環境テクスチャ、Unreal の HDRI Backdrop、Unity の Skybox/Panoramic マテリアル、Maya の Arnold スカイドームライト）。HDRI を回転させている場合は、その角度を各カードに入れてください。",
   "l.check": "Unreal と Maya は、版や使い方（Sky Light のキューブマップ、他のレンダラー、Unity なら HDRP の HDRI Sky など）によって HDRI の向きが変わることがあります。最初の1回は影の向きを確かめてください。",
   "l.cloudy": "曇り空・室内・夜でははっきりした太陽が無いので、照明や窓が一番明るい所として選ばれることがあります。画像の正しい場所をクリックしてください。",

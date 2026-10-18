@@ -6,8 +6,8 @@
        onStart(W, H)       行を渡し始める前に一度だけ（大きさに合わせて受け側の配列を用意できる）
        onRow(y, r, g, b)   y は上からの行番号。r/g/b は長さ W の Float32Array（呼び出しのあとで再利用される）
        onProgress(0〜1)
-   OpenEXR は scanline・single-part で、圧縮は 無し / RLE / ZIPS / ZIP、ピクセル型は half / float / uint。
-   PIZ・PXR24・B44・DWA・tiled・multi-part は理由付きのエラーにする。
+   OpenEXR は scanline・single-part で、圧縮は 無し / RLE / ZIPS / ZIP / PIZ、ピクセル型は half / float / uint。
+   PXR24・B44・DWA・tiled・multi-part は理由付きのエラーにする。
    ワーカーからも読めるように window / self のどちらにも置く。
    ========================================================================= */
 (function (root) {
@@ -88,7 +88,7 @@ function decodeHDR(buf, onRow, onProgress, onStart) {
 
 /* ---------------- OpenEXR ---------------- */
 var COMP_NAMES = ["none", "RLE", "ZIPS", "ZIP", "PIZ", "PXR24", "B44", "B44A", "DWAA", "DWAB"];
-var LINES_PER_BLOCK = { 0: 1, 1: 1, 2: 1, 3: 16 };
+var LINES_PER_BLOCK = { 0: 1, 1: 1, 2: 1, 3: 16, 4: 32 };
 function inflate(u8) {
   var s = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate"));
   return new Response(s).arrayBuffer().then(function (b) { return new Uint8Array(b); });
@@ -119,6 +119,179 @@ var HALF = (function () {
   return t;
 })();
 
+/* ---------------- OpenEXR の PIZ（ハフマン符号 + ウェーブレット） ----------------
+   OpenEXR の ImfPizCompressor・ImfHuf・ImfWav と同じ手順で戻す：
+   ビットマップ → 逆引き表、ハフマン符号を 16 ビット列に展開、チャンネルごとに 2D ウェーブレットを戻し、
+   逆引き表を当て、行ごとに「チャンネル順・横 1 行ぶん」へ並べ直す。 */
+var HUF_ENCSIZE = 65537, HUF_DECBITS = 14, HUF_DECSIZE = 1 << HUF_DECBITS, HUF_DECMASK = HUF_DECSIZE - 1;
+var SHORT_ZEROCODE_RUN = 59, LONG_ZEROCODE_RUN = 63, SHORTEST_LONG_RUN = 2 + LONG_ZEROCODE_RUN - SHORT_ZEROCODE_RUN;
+function pizErr() { return new Error("EXR PIZ data is corrupt"); }
+
+function hufUncompress(u8, p0, nCompressed, out, nRaw) {
+  if (nCompressed === 0) { if (nRaw) throw pizErr(); return; }
+  var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  var im = dv.getUint32(p0, true), iM = dv.getUint32(p0 + 4, true), nBits = dv.getUint32(p0 + 12, true);
+  if (im >= HUF_ENCSIZE || iM >= HUF_ENCSIZE) throw pizErr();
+  var p = p0 + 20, end = p0 + nCompressed;
+  // 符号の長さの表（6 ビットずつ、0 の連続は短い / 長い連続の記号でまとめてある）
+  var len = new Uint8Array(HUF_ENCSIZE), c = 0, lc = 0;
+  function bits(n) {
+    while (lc < n) { if (p >= end) throw pizErr(); c = ((c << 8) | u8[p++]) >>> 0; lc += 8; }
+    lc -= n; return (c >>> lc) & ((1 << n) - 1);
+  }
+  for (var i = im; i <= iM; i++) {
+    var l = bits(6);
+    if (l === LONG_ZEROCODE_RUN) {
+      var zr = bits(8) + SHORTEST_LONG_RUN; if (i + zr > iM + 1) throw pizErr();
+      i += zr - 1;                                   // len は 0 のまま
+    } else if (l >= SHORT_ZEROCODE_RUN) {
+      var zs = l - SHORT_ZEROCODE_RUN + 2; if (i + zs > iM + 1) throw pizErr();
+      i += zs - 1;
+    } else len[i] = l;
+  }
+  // 正規ハフマン符号（長い符号から順に番号を振る）。符号の値は 2^53 を超えない範囲で実数に持つ
+  var count = new Float64Array(59), code = new Float64Array(HUF_ENCSIZE);
+  for (i = 0; i < HUF_ENCSIZE; i++) count[len[i]]++;
+  var cc = 0;
+  for (i = 58; i > 0; i--) { var nc = Math.floor((cc + count[i]) / 2); count[i] = cc; cc = nc; }
+  for (i = 0; i < HUF_ENCSIZE; i++) if (len[i]) code[i] = count[len[i]]++;
+  // 復号表：14 ビット以下の符号は表を直接引き、長い符号は候補の一覧を持つ
+  var decLen = new Uint8Array(HUF_DECSIZE), decLit = new Int32Array(HUF_DECSIZE), decList = new Array(HUF_DECSIZE);
+  for (i = im; i <= iM; i++) {
+    var L = len[i]; if (!L) continue;
+    var C = code[i];
+    if (C >= Math.pow(2, L)) throw pizErr();
+    if (L > HUF_DECBITS) {
+      var k = Math.floor(C / Math.pow(2, L - HUF_DECBITS));
+      if (decLen[k]) throw pizErr();
+      (decList[k] || (decList[k] = [])).push(i);
+    } else {
+      var base = C * (1 << (HUF_DECBITS - L));
+      for (var q = 0; q < (1 << (HUF_DECBITS - L)); q++) {
+        if (decLen[base + q] || decList[base + q]) throw pizErr();
+        decLen[base + q] = L; decLit[base + q] = i;
+      }
+    }
+  }
+  // 本体の復号。iM は「直前の値を繰り返す」記号（続く 8 ビットが回数）
+  var rlc = iM, o = 0, inEnd = p + ((nBits + 7) >> 3);
+  if (inEnd > end) throw pizErr();
+  c = 0; lc = 0;
+  function emit(sym) {
+    if (sym === rlc) {
+      if (lc < 8) { c = ((c << 8) | u8[p++]) >>> 0; lc += 8; }
+      lc -= 8;
+      var cs = (c >>> lc) & 0xff;
+      if (o + cs > nRaw || o === 0) throw pizErr();
+      var v = out[o - 1]; while (cs-- > 0) out[o++] = v;
+    } else if (o < nRaw) out[o++] = sym;
+    else throw pizErr();
+  }
+  // c は下位 lc ビットだけが意味を持つ（32 ビットを超えた上位は >>> 0 で捨てる。25 ビットを超える符号は実際にはまず現れない）
+  while (p < inEnd) {
+    c = ((c << 8) | u8[p++]) >>> 0; lc += 8;
+    while (lc >= HUF_DECBITS) {
+      var idx = (c >>> (lc - HUF_DECBITS)) & HUF_DECMASK;
+      if (decLen[idx]) { lc -= decLen[idx]; emit(decLit[idx]); continue; }
+      var list = decList[idx]; if (!list) throw pizErr();
+      var hit = false;
+      for (var j = 0; j < list.length; j++) {
+        var sym = list[j], sl = len[sym];
+        while (lc < sl && p < inEnd) { c = ((c << 8) | u8[p++]) >>> 0; lc += 8; }
+        if (lc >= sl && sl <= 32) {
+          var got = (c >>> (lc - sl)) % Math.pow(2, sl);
+          if (got === code[sym]) { lc -= sl; emit(sym); hit = true; break; }
+        }
+      }
+      if (!hit) throw pizErr();
+    }
+  }
+  var rest = (8 - nBits) & 7;
+  c >>>= rest; lc -= rest;
+  while (lc > 0) {
+    var ix = (c << (HUF_DECBITS - lc)) & HUF_DECMASK;
+    if (!decLen[ix] || decLen[ix] > lc) throw pizErr();
+    lc -= decLen[ix]; emit(decLit[ix]);
+  }
+  if (o !== nRaw) throw pizErr();
+}
+
+// ウェーブレットの 1 段を戻す（結果は WA・WB に入れる。画素ごとに配列を作らないため）
+var WA = 0, WB = 0;
+function wdec14(l, h) {
+  var hs = (h << 16) >> 16, ai = ((l << 16) >> 16) + (hs & 1) + (hs >> 1);
+  WA = ai & 0xffff; WB = (ai - hs) & 0xffff;
+}
+function wdec16(l, h) {
+  var bb = (l - (h >> 1)) & 0xffff;
+  WA = (h + bb - 32768) & 0xffff; WB = bb;
+}
+function wav2Decode(buf, j, nx, ox, ny, oy, mx) {
+  var dec = mx < (1 << 14) ? wdec14 : wdec16;
+  var n = nx > ny ? ny : nx, p = 1, p2;
+  while (p <= n) p <<= 1;
+  p >>= 1; p2 = p; p >>= 1;
+  while (p >= 1) {
+    var py = 0, ey = oy * (ny - p2), oy1 = oy * p, oy2 = oy * p2, ox1 = ox * p, ox2 = ox * p2;
+    for (; py <= ey; py += oy2) {
+      var px = py, ex = py + ox * (nx - p2);
+      for (; px <= ex; px += ox2) {
+        var a0 = px + j, a1 = px + ox1 + j, b0 = px + oy1 + j, b1 = b0 + ox1;
+        dec(buf[a0], buf[b0]); var i00 = WA, i10 = WB;
+        dec(buf[a1], buf[b1]); var i01 = WA, i11 = WB;
+        dec(i00, i01); buf[a0] = WA; buf[a1] = WB;
+        dec(i10, i11); buf[b0] = WA; buf[b1] = WB;
+      }
+      if (nx & p) {
+        var c0 = px + j, c1 = px + oy1 + j;
+        dec(buf[c0], buf[c1]); buf[c0] = WA; buf[c1] = WB;
+      }
+    }
+    if (ny & p) {
+      var qx = py, qe = py + ox * (nx - p2);
+      for (; qx <= qe; qx += ox2) {
+        var d0 = qx + j, d1 = qx + ox1 + j;
+        dec(buf[d0], buf[d1]); buf[d0] = WA; buf[d1] = WB;
+      }
+    }
+    p2 = p; p >>= 1;
+  }
+}
+
+// src: 1 ブロックの圧縮データ、rows: 行数、w: 横の画素数、sizes: チャンネルごとの 16 ビット語数（half 1・float/uint 2）
+function pizDecode(src, rows, w, sizes, expected) {
+  var dv = new DataView(src.buffer, src.byteOffset, src.byteLength), p = 0;
+  var minNZ = dv.getUint16(0, true), maxNZ = dv.getUint16(2, true); p = 4;
+  if (maxNZ >= 8192) throw pizErr();
+  var bitmap = new Uint8Array(8192);
+  if (minNZ <= maxNZ) { bitmap.set(src.subarray(p, p + maxNZ - minNZ + 1), minNZ); p += maxNZ - minNZ + 1; }
+  var lut = new Uint16Array(65536), k = 0;
+  for (var i = 0; i < 65536; i++) if (i === 0 || (bitmap[i >> 3] & (1 << (i & 7)))) lut[k++] = i;
+  var maxValue = k - 1;
+  var total = 0; sizes.forEach(function (s) { total += w * rows * s; });
+  var tmp = new Uint16Array(total);
+  var hl = dv.getInt32(p, true); p += 4;
+  hufUncompress(src, p, hl, tmp, total);
+  var starts = [], off = 0;
+  sizes.forEach(function (s) {
+    starts.push(off);
+    for (var j = 0; j < s; j++) wav2Decode(tmp, off + j, w, s, rows, w * s, maxValue);
+    off += w * rows * s;
+  });
+  for (i = 0; i < total; i++) tmp[i] = lut[tmp[i]];
+  // 行ごとに、チャンネル順で横 1 行ぶんずつ並べ直す（無圧縮のときと同じ並び）
+  var out = new Uint16Array(total), o = 0;
+  for (var y = 0; y < rows; y++) {
+    for (var c = 0; c < sizes.length; c++) {
+      var n = w * sizes[c], st = starts[c] + y * n;
+      out.set(tmp.subarray(st, st + n), o); o += n;
+    }
+  }
+  var bytes = new Uint8Array(out.buffer);
+  if (bytes.length !== expected) throw pizErr();
+  return bytes;
+}
+
 function decodeEXR(buf, onRow, onProgress, onStart) {
   var dv = new DataView(buf), u8 = new Uint8Array(buf), p = 8;
   if (dv.getUint32(0, true) !== 0x01312f76) throw new Error("Not an OpenEXR file");
@@ -141,7 +314,7 @@ function decodeEXR(buf, onRow, onProgress, onStart) {
   }
   var comp = attrs.compression || 0;
   if (!(comp in LINES_PER_BLOCK))
-    throw new Error("EXR compression " + (COMP_NAMES[comp] || comp) + " is not supported (use ZIP, ZIPS, RLE or none — or .hdr)");
+    throw new Error("EXR compression " + (COMP_NAMES[comp] || comp) + " is not supported (use ZIP, ZIPS, PIZ, RLE or none — or .hdr)");
   var dw = attrs.dataWindow, disp = attrs.displayWindow || dw;
   var W = disp.x1 - disp.x0 + 1, H = disp.y1 - disp.y0 + 1;
   var w = dw.x1 - dw.x0 + 1, h = dw.y1 - dw.y0 + 1, ox = dw.x0 - disp.x0, oy = dw.y0 - disp.y0;
@@ -187,6 +360,7 @@ function decodeEXR(buf, onRow, onProgress, onStart) {
     var src = u8.subarray(off + 8, off + 8 + size), ready;
     if (comp === 0 || size === expected) ready = Promise.resolve(src);
     else if (comp === 1) ready = Promise.resolve(postprocess(rleDecode(src, expected)));
+    else if (comp === 4) ready = Promise.resolve(pizDecode(src, rows, w, chans.map(function (c, i) { return bpp[i] / 2; }), expected));
     else ready = inflate(src).then(postprocess);
     return ready.then(function (data) {
       for (var r = 0; r < rows; r++) emitLine(data, r * lineBytes, row0 + r);
