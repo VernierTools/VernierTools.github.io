@@ -10,7 +10,7 @@
    使い方：
      var fd = FileDrop.attach({
        accept: "image/*",            // <input type=file> の accept と同じ書き方
-       kind: "image",                // image / video / audio / midi / json / exr（文言の切り替え）
+       kind: "image",                // image / video / audio / midi / json / exr / hdri（文言の切り替え）
        zone: el,                     // ドロップ欄（クリックで選択・ドラッグ中の強調）。無くてもよい
        fillZone: true,               // ドロップ欄の中身を共通の文言で描く
        formats: "JPEG, PNG, WebP",   // ドロップ欄に出す対応形式（fillZone のとき）
@@ -39,7 +39,7 @@ var MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 var OPEN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6m-3-3 3-3 3 3"/></svg>';
 var S = {
   en: {
-    kind: { image: "image", video: "video", audio: "audio file", midi: "MIDI file", json: "settings file", exr: "STMap", file: "file" },
+    kind: { image: "image", video: "video", audio: "audio file", midi: "MIDI file", json: "settings file", exr: "STMap", hdri: "HDRI", file: "file" },
     choose: "Click to choose, or drop it anywhere on the page",
     chooseAnother: "Click to choose another {kind}, or drop it anywhere on the page",
     open: "Open {kind}",
@@ -55,7 +55,7 @@ var S = {
     mono: "mono", stereo: "stereo", ch: "{n} ch", tracks: "{n} tracks", track1: "1 track", notes: "{n} notes", note1: "1 note", pasted: "Pasted {kind}"
   },
   ja: {
-    kind: { image: "画像", video: "動画", audio: "音声ファイル", midi: "MIDIファイル", json: "設定ファイル", exr: "STMap", file: "ファイル" },
+    kind: { image: "画像", video: "動画", audio: "音声ファイル", midi: "MIDIファイル", json: "設定ファイル", exr: "STMap", hdri: "HDRI", file: "ファイル" },
     choose: "クリックして選ぶか、ページのどこかにドロップ",
     chooseAnother: "クリックして別の{kind}を選ぶか、ページのどこかにドロップ",
     open: "{kind}を開く",
@@ -84,6 +84,7 @@ var KIND_ICON = {
   midi: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v9M12 4v9M16 4v9M8 13v7M12 13v7M16 13v7"/>',
   json: '<path d="M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1"/>',
   exr: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+  hdri: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'
 };
 function kindIcon(k) {

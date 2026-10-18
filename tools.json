@@ -1652,6 +1652,35 @@
       "added": "2026-08-05"
     },
     {
+      "id": "hdri-sun",
+      "type": "web",
+      "path": "tools/hdri-sun/",
+      "categories": [
+        "3dcg"
+      ],
+      "name": {
+        "en": "HDRI sun finder",
+        "ja": "HDRI 太陽位置検出"
+      },
+      "description": {
+        "en": "Find the sun in an HDRI and get the directional light rotation for Blender, Unreal, Unity and Maya.",
+        "ja": "HDRI の太陽を見つけ、Blender・Unreal・Unity・Maya のディレクショナルライトの回転を表示。"
+      },
+      "keywords": [
+        "hdri",
+        "sun",
+        "directional light",
+        "sun light",
+        "rotation",
+        "ibl",
+        "太陽",
+        "サンライト",
+        "ディレクショナルライト",
+        "環境光"
+      ],
+      "added": "2026-10-18"
+    },
+    {
       "id": "audio-degrade",
       "type": "web",
       "path": "tools/audio-degrade/",

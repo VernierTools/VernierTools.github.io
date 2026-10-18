@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HDRI sun finder — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* プレビュー：正距円筒の HDRI に、太陽の位置と地平線を重ねる */
+  .stage{ position:relative; border-radius:var(--r-lg); overflow:hidden; background:#000; cursor:crosshair; aspect-ratio:2 / 1; }
+  .stage canvas{ display:block; width:100%; height:100%; }
+  .stage svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+  .stage .horizon{ stroke:rgba(255,255,255,.45); stroke-width:1; stroke-dasharray:4 4; vector-effect:non-scaling-stroke; }
+  .stage .ring{ fill:none; stroke:#FFD54A; stroke-width:2; vector-effect:non-scaling-stroke; }
+  .stage .ring2{ fill:none; stroke:rgba(0,0,0,.6); stroke-width:4; vector-effect:non-scaling-stroke; }
+  .stage .tick{ stroke:#FFD54A; stroke-width:2; vector-effect:non-scaling-stroke; }
+  .stage .seed{ fill:none; stroke:#fff; stroke-width:1.5; stroke-dasharray:3 3; vector-effect:non-scaling-stroke; }
+  .stagebar{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s3); }
+  .stagebar .sliderrow{ flex:1 1 220px; }
+  .stagebar .label{ margin:0; white-space:nowrap; }
+  .stagehint{ font-size:12px; color:var(--text-3); margin-top:var(--s2); line-height:1.6; }
+  .progress{ height:4px; border-radius:100px; background:var(--border); overflow:hidden; margin-top:var(--s3); }
+  .progress > div{ height:100%; width:0; background:var(--accent); transition:width .15s; }
+  .loadmsg{ font-size:12.5px; color:var(--text-2); margin-top:var(--s2); }
+  @media (max-width:760px){ .pin__view .stagebar, .pin__view .stagehint{ display:none; } }
+
+  .badges .badge{ max-width:100%; }
+  .sumgrid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); }
+  .sumgrid .rrow{ display:block; border-top:0; }
+  .sumgrid .rrow + .rrow{ border-left:1px solid var(--border); }
+  .sumgrid .rrow__value{ display:block; font-size:20px; margin-top:2px; white-space:nowrap; }
+  .sumgrid #s-pos{ font-size:15px; }
+  @media (max-width:520px){ .sumgrid{ grid-template-columns:minmax(0,1fr); } .sumgrid .rrow + .rrow{ border-left:0; border-top:1px solid var(--border); } }
+
+  /* ソフトごとのライトの回転 */
+  .sw{ margin-top:var(--s4); }
+  .sw .readout__head b{ font-size:13px; font-weight:600; color:var(--text); }
+  .sw .readout__head .eyebrow{ font-size:10.5px; }
+  .rot3{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); }
+  .rot3 > div{ padding:var(--s3) var(--s4); }
+  .rot3 > div + div{ border-left:1px solid var(--border); }
+  .rot3 .k{ display:block; font-size:12px; color:var(--text-2); }
+  .rot3 .rrow__value{ display:block; font-size:21px; margin-top:2px; cursor:pointer; }
+  .rot3 .rrow__value .u{ font-size:12px; }
+  .swfoot{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; padding:var(--s3) var(--s4); border-top:1px solid var(--border); }
+  .swfoot label{ font-size:12px; color:var(--text-2); }
+  .swfoot .input{ width:96px; height:30px; font-family:var(--font-mono); font-size:13px; padding:0 8px; }
+  .swfoot .btn{ height:30px; padding:0 10px; font-size:12.5px; margin-left:auto; }
+  .swnote{ font-size:11.5px; color:var(--text-3); padding:0 var(--s4) var(--s3); line-height:1.6; }
+
+  /* 明るさと色：推定であることを強く示す */
+  .est{ margin-top:var(--s5); border:1px dashed color-mix(in srgb, var(--neg) 55%, var(--border)); }
+  .est .readout__head{ background:color-mix(in srgb, var(--neg) 7%, transparent); }
+  .estbadge{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--neg);
+    background:var(--neg-tint); padding:3px 10px; border-radius:100px; letter-spacing:.02em; }
+  .estlead{ font-size:12.5px; color:var(--text-2); line-height:1.7; padding:var(--s3) var(--s4); border-bottom:1px solid var(--border); }
+  .estlead b{ color:var(--neg); }
+  .est .rrow__value{ font-size:17px; }
+  .est .rrow__value .tilde{ color:var(--text-3); margin-right:2px; }
+  .chipsw{ display:inline-block; width:14px; height:14px; border-radius:4px; border:1px solid var(--border-strong); vertical-align:-2px; margin-right:6px; }
+  .est .grp{ font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3);
+    padding:var(--s3) var(--s4) 0; border-top:1px solid var(--border); }
+  .est .grp + .rrow{ border-top:0; }
+  .estwhy{ font-size:12px; color:var(--text-3); line-height:1.7; padding:var(--s3) var(--s4) var(--s4); border-top:1px solid var(--border); }
+  .estwhy ul{ margin:4px 0 0; padding-left:1.2em; }
+  .worldrow{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; padding:var(--s3) var(--s4); border-top:1px solid var(--border); }
+  .worldrow label{ font-size:12px; color:var(--text-2); }
+  .worldrow .input{ width:96px; height:30px; font-family:var(--font-mono); font-size:13px; padding:0 8px; }
+  .limits{ margin:0; padding-left:1.2em; font-size:13px; color:var(--text-2); line-height:1.7; }
+  .limits li + li{ margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.3dcg">3DCG</span></div>
+    <h1 data-i18n="t.title">HDRI sun finder</h1>
+    <p data-i18n="t.desc">Load an HDRI to find the sun and get the rotation to type into a directional (sun) light in Blender, Unreal Engine, Unity and Maya — plus an estimate of its strength and color.</p>
+  </div>
+
+  <div class="pin">
+  <div class="pin__view pin--idle" id="pinview">
+    <div class="card" id="loadcard">
+      <div class="drop" id="drop"></div>
+      <div id="loading" hidden>
+        <div class="loadmsg" id="loadmsg"></div>
+        <div class="progress"><div id="loadbar"></div></div>
+      </div>
+      <div class="badge badge--neg" id="loaderr" hidden style="margin-top:var(--s3)"></div>
+    </div>
+    <div class="card" id="viewcard" hidden style="padding:var(--s4)">
+      <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <svg id="ov" viewBox="0 0 1000 500" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <div id="fileinfo" hidden></div>
+      <button class="btn" id="another" type="button"></button>
+      <div class="stagebar">
+        <span class="label" data-i18n="t.exposure">Preview exposure</span>
+        <div class="sliderrow"><input class="slider" id="ev" type="range" min="-8" max="8" step="0.5" value="0"><span class="val" id="evval">0 EV</span></div>
+        <button class="btn btn--secondary" id="auto" type="button" hidden data-i18n="t.auto">Back to automatic</button>
+      </div>
+      <div class="stagehint" data-i18n="t.clickhint">If the wrong spot was picked, click the sun in the image. The brightest point near your click is used.</div>
+    </div>
+  </div>
+
+  <div class="pin__ctrl">
+    <div class="card" id="emptycard">
+      <div class="card__title" data-i18n="t.howTitle">How it works</div>
+      <p class="stagehint" style="margin:0" data-i18n="t.how">The brightest area of the sky is taken as the sun. Its centre is found from the light-weighted average of that area (with the stretching of the equirectangular image corrected), and turned into the rotation each program expects.</p>
+    </div>
+
+    <div id="results" hidden>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.found">Sun found</span><span id="conf"></span></div>
+        <div class="sumgrid">
+          <div class="rrow"><span class="rrow__label" data-i18n="t.elev">Elevation</span><span class="rrow__value" id="s-el" data-copy=""></span></div>
+          <div class="rrow"><span class="rrow__label" data-i18n="t.pos">Position in the image</span><span class="rrow__value" id="s-pos" data-copy=""></span></div>
+          <div class="rrow"><span class="rrow__label" data-i18n="t.share">Share of the light</span><span class="rrow__value" id="s-share" data-copy=""></span></div>
+        </div>
+      </div>
+      <div class="badges" id="warns"></div>
+
+      <div id="sws"></div>
+
+      <div class="readout est" id="est">
+        <div class="readout__head"><span class="estbadge">⚠ <span data-i18n="e.badge">ESTIMATE</span></span><span class="eyebrow" data-i18n="e.head">Sun strength &amp; color</span></div>
+        <div class="estlead" data-i18n-html="e.lead"></div>
+        <div id="estbody"></div>
+        <div class="worldrow">
+          <label for="world" data-i18n="e.world">World / sky strength in your scene</label>
+          <input class="input" id="world" type="number" min="0" step="0.1" value="1">
+        </div>
+        <div class="estwhy" id="estwhy"></div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s7)">
+    <div class="card__title" data-i18n="t.limits">Good to know</div>
+    <ul class="limits">
+      <li data-i18n="l.equirect">The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS or ZIP) can be read. For EXR with PIZ or DWA compression, use the .hdr version or re-save with ZIP.</li>
+      <li data-i18n="l.default">The rotations assume each program shows the HDRI the default way: Blender's Environment Texture, Unreal's HDRI Backdrop, Unity's Skybox/Panoramic material and an Arnold Skydome Light in Maya. If you rotated the HDRI there, type that angle in the card.</li>
+      <li data-i18n="l.check">Unreal and Maya can orient an HDRI differently depending on the version and the way it is set up (a Sky Light cubemap, other renderers, HDRP's HDRI Sky in Unity). Check the shadow direction once the first time.</li>
+      <li data-i18n="l.cloudy">On overcast skies, indoors or at night there is no clear sun, so the brightest spot may be a lamp or a window. Click the right place in the image.</li>
+      <li data-i18n="l.size">Very large files (16K and above) may not fit in the browser's memory. 8K or smaller is safest.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
+<script src="../../shared/blendercolor.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   HDRI sun finder — Vernier
+   1. worker.js が HDRI を読み、横 2048 までに面積平均で縮める（光の量を保ったまま）。
+   2. 一番明るい所（少しぼかして探す）を太陽とし、そのまわり 3° の、背景（5〜9° の輪の中央値）を超えた分を
+      立体角で重み付けして、方向の重心と光の量（放射照度）を求める。
+   3. 方向を各ソフトの「HDRI の向き」と「ライトの回転の決まり」に直す。
+      ・Blender：環境テクスチャの中央が +X（Z が上）。マッピングの回転 Z は逆向きに効く。サンは自分の −Z へ光る。
+                 （Blender 5.2 で実際にレンダリングして確認済み）
+      ・Unity：Skybox/Panoramic の中央が +X（Y が上・左手系）。Rotation は Y 軸まわり。ライトは +Z へ光る。
+                 （公式シェーダーの ToRadialCoords より）
+      ・Unreal：長緯度の中央が −Y（Z が上・左手系）。HDRI Backdrop の回転 Z（Yaw）。ライトは +X へ光る。
+                 （エンジン内部の DirectionToLongLat の式より）
+      ・Maya（Arnold）：中央が +Z（Y が上）。スカイドームの回転 Y。ライトは −Z へ光る。回転の順は XYZ。
+                 （OpenEXR / USD の lat-long の規約。arnold-usd は USD のドームライトを回転なしでスカイドームにする）
+   ========================================================================= */
+(function () {
+var $ = function (id) { return document.getElementById(id); };
+var T = function (k) { return Shell.t(k); };
+var MINUS = "−", DEG = 180 / Math.PI, RAD = Math.PI / 180;
+
+/* ---------------- 状態 ---------------- */
+var img = null;        // { W, H, Wd, Hd, data, format, compression, maxL, maxX, maxY, atMax, file }
+var lum = null, cosLat = null, sinLat = null, omegaRow = null;
+var seed = null;       // 手動で指定した位置 { u, v }
+var sun = null;        // 検出結果
+var S = { rot: { blender: 0, unreal: 0, unity: 0, maya: 0 }, world: 1, ev: 0 };
+try {
+  var sv = JSON.parse(localStorage.getItem("hs.state") || "null");
+  if (sv) { if (sv.rot) Object.keys(S.rot).forEach(function (k) { if (isFinite(sv.rot[k])) S.rot[k] = +sv.rot[k]; }); if (sv.world > 0) S.world = +sv.world; }
+} catch (e) {}
+function save() { try { localStorage.setItem("hs.state", JSON.stringify({ rot: S.rot, world: S.world })); } catch (e) {} }
+
+/* ---------------- 読み込み ---------------- */
+var worker = null, fd;
+function load(file) {
+  $("loaderr").hidden = true;
+  $("loading").hidden = false; $("loadbar").style.width = "0%";
+  $("loadmsg").textContent = T("t.reading");
+  file.arrayBuffer().then(function (buf) {
+    if (worker) worker.terminate();
+    worker = new Worker("worker.js");
+    worker.onmessage = function (ev) {
+      var m = ev.data;
+      if (m.type === "progress") { $("loadbar").style.width = Math.round(m.value * 100) + "%"; $("loadmsg").textContent = T("t.decoding").replace("{p}", Math.round(m.value * 100)); return; }
+      worker.terminate(); worker = null;
+      $("loading").hidden = true;
+      if (m.type === "error") { showErr(T("t.err") + " " + m.message); return; }
+      m.file = file; setImage(m);
+    };
+    worker.onerror = function (e) { $("loading").hidden = true; showErr(T("t.err") + " " + (e.message || "")); };
+    worker.postMessage({ buffer: buf, maxW: 2048 }, [buf]);
+  }).catch(function (e) { $("loading").hidden = true; showErr(T("t.err") + " " + e.message); });
+}
+function showErr(msg) { var el = $("loaderr"); el.hidden = false; el.innerHTML = '<span class="d"></span>' + esc(msg); }
+
+function setImage(m) {
+  img = m; seed = null;
+  var Wd = m.Wd, Hd = m.Hd, n = Wd * Hd, d = m.data;
+  lum = new Float32Array(n);
+  for (var i = 0; i < n; i++) lum[i] = 0.2126 * d[i * 3] + 0.7152 * d[i * 3 + 1] + 0.0722 * d[i * 3 + 2];
+  cosLat = new Float32Array(Hd); sinLat = new Float32Array(Hd); omegaRow = new Float32Array(Hd);
+  for (var y = 0; y < Hd; y++) {
+    var el = (0.5 - (y + 0.5) / Hd) * Math.PI;
+    cosLat[y] = Math.cos(el); sinLat[y] = Math.sin(el);
+    omegaRow[y] = (2 * Math.PI / Wd) * (Math.PI / Hd) * Math.cos(el);     // 1 画素の立体角
+  }
+  $("loadcard").hidden = true; $("viewcard").hidden = false; $("pinview").classList.remove("pin--idle");
+  var cv = $("cv"); cv.width = Wd; cv.height = Hd;
+  autoExposure();
+  fd.show(m.file, [FileDrop.dims(m.W, m.H), m.format + (m.compression && m.format === "EXR" ? " " + m.compression : "")]);
+  detect(); paint(); render();
+}
+
+/* ---------------- プレビュー ---------------- */
+var baseK = 1;
+function autoExposure() {
+  // 空（上半分）の明るさの中央値を 0.25 に合わせる
+  var Wd = img.Wd, Hd = img.Hd, a = [];
+  for (var y = 0; y < Hd / 2; y += 2) for (var x = 0; x < Wd; x += 4) a.push(lum[y * Wd + x]);
+  a.sort(function (p, q) { return p - q; });
+  var med = a[a.length >> 1] || 1;
+  baseK = 0.25 / Math.max(med, 1e-6);
+}
+function enc(c) { c = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; return c < 0 ? 0 : c > 1 ? 255 : c * 255; }
+function paint() {
+  if (!img) return;
+  var Wd = img.Wd, Hd = img.Hd, d = img.data, cv = $("cv"), ctx = cv.getContext("2d");
+  var id = ctx.createImageData(Wd, Hd), o = id.data, k = baseK * Math.pow(2, S.ev);
+  for (var i = 0, n = Wd * Hd; i < n; i++) {
+    var L = lum[i] * k, s = L > 0 ? 1 / (1 + L) : 1;         // 明るさで Reinhard（色相は保つ）
+    o[i * 4] = enc(d[i * 3] * k * s); o[i * 4 + 1] = enc(d[i * 3 + 1] * k * s); o[i * 4 + 2] = enc(d[i * 3 + 2] * k * s); o[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+}
+function overlay() {
+  var s = '<line class="horizon" x1="0" y1="250" x2="1000" y2="250"/>';
+  if (seed) s += '<circle class="seed" cx="' + (seed.u * 1000) + '" cy="' + (seed.v * 500) + '" r="22"/>';
+  if (sun && sun.ok) {
+    var x = sun.u * 1000, y = sun.v * 500;
+    s += '<circle class="ring2" cx="' + x + '" cy="' + y + '" r="12"/><circle class="ring" cx="' + x + '" cy="' + y + '" r="12"/>' +
+      '<line class="tick" x1="' + (x - 24) + '" y1="' + y + '" x2="' + (x - 15) + '" y2="' + y + '"/><line class="tick" x1="' + (x + 15) + '" y1="' + y + '" x2="' + (x + 24) + '" y2="' + y + '"/>' +
+      '<line class="tick" x1="' + x + '" y1="' + (y - 24) + '" x2="' + x + '" y2="' + (y - 15) + '"/><line class="tick" x1="' + x + '" y1="' + (y + 15) + '" x2="' + x + '" y2="' + (y + 24) + '"/>';
+  }
+  $("ov").innerHTML = s;
+}
+
+/* ---------------- 太陽を探す ---------------- */
+// 画像の位置 → 方向（Blender の向き：中央が +X、Z が上）
+function dirOf(u, v) {
+  var a = (0.5 - u) * 2 * Math.PI, el = (0.5 - v) * Math.PI;
+  return [Math.cos(el) * Math.cos(a), Math.cos(el) * Math.sin(a), Math.sin(el)];
+}
+var R_SUN = 3 * RAD, R_IN = 5 * RAD, R_OUT = 9 * RAD;
+// 方向 dir のまわり rad 以内の画素を順に渡す（左右の端はつながっている）
+function around(dir, rad, fn) {
+  var Wd = img.Wd, Hd = img.Hd;
+  var el = Math.asin(Math.max(-1, Math.min(1, dir[2]))), a = Math.atan2(dir[1], dir[0]);
+  var cy = (0.5 - el / Math.PI) * Hd, dy = Math.ceil(rad / Math.PI * Hd) + 1, cr = Math.cos(rad);
+  for (var y = Math.max(0, Math.floor(cy - dy)); y <= Math.min(Hd - 1, Math.ceil(cy + dy)); y++) {
+    var cl = cosLat[y], sl = sinLat[y];
+    var span = cl < 1e-3 ? Wd : Math.ceil(rad / (2 * Math.PI) * Wd / cl) + 2;
+    var cx = (0.5 - a / (2 * Math.PI)) * Wd;
+    var x0 = span >= Wd / 2 ? 0 : Math.floor(cx - span), x1 = span >= Wd / 2 ? Wd - 1 : Math.ceil(cx + span);
+    for (var xx = x0; xx <= x1; xx++) {
+      var x = ((xx % Wd) + Wd) % Wd, pa = (0.5 - (x + 0.5) / Wd) * 2 * Math.PI;
+      var dot = cl * Math.cos(pa) * dir[0] + cl * Math.sin(pa) * dir[1] + sl * dir[2];
+      if (dot >= cr) fn(y * Wd + x, x, y, dot);
+    }
+  }
+}
+function median(a) { if (!a.length) return 0; a.sort(function (p, q) { return p - q; }); return a[a.length >> 1]; }
+function detect() {
+  var Wd = img.Wd, Hd = img.Hd, d = img.data;
+  // 1. 少しぼかした明るさの最大（ノイズ・小さな反射を避ける）。手動のときはクリックの近く 10° 以内
+  var best = -1, bi = -1;
+  function blurAt(x, y) {
+    var s = 0, c = 0;
+    for (var j = -1; j <= 1; j++) { var yy = y + j; if (yy < 0 || yy >= Hd) continue;
+      for (var i = -1; i <= 1; i++) { s += lum[yy * Wd + ((x + i + Wd) % Wd)]; c++; } }
+    return s / c;
+  }
+  if (seed) {
+    around(dirOf(seed.u, seed.v), 10 * RAD, function (idx, x, y) { var b = blurAt(x, y); if (b > best) { best = b; bi = idx; } });
+  } else {
+    var yMax = Math.min(Hd - 1, Math.floor((0.5 + 5 / 180) * Hd));     // 地平線の少し下（−5°）まで
+    for (var y = 0; y <= yMax; y++) for (var x = 0; x < Wd; x++) {
+      if (lum[y * Wd + x] <= best) continue;
+      var b = blurAt(x, y); if (b > best) { best = b; bi = y * Wd + x; }
+    }
+  }
+  if (bi < 0) { sun = { ok: false }; return; }
+  var px = bi % Wd, py = (bi / Wd) | 0, peakDir = dirOf((px + 0.5) / Wd, (py + 0.5) / Hd);
+  // 2. 背景：5〜9° の輪の中央値（チャンネルごと）
+  var br = [], bg = [], bb = [], bl = [];
+  around(peakDir, R_OUT, function (idx, x, y, dot) {
+    if (dot > Math.cos(R_IN)) return;
+    br.push(d[idx * 3]); bg.push(d[idx * 3 + 1]); bb.push(d[idx * 3 + 2]); bl.push(lum[idx]);
+  });
+  var back = [median(br), median(bg), median(bb)], backL = median(bl);
+  // 3. 3° 以内で背景を超えた分：方向の重心と光の量（放射照度 = 放射輝度 × 立体角）
+  var E = [0, 0, 0], EY = 0, EYh = 0, cx = 0, cy = 0, cz = 0;
+  around(peakDir, R_SUN, function (idx, x, y) {
+    var w = omegaRow[y], r = Math.max(0, d[idx * 3] - back[0]), g = Math.max(0, d[idx * 3 + 1] - back[1]), b = Math.max(0, d[idx * 3 + 2] - back[2]);
+    var ex = Math.max(0, lum[idx] - backL) * w;
+    E[0] += r * w; E[1] += g * w; E[2] += b * w; EY += ex; EYh += ex * Math.max(0, sinLat[y]);
+    var pa = (0.5 - (x + 0.5) / Wd) * 2 * Math.PI;
+    cx += ex * cosLat[y] * Math.cos(pa); cy += ex * cosLat[y] * Math.sin(pa); cz += ex * sinLat[y];
+  });
+  var len = Math.sqrt(cx * cx + cy * cy + cz * cz), dir = len > 0 ? [cx / len, cy / len, cz / len] : peakDir;
+  if (seed && !(EY > 0)) dir = dirOf(seed.u, seed.v);
+  // 4. 空全体（上半分）から地面と平行な面へ届く光。太陽の分を除いて「空」とする
+  var skyH = 0;
+  for (var yy = 0; yy < Hd / 2; yy++) { var s2 = 0, o = yy * Wd; for (var xx = 0; xx < Wd; xx++) s2 += lum[o + xx]; skyH += s2 * omegaRow[yy] * sinLat[yy]; }
+  skyH = Math.max(0, skyH - EYh);
+  var el = Math.asin(Math.max(-1, Math.min(1, dir[2]))), a = Math.atan2(dir[1], dir[0]);
+  var u = 0.5 - a / (2 * Math.PI); u = u - Math.floor(u);
+  // 5. 白飛び：元の解像度の最大値に多くの画素が張り付いていて、それが太陽の所にある
+  var mu = (img.maxX + 0.5) / img.W, mv = (img.maxY + 0.5) / img.H, md = dirOf(mu, mv);
+  var maxAtSun = md[0] * dir[0] + md[1] * dir[1] + md[2] * dir[2] > Math.cos(R_SUN);
+  var contrast = best / Math.max(backL, 1e-9), conf = contrast >= 20 ? "high" : contrast >= 3 ? "mid" : "low";
+  sun = {
+    clipped: conf !== "low" && maxAtSun && img.atMax >= 6, maybeClipped: conf !== "low" && contrast < 300,
+    ok: true, dir: dir, el: el, a: a, u: u, v: 0.5 - el / Math.PI,
+    E: E, EY: EY, sunH: EY * Math.max(0, Math.sin(el)), skyH: skyH, contrast: contrast,
+    conf: conf, manual: !!seed
+  };
+}
+
+/* ---------------- 各ソフトの向き ---------------- */
+function wrap(deg) { deg = ((deg + 180) % 360 + 360) % 360 - 180; return deg === -180 ? 180 : deg; }
+var SW = [
+  { id: "blender", name: "Blender", light: "sw.blender.light", axes: ["X", "Y", "Z"], rotLabel: "sw.blender.rot",
+    calc: function (el, a, r) {
+      var x = Math.cos(el) * Math.cos(a), y = Math.cos(el) * Math.sin(a), z = Math.sin(el), c = Math.cos(r), s = Math.sin(r);
+      var dx = x * c + y * s, dy = -x * s + y * c;            // マッピングの回転 Z は逆向きに効く
+      return [0, Math.acos(Math.max(-1, Math.min(1, z))) * DEG, Math.atan2(dy, dx) * DEG];
+    } },
+  { id: "unreal", name: "Unreal Engine", light: "sw.unreal.light", axes: ["X (Roll)", "Y (Pitch)", "Z (Yaw)"], rotLabel: "sw.unreal.rot",
+    calc: function (el, a, r) {
+      var x = -Math.cos(el) * Math.sin(a), y = -Math.cos(el) * Math.cos(a), z = Math.sin(el), c = Math.cos(r), s = Math.sin(r);
+      var dx = x * c - y * s, dy = x * s + y * c;
+      return [0, Math.asin(-z) * DEG, Math.atan2(-dy, -dx) * DEG];
+    } },
+  { id: "unity", name: "Unity", light: "sw.unity.light", axes: ["X", "Y", "Z"], rotLabel: "sw.unity.rot",
+    calc: function (el, a, r) {
+      var x = Math.cos(el) * Math.cos(a), y = Math.sin(el), z = Math.cos(el) * Math.sin(a), c = Math.cos(r), s = Math.sin(r);
+      var dx = c * x - s * z, dz = s * x + c * z;
+      return [Math.asin(y) * DEG, Math.atan2(-dx, -dz) * DEG, 0];
+    } },
+  { id: "maya", name: "Maya (Arnold)", light: "sw.maya.light", axes: ["X", "Y", "Z"], rotLabel: "sw.maya.rot",
+    calc: function (el, a, r) {
+      var x = Math.cos(el) * Math.sin(a), y = Math.sin(el), z = Math.cos(el) * Math.cos(a), c = Math.cos(r), s = Math.sin(r);
+      var dx = x * c + z * s, dz = -x * s + z * c;
+      return [-Math.asin(y) * DEG, Math.atan2(dx, dz) * DEG, 0];
+    } }
+];
+function num(v, d) { var r = Math.round(v * Math.pow(10, d)) / Math.pow(10, d); if (Object.is(r, -0)) r = 0; return r; }
+function show(v, d) { var r = num(v, d); return (r < 0 ? MINUS : "") + Math.abs(r).toFixed(d); }
+function buildSW() {
+  $("sws").innerHTML = SW.map(function (s) {
+    return '<div class="readout sw" id="sw-' + s.id + '">' +
+      '<div class="readout__head"><b>' + s.name + '</b><span class="eyebrow" data-i18n="' + s.light + '"></span></div>' +
+      '<div class="rot3">' + [0, 1, 2].map(function (i) {
+        return '<div><span class="k">' + s.axes[i] + '</span><span class="rrow__value" id="r-' + s.id + '-' + i + '" data-copy=""></span></div>';
+      }).join("") + '</div>' +
+      '<div class="swfoot"><label for="rot-' + s.id + '" data-i18n="' + s.rotLabel + '"></label>' +
+      '<input class="input" id="rot-' + s.id + '" type="number" step="1" value="' + S.rot[s.id] + '"><span class="u" style="font-size:12px;color:var(--text-3)">°</span>' +
+      '<button class="btn btn--secondary" type="button" id="cp-' + s.id + '" data-copy="" data-i18n="t.copyAll"></button></div>' +
+      '<div class="swnote" data-i18n="sw.' + s.id + '.note"></div></div>';
+  }).join("");
+  SW.forEach(function (s) {
+    $("rot-" + s.id).addEventListener("input", function () { var v = parseFloat(this.value); S.rot[s.id] = isFinite(v) ? v : 0; save(); render(); });
+  });
+}
+
+/* ---------------- 明るさと色（推定） ---------------- */
+function kelvin(lin) {      // McCamy の近似。リニア sRGB（Rec.709）→ xy → 相関色温度
+  var X = 0.4124 * lin[0] + 0.3576 * lin[1] + 0.1805 * lin[2], Y = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2],
+      Z = 0.0193 * lin[0] + 0.1192 * lin[1] + 0.9505 * lin[2], s = X + Y + Z;
+  if (!(s > 0)) return null;
+  var x = X / s, y = Y / s, n = (x - 0.3320) / (0.1858 - y);
+  return 449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33;
+}
+function hexOf(lin) {
+  return "#" + lin.map(function (c) { var v = Math.round(enc(c)); return (v < 16 ? "0" : "") + v.toString(16).toUpperCase(); }).join("");
+}
+function fmtNum(v) {
+  if (!(v > 0)) return "0";
+  if (v >= 1000) return Math.round(v).toLocaleString("en");
+  if (v >= 100) return v.toFixed(0);
+  if (v >= 10) return v.toFixed(1);
+  if (v >= 1) return v.toFixed(2);
+  return v.toPrecision(2);
+}
+function estRow(label, value, copy, note) {
+  return '<div class="rrow"><span class="rrow__label">' + esc(label) + (note ? '<span style="display:block;font-size:11px;color:var(--text-3)">' + esc(note) + '</span>' : "") +
+    '</span><span class="rrow__value" data-copy="' + esc(copy) + '"><span class="tilde">≈</span>' + value + '</span></div>';
+}
+function renderEst() {
+  var body = $("estbody"), why = [];
+  // 太陽が見当たらないときは、数字を出すとかえって誤解を招くので出さない
+  if (!sun || !sun.ok || !(sun.EY > 0) || sun.conf === "low") {
+    body.innerHTML = '<div class="estlead">' + esc(T(sun && sun.conf === "low" ? "e.noSun" : "e.none")) + '</div>'; $("estwhy").innerHTML = ""; return;
+  }
+  var k = S.world, E = sun.E.map(function (v) { return v * k; });
+  var mx = Math.max(E[0], E[1], E[2]), col = E.map(function (v) { return v / mx; });
+  var hex = hexOf(col), K = kelvin(col), linTxt = BlenderColor.text(col);
+  var sw = '<span class="chipsw" style="background:' + hex + '"></span>';
+  var lux = sun.EY * k, skyLux = sun.skyH * k, ratio = sun.skyH > 0 ? sun.sunH / sun.skyH : 0;
+  var s = "";
+  s += '<div class="grp">Blender · Maya (Arnold)</div>';
+  s += estRow(T("e.strength"), fmtNum(mx) + '<span class="u">W/m²</span>', fmtNum(mx), T("e.strengthNote"));
+  s += estRow(T("e.colorLin"), sw + linTxt, linTxt, T("e.colorLinNote"));
+  s += '<div class="grp">Unreal Engine · Unity</div>';
+  s += estRow(T("e.colorHex"), sw + hex, hex, null);
+  if (K && K > 1000 && K < 40000) s += estRow(T("e.kelvin"), Math.round(K / 50) * 50 + '<span class="u">K</span>', String(Math.round(K / 50) * 50), T("e.kelvinNote"));
+  s += estRow(T("e.ratio"), ratio > 0 ? ratio.toFixed(ratio >= 10 ? 0 : 1) + '<span class="u">: 1</span>' : "—", ratio > 0 ? ratio.toFixed(1) : "", T("e.ratioNote"));
+  s += estRow(T("e.lux"), fmtNum(lux) + '<span class="u">lux</span>', fmtNum(lux), T("e.luxNote").replace("{sky}", fmtNum(skyLux)));
+  body.innerHTML = s;
+  if (sun.clipped) why.push("<b>" + esc(T("w.clipped")) + "</b>");
+  else if (sun.maybeClipped) why.push("<b>" + esc(T("w.maybeClipped")) + "</b>");
+  if (sun.conf !== "high") why.push(esc(T("w.unsure")));
+  why.push(esc(T("e.why1")), esc(T("e.why2")), esc(T("e.why3")));
+  $("estwhy").innerHTML = '<b>' + esc(T("e.whyHead")) + '</b><ul>' + why.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
+}
+
+/* ---------------- 表示 ---------------- */
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function badge(kind, text) { return '<span class="badge badge--' + kind + '"><span class="d"></span>' + esc(text) + "</span>"; }
+function render() {
+  overlay();
+  $("auto").hidden = !seed;
+  if (!sun || !sun.ok) { $("results").hidden = true; return; }
+  $("results").hidden = false; $("emptycard").hidden = true;
+  var elD = sun.el * DEG;
+  $("s-el").textContent = show(elD, 1) + "°"; $("s-el").setAttribute("data-copy", num(elD, 2));
+  var pos = "x " + Math.round(sun.u * img.W) + ", y " + Math.round(sun.v * img.H);
+  $("s-pos").textContent = pos; $("s-pos").setAttribute("data-copy", pos);
+  var share = sun.sunH + sun.skyH > 0 ? sun.sunH / (sun.sunH + sun.skyH) : 0;
+  $("s-share").textContent = Math.round(share * 100) + "%"; $("s-share").setAttribute("data-copy", Math.round(share * 100) + "%");
+  $("conf").innerHTML = badge(sun.conf === "high" ? "pos" : sun.conf === "mid" ? "muted" : "neg", T("c." + sun.conf) + (sun.manual ? " · " + T("c.manual") : ""));
+  var w = [];
+  if (sun.conf === "low") w.push(badge("neg", T("w.low")));
+  if (elD < 0) w.push(badge("neg", T("w.below")));
+  if (Math.abs(img.W / img.H - 2) > 0.02) w.push(badge("neg", T("w.notEquirect")));
+  $("warns").innerHTML = w.join("");
+  $("warns").hidden = !w.length;
+  SW.forEach(function (s) {
+    var r = s.calc(sun.el, sun.a, S.rot[s.id] * RAD).map(wrap);
+    r.forEach(function (v, i) {
+      var el = $("r-" + s.id + "-" + i);
+      el.innerHTML = esc(show(v, 2)) + '<span class="u">°</span>'; el.setAttribute("data-copy", String(num(v, 2)));
+    });
+    $("cp-" + s.id).setAttribute("data-copy", r.map(function (v) { return num(v, 2); }).join(", "));
+  });
+  renderEst();
+}
+
+/* ---------------- 操作 ---------------- */
+fd = FileDrop.attach({ accept: ".hdr,.exr", kind: "hdri", formats: "HDR (Radiance), EXR", input: null, zone: $("drop"), fillZone: true,
+  replace: $("another"), info: $("fileinfo"), hasFile: function () { return !!img; }, onFile: load });
+$("stage").addEventListener("click", function (e) {
+  if (!img) return;
+  var r = this.getBoundingClientRect();
+  seed = { u: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), v: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  detect(); render();
+});
+$("auto").addEventListener("click", function () { seed = null; detect(); render(); });
+$("ev").addEventListener("input", function () { S.ev = +this.value; $("evval").textContent = (S.ev > 0 ? "+" : S.ev < 0 ? MINUS : "") + Math.abs(S.ev) + " EV"; paint(); });
+$("world").value = S.world;
+$("world").addEventListener("input", function () { var v = parseFloat(this.value); S.world = v > 0 ? v : 1; save(); renderEst(); });
+
+/* ---------------- 文言 ---------------- */
+var EN = {
+  "t.title": "HDRI sun finder",
+  "t.desc": "Load an HDRI to find the sun and get the rotation to type into a directional (sun) light in Blender, Unreal Engine, Unity and Maya — plus an estimate of its strength and color.",
+  "t.reading": "Reading the file…", "t.decoding": "Decoding the HDRI… {p}%", "t.err": "Couldn't read this HDRI.",
+  "t.exposure": "Preview exposure", "t.auto": "Back to automatic", "t.copyAll": "Copy all",
+  "t.clickhint": "If the wrong spot was picked, click the sun in the image. The brightest point near your click is used.",
+  "t.howTitle": "How it works",
+  "t.how": "The brightest area of the sky is taken as the sun. Its centre is found from the light-weighted average of that area (with the stretching of the equirectangular image corrected), and turned into the rotation each program expects.",
+  "t.found": "Sun found", "t.elev": "Elevation", "t.pos": "Position in the image (px)", "t.share": "Sun's share of the light",
+  "c.high": "Clear sun", "c.mid": "Sun is faint", "c.low": "No clear sun", "c.manual": "picked by hand",
+  "w.low": "No distinct bright spot was found (overcast, indoors or night?). Click the sun in the image if there is one.",
+  "w.below": "The detected point is below the horizon. If it's a reflection, click the real sun.",
+  "w.notEquirect": "This image isn't 2:1, so it may not be an equirectangular HDRI. The directions may be wrong.",
+  "w.clipped": "The sun is clipped (flat at the maximum value) in this HDRI, so the real sun is brighter than shown here — treat the strength as a lower limit, and the color as unreliable.",
+  "w.maybeClipped": "The sun is not much brighter than the sky around it, so it is probably clipped or softened. The strength is likely too low.",
+  "w.unsure": "The sun isn't clear in this HDRI, so these values may come from something else (a cloud edge, a lamp).",
+  "sw.blender.light": "Sun light · Rotation (XYZ Euler)", "sw.blender.rot": "Mapping node rotation Z",
+  "sw.blender.note": "For an Environment Texture with no Mapping node (or one rotated by the angle above).",
+  "sw.unreal.light": "Directional Light · Rotation", "sw.unreal.rot": "HDRI Backdrop rotation Z",
+  "sw.unreal.note": "For an HDRI Backdrop (cubemap imported from the .hdr) rotated by the angle above.",
+  "sw.unity.light": "Directional Light · Rotation", "sw.unity.rot": "Skybox Rotation",
+  "sw.unity.note": "For a Skybox/Panoramic material (Latitude Longitude) with the Rotation above.",
+  "sw.maya.light": "directionalLight / aiDistantLight · Rotate (order XYZ)", "sw.maya.rot": "Skydome rotate Y",
+  "sw.maya.note": "For an Arnold Skydome Light (lat-long) rotated about Y by the angle above.",
+  "e.badge": "ESTIMATE", "e.head": "Sun strength & color",
+  "e.lead": "These are <b>estimates, not measurements</b>. Use them as a starting point and adjust by eye.",
+  "e.none": "The sun's brightness couldn't be separated from the sky, so no estimate is given.",
+  "e.noSun": "There is no clear sun in this HDRI, so no estimate is given. If the sun is there, click it in the image.",
+  "e.strength": "Strength", "e.strengthNote": "Blender Sun Strength · Arnold Intensity (exposure 0)",
+  "e.colorLin": "Color (linear)", "e.colorLinNote": "Blender / Maya color fields",
+  "e.colorHex": "Color (sRGB)", "e.kelvin": "Color temperature", "e.kelvinNote": "If you use Temperature instead of a color",
+  "e.ratio": "Sun : sky", "e.ratioNote": "On a level surface. Set your sky first, then the sun so this ratio holds.",
+  "e.lux": "Illuminance", "e.luxNote": "Only if the HDRI's 1.0 = 1 cd/m² (sky ≈ {sky} lux on a level surface)",
+  "e.world": "World / sky strength in your scene",
+  "e.whyHead": "Why this is only an estimate",
+  "e.why1": "Many HDRIs clip the sun or don't record how bright it really is, and lens flare spreads its light.",
+  "e.why2": "The sun is separated from the sky around it by a simple rule (the excess over the sky 5–9° away, within 3°), so haze and clouds near the sun change the result.",
+  "e.why3": "Unreal and Unity use their own units and exposure. Lux is only meaningful for a calibrated HDRI; otherwise match the sun : sky ratio.",
+  "t.limits": "Good to know",
+  "l.equirect": "The HDRI must be equirectangular (2:1, the usual “lat-long” format). Radiance .hdr and OpenEXR (scanline; no compression, RLE, ZIPS or ZIP) can be read. For EXR with PIZ or DWA compression, use the .hdr version or re-save with ZIP.",
+  "l.default": "The rotations assume each program shows the HDRI the default way: Blender's Environment Texture, Unreal's HDRI Backdrop, Unity's Skybox/Panoramic material and an Arnold Skydome Light in Maya. If you rotated the HDRI there, type that angle in the card.",
+  "l.check": "Unreal and Maya can orient an HDRI differently depending on the version and the way it is set up (a Sky Light cubemap, other renderers, HDRP's HDRI Sky in Unity). Check the shadow direction once the first time.",
+  "l.cloudy": "On overcast skies, indoors or at night there is no clear sun, so the brightest spot may be a lamp or a window. Click the right place in the image.",
+  "l.size": "Very large files (16K and above) may not fit in the browser's memory. 8K or smaller is safest."
+};
+var JA = {
+  "t.title": "HDRI 太陽位置検出",
+  "t.desc": "HDRI を読み込むと太陽の位置を見つけ、Blender・Unreal Engine・Unity・Maya のディレクショナル（サン）ライトにそのまま入れられる回転の値を出します。太陽の明るさと色の推定も表示します。",
+  "t.reading": "ファイルを読んでいます…", "t.decoding": "HDRI を展開しています… {p}%", "t.err": "この HDRI を読めませんでした。",
+  "t.exposure": "プレビューの露出", "t.auto": "自動に戻す", "t.copyAll": "まとめてコピー",
+  "t.clickhint": "違う場所が選ばれたときは、画像の太陽をクリックしてください。クリックした近くの一番明るい点を使います。",
+  "t.howTitle": "しくみ",
+  "t.how": "空の一番明るい所を太陽とみなします。そのまわりの光の量で重み付けした平均（正距円筒図法の上下の引き伸ばしは補正）から中心を求め、各ソフトのライトの回転に直します。",
+  "t.found": "見つけた太陽", "t.elev": "高度", "t.pos": "画像上の位置（px）", "t.share": "光に占める太陽の割合",
+  "c.high": "太陽がはっきり", "c.mid": "太陽が弱い", "c.low": "太陽が見当たらない", "c.manual": "手動で指定",
+  "w.low": "目立って明るい所が見つかりません（曇り・室内・夜？）。太陽が写っていれば、画像の太陽をクリックしてください。",
+  "w.below": "見つけた点が地平線より下です。水面などの反射なら、本物の太陽をクリックしてください。",
+  "w.notEquirect": "画像が 2:1 ではないので、正距円筒の HDRI ではないかもしれません。向きが正しくない可能性があります。",
+  "w.clipped": "この HDRI では太陽が白飛びしています（最大値で頭打ち）。本物の太陽はもっと明るいので、強さは「これ以上」の下限として、色は当てにならないものとして扱ってください。",
+  "w.maybeClipped": "太陽がまわりの空と比べてあまり明るくないので、白飛びしているか、ぼやけている可能性が高いです。強さは小さく出ていると考えられます。",
+  "w.unsure": "この HDRI では太陽がはっきりしないので、雲の縁や照明など、太陽以外のものの値かもしれません。",
+  "sw.blender.light": "サンライト · 回転（XYZ オイラー）", "sw.blender.rot": "マッピングノードの回転 Z",
+  "sw.blender.note": "環境テクスチャにマッピングノードが無い場合（または上の角度で回転している場合）の値です。",
+  "sw.unreal.light": "Directional Light · Rotation", "sw.unreal.rot": "HDRI Backdrop の回転 Z",
+  "sw.unreal.note": "HDRI Backdrop（.hdr から読み込んだキューブマップ）を上の角度で回転している場合の値です。",
+  "sw.unity.light": "Directional Light · Rotation", "sw.unity.rot": "Skybox の Rotation",
+  "sw.unity.note": "Skybox/Panoramic マテリアル（Latitude Longitude）の Rotation が上の角度の場合の値です。",
+  "sw.maya.light": "directionalLight / aiDistantLight · Rotate（順序 XYZ）", "sw.maya.rot": "スカイドームの回転 Y",
+  "sw.maya.note": "Arnold のスカイドームライト（lat-long）を Y 軸まわりに上の角度で回転している場合の値です。",
+  "e.badge": "推定値", "e.head": "太陽の明るさと色",
+  "e.lead": "ここに出す値は<b>測定値ではなく推定値</b>です。出発点として使い、見た目で調整してください。",
+  "e.none": "太陽の明るさを空と分けて取り出せなかったので、推定値は出していません。",
+  "e.noSun": "この HDRI でははっきりした太陽が見つからないので、推定値は出していません。太陽が写っていれば、画像の太陽をクリックしてください。",
+  "e.strength": "強さ", "e.strengthNote": "Blender のサンの強さ · Arnold の Intensity（露出 0）",
+  "e.colorLin": "色（リニア）", "e.colorLinNote": "Blender・Maya の色の欄",
+  "e.colorHex": "色（sRGB）", "e.kelvin": "色温度", "e.kelvinNote": "色の代わりに色温度で指定する場合",
+  "e.ratio": "太陽 : 空", "e.ratioNote": "水平な面での比。先に空の明るさを決め、太陽をこの比になるように合わせます。",
+  "e.lux": "照度", "e.luxNote": "HDRI の 1.0 = 1 cd/m² の場合のみ（空は水平面で約 {sky} lux）",
+  "e.world": "シーンのワールド（空）の強さ",
+  "e.whyHead": "推定値にとどまる理由",
+  "e.why1": "多くの HDRI は太陽が白飛びしているか、本当の明るさを記録していません。レンズのフレアで光が広がってもいます。",
+  "e.why2": "太陽と空は簡単な決まり（中心から 3° 以内で、5〜9° 離れた空の明るさを超えた分）で分けているので、太陽の近くのもやや雲で結果が変わります。",
+  "e.why3": "Unreal と Unity は独自の単位と露出を使います。lux は明るさを校正した HDRI でだけ意味があり、それ以外では「太陽 : 空」の比で合わせてください。",
+  "t.limits": "知っておきたいこと",
+  "l.equirect": "HDRI は正距円筒図法（横:縦 = 2:1、一般的な「lat-long」）である必要があります。Radiance の .hdr と OpenEXR（scanline。圧縮は無し・RLE・ZIPS・ZIP）を読めます。PIZ や DWA で圧縮した EXR は、.hdr 版を使うか ZIP で保存し直してください。",
+  "l.default": "回転の値は、各ソフトが HDRI を標準の向きで表示している前提です（Blender の環境テクスチャ、Unreal の HDRI Backdrop、Unity の Skybox/Panoramic マテリアル、Maya の Arnold スカイドームライト）。HDRI を回転させている場合は、その角度を各カードに入れてください。",
+  "l.check": "Unreal と Maya は、版や使い方（Sky Light のキューブマップ、他のレンダラー、Unity なら HDRP の HDRI Sky など）によって HDRI の向きが変わることがあります。最初の1回は影の向きを確かめてください。",
+  "l.cloudy": "曇り空・室内・夜でははっきりした太陽が無いので、照明や窓が一番明るい所として選ばれることがあります。画像の正しい場所をクリックしてください。",
+  "l.size": "とても大きいファイル（16K 以上）は、ブラウザのメモリに収まらないことがあります。8K 以下が安全です。"
+};
+
+buildSW();
+Shell.init({ id: "hdri-sun", strings: { en: EN, ja: JA }, onSettingsChange: function () {
+  document.querySelectorAll("[data-i18n-html]").forEach(function (el) { el.innerHTML = T(el.getAttribute("data-i18n-html")); });
+  if (img) render();
+} });
+overlay();
+})();
+</script>
+</body>
+</html>
