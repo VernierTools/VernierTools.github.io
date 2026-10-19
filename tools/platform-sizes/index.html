@@ -18,6 +18,7 @@
     padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
   .seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); font-weight:500; }
   .seg button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .seg--plat button{ font-size:13.5px; padding:7px 16px; }
   .hint{ font-size:12px; color:var(--text-3); line-height:1.6; }
   .inputs{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s4) var(--s5); }
   @media (max-width:760px){ .inputs{ grid-template-columns:1fr; } }
@@ -71,6 +72,13 @@
   <!-- 入力 -->
   <div class="card">
     <div class="field">
+      <div class="seg seg--plat" id="platform" role="group">
+        <button type="button" data-v="youtube" aria-pressed="true">YouTube</button>
+        <button type="button" data-v="niconico" aria-pressed="false" data-i18n="p.niconico">niconico</button>
+        <button type="button" data-v="tiktok" aria-pressed="false">TikTok</button>
+      </div>
+    </div>
+    <div class="field" id="kind-field">
       <div class="seg" id="kind" role="group">
         <button type="button" data-v="video" aria-pressed="true" data-i18n="t.kVideo">Video</button>
         <button type="button" data-v="shorts" aria-pressed="false" data-i18n="t.kShorts">Shorts</button>
@@ -90,16 +98,21 @@
       </div>
       <div>
         <div class="field">
-          <label class="label" for="in-title" data-i18n="t.vtitle">Title</label>
+          <label class="label" for="in-title" id="lbl-title"></label>
           <input class="input" id="in-title" maxlength="100" autocomplete="off">
         </div>
         <div class="field">
-          <label class="label" for="in-channel" data-i18n="t.channel">Channel name</label>
+          <label class="label" for="in-channel" id="lbl-channel"></label>
           <div class="fieldrow">
             <input class="input" id="in-channel" maxlength="60" autocomplete="off">
             <input class="input mono" id="in-dur" maxlength="8" autocomplete="off" aria-label="Duration" data-i18n-ph="t.durPh" placeholder="12:34">
           </div>
           <div class="hint" id="dur-hint" style="margin-top:6px" data-i18n="t.durHint">Right box: the video length shown on the thumbnail.</div>
+        </div>
+        <div class="field" id="desc-field" hidden>
+          <label class="label" for="in-desc" data-i18n="t.desc1">Description (first line)</label>
+          <input class="input" id="in-desc" maxlength="200" autocomplete="off">
+          <div class="hint" style="margin-top:6px" data-i18n="t.descHint">niconico shows the start of the description under the title in rankings and search.</div>
         </div>
       </div>
     </div>
@@ -133,7 +146,7 @@
 
   <!-- タイトルの切れ方 -->
   <div class="readout">
-    <div class="readout__head"><span class="eyebrow" data-i18n="t.cutTitle">Where the title gets cut</span></div>
+    <div class="readout__head"><span class="eyebrow" id="cut-head">Where the title gets cut</span></div>
     <table id="cuts"></table>
   </div>
 </main>
@@ -158,18 +171,48 @@
   var CUT = {
     pcHome: [301.3, 2, 16, 22, 500], pcRelated: [136.5, 3, 14, 20, 500], pcSearch: [596, 2, 18, 26, 400], pcWatch: [996, 2, 20, 28, 700],
     phHome: [263, 2, 14, 17.5, 400], phWatch: [343, 1, 18, 24, 900],
-    pcShelf: [182, 2, 16, 22, 500], phShelf: [151.5, 2, 14, 20, 400], pcShortsPlayer: [420, 1, 14, 20, 400], phShortsPlayer: [290, 1, 14, 20, 700]
+    pcShelf: [182, 2, 16, 22, 500], phShelf: [151.5, 2, 14, 20, 400], pcShortsPlayer: [420, 1, 14, 20, 400], phShortsPlayer: [290, 1, 14, 20, 700],
+    // ニコニコ動画（2026-10-19。パソコンは www.nicovideo.jp、スマホは sp.nicovideo.jp）。視聴ページのタイトルは折り返して全文が出る
+    nPcRank: [532, 2, 14, 19.6, 700], nPcSearch: [584, 2, 14, 19.6, 700], nPcRelated: [240, 2, 14, 19.6, 700], nPcWatch: [564, 99, 20, 28, 700],
+    nPhSearch: [183, 2, 14, 18, 400], nPhWatch: [289, 2, 18, 21.6, 700], nPhRelated: [279, 2, 16, 22.4, 400],
+    // TikTok（2026-10-19、www.tiktok.com）。説明文は収まらないと「もっと見る」が付く。パソコンは 1 行、スマホは 2 行
+    // 6 番目は、切れたときに最後の行の右端を占める「もっと見る」の幅（スマホは説明文の枠の中、パソコンは枠の外）
+    tPcFeed: [378.3, 1, 14, 18.2, 400], tPhFeed: [274, 2, 15, 18, 400, 87]
   };
+  var MEASURED_AT = { youtube: "2026-09-28", niconico: "2026-10-19", tiktok: "2026-10-19" };
+  var FONTS = {
+    youtube: FONT,
+    niconico: '-apple-system, "system-ui", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif',
+    tiktok: 'system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Arial, sans-serif'
+  };
+  // サイトごとの色（ライト / ダーク）。ニコニコの sk・TikTok の sk は代わりの灰色
+  var PCOL = {
+    niconico: {
+      light: { bg: "#f2f2f2", panel: "#ffffff", top: "#252525", text: "rgba(26,26,26,.8)", sub: "rgba(26,26,26,.6)", sk: "#e1e1e1", chip: "rgba(26,26,26,.05)", chipOn: "rgba(26,26,26,.95)", chipOnText: "#f2f2f2" },
+      dark: { bg: "#0d0d0d", panel: "#252525", top: "#252525", text: "rgba(242,242,242,.8)", sub: "rgba(242,242,242,.6)", sk: "#2c2c2c", chip: "rgba(242,242,242,.1)", chipOn: "rgba(242,242,242,.95)", chipOnText: "#1a1a1a" }
+    },
+    tiktok: {
+      light: { bg: "#ffffff", text: "rgb(22,24,35)", sub: "rgba(0,0,0,.65)", sk: "#ececec", chip: "rgba(0,0,0,.05)" },
+      dark: { bg: "#000000", text: "rgba(255,255,255,.9)", sub: "rgba(255,255,255,.65)", sk: "#1e1e1e", chip: "rgba(255,255,255,.1)" }
+    }
+  };
+  // ニコニコのスマホ版（sp.nicovideo.jp）はライトの配色だけを測った
+  var NSP = { bg: "#fafafa", card: "#fafafa", line: "#e8e8e8", text: "rgb(37,37,37)", sub: "rgb(102,102,102)", sk: "#e4e4e4", head: "#252525" };
 
   /* ---- 状態 ---- */
-  var S = { kind: "video", scene: "home", device: "pc", theme: "light", zoom: "fit", zones: true,
-    title: "", channel: "", dur: "12:34", thumbs: { video: [null], shorts: [null] }, frame: null };
-  var SCENES = { video: ["home", "watch", "search", "related"], shorts: ["shelf", "player"] };
-  function col() { return COL[S.theme]; }
+  var S = { platform: "youtube", kind: "video", scene: "home", device: "pc", theme: "light", zoom: "fit", zones: true,
+    titles: { youtube: "", niconico: "", tiktok: "" }, channels: { youtube: "", niconico: "", tiktok: "" }, desc: "", dur: "12:34", thumbs: { video: [null], shorts: [null], nico: [null], tt: [null] }, frame: null };
+  var SCENES = { video: ["home", "watch", "search", "related"], shorts: ["shelf", "player"],
+    nico: ["ranking", "search", "watch", "related"], tt: ["feed", "explore"] };
+  // 今の入力の種類：YouTube は横動画 / ショート、ニコニコは nico、TikTok は tt
+  function kk() { return S.platform === "youtube" ? S.kind : S.platform === "niconico" ? "nico" : "tt"; }
+  function vertical() { return kk() === "shorts" || kk() === "tt"; }
+  function col() { return (PCOL[S.platform] || COL)[S.theme]; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function title() { return S.title || Shell.t("t.sampleTitle"); }
-  function channel() { return S.channel || Shell.t("t.sampleChannel"); }
-  function items() { var a = S.thumbs[S.kind].filter(function (x) { return x; }); return a.length ? a : [null]; }
+  // タイトル（TikTok は説明文）と名前はサイトごとに持つ（同じ動画でも書き方が違うことが多いので）
+  function title() { return S.titles[S.platform] || Shell.t(S.platform === "tiktok" ? "tt.sampleCaption" : "t.sampleTitle"); }
+  function channel() { return S.channels[S.platform] || Shell.t(S.platform === "tiktok" ? "tt.sampleUser" : "t.sampleChannel"); }
+  function items() { var a = S.thumbs[kk()].filter(function (x) { return x; }); return a.length ? a : [null]; }
 
   /* =====================================================================
      描画の部品（座標はすべて実測の px。最後に全体を縮小して表示する）
@@ -365,6 +408,236 @@
     if (S.zones) s += zone(0, 0, 375, 48, "t.zTop") + zone(319, 560, 56, 236, "t.zRight") + zone(0, 690, 319, 106, "t.zBottom");
     return { w: 375, h: 812, html: s };
   }
+
+  /* =====================================================================
+     ニコニコ動画（パソコン：www.nicovideo.jp 1440×900、スマホ：sp.nicovideo.jp 375×812）
+     ===================================================================== */
+  // 上の黒い帯（36）・白い見出し（36〜92、検索欄 236,44 320×40）・左の一覧（幅 88）
+  function nPcChrome(W, H) {
+    var c = col(), s = '<div class="a" style="' + box(0, 0, W, H, "background:" + c.bg + ";") + '"></div>';
+    s += '<div class="a" style="' + box(0, 0, W, 36, "background:" + c.top + ";") + '"></div>';
+    for (var i = 0; i < 8; i++) s += '<div class="sk" style="' + box(22 + i * 46, 12, 30, 12, "background:rgba(255,255,255,.22);") + '"></div>';
+    s += '<div class="a" style="' + box(0, 36, W, 56, "background:" + c.panel + ";") + '"></div>' + sk(24, 52, 150, 24) +
+      '<div class="a" style="' + box(236, 44, 320, 40, "border-radius:20px;background:" + c.chip + ";") + '"></div>';
+    s += '<div class="a" style="' + box(0, 92, 88, H - 92, "background:" + c.panel + ";") + '"></div>';
+    for (var j = 0; j < 7; j++) s += sk(32, 112 + j * 62, 24, 24) + sk(24, 140 + j * 62, 40, 9);
+    return s;
+  }
+  function nChip(x, y, w, h, label, on) {
+    var c = col();
+    return '<div class="pill" style="' + box(x, y, w, h, "background:" + (on ? c.chipOn : c.chip) + ";color:" + (on ? c.chipOnText : c.text) + ";font-size:14px;") + '">' + esc(label) + "</div>";
+  }
+  // サムネイル（黒地に contain、角 8）と長さの札（右下 4 px、12 px 太字）
+  function nThumb(x, y, w, h, src, i, dur, small) {
+    var bg = src ? "background:#000 url(" + src + ") center/contain no-repeat;" : "background:" + ph(i) + ";";
+    var s = '<div class="th" style="' + box(x, y, w, h, bg + "border-radius:8px;") + '"></div>';
+    if (dur) s += '<div class="a" style="left:' + (x + w - 4) + "px;top:" + (y + h - 4) + 'px;transform:translate(-100%,-100%);padding:' + (small ? "1px 3px" : "4px 4px") +
+      ';border-radius:' + (small ? 2 : 4) + 'px;background:rgba(26,26,26,.8);color:#f2f2f2;font:' + (small ? "400 11px/12.65px" : "700 12px/12px") + " " + FONTS.niconico + ';">' + esc(dur) + "</div>";
+    return s;
+  }
+  function nStats(x, y, w, color, fs) {
+    return text(x, y, w, Shell.t("n.sampleDate") + "   ▶ 1.2万   💬 345   ♥ 2,104   ▤ 89", fs || 12, 12, 400, color, 1);
+  }
+  // ランキング・検索の 1 件（タイトルの行数で下の段が下がる）
+  function nListItem(x, y, tw, mine, src, i, k, rank) {
+    var c = col(), s = "", tx = x + 232;
+    s += nThumb(x, y, 224, 126, mine ? src : null, i, mine ? S.dur : "");
+    if (rank && rank <= 3) s += '<div class="a" style="' + box(x - 4, y - 4, 0, 0, "border-left:26px solid #FFD700;border-bottom:26px solid transparent;width:0;height:0;") + '"></div>';
+    if (!mine) return s + sk(tx, y + 4, tw * 0.7, 14) + sk(tx, y + 44, tw * 0.5, 11) + sk(tx, y + 76, 200, 10) + '<div class="av" style="' + box(tx, y + 96, 24, 24, "background:" + c.sk + ";") + '"></div>' + sk(tx + 28, y + 102, 70, 11);
+    var L = titleLines(title(), tw === 532 ? CUT.nPcRank : CUT.nPcSearch), d = (L - 1) * 19.6;
+    s += text(tx, y, tw, title(), 14, 19.6, 700, c.text, 2);
+    s += text(tx, y + 23.6 + d, tw, S.desc || Shell.t("n.sampleDesc"), 12, 16.8, 400, c.sub, 1);
+    s += nStats(tx, y + 56.4 + d, tw, c.sub);
+    s += avatar(tx, y + 76.4 + d, 24, channel()) + text(tx + 28, y + 80 + d, tw - 28, channel(), 12, 16.8, 700, c.text, 1);
+    return s + tag(x + 6, y + 6, labelOf(k));
+  }
+  function nRightCol(y0, H) {
+    var s = '<div class="a" style="' + box(960, y0, 440, 274, "background:" + col().panel + ";") + '"></div>' + sk(1030, y0 + 12, 300, 250);
+    for (var i = 0; i < 3; i++) s += sk(1005, y0 + 330 + i * 124, 192, 108) + sk(1205, y0 + 334 + i * 124, 170, 12) + sk(1205, y0 + 354 + i * 124, 120, 12);
+    return s;
+  }
+  // ---- ランキング（パソコン）：番号 40×32、サムネイル 224×126、タイトル 532 幅・2 行。間隔 150
+  function nPcRanking() {
+    var c = col(), W = 1440, H = 980, list = items(), s = nPcChrome(W, H);
+    var chips = [Shell.t("n.all"), "ゲーム", "アニメ", "ボカロ", "エンタメ", "音楽", "歌ってみた", "踊ってみた"], x = 112;
+    chips.forEach(function (t, k) { var w = Math.max(60, measure(t, 14, 400) + 32); s += nChip(x, 108, w, 32, t, k === 0); x += w + 8; });
+    s += text(112, 158, 300, Shell.t("n.period"), 14, 19.6, 700, c.text, 1);
+    for (var i = 0; i < 5; i++) {
+      var y = 208 + i * 150, mine = i < list.length;
+      s += '<div class="a" style="' + box(112, y, 40, 32, "display:flex;align-items:center;justify-content:center;font:400 14px/1 " + FONTS.niconico + ";color:" + c.text + ";") + '">' + (i + 1) + "</div>";
+      s += nListItem(164, y, 532, mine, mine ? list[i] : null, i + 3, i, i + 1);
+    }
+    return { w: W, h: H, html: s + nRightCol(108, H) };
+  }
+  // ---- 検索結果（パソコン）：サムネイル 224×126、タイトル 584 幅・2 行（広告の枠は省いた）
+  function nPcSearch() {
+    var c = col(), W = 1440, H = 1060, list = items(), s = nPcChrome(W, H), x = 112;
+    ["動画", "ショート", "シリーズ", "マイリスト", "ユーザー"].forEach(function (t, k) { var w = measure(t, 14, 400) + 40; s += nChip(x, 108, w, 40, t, k === 0); x += w + 8; });
+    s += nChip(112, 160, 126, 32, Shell.t("n.keyword"), true) + sk(250, 170, 60, 12) + nChip(112, 216, 150, 32, Shell.t("n.popular"), false) + nChip(270, 216, 115, 32, Shell.t("n.filter"), false);
+    for (var i = 0; i < 5; i++) { var y = 272 + i * 150, mine = i < list.length; s += nListItem(112, y, 584, mine, mine ? list[i] : null, i + 5, i, 0); }
+    s += sk(976, 232, 120, 16);
+    for (var j = 0; j < 8; j++) s += '<div class="a" style="' + box(976 + (j % 3) * 136, 264 + Math.floor(j / 3) * 44, 128, 32, "border-radius:999px;background:" + c.chip + ";") + '"></div>';
+    return { w: W, h: H, html: s };
+  }
+  // 視聴ページ（パソコン）の枠：プレーヤー 928×522（24,108）、操作バー 52、右列はコメントと「おすすめ」
+  function nPcWatchBase(src, i) {
+    var c = col(), W = 1440, H = 1000, s = nPcChrome(W, H);
+    s += '<div class="th" style="' + box(24, 108, 928, 522, (src ? "background:#000 url(" + src + ") center/contain no-repeat;" : "background:" + ph(i) + ";") + "border-radius:8px 8px 0 0;") + '"></div>';
+    s += '<div class="a" style="' + box(24, 630, 928, 52, "background:#1a1a1a;border-radius:0 0 8px 8px;") + '"></div>';
+    s += '<div class="a" style="' + box(976, 108, 424, 96, "border-radius:8px;background:" + c.panel + ";") + '"></div>' + sk(1024, 122, 98, 16) + sk(992, 172, 200, 12);
+    s += nChip(976, 221, 80, 32, Shell.t("n.recommend"), true);
+    return { W: W, H: H, s: s };
+  }
+  function nRelatedItem(y, mine, src, i, k) {
+    var c = col(), s = nThumb(976, y, 192, 108, mine ? src : null, i, mine ? S.dur : "");
+    if (!mine) return s + sk(1176, y + 4, 200, 13) + sk(1176, y + 24, 150, 13) + sk(1176, y + 46, 120, 10) + '<div class="av" style="' + box(1176, y + 60, 24, 24, "background:" + c.sk + ";") + '"></div>';
+    var d = (titleLines(title(), CUT.nPcRelated) - 1) * 19.6;
+    return s + text(1176, y, 240, title(), 14, 19.6, 700, c.text, 2) + text(1176, y + 23.6 + d, 240, Shell.t("n.sampleDate") + "   ▶ 1.2万   💬 345", 12, 12, 400, c.sub, 1) +
+      avatar(1176, y + 39.6 + d, 24, channel()) + text(1204, y + 43.2 + d, 212, channel(), 12, 16.8, 700, c.text, 1) + tag(982, y + 6, labelOf(k));
+  }
+  // ---- 視聴ページ（パソコン）：タイトルは 564 幅で折り返して全文が出る
+  function nPcWatch() {
+    var c = col(), list = items(), b = nPcWatchBase(list[0], 0), s = b.s, L = linesFor(title(), CUT.nPcWatch);
+    s += text(24, 694, 564, title(), 20, 28, 700, c.text, 99);
+    s += text(24, 694 + L * 28 + 8, 500, Shell.t("n.sampleDate") + "   ▶ 1.2万   💬 345   ♥ 2,104", 12, 16.8, 700, c.sub, 1);
+    s += avatar(612 + 340 - 260, 694, 40, channel()) + text(612 + 340 - 212, 702, 150, channel(), 14, 19.6, 700, c.text, 1) +
+      '<div class="pill" style="' + box(888, 702, 64, 24, "background:" + c.chip + ";color:" + c.text + ";font-size:12px;") + '">' + esc(Shell.t("n.follow")) + "</div>";
+    for (var i = 0; i < 4; i++) s += nRelatedItem(265 + i * 124, false, null, i + 4, -1);
+    return { w: b.W, h: Math.max(b.H, 694 + L * 28 + 60), html: s };
+  }
+  // ---- おすすめ（パソコン）：他の動画の視聴ページの右列に、自分の動画が並ぶ
+  function nPcRelated() {
+    var list = items(), b = nPcWatchBase(null, 1), s = b.s + sk(24, 694, 520, 22) + sk(24, 730, 200, 12);
+    for (var i = 0; i < 5; i++) { var mine = i >= 1 && i - 1 < list.length; s += nRelatedItem(265 + i * 124, mine, mine ? list[i - 1] : null, i + 2, i - 1); }
+    return { w: b.W, h: b.H, html: s };
+  }
+  // ---- スマホ（sp.nicovideo.jp）
+  function nPhHeader(banner) {
+    var s = '<div class="a" style="' + box(0, 0, 375, 1200, "background:" + NSP.bg + ";") + '"></div>', y = 0;
+    if (banner) { s += '<div class="a" style="' + box(0, 0, 375, 56, "background:#fff;border-bottom:1px solid " + NSP.line + ";") + '"></div>' + '<div class="sk" style="' + box(8, 8, 40, 40, "background:" + NSP.sk + ";border-radius:8px;") + '"></div>' + '<div class="sk" style="' + box(56, 12, 200, 10, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(56, 30, 150, 10, "background:" + NSP.sk + ";") + '"></div>'; y = 56; }
+    s += '<div class="a" style="' + box(0, y, 375, 44, "background:" + NSP.head + ";") + '"></div>' + '<div class="sk" style="' + box(12, y + 12, 130, 20, "background:rgba(255,255,255,.25);") + '"></div>' +
+      '<div class="av" style="' + box(331, y + 8, 28, 28, "background:rgba(255,255,255,.3);") + '"></div>';
+    return s;
+  }
+  function nPhSearch() {
+    var list = items(), s = nPhHeader(false);
+    s += '<div class="a" style="' + box(8, 52, 359, 36, "border-radius:18px;background:#ececec;") + '"></div>' + '<div class="sk" style="' + box(160, 108, 100, 12, "background:" + NSP.sk + ";") + '"></div>' +
+      '<div class="a" style="' + box(16, 136, 80, 14, "font:400 12px/14px " + FONTS.niconico + ";color:" + NSP.sub + ";") + '">8,989件</div>';
+    for (var i = 0; i < 6; i++) {
+      var y = 160 + i * 98, mine = i < list.length, src = mine ? list[i] : null;
+      s += '<div class="a" style="' + box(0, y, 375, 97, "background:" + NSP.card + ";border-bottom:1px solid " + NSP.line + ";") + '"></div>';
+      s += '<div class="th" style="' + box(12, y + 12, 128, 72, (src ? "background:#000 url(" + src + ") center/contain no-repeat;" : "background:" + ph(i + 2) + ";") + "border-radius:4px;") + '"></div>';
+      if (mine) {
+        if (S.dur) s += '<div class="a" style="left:136px;top:' + (y + 80) + 'px;transform:translate(-100%,-100%);padding:1px 3px;border-radius:2px;background:rgba(0,0,0,.8);color:#fff;font:400 11px/12.65px ' + FONTS.niconico + ';">' + esc(S.dur) + "</div>";
+        s += text(148, y + 12, 183, title(), 14, 18, 400, NSP.text, 2) + text(148, y + 53.2, 183, Shell.t("n.sampleAgo"), 12, 13.8, 400, "rgb(224,32,32)", 1) +
+          text(148, y + 71, 183, "▶ 355   💬 116   ▤ 94", 12, 14, 400, NSP.sub, 1) + tag(18, y + 18, labelOf(i));
+      } else s += '<div class="sk" style="' + box(148, y + 14, 170, 12, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(148, y + 32, 120, 12, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(148, y + 72, 130, 10, "background:" + NSP.sk + ";") + '"></div>';
+    }
+    return { w: 375, h: 160 + 6 * 98, html: s };
+  }
+  // 視聴ページ（スマホ）：動画は全画面の別画面で開くので、ページにはタイトルなどが並ぶ
+  function nPhWatch() {
+    var s = nPhHeader(true), L = titleLines(title(), CUT.nPhWatch);
+    s += text(12, 108, 289, title(), 18, 21.6, 700, NSP.text, 2);
+    s += '<div class="av" style="' + box(313, 108, 50, 50, "background:#fff;border:1px solid " + NSP.line + ";") + '"></div>';
+    s += text(12, 116 + L * 21.6, 300, Shell.t("n.sampleDate") + "   ▶ 23.6万   💬 2.5万", 12, 13.8, 400, NSP.sub, 1);
+    var oy = 158 + L * 21.6;
+    s += avatar(12, oy, 48, channel()) + text(68, oy + 17, 175, channel(), 14, 14, 700, NSP.text, 1) +
+      '<div class="pill" style="' + box(259, oy + 12, 96, 24, "background:#3b82f6;color:#fff;font-size:12px;") + '">' + esc(Shell.t("n.followDo")) + "</div>";
+    for (var i = 0; i < 6; i++) s += '<div class="sk" style="' + box(26 + i * 62, oy + 66, 24, 24, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(18 + i * 62, oy + 96, 40, 8, "background:" + NSP.sk + ";") + '"></div>';
+    for (var j = 0; j < 5; j++) s += '<div class="a" style="' + box(12 + (j % 2) * 150, oy + 140 + Math.floor(j / 2) * 36, 130, 24, "border-radius:12px;background:#ececec;") + '"></div>';
+    return { w: 375, h: oy + 260, html: s };
+  }
+  // おすすめ（スマホ）：視聴ページの下に、全幅（359×202）のカードが並ぶ
+  function nPhRelated() {
+    var list = items(), s = nPhHeader(true) + '<div class="sk" style="' + box(12, 112, 280, 16, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(12, 136, 200, 16, "background:" + NSP.sk + ";") + '"></div>';
+    s += '<div class="sk" style="' + box(12, 184, 140, 14, "background:" + NSP.sk + ";") + '"></div>';
+    for (var i = 0; i < 3; i++) {
+      var y = 212 + i * 318.7, mine = i < list.length, src = mine ? list[i] : null;
+      s += '<div class="th" style="' + box(8, y, 359, 201.9, src ? "background:#000 url(" + src + ") center/contain no-repeat;" : "background:" + ph(i + 3) + ";") + '"></div>';
+      if (mine) {
+        if (S.dur) s += '<div class="a" style="left:363px;top:' + (y + 197.9) + 'px;transform:translate(-100%,-100%);padding:1px 3px;border-radius:2px;background:rgba(0,0,0,.8);color:#fff;font:400 11px/12.65px ' + FONTS.niconico + ';">' + esc(S.dur) + "</div>";
+        s += avatar(8, y + 209.9, 32, channel()) + text(48, y + 209.9, 279, title(), 16, 22.4, 400, NSP.text, 2) +
+          text(48, y + 209.9 + titleLines(title(), CUT.nPhRelated) * 22.4 + 5, 279, channel(), 12, 12, 400, NSP.sub, 1) + tag(14, y + 6, labelOf(i));
+      } else s += '<div class="av" style="' + box(8, y + 210, 32, 32, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(48, y + 214, 250, 14, "background:" + NSP.sk + ";") + '"></div>' + '<div class="sk" style="' + box(48, y + 238, 160, 14, "background:" + NSP.sk + ";") + '"></div>';
+    }
+    return { w: 375, h: 212 + 3 * 318.7, html: s };
+  }
+
+  /* =====================================================================
+     TikTok（パソコン：www.tiktok.com 1440×900、スマホ：同じサイトを 375×812 で）
+     ===================================================================== */
+  function tPcChrome(W, H) {
+    var c = col(), s = '<div class="a" style="' + box(0, 0, W, H, "background:" + c.bg + ";") + '"></div>';
+    s += sk(20, 20, 110, 30) + '<div class="a" style="' + box(16, 66, 208, 40, "border-radius:20px;background:" + c.chip + ";") + '"></div>';
+    for (var i = 0; i < 8; i++) s += sk(24, 128 + i * 52, 26, 26) + sk(64, 134 + i * 52, 90, 14);
+    s += '<div class="a" style="' + box(16, 560, 208, 48, "border-radius:6px;background:#FE2C55;") + '"></div>';
+    return s;
+  }
+  function tCount(x, y, label, c) {
+    return '<div class="av" style="' + box(x, y, 48, 48, "background:" + c.chip + ";") + '"></div>' +
+      '<div class="a" style="' + box(x - 8, y + 54, 64, 16, "text-align:center;font:700 12px/16px " + FONTS.tiktok + ";color:" + c.sub + ";") + '">' + esc(label) + "</div>";
+  }
+  // 説明文（収まらないと「もっと見る」）
+  function tCaption(x, y, spec, color) {
+    var v = visible(title(), spec);
+    var t = v.cut ? v.text.replace(/…$/, "… ") : v.text;
+    return '<div class="t" style="' + box(x, y, spec[0] + (v.cut && !spec[5] ? 90 : 0), null, "font-size:" + spec[2] + "px;line-height:" + spec[3] + "px;font-weight:" + spec[4] + ";color:" + color + ";") + '">' +
+      esc(t) + (v.cut ? '<b style="font-weight:600">' + esc(Shell.t("tt.more")) + "</b>" : "") + "</div>";
+  }
+  // ---- おすすめ（パソコン）：動画 488.3×868（479.9,16、角 16）。名前と説明文は動画の下に重なり、ボタンは動画の右の外
+  function tPcFeed() {
+    var c = col(), W = 1440, H = 900, src = items()[0], s = tPcChrome(W, H), x = 479.9, y = 16, w = 488.3, h = 868;
+    s += '<div class="th" style="' + box(x, y, w, h, (src ? "background:#000 url(" + src + ") center/cover no-repeat;" : "background:" + ph(2) + ";") + "border-radius:16px;") + '"></div>';
+    s += '<div class="a" style="' + box(x, y + h - 120, w, 120, "border-radius:0 0 16px 16px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));") + '"></div>';
+    s += text(x + 12, 815.9, 300, channel(), 17, 22.1, 500, "#fff", 1) + tCaption(x + 12, 850, CUT.tPcFeed, "#fff");
+    s += avatar(984.1, 452, 48, channel()) + '<div class="av" style="' + box(996.1, 488, 24, 24, "background:#FE2C55;font-size:16px;") + '">+</div>';
+    ["52.1K", "1,234", "3,456", Shell.t("tt.share")].forEach(function (t, k) { s += tCount(984.1, 528 + k * 78, t, c); });
+    s += '<div class="av" style="' + box(1384, 402, 40, 40, "background:" + c.chip + ";") + '"></div>' + '<div class="av" style="' + box(1384, 458, 40, 40, "background:" + c.chip + ";") + '"></div>';
+    if (S.zones) s += zone(x, y + h - 80, w, 80, "tt.zCaption");
+    return { w: W, h: H, html: s };
+  }
+  // ---- 探索（パソコン）：6 列、カバー 174.7×232.9（9:16 を中央から 3:4 に切り抜き）、下に再生数
+  function tPcExplore() {
+    var c = col(), W = 1440, H = 640, list = items(), s = tPcChrome(W, H), x = 272;
+    [Shell.t("tt.all"), "歌・ダンス", "コメディ", "スポーツ", "アニメ&コミック", "人間関係", "ゲーム"].forEach(function (t, k) {
+      var w = measure(t, 14, 500) + 32;
+      s += '<div class="pill" style="' + box(x, 29, w, 32, "background:" + (k === 0 ? c.text : c.chip) + ";color:" + (k === 0 ? c.bg : c.text) + ";font-size:14px;") + '">' + esc(t) + "</div>"; x += w + 12;
+    });
+    for (var i = 0; i < 12; i++) {
+      var cx = 272 + (i % 6) * 190.6, cy = 86 + Math.floor(i / 6) * 289, mine = i < list.length, src = mine ? list[i] : null;
+      s += '<div class="th" style="' + box(cx, cy, 174.7, 232.9, (src ? "background:#111 url(" + src + ") center/cover no-repeat;" : "background:" + ph(i + 1) + ";") + "border-radius:8px;") + '"></div>';
+      s += '<div class="a" style="' + box(cx, cy + 186.9, 174.7, 46, "border-radius:0 0 8px 8px;background:linear-gradient(0deg,rgba(0,0,0,.45),rgba(0,0,0,0));") + '"></div>' +
+        '<div class="a" style="' + box(cx + 12, cy + 206.9, 120, 18, "font:600 14px/18px " + FONTS.tiktok + ";color:#fff;") + '">▷ ' + (mine ? "224.4K" : "") + "</div>";
+      if (mine) s += avatar(cx + 2, cy + 244.9, 20, channel()) + text(cx + 28, cy + 245.9, 145, channel(), 14, 18, 400, c.sub, 1) + tag(cx + 6, cy + 6, labelOf(i));
+      else s += '<div class="av" style="' + box(cx + 2, cy + 245, 20, 20, "background:" + c.sk + ";") + '"></div>' + sk(cx + 28, cy + 249, 80, 11);
+    }
+    return { w: W, h: H, html: s };
+  }
+  // ---- おすすめ（スマホ）：動画は 375×763 に cover（9:16 は左右が少し切れる）、下に黒いタブ（49）
+  function tPhFeed() {
+    var src = items()[0], s = '<div class="a" style="' + box(0, 0, 375, 812, "background:#000;") + '"></div>';
+    s += '<div class="th" style="' + box(0, 0, 375, 763, src ? "background:#000 url(" + src + ") center/cover no-repeat;" : "background:" + ph(2) + ";") + '"></div>';
+    s += '<div class="a" style="' + box(0, 560, 375, 203, "background:linear-gradient(0deg,rgba(0,0,0,.45),rgba(0,0,0,0));") + '"></div>';
+    s += '<div class="sk" style="' + box(20, 10, 24, 24, "background:rgba(255,255,255,.35);") + '"></div>' +
+      '<div class="pill" style="' + box(135.5, 10, 104, 24, "background:rgba(255,255,255,.25);color:#fff;font-size:12px;") + '">' + esc(Shell.t("tt.openApp")) + "</div>" +
+      '<div class="sk" style="' + box(335, 10, 24, 24, "background:rgba(255,255,255,.35);") + '"></div>';
+    s += avatar(320, 433, 48, channel()) + '<div class="av" style="' + box(332, 474, 24, 24, "background:#FE2C55;color:#fff;font-size:16px;") + '">+</div>';
+    ["52.1K", "1,234", Shell.t("tt.share")].forEach(function (t, k) {
+      s += '<div class="sk" style="' + box(328, 508 + k * 65, 32, 32, "background:rgba(255,255,255,.85);border-radius:8px;") + '"></div>' +
+        '<div class="a" style="' + box(313, 540 + k * 65, 62, 17, "text-align:center;font:600 13px/17px " + FONTS.tiktok + ";color:#fff;") + '">' + esc(t) + "</div>";
+    });
+    s += '<div class="av" style="' + box(320, 703, 48, 48, "background:#333;border:8px solid #111;box-sizing:border-box;") + '"></div>';
+    var hasCap = !!title(), capH = titleLines(title(), CUT.tPhFeed) * 18;
+    var capTop = 736 - 8 - capH, nameTop = hasCap ? capTop - 25 : 703;
+    s += text(12, nameTop, 280, channel(), 17, 17, 600, "#fff", 1) + tCaption(12, capTop, CUT.tPhFeed, "#fff") +
+      text(12, 736, 260, "♫ " + Shell.t("t.sampleSound") + " - " + channel(), 15, 15, 400, "#fff", 1);
+    s += '<div class="a" style="' + box(0, 763, 375, 49, "background:#000;") + '"></div>';
+    for (var i = 0; i < 5; i++) s += i === 2 ? '<div class="a" style="' + box(166, 768, 44, 28, "border-radius:8px;background:#fff;") + '"></div>'
+      : '<div class="sk" style="' + box(21.5 + i * 75, 767, 32, 26, "background:rgba(255,255,255,.35);") + '"></div>';
+    if (S.zones) s += zone(0, 0, 375, 44, "t.zTop") + zone(313, 420, 62, 340, "t.zRight") + zone(0, nameTop - 6, 313, 763 - nameTop + 6, "tt.zCaption");
+    return { w: 375, h: 812, html: s };
+  }
   function zone(x, y, w, h, key) { return '<div class="zone" style="' + box(x, y, w, h) + '"><span>' + Shell.t(key) + "</span></div>"; }
 
   /* ---- 文字の測定（プレビューと同じフォントで、実際の折り返しを調べる） ---- */
@@ -372,12 +645,15 @@
   meter.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;word-break:break-word;font-family:" + FONT + ";";
   document.body.appendChild(meter);
   function measure(t, fs, fw) {
+    meter.style.fontFamily = FONTS[S.platform] || FONT;
     meter.style.width = "auto"; meter.style.whiteSpace = "nowrap"; meter.style.fontSize = fs + "px"; meter.style.fontWeight = fw; meter.textContent = t;
     return meter.getBoundingClientRect().width;
   }
-  function linesFor(t, spec) {
+  function linesFor(t, spec, reserve) {
+    meter.style.fontFamily = FONTS[S.platform] || FONT;
     meter.style.whiteSpace = "normal"; meter.style.width = spec[0] + "px"; meter.style.fontSize = spec[2] + "px"; meter.style.lineHeight = spec[3] + "px"; meter.style.fontWeight = spec[4];
     meter.textContent = t;
+    if (reserve) { var sp = document.createElement("span"); sp.style.cssText = "display:inline-block;width:" + reserve + "px;height:1px;"; meter.appendChild(sp); }
     return Math.round(meter.getBoundingClientRect().height / spec[3]);
   }
   function titleLines(t, spec) { return Math.max(1, Math.min(spec[1], linesFor(t, spec))); }
@@ -387,7 +663,7 @@
     var ch = Array.from(t), lo = 0, hi = ch.length;
     while (lo < hi) {
       var mid = Math.ceil((lo + hi) / 2), s = ch.slice(0, mid).join("") + "…";
-      var fits = spec[1] === 1 ? measure(s, spec[2], spec[4]) <= spec[0] : linesFor(s, spec) <= spec[1];
+      var fits = spec[1] === 1 ? measure(s, spec[2], spec[4]) <= spec[0] : linesFor(s, spec, spec[5]) <= spec[1];
       if (fits) lo = mid; else hi = mid - 1;
     }
     return { text: ch.slice(0, lo).join("").replace(/\s+$/, "") + "…", cut: true, shown: lo, total: ch.length };
@@ -398,31 +674,48 @@
      ===================================================================== */
   var BUILD = {
     video: { home: [pcHome, phHome], watch: [pcWatch, phWatch], search: [pcSearch, phSearch], related: [pcRelated, phRelated] },
-    shorts: { shelf: [pcShelf, phShelf], player: [pcShortsPlayer, phShortsPlayer] }
+    shorts: { shelf: [pcShelf, phShelf], player: [pcShortsPlayer, phShortsPlayer] },
+    nico: { ranking: [nPcRanking, null], search: [nPcSearch, nPhSearch], watch: [nPcWatch, nPhWatch], related: [nPcRelated, nPhRelated] },
+    tt: { feed: [tPcFeed, tPhFeed], explore: [tPcExplore, null] }
   };
+  // 今の端末で見られる場面（スマホで測れなかった場面は出さない）
+  function scenes() {
+    var d = S.device === "pc" ? 0 : 1;
+    return SCENES[kk()].filter(function (k) { return !!BUILD[kk()][k][d]; });
+  }
   function render() {
-    if (SCENES[S.kind].indexOf(S.scene) < 0) S.scene = SCENES[S.kind][0];
-    var sc = BUILD[S.kind][S.scene][S.device === "pc" ? 0 : 1](), c = col();
+    if (scenes().indexOf(S.scene) < 0) { S.scene = scenes()[0]; buildScenes(); }
+    var sc = BUILD[kk()][S.scene][S.device === "pc" ? 0 : 1](), c = col();
     var avail = $("stage").parentElement.clientWidth, z = S.zoom === "fit" ? Math.min(1, avail / sc.w) : 1;
     var stage = $("stage");
     stage.style.width = Math.min(avail, sc.w * z) + "px"; stage.style.height = sc.h * z + "px";
     stage.parentElement.style.overflowX = z * sc.w > avail ? "auto" : "hidden";
     stage.style.width = sc.w * z + "px";
-    stage.innerHTML = '<div class="scene" style="width:' + sc.w + "px;height:" + sc.h + "px;background:" + c.bg + ";transform:scale(" + z + ');">' + sc.html + "</div>";
-    var note = Shell.t("t.measured").replace("{d}", MEASURED).replace("{w}", S.device === "pc" ? "1440×900" : "375×812");
-    if (S.device === "phone") note += " " + Shell.t("t.phoneNote");
-    if (S.device === "phone" && (S.scene === "search" || S.scene === "related")) note += " " + Shell.t("t.phoneSame");
+    stage.innerHTML = '<div class="scene" style="width:' + sc.w + "px;height:" + sc.h + "px;background:" + c.bg + ";font-family:" + (FONTS[S.platform] || FONT).replace(/"/g, "'") + ";transform:scale(" + z + ');">' + sc.html + "</div>";
+    var P = S.platform, note = Shell.t("m." + P).replace("{d}", MEASURED_AT[P]).replace("{w}", S.device === "pc" ? "1440×900" : "375×812");
+    if (P === "youtube" && S.device === "phone") note += " " + Shell.t("t.phoneNote");
+    if (P === "youtube" && S.device === "phone" && (S.scene === "search" || S.scene === "related")) note += " " + Shell.t("t.phoneSame");
+    if (P === "niconico" && S.device === "phone") note += " " + Shell.t("n.phoneNote");
+    if (P === "niconico" && S.scene === "search") note += " " + Shell.t("n.adNote");
+    if (P === "tiktok" && S.device === "phone") note += " " + Shell.t("tt.phoneNote");
+    if (P === "tiktok" && S.scene === "explore") note += " " + Shell.t("tt.exploreNote");
     $("measured").textContent = note;
     renderCuts();
   }
   function renderCuts() {
-    var rows = S.kind === "video"
-      ? [["t.cHome", "pcHome", "pc"], ["t.cRelated", "pcRelated", "pc"], ["t.cSearch", "pcSearch", "pc"], ["t.cWatch", "pcWatch", "pc"], ["t.cHome", "phHome", "phone"], ["t.cWatch", "phWatch", "phone"]]
-      : [["t.cShelf", "pcShelf", "pc"], ["t.cPlayer", "pcShortsPlayer", "pc"], ["t.cShelf", "phShelf", "phone"], ["t.cPlayer", "phShortsPlayer", "phone"]];
+    var rows = {
+      video: [["t.cHome", "pcHome", "pc"], ["t.cRelated", "pcRelated", "pc"], ["t.cSearch", "pcSearch", "pc"], ["t.cWatch", "pcWatch", "pc"], ["t.cHome", "phHome", "phone"], ["t.cWatch", "phWatch", "phone"]],
+      shorts: [["t.cShelf", "pcShelf", "pc"], ["t.cPlayer", "pcShortsPlayer", "pc"], ["t.cShelf", "phShelf", "phone"], ["t.cPlayer", "phShortsPlayer", "phone"]],
+      nico: [["n.s.ranking", "nPcRank", "pc"], ["n.s.search", "nPcSearch", "pc"], ["n.s.related", "nPcRelated", "pc"], ["n.s.watch", "nPcWatch", "pc"],
+        ["n.s.search", "nPhSearch", "phone"], ["n.s.watch", "nPhWatch", "phone"], ["n.s.related", "nPhRelated", "phone"]],
+      tt: [["tt.s.feed", "tPcFeed", "pc"], ["tt.s.feed", "tPhFeed", "phone"]]
+    }[kk()];
+    $("cut-head").textContent = Shell.t(kk() === "tt" ? "tt.cutTitle" : "t.cutTitle");
     var t = title();
     $("cuts").innerHTML = rows.map(function (r) {
       var spec = CUT[r[1]], v = visible(t, spec);
-      return "<tr><th>" + Shell.t(r[2] === "pc" ? "t.pc" : "t.phone") + " · " + Shell.t(r[0]) + '<span class="spec">' + Shell.t("t.lines").replace("{n}", spec[1]) + " · " + spec[2] + "px</span></th>" +
+      var lines = spec[1] >= 99 ? Shell.t("t.wrapAll") : Shell.t("t.lines").replace("{n}", spec[1]);
+      return "<tr><th>" + Shell.t(r[2] === "pc" ? "t.pc" : "t.phone") + " · " + Shell.t(r[0]) + '<span class="spec">' + lines + " · " + spec[2] + "px</span></th>" +
         "<td>" + esc(v.text) + '<br><span class="' + (v.cut ? "cut" : "ok") + '">' + (v.cut ? Shell.t("t.cutN").replace("{a}", v.shown).replace("{b}", v.total) : Shell.t("t.fits")) + "</span></td></tr>";
     }).join("");
   }
@@ -432,7 +725,7 @@
      ===================================================================== */
   var pickTarget = null;
   function buildThumbs() {
-    var arr = S.thumbs[S.kind], v = S.kind === "shorts" ? " v" : "";
+    var arr = S.thumbs[kk()], v = vertical() ? " v" : "";
     var html = arr.map(function (src, k) {
       return '<div class="tslot' + v + (src ? " has" : "") + '" data-k="' + k + '" tabindex="0" role="button" style="' + (src ? "background-image:url(" + src + ")" : "") + '">' +
         (src ? "" : Shell.t("t.addThumb")) + (arr.length > 1 || src ? '<span class="lbl">' + "ABC".charAt(k) + "</span>" : "") +
@@ -440,26 +733,32 @@
     }).join("");
     if (arr.length < 3 && arr[arr.length - 1]) html += '<div class="tslot' + v + '" data-k="' + arr.length + '" tabindex="0" role="button">＋</div>';
     $("thumbs").innerHTML = html;
-    $("thumb-hint").textContent = Shell.t(S.kind === "shorts" ? "t.thumbHintS" : "t.thumbHintV");
+    $("thumb-hint").textContent = Shell.t({ video: "t.thumbHintV", shorts: "t.thumbHintS", nico: "n.thumbHint", tt: "tt.thumbHint" }[kk()]);
     $("frames").innerHTML = '<div class="tslot v' + (S.frame ? " has" : "") + '" data-frame="1" tabindex="0" role="button" style="' + (S.frame ? "background-image:url(" + S.frame + ")" : "") + '">' +
       (S.frame ? '<button type="button" class="x" data-rmframe="1" aria-label="Remove">×</button>' : Shell.t("t.addFrame")) + "</div>";
-    $("frame-field").hidden = S.kind !== "shorts";
-    $("dur-hint").hidden = $("in-dur").hidden = S.kind === "shorts";
-    document.querySelector(".fieldrow").style.gridTemplateColumns = S.kind === "shorts" ? "1fr" : "";
+    $("frame-field").hidden = kk() !== "shorts";
+    $("dur-hint").hidden = $("in-dur").hidden = vertical();
+    document.querySelector(".fieldrow").style.gridTemplateColumns = vertical() ? "1fr" : "";
+    $("kind-field").hidden = S.platform !== "youtube";
+    $("desc-field").hidden = S.platform !== "niconico";
+    $("lbl-title").textContent = Shell.t(S.platform === "tiktok" ? "tt.caption" : "t.vtitle");
+    $("lbl-channel").textContent = Shell.t({ youtube: "t.channel", niconico: "n.owner", tiktok: "tt.user" }[S.platform]);
+    $("in-title").maxLength = S.platform === "tiktok" ? 4000 : 100;
+    $("in-title").placeholder = S.platform === "tiktok" ? Shell.t("tt.sampleCaption") : "";
   }
   function readImage(f, cb) {
     if (!f || !/^image\//.test(f.type)) return;
     var r = new FileReader(); r.onload = function () { cb(r.result); }; r.readAsDataURL(f);
   }
   function setThumb(k, src) {
-    var arr = S.thumbs[S.kind];
+    var arr = S.thumbs[kk()];
     if (k >= arr.length) arr.push(src); else arr[k] = src;
     buildThumbs(); render();
   }
   function slotClick(e) {
     var rm = e.target.closest("[data-rm]"), rmf = e.target.closest("[data-rmframe]");
     if (rm) {
-      var arr = S.thumbs[S.kind]; arr.splice(+rm.getAttribute("data-rm"), 1); if (!arr.length) arr.push(null);
+      var arr = S.thumbs[kk()]; arr.splice(+rm.getAttribute("data-rm"), 1); if (!arr.length) arr.push(null);
       buildThumbs(); render(); return;
     }
     if (rmf) { S.frame = null; buildThumbs(); render(); return; }
@@ -479,11 +778,11 @@
   function slotFor(target) {
     var s = target && target.closest && target.closest(".tslot");
     if (s) return s.hasAttribute("data-frame") ? "frame" : +s.getAttribute("data-k");
-    var arr = S.thumbs[S.kind], k = arr.indexOf(null);
+    var arr = S.thumbs[kk()], k = arr.indexOf(null);
     if (k >= 0) return k;
     return arr.length < 3 ? arr.length : 0;
   }
-  function filled(slot) { return slot === "frame" ? !!S.frame : !!S.thumbs[S.kind][slot]; }
+  function filled(slot) { return slot === "frame" ? !!S.frame : !!S.thumbs[kk()][slot]; }
   FileDrop.attach({ accept: "image/*", kind: "image", input: $("file"),
     hasFile: function (target) { return filled(slotFor(target)); },
     onFile: function (f, how, target) {
@@ -491,9 +790,10 @@
       document.querySelectorAll(".tslot.dragover").forEach(function (x) { x.classList.remove("dragover"); });
       readImage(f, function (u) { if (t === "frame") { S.frame = u; buildThumbs(); render(); } else setThumb(t, u); });
     } });
-  $("in-title").addEventListener("input", function () { S.title = this.value; render(); });
-  $("in-channel").addEventListener("input", function () { S.channel = this.value; render(); });
+  $("in-title").addEventListener("input", function () { S.titles[S.platform] = this.value; render(); });
+  $("in-channel").addEventListener("input", function () { S.channels[S.platform] = this.value; render(); });
   $("in-dur").addEventListener("input", function () { S.dur = this.value.trim(); render(); });
+  $("in-desc").addEventListener("input", function () { S.desc = this.value; render(); });
   function seg(id, key, after) {
     $(id).addEventListener("click", function (e) {
       var b = e.target.closest("[data-v]"); if (!b) return;
@@ -504,12 +804,18 @@
     });
   }
   function buildScenes() {
-    $("scenes").innerHTML = SCENES[S.kind].map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.scene) + '">' + Shell.t("t.s." + k) + "</button>"; }).join("");
-    $("zone-wrap").hidden = !(S.kind === "shorts" && S.scene === "player");
+    var pre = { nico: "n.s.", tt: "tt.s." }[kk()] || "t.s.";
+    $("scenes").innerHTML = scenes().map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.scene) + '">' + Shell.t(pre + k) + "</button>"; }).join("");
+    $("zone-wrap").hidden = !((kk() === "shorts" && S.scene === "player") || (kk() === "tt" && S.scene === "feed"));
   }
-  seg("kind", "kind", function () { S.scene = SCENES[S.kind][0]; buildThumbs(); buildScenes(); });
+  seg("platform", "platform", function () {
+    S.scene = scenes()[0]; $("in-title").value = S.titles[S.platform]; $("in-channel").value = S.channels[S.platform];
+    buildThumbs(); buildScenes();
+  });
+  seg("kind", "kind", function () { S.scene = scenes()[0]; buildThumbs(); buildScenes(); });
   seg("scenes", "scene", buildScenes);
-  seg("device", "device"); seg("theme", "theme"); seg("zoom", "zoom");
+  seg("device", "device", function () { if (scenes().indexOf(S.scene) < 0) S.scene = scenes()[0]; buildScenes(); });
+  seg("theme", "theme"); seg("zoom", "zoom");
   $("zones").addEventListener("change", function () { S.zones = this.checked; render(); });
   var rt = 0; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(render, 80); });
 
@@ -518,7 +824,7 @@
     strings: {
       en: {
         "t.title": "Platform preview",
-        "t.desc": "See your thumbnail, title and channel name at their real size on YouTube's home feed, watch page, search results and related videos — for regular videos and Shorts, on desktop and phone.",
+        "t.desc": "See your thumbnail, title and channel name at their real size on YouTube, niconico and TikTok — home feeds, rankings, search results, watch pages and related videos, on desktop and phone.",
         "t.kVideo": "Video", "t.kShorts": "Shorts", "t.thumbs": "Thumbnails (up to 3 to compare)",
         "t.thumbHintV": "16:9 image (1280×720 recommended). Add a second or third to compare them side by side.",
         "t.thumbHintS": "The shelf crops it to 2:3 from the centre. Add a second or third to compare.",
@@ -536,11 +842,30 @@
         "t.zTop": "Controls", "t.zRight": "Buttons", "t.zBottom": "Channel & title",
         "t.sampleTitle": "Your video title appears here — see how many words fit before it is cut off", "t.sampleChannel": "Your channel",
         "t.sampleMeta": "120K views • 3 days ago", "t.sampleViews": "1.2M views", "t.sampleAgo": "3 days ago", "t.sampleSubs": "12.3K subscribers",
-        "t.subscribe": "Subscribe", "t.sampleSound": "Original sound", "t.share": "Share"
+        "t.subscribe": "Subscribe", "t.sampleSound": "Original sound", "t.share": "Share",
+        "p.niconico": "niconico", "t.wrapAll": "wraps, never cut",
+        "m.youtube": "Sizes measured on the YouTube website on {d} at {w} px. YouTube changes its layout from time to time.",
+        "m.niconico": "Sizes measured on the niconico website on {d} at {w} px. niconico changes its layout from time to time.",
+        "m.tiktok": "Sizes measured on the TikTok website on {d} at {w} px. TikTok changes its layout from time to time.",
+        "t.desc1": "Description (first line)", "t.descHint": "niconico shows the start of the description under the title in rankings and search.",
+        "n.owner": "Uploader name", "n.thumbHint": "16:9 image (1280×720 recommended). Other shapes are shown whole, with black bars. Add a second or third to compare.",
+        "n.s.ranking": "Ranking", "n.s.search": "Search", "n.s.watch": "Watch page", "n.s.related": "Recommended",
+        "n.all": "All", "n.period": "Period: 24 hours", "n.keyword": "Keyword", "n.popular": "Popular on niconico", "n.filter": "Filter",
+        "n.recommend": "Recommended", "n.follow": "Follow", "n.followDo": "Follow",
+        "n.sampleDate": "2026/10/19", "n.sampleDesc": "The start of your description appears here", "n.sampleAgo": "12 hours ago",
+        "n.phoneNote": "Phone: measured on the mobile site (sp.nicovideo.jp, light theme only). The video itself opens full-screen over the page; the ranking couldn't be measured on the mobile site.",
+        "n.adNote": "The advertising banner above the results is left out.",
+        "tt.cutTitle": "Where the caption gets cut", "tt.caption": "Caption", "tt.user": "Username", "tt.sampleUser": "your_name",
+        "tt.thumbHint": "9:16 cover (1080×1920). The feed shows it like the video; Explore crops it to 3:4 from the centre. Add a second or third to compare.",
+        "tt.s.feed": "For You feed", "tt.s.explore": "Explore", "tt.all": "All", "tt.share": "Share", "tt.more": "more", "tt.openApp": "Open app",
+        "tt.sampleCaption": "Your caption appears here — see where it's cut before \"more\" #hashtag #blender",
+        "tt.zCaption": "Name & caption",
+        "tt.phoneNote": "Phone: measured on the TikTok website at phone size; the TikTok app is laid out a little differently. The video fills 375×763, so a 9:16 video loses a little at the left and right.",
+        "tt.exploreNote": "Profile pages couldn't be measured (they didn't load without signing in)."
       },
       ja: {
         "t.title": "プラットフォーム表示プレビュー",
-        "t.desc": "サムネイル・タイトル・チャンネル名が、YouTube のホーム・再生画面・検索結果・関連動画で実際の大きさでどう見えるかを確認します。横動画とショート、パソコンとスマホに対応。",
+        "t.desc": "サムネイル・タイトル・チャンネル名が、YouTube・ニコニコ動画・TikTok のホーム・ランキング・検索結果・再生画面・関連動画で、実際の大きさでどう見えるかを確認します。パソコンとスマホに対応。",
         "t.kVideo": "横動画", "t.kShorts": "ショート", "t.thumbs": "サムネイル（3枚まで比較できます）",
         "t.thumbHintV": "16:9 の画像（1280×720 推奨）。2枚目・3枚目を足すと並べて比較できます。",
         "t.thumbHintS": "棚では中央から 2:3 に切り抜かれます。2枚目・3枚目を足すと比較できます。",
@@ -558,7 +883,26 @@
         "t.zTop": "操作ボタン", "t.zRight": "ボタン", "t.zBottom": "チャンネル・タイトル",
         "t.sampleTitle": "ここに動画のタイトルが入ります。どこで切れるかを確認できます", "t.sampleChannel": "あなたのチャンネル",
         "t.sampleMeta": "12万 回視聴 • 3 日前", "t.sampleViews": "120万 回視聴", "t.sampleAgo": "3 日前", "t.sampleSubs": "チャンネル登録者数 1.23万人",
-        "t.subscribe": "チャンネル登録", "t.sampleSound": "オリジナル楽曲", "t.share": "共有"
+        "t.subscribe": "チャンネル登録", "t.sampleSound": "オリジナル楽曲", "t.share": "共有",
+        "p.niconico": "ニコニコ動画", "t.wrapAll": "折り返して全文",
+        "m.youtube": "寸法は {d} に YouTube のウェブサイトを {w} px の画面で測った値です。YouTube は表示をときどき変更します。",
+        "m.niconico": "寸法は {d} にニコニコ動画のウェブサイトを {w} px の画面で測った値です。ニコニコは表示をときどき変更します。",
+        "m.tiktok": "寸法は {d} に TikTok のウェブサイトを {w} px の画面で測った値です。TikTok は表示をときどき変更します。",
+        "t.desc1": "説明文（冒頭）", "t.descHint": "ニコニコ動画では、ランキングと検索結果のタイトルの下に説明文の冒頭が出ます。",
+        "n.owner": "投稿者名", "n.thumbHint": "16:9 の画像（1280×720 推奨）。ほかの比率は黒い帯を付けて全体が表示されます。2枚目・3枚目を足すと比較できます。",
+        "n.s.ranking": "ランキング", "n.s.search": "検索結果", "n.s.watch": "視聴ページ", "n.s.related": "おすすめ",
+        "n.all": "総合", "n.period": "集計期間　24時間", "n.keyword": "キーワード", "n.popular": "ニコニコで人気", "n.filter": "フィルタ",
+        "n.recommend": "おすすめ", "n.follow": "フォロー", "n.followDo": "フォローする",
+        "n.sampleDate": "2026/10/19", "n.sampleDesc": "ここに説明文の冒頭が入ります", "n.sampleAgo": "12時間前",
+        "n.phoneNote": "スマホはモバイル版サイト（sp.nicovideo.jp、ライト表示のみ）で測定しています。動画そのものはページの上に全画面で開きます。スマホ版のランキングは測定できませんでした。",
+        "n.adNote": "検索結果の上の広告の枠は省いています。",
+        "tt.cutTitle": "説明文の切れ方", "tt.caption": "説明文（キャプション）", "tt.user": "ユーザー名", "tt.sampleUser": "your_name",
+        "tt.thumbHint": "9:16 のカバー（1080×1920）。おすすめでは動画と同じように、探索では中央から 3:4 に切り抜かれて表示されます。2枚目・3枚目を足すと比較できます。",
+        "tt.s.feed": "おすすめ", "tt.s.explore": "探索", "tt.all": "すべて表示", "tt.share": "シェア", "tt.more": "もっと見る", "tt.openApp": "アプリを開く",
+        "tt.sampleCaption": "ここに説明文が入ります。「もっと見る」の手前でどこまで出るかを確認できます #ハッシュタグ #blender",
+        "tt.zCaption": "名前・説明文",
+        "tt.phoneNote": "スマホは TikTok のウェブサイトをスマホの大きさで測定しています。TikTok アプリは配置が少し異なります。動画は 375×763 いっぱいに表示されるので、9:16 の動画は左右が少し切れます。",
+        "tt.exploreNote": "プロフィールページは、ログインしないと表示されなかったため測定できませんでした。"
       }
     },
     onSettingsChange: function () { buildThumbs(); buildScenes(); render(); }

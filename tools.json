@@ -40,8 +40,8 @@
         "ja": "プラットフォーム表示プレビュー"
       },
       "description": {
-        "en": "Preview your thumbnail and title at real size on YouTube.",
-        "ja": "サムネイルとタイトルがYouTube上で実寸でどう見えるかを確認。"
+        "en": "Preview your thumbnail and title at real size on YouTube, niconico and TikTok.",
+        "ja": "サムネイルとタイトルが YouTube・ニコニコ動画・TikTok 上で実寸でどう見えるかを確認。"
       },
       "keywords": [
         "youtube",
@@ -61,7 +61,17 @@
         "プレビュー",
         "タイトル",
         "比較",
-        "YouTube"
+        "YouTube",
+        "niconico",
+        "nicovideo",
+        "ニコニコ",
+        "ニコ動",
+        "tiktok",
+        "ティックトック",
+        "caption",
+        "キャプション",
+        "cover",
+        "カバー"
       ],
       "added": "2026-07-04"
     },
