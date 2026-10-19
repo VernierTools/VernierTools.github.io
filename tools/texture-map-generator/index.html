@@ -181,6 +181,7 @@
         <canvas id="out-canvas" hidden></canvas>
         <div class="out-empty" id="out-empty" data-i18n="t.emptyPreview">Load a texture to see the generated map here.</div>
       </div>
+      <div class="btnrow" id="viewbtns" hidden style="margin-top:var(--s3);justify-content:flex-end"></div>
 
     </div>
   </div>
@@ -188,12 +189,14 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 (function () {
   var $ = function (id) { return document.getElementById(id); };
 
   var FULL_MAX = 2048;
+  FullView.attach({ target: $("pinview"), stage: $("out-wrap"), into: $("viewbtns") });
   var WORK_MAX = 640;
 
   var el = {
@@ -463,7 +466,7 @@
       state.workW = ww; state.workH = wh;
 
       el.outCanvas.width = ww; el.outCanvas.height = wh;
-      el.outCanvas.hidden = false; el.outEmpty.hidden = true;
+      el.outCanvas.hidden = false; el.outEmpty.hidden = true; $("viewbtns").hidden = false;
       document.getElementById("pinview").classList.remove("pin--idle");
 
       state.baseName = file.name.replace(/\.[^.]+$/, "") || "map";

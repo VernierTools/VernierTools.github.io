@@ -106,7 +106,7 @@
       <span class="time" id="time">0:00 / 0:00</span>
     </div>
     <div id="filemeta" hidden></div>
-    <div class="btnrow" style="margin-top:var(--s4)">
+    <div class="btnrow" id="viewbtns" style="margin-top:var(--s4)">
       <button class="btn btn--secondary" id="bypass" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
         <span data-i18n="t.bypass">Show original</span>
@@ -138,6 +138,7 @@
         <select class="select" id="preset"></select>
       </div>
     </div>
+    <div id="pfrow"></div>
   </div>
 
   <div class="card exportbar" id="exportcard" hidden>
@@ -193,6 +194,8 @@
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
 <script src="../../shared/retro-engine.js"></script>
+<script src="../../shared/presetfile.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 /* =========================================================================
@@ -399,6 +402,15 @@ $("grab").addEventListener("click", function(){
   });
 });
 $("render").addEventListener("click", exportWebM);
+FullView.attach({ target:$("playercard"), stage:$("stage"), into:$("viewbtns") });
+PresetFile.attach({ tool:"retro-graphics", into:$("pfrow"),
+  name:function(){ return mode + ($("preset").value ? "-" + $("preset").value : ""); },
+  get:function(){ return { mode:mode, preset:$("preset").value, params:E.pickParams(mode, V) }; },
+  set:function(s){
+    if (MODE_ORDER.indexOf(s.mode) < 0 || !E.putParams(s.mode, s.params, V)) return false;
+    mode = s.mode; $("mode").value = mode; modeChanged();
+    $("preset").value = E.isPreset(mode, s.preset, V) ? s.preset : "";
+  } });
 $("mode").addEventListener("change", function(){ mode = $("mode").value; modeChanged(); });
 $("preset").addEventListener("change", function(){
   if (E.applyPreset(mode, $("preset").value, V)){ var pv = $("preset").value; buildParams(); $("preset").value = pv; updateReadout(); lastKey = null; tick(true); }

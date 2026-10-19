@@ -63,6 +63,10 @@
   .ba__tag--r{ right:var(--s3); }
   .ba.dragover{ border-color:var(--accent); }
   .ba.busy{ opacity:.5; }
+  /* 全画面：前後比較の箱ごと、画面に入る大きさにする（大きさは shared/fullview.js が決める） */
+  .fv-on .bawrap{ display:flex !important; align-items:center; justify-content:center; }
+  .fv-on .ba{ max-width:none !important; margin:0 !important; flex:0 0 auto; }
+  .fv-on .ba canvas{ width:100% !important; height:100% !important; }
 
   /* ---- コントロール ---- */
   .tol{ display:flex; flex-direction:column; gap:var(--s4); }
@@ -110,6 +114,7 @@
       <span class="eyebrow" id="areahead" data-i18n="t.image">Image</span>
       <span class="right">
         <span class="dim" id="outdim"></span>
+        <button class="btn btn--ghost" id="fs" type="button" hidden></button>
         <button class="btn btn--ghost" id="change" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span data-i18n="t.change">Change image</span>
@@ -125,6 +130,7 @@
       <small data-i18n="t.droph">Processed entirely in your browser. Nothing is uploaded.</small>
     </button>
 
+    <div class="bawrap" id="bawrap">
     <div class="ba" id="ba" hidden>
       <canvas id="cv-out"></canvas>
       <div class="ba__before">
@@ -138,6 +144,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 4 12 9 18"/><polyline points="15 6 20 12 15 18"/></svg>
         </span>
       </div>
+    </div>
     </div>
     <div id="fileinfo" hidden></div>
   </section>
@@ -263,6 +270,7 @@
 </main>
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 (function () {
@@ -645,6 +653,7 @@
       ba.hidden = false;
       document.getElementById("pinview").classList.remove("pin--idle");
       changeBtn.hidden = false;
+      $("fs").hidden = false;
       areahead.setAttribute("data-i18n", "t.compare");
       areahead.textContent = tt("t.compare");
       readout.hidden = false;
@@ -659,6 +668,7 @@
   // 読み込みは共通部品（クリック・ページ全体へのドロップ・貼り付け・置き換えの確認）
   var fd = FileDrop.attach({ accept: "image/*", kind: "image", input: fileInput, zone: drop, fillZone: true,
     replace: changeBtn, info: fileinfo, hasFile: function () { return !ba.hidden; }, onFile: loadFile });
+  FullView.attach({ target: document.querySelector(".imgarea"), stage: $("bawrap"), fitBox: ba, button: $("fs") });
 
   // ---------------- Before/After のつまみ ----------------
   var pos = 50, dragging = false;

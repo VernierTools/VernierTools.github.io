@@ -129,6 +129,7 @@
           </div>
           <div class="hint" data-i18n="t.amountHint">Sets every control below; fine-tune from there. “Typical” assumes an everyday home radio-cassette or record player.</div>
         </div>
+        <div id="pfrow"></div>
       </div>
 
       <div class="card">
@@ -153,6 +154,7 @@
 <script src="dsp.js"></script>
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/presetfile.js"></script>
 <script>
 "use strict";
 (function () {
@@ -238,6 +240,31 @@
   $("gens").addEventListener("input", function () { S.gens = +this.value; $("gens-val").textContent = S.gens; persist(); schedule(); });
   $("match").addEventListener("change", function () { S.match = this.checked; persist(); schedule(); });
   $("reseed").addEventListener("click", function () { S.seed = (Math.random() * 4294967295) >>> 0; schedule(); });
+
+  /* ---- プリセットファイル：媒体・設定・ダビング回数・音量合わせ・乱数（書き出しの形式や試聴の長さは入れない） ---- */
+  PresetFile.attach({ tool: "audio-degrade", into: $("pfrow"),
+    name: function () { return S.medium + (S.level ? "-" + S.level : ""); },
+    get: function () { return { medium: S.medium, level: S.level, params: params(), generations: S.gens, matchLoudness: S.match, seed: S.seed }; },
+    set: function (s) {
+      var M = Degrade.MEDIA[s.medium], src = s.params; if (ORDER.indexOf(s.medium) < 0 || !M || !src || typeof src !== "object") return false;
+      var p = Degrade.defaults(s.medium);
+      M.params.forEach(function (q) {
+        var v = src[q.id];
+        if (q.type === "choice") { if (q.choices.indexOf(String(v)) >= 0) p[q.id] = String(v); }
+        else if (q.type === "bool") { if (typeof v === "boolean") p[q.id] = v; }
+        else if (typeof v === "number" && isFinite(v)) p[q.id] = Math.min(q.max, Math.max(q.min, v));
+      });
+      S.medium = s.medium; S.params[S.medium] = p;
+      // 「控えめ・標準・使い古し」は、値がその通りのときだけ選んだままにする
+      var lv = ["light", "std", "heavy"].indexOf(s.level) >= 0 ? s.level : "";
+      if (lv) { var pr = Degrade.preset(S.medium, lv); if (Object.keys(pr).some(function (k) { return pr[k] !== p[k]; })) lv = ""; }
+      S.level = lv;
+      if (typeof s.generations === "number") S.gens = Math.max(1, Math.min(5, Math.round(s.generations)));
+      if (typeof s.matchLoudness === "boolean") S.match = s.matchLoudness;
+      if (typeof s.seed === "number" && isFinite(s.seed)) S.seed = s.seed >>> 0;
+      $("gens").value = S.gens; $("gens-val").textContent = S.gens; $("match").checked = S.match;
+      persist(); buildMedia(); buildParams(); schedule();
+    } });
 
   /* =====================================================================
      音声の読み込み

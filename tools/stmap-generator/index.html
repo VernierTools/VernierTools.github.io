@@ -25,6 +25,10 @@
   .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; padding:var(--s2) var(--s3); border-top:1px solid var(--border);
     font-size:11px; color:var(--text-3); }
   .pvnote{ font-size:12px; color:var(--text-3); line-height:1.55; padding:0 var(--s3) var(--s2); }
+  .legend{ align-items:center; }
+  .pvfs{ margin-left:auto; height:26px; padding:0 8px; font-size:11.5px; gap:5px; }
+  .pvfs svg{ width:13px; height:13px; }
+  .fv-on .legend{ border-top:0; }
   .legend i{ display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:6px; }
   .notes{ margin:0; padding-left:1.2em; color:var(--text-2); font-size:13px; }
   .notes li + li{ margin-top:var(--s1); }
@@ -166,11 +170,12 @@
     </div>
 
     <div>
-      <div class="preview">
-        <canvas id="gen-pv" width="640" height="360" role="img" aria-label="Distortion preview"></canvas>
+      <div class="preview" id="gen-pvcard">
+        <div class="pvstage" id="gen-pvstage"><canvas id="gen-pv" width="640" height="360" role="img" aria-label="Distortion preview"></canvas></div>
         <div class="legend">
           <span><i class="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
           <span><i class="lg-grid"></i><span data-i18n="t.lggrid">Where output pixels sample from</span></span>
+          <button class="btn btn--ghost pvfs" id="gen-fs" type="button"></button>
         </div>
         <div class="pvnote" data-i18n="t.pvnote">The picture bends the opposite way: where the grid is pulled inward, the image is stretched outward.</div>
       </div>
@@ -222,11 +227,12 @@
     </div>
 
     <div>
-      <div class="preview">
-        <canvas id="ana-pv" width="640" height="360" role="img" aria-label="Fitted distortion preview"></canvas>
+      <div class="preview" id="ana-pvcard">
+        <div class="pvstage" id="ana-pvstage"><canvas id="ana-pv" width="640" height="360" role="img" aria-label="Fitted distortion preview"></canvas></div>
         <div class="legend">
           <span><i class="lg-frame"></i><span data-i18n="t.lgframe">Source frame</span></span>
           <span><i class="lg-grid"></i><span data-i18n="t.lgfit">Fitted model</span></span>
+          <button class="btn btn--ghost pvfs" id="ana-fs" type="button"></button>
         </div>
       </div>
       <div class="readout">
@@ -274,6 +280,7 @@
 </main>
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script src="models.js"></script>
 <script src="exr.js"></script>
 <script src="png16.js"></script>
@@ -504,7 +511,15 @@ function drawPreview(cv, o, dir) {
   document.querySelectorAll(".lg-frame").forEach(function (e) { e.style.background = cFrame; });
   document.querySelectorAll(".lg-grid").forEach(function (e) { e.style.background = cGrid; });
   var dpr = window.devicePixelRatio || 1, aspect = o ? o.H / o.W : 9 / 16;
-  var cssW = cv.clientWidth || 480, cssH = Math.max(120, Math.round(cssW * Math.min(aspect, 1.2)));
+  var cssW, cssH, full = cv.closest(".fv-on");
+  if (full) {   // 全画面：入れ物いっぱいに、図の縦横比で
+    var box = cv.parentElement, bw = box.clientWidth, bh = box.clientHeight, a = Math.min(aspect, 1.2);
+    cssW = Math.max(120, Math.floor(Math.min(bw, bh / a))); cssH = Math.max(120, Math.floor(cssW * a));
+    cv.style.width = cssW + "px";
+  } else {
+    cv.style.width = "";
+    cssW = cv.clientWidth || 480; cssH = Math.max(120, Math.round(cssW * Math.min(aspect, 1.2)));
+  }
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
   cv.style.height = cssH + "px";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -880,6 +895,9 @@ function init() {
   window.addEventListener("resize", function () {
     if (S.tab === "gen") renderGen(); else if (S.tab === "ana") renderAna();
   });
+  // 全画面：キャンバスは入れ物の大きさに合わせて描き直す（上の resize で描き直される）
+  FullView.attach({ target: $("gen-pvcard"), stage: $("gen-pvstage"), fit: false, button: $("gen-fs") });
+  FullView.attach({ target: $("ana-pvcard"), stage: $("ana-pvstage"), fit: false, button: $("ana-fs") });
   renderConvInputs();
   updateFocalPx();
   Shell.init({ id: "stmap-generator", strings: I18N, onSettingsChange: onSettings });

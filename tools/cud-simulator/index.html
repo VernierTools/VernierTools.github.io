@@ -69,37 +69,12 @@
   .pane canvas{ display:block; width:100%; height:auto; border:1px solid var(--border);
     border-radius:var(--r); background:var(--surface-2); }
 
-  /* 全画面（ネイティブ Fullscreen API）。対応ブラウザではプレビューの1カードだけを
-     全画面表示にする。ベンダープレフィックスごとに別ルールが必要（無効なセレクタが
-     1つでも混ざるとルール全体が無視されるブラウザがあるため、まとめて書かない）。 */
-  #previewcard:fullscreen{ display:flex; flex-direction:column; justify-content:center;
-    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
-  #previewcard:-webkit-full-screen{ display:flex; flex-direction:column; justify-content:center;
-    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
-  #previewcard:-moz-full-screen{ display:flex; flex-direction:column; justify-content:center;
-    background:var(--bg); padding:var(--s6); border-radius:0; border:0; max-width:none; }
-  /* Fullscreen API 非対応ブラウザ（iOS Safari 等）向けのフォールバック。挙動は同じ。 */
-  #previewcard.maximized{ position:fixed; inset:0; z-index:50; margin:0; border-radius:0; border:0;
-    display:flex; flex-direction:column; justify-content:center; overflow:auto; max-width:none; }
-
-  #previewcard:fullscreen #preview,
-  #previewcard:-webkit-full-screen #preview,
-  #previewcard:-moz-full-screen #preview,
-  #previewcard.maximized #preview{ display:flex; flex-direction:column; flex:1; min-height:0; }
-  #previewcard:fullscreen .panes,
-  #previewcard:-webkit-full-screen .panes,
-  #previewcard:-moz-full-screen .panes,
-  #previewcard.maximized .panes{ flex:1; align-items:center; min-height:0; }
-  #previewcard:fullscreen .pane,
-  #previewcard:-webkit-full-screen .pane,
-  #previewcard:-moz-full-screen .pane,
-  #previewcard.maximized .pane{ display:flex; flex-direction:column; height:100%; min-height:0; }
-  #previewcard:fullscreen .pane canvas,
-  #previewcard:-webkit-full-screen .pane canvas,
-  #previewcard:-moz-full-screen .pane canvas,
-  #previewcard.maximized .pane canvas{ width:auto; height:auto; max-width:100%; max-height:100%;
-    margin:0 auto; object-fit:contain; }
-  .fs-i-close{ display:none; }
+  /* 全画面（shared/fullview.js が .fv-on を付ける）。2 枚のキャンバスを、それぞれの枠に入るいちばん大きな大きさで見せる */
+  #previewcard.fv-on #preview{ flex-direction:column; align-items:stretch; justify-content:center; gap:var(--s3); }
+  #previewcard.fv-on .panes{ flex:1; min-height:0; align-items:stretch; }
+  #previewcard.fv-on .pane{ display:flex; flex-direction:column; min-height:0; }
+  #previewcard.fv-on .pane canvas{ flex:1 1 0; min-height:0; width:100% !important; height:auto !important;
+    object-fit:contain; border:0; background:none; }
 
   .swatches{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:var(--s2); }
   .panes:not([hidden]) ~ .swatches{ margin-top:var(--s3); }
@@ -226,11 +201,7 @@
     <div id="previewcard" class="previewcard">
       <div class="previewbar">
         <span class="eyebrow" data-i18n="t.preview">Preview</span>
-        <button class="fsbtn" id="fsbtn" type="button">
-          <svg class="fs-i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-          <svg class="fs-i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9 3v4a2 2 0 0 1-2 2H3M15 3v4a2 2 0 0 0 2 2h4M21 15h-4a2 2 0 0 0-2 2v4M3 15h4a2 2 0 0 1 2 2v4"/></svg>
-          <span id="fsbtn-lbl" data-i18n="t.fullscreen">Fullscreen</span>
-        </button>
+        <button class="fsbtn" id="fsbtn" type="button"></button>
       </div>
       <div id="preview">
         <div class="emptybox" id="empty" data-i18n="t.empty">Choose a source to start.</div>
@@ -332,6 +303,7 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 (function () {
@@ -1135,59 +1107,8 @@
   /* =====================================================================
      7.5 全画面表示
      ===================================================================== */
-  var previewCard = $("previewcard"), fsBtn = $("fsbtn"), fsLbl = $("fsbtn-lbl");
-  var fsOpen = fsBtn.querySelector(".fs-i-open"), fsClose = fsBtn.querySelector(".fs-i-close");
-  var FS_OK = !!(previewCard.requestFullscreen || previewCard.webkitRequestFullscreen || previewCard.mozRequestFullScreen);
-
-  function fsElement(){
-    return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || null;
-  }
-  function isMaximized(){ return fsElement() === previewCard || previewCard.classList.contains("maximized"); }
-
-  function enterFullscreen(){
-    var req = previewCard.requestFullscreen || previewCard.webkitRequestFullscreen || previewCard.mozRequestFullScreen;
-    if (req){
-      var r = req.call(previewCard);
-      if (r && r.catch) r.catch(function(){ enterMaximizedFallback(); });
-    } else enterMaximizedFallback();
-  }
-  function exitFullscreen(){
-    if (fsElement()){
-      var exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
-      if (exit) exit.call(document);
-    }
-    exitMaximizedFallback();
-  }
-  function enterMaximizedFallback(){
-    previewCard.classList.add("maximized");
-    document.documentElement.style.overflow = "hidden";
-    syncFsButton();
-  }
-  function exitMaximizedFallback(){
-    previewCard.classList.remove("maximized");
-    document.documentElement.style.overflow = "";
-    syncFsButton();
-  }
-  function syncFsButton(){
-    var on = isMaximized();
-    fsOpen.hidden = on; fsClose.hidden = !on;
-    fsLbl.textContent = T(on ? "t.exitFullscreen" : "t.fullscreen");
-    fsBtn.setAttribute("aria-pressed", String(on));
-  }
-
-  fsBtn.addEventListener("click", function(){
-    if (isMaximized()) exitFullscreen(); else enterFullscreen();
-  });
-  ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange"].forEach(function(ev){
-    document.addEventListener(ev, function(){
-      // ブラウザ側（Escキー等）で閉じられた場合もボタン状態を追従させる
-      if (!fsElement()) document.documentElement.style.overflow = "";
-      syncFsButton();
-    });
-  });
-  document.addEventListener("keydown", function(e){
-    if (e.key === "Escape" && previewCard.classList.contains("maximized")) exitMaximizedFallback();
-  });
+  // 共通部品（ネイティブの全画面、使えないブラウザでは画面いっぱいの表示）
+  FullView.attach({ target: $("previewcard"), stage: $("preview"), fit: false, button: $("fsbtn") });
 
   /* =====================================================================
      8. イベント
@@ -1231,8 +1152,6 @@
       "t.modeDetailed": "Detailed",
       "t.modeNote": "Not a medical device, and not a certified or approved tool. See \u201cWhat this can and cannot tell you\u201d in Detailed mode for the full picture.",
       "t.preview": "Preview",
-      "t.fullscreen": "Fullscreen",
-      "t.exitFullscreen": "Exit fullscreen",
       "t.source": "Source",
       "t.srcImage": "Image", "t.srcPalette": "Palette", "t.srcScreen": "Screen", "t.srcCamera": "Camera",
       "t.dropTitle": "Drop an image",
@@ -1287,8 +1206,6 @@
       "t.modeDetailed": "詳細",
       "t.modeNote": "医療機器ではなく、認可・認証を受けたツールでもありません。詳細の「このツールで分かること・分からないこと」もあわせてご確認ください。",
       "t.preview": "プレビュー",
-      "t.fullscreen": "全画面",
-      "t.exitFullscreen": "全画面を終了",
       "t.source": "入力ソース",
       "t.srcImage": "画像", "t.srcPalette": "パレット", "t.srcScreen": "画面", "t.srcCamera": "カメラ",
       "t.dropTitle": "画像をドロップ",

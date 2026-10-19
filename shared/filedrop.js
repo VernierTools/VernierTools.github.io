@@ -29,6 +29,7 @@
                                                                  // 音声は FileDrop.audioOf(file, ch)（元のレートをファイルから読む Promise）
      fd.clear();  // 閉じたとき・読み込めなかったとき
    info を渡すと、replace のボタンはその行の右端へ移る（openLabel のボタンは、開くまでは元の場所に置き、開いたら行へ移る）。
+   shared/presetfile.js も読み込んでいるページでは、受け付けない .json のドロップ・貼り付けはプリセットとして読む。
    ページに読み込み口が複数あるときは、active: function(){ return 今これが表示中か } で
    ページ全体のドロップ・貼り付けを受ける方を決める。
    ========================================================================= */
@@ -313,6 +314,8 @@ function attach(o) {
     o: o,
     take: function (files, how, target) {
       if (busy || !files || !files.length) return;
+      // プリセット（.json）は、そのページの PresetFile が受け取る（ファイル選択から来たときは除く）
+      if (how !== "pick" && window.PresetFile && files.length === 1 && !accepts(files[0], o.accept) && PresetFile.take(files[0])) return;
       if (o.multiple) {
         // 何件でも受け取るツール（一覧に足していく）。足すだけなので置き換えの確認はしない
         var ok = Array.prototype.filter.call(files, function (f) { return accepts(f, o.accept); });

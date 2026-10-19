@@ -39,6 +39,7 @@
   .ch-zbtn.icon{ font-size:17px; line-height:1; }
   .ch-zoomval{ margin-left:auto; font-size:13px; color:var(--text-2);
     font-family:var(--font-mono); font-variant-numeric:tabular-nums; cursor:pointer; padding:4px 8px; border-radius:var(--r-sm); }
+  .ch-fs{ gap:6px; } .ch-fs svg{ width:14px; height:14px; }
   .ch-zoomval:hover{ background:var(--surface-2); }
 
   .ch-hint{ font-size:12px; color:var(--text-3); margin-top:var(--s3); line-height:1.55; }
@@ -96,6 +97,7 @@
   <div class="work">
     <!-- LEFT: preview (larger) + zoom + readouts -->
     <div>
+      <div id="viewbox">
       <div class="ch-viewport" id="viewport">
         <canvas class="ch-view" id="view" tabindex="0" role="img" aria-label="Image preview — drag to pan, scroll to zoom"></canvas>
         <div class="ch-empty" id="empty"></div>
@@ -107,6 +109,8 @@
         <button class="btn btn--secondary ch-zbtn" id="z-100">100%</button>
         <button class="btn btn--secondary ch-zbtn icon" id="z-in" aria-label="Zoom in">+</button>
         <span class="ch-zoomval" id="z-val" data-copy="100%">100%</span>
+        <button class="btn btn--secondary ch-zbtn ch-fs" id="fs" type="button"></button>
+      </div>
       </div>
 
       <div class="ch-hint" data-i18n="t.shortcuts">Wheel / pinch to zoom · drag to pan · double-click to fit · M / F / O switch modes.</div>
@@ -221,6 +225,7 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 (function () {
@@ -699,6 +704,9 @@
     drawHistogram();
   }
   window.addEventListener("resize", onResize);
+  // 全画面：表示の箱が大きさを変えるので、切り替えたら全体が入る倍率に戻す
+  FullView.attach({ target: $("viewbox"), stage: $("viewport"), fit: false, button: $("fs"),
+    onChange: function () { setTimeout(function () { onResize(); if (state.img) $("z-fit").click(); }, 60); } });
   if (window.ResizeObserver){
     var ro = new ResizeObserver(function (){ onResize(); });
     ro.observe(view); ro.observe(histCV);

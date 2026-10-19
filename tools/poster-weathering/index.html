@@ -84,7 +84,7 @@
   <div class="card" id="viewcard" hidden style="padding:var(--s4)">
     <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
     <div id="filemeta" hidden></div>
-    <div class="btnrow" style="margin-top:var(--s4)">
+    <div class="btnrow" id="viewbtns" style="margin-top:var(--s4)">
       <button class="btn btn--secondary" id="bypass" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
         <span data-i18n="t.bypass">Show original</span>
@@ -114,6 +114,7 @@
         <select class="select" id="mount"></select>
       </div>
     </div>
+    <div id="pfrow"></div>
   </div>
 
   <div class="card" id="exportcard" hidden>
@@ -158,6 +159,8 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/presetfile.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script id="fs" type="x-shader/x-fragment">#version 300 es
 precision highp float;
 precision highp int;
@@ -850,6 +853,21 @@ $("preset").addEventListener("change", function(){
   if (p){ V.years = p[1]; buildParams(); $("preset").value = p[0]; update(); }
 });
 $("mount").addEventListener("change", function(){ mount = $("mount").value; buildParams(); update(); });
+FullView.attach({ target:$("viewcard"), stage:$("stage"), into:$("viewbtns") });
+// プリセットファイル：期間・貼り方・各パラメーターと、破れや染みの位置を決める乱数
+PresetFile.attach({ tool:"poster-weathering", into:$("pfrow"),
+  name:function(){ return $("preset").value || "custom"; },
+  get:function(){ var o = {}; DEFS.forEach(function(p){ o[p.k] = V[p.k]; }); return { mount:mount, seed:seed, params:o }; },
+  set:function(s){
+    var P = s.params; if (!P || typeof P !== "object") return false;
+    DEFS.forEach(function(p){
+      var v = P[p.k], hi = p.t === "years" ? YMAX : p.t === "pct" ? 1 : p.t === "mul" ? 2 : p.o.length - 1;
+      V[p.k] = (typeof v === "number" && isFinite(v) && (p.t !== "sel" || v === Math.round(v))) ? Math.min(hi, Math.max(0, v)) : p.d;
+    });
+    if (MOUNTS.indexOf(s.mount) >= 0) mount = s.mount;
+    if (typeof s.seed === "number" && isFinite(s.seed)) seed = s.seed;
+    buildPresets(); buildMounts(); buildParams(); update();
+  } });
 
 /* ---- 文言 ---- */
 var EN = {

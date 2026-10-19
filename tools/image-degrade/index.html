@@ -79,7 +79,7 @@
   <div class="card" id="viewcard" hidden style="padding:var(--s4)">
     <div class="stage" id="stage"><canvas id="out"></canvas><span class="stage__hint" id="hint" hidden></span></div>
     <div id="filemeta" hidden></div>
-    <div class="btnrow" style="margin-top:var(--s4)">
+    <div class="btnrow" id="viewbtns" style="margin-top:var(--s4)">
       <button class="btn btn--secondary" id="bypass" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
         <span data-i18n="t.bypass">Show original</span>
@@ -110,6 +110,7 @@
         <select class="select" id="preset"></select>
       </div>
     </div>
+    <div id="pfrow"></div>
   </div>
 
   <div class="card" id="exportcard" hidden>
@@ -159,6 +160,8 @@
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
 <script src="../../shared/retro-engine.js"></script>
+<script src="../../shared/presetfile.js"></script>
+<script src="../../shared/fullview.js"></script>
 <script>
 "use strict";
 /* =========================================================================
@@ -281,6 +284,16 @@ $("reseed").addEventListener("click", function(){ seed = 1 + Math.floor(Math.ran
 // スマホ幅：プレビューをタップすると貼り付けをやめて大きく表示（もう一度タップで戻す）
 $("stage").addEventListener("click", function(){ if (matchMedia("(max-width:760px)").matches) $("pinview").classList.toggle("pin--free"); });
 $("save").addEventListener("click", save);
+FullView.attach({ target:$("viewcard"), stage:$("stage"), into:$("viewbtns") });
+PresetFile.attach({ tool:"image-degrade", into:$("pfrow"),
+  name:function(){ return mode + ($("preset").value ? "-" + $("preset").value : ""); },
+  get:function(){ return { mode:mode, preset:$("preset").value, params:E.pickParams(mode, V) }; },
+  set:function(s){
+    if (E.MODES.indexOf(s.mode) < 0 || !E.putParams(s.mode, s.params, V)) return false;
+    mode = s.mode; $("mode").value = mode; $("modenote").textContent = t("note." + mode);
+    buildPresets(); $("preset").value = E.isPreset(mode, s.preset, V) ? s.preset : "";
+    buildParams(); updateReadout(); updateExportNote(); render();
+  } });
 $("ex-size").addEventListener("change", function(){ updateExportNote(); render(); });
 $("mode").addEventListener("change", function(){ var m = $("mode").value, first = Object.keys(E.PRESETS[m])[0]; setMode(m, first); });
 $("preset").addEventListener("change", function(){

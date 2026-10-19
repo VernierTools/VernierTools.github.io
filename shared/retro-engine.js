@@ -1235,6 +1235,20 @@ function buildParams(box, mode, V, opts){
     });
   });
 }
+/* プリセットファイル用：その媒体のパラメーターだけを取り出す／当てはめる（範囲外・知らない値は捨てる） */
+function pickParams(mode, V){ var o = {}; DEFS[mode].forEach(function(p){ o[p.k] = V[p.k]; }); return o; }
+function putParams(mode, src, V){
+  if (!DEFS[mode] || !src || typeof src !== "object") return false;
+  DEFS[mode].forEach(function(p){
+    var v = src[p.k];
+    if (v === undefined) { V[p.k] = p.d; return; }
+    if (p.t === "text") V[p.k] = String(v).slice(0, 16);
+    else if (p.t === "sel") V[p.k] = (v === Math.round(v) && v >= 0 && v < p.o.length) ? v : p.d;
+    else V[p.k] = (typeof v === "number" && isFinite(v)) ? Math.min(p.max, Math.max(p.min, v)) : p.d;
+  });
+  return true;
+}
+function isPreset(mode, name, V){ var ps = PRESETS[mode] && PRESETS[mode][name]; if (!ps) return false; for (var k in ps) if (V[k] !== ps[k]) return false; return true; }
 function applyPreset(mode, name, V){ var ps = PRESETS[mode][name]; if (!ps) return false; for (var k in ps) V[k] = ps[k]; return true; }
 
 /* =========================================================================
@@ -1399,6 +1413,7 @@ var STRINGS = { en: {
 root.RetroEngine = {
   DEFS: DEFS, GROUPS: GROUPS, PRESETS: PRESETS, MODES: MODES, STRINGS: STRINGS,
   defaults: defaults, def: def, create: create, readout: readout, drawResponse: drawResponse,
-  buildParams: buildParams, applyPreset: applyPreset, visible: visible
+  buildParams: buildParams, applyPreset: applyPreset, visible: visible,
+  pickParams: pickParams, putParams: putParams, isPreset: isPreset
 };
 })(window);

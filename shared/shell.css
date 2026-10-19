@@ -384,3 +384,28 @@ body.hub-stuck .tb-header{ border-bottom-color:transparent; }
 /* FileDrop の「別の〇〇を開く」ボタン：どのツールでも同じ大きさ */
 button.btn.fd-another, label.btn.fd-another{ height:36px; padding:0 14px; font-size:13px; gap:6px; white-space:nowrap; }
 button.btn.fd-another svg, label.btn.fd-another svg{ width:16px; height:16px; }
+
+/* =========================================================================
+   プリセットの書き出し・読み込み（shared/presetfile.js）
+   ========================================================================= */
+.pf-row{ display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+.pf-row .btn{ height:32px; padding:0 12px; font-size:12.5px; gap:6px; }
+.pf-row .btn svg{ width:14px; height:14px; }
+
+/* =========================================================================
+   結果プレビューの全画面表示（shared/fullview.js）
+   全画面にした要素に .fv-on が付く。ネイティブの全画面でも、代わりの「画面いっぱい」表示でも同じ見た目。
+   ========================================================================= */
+.fv-on{ position:fixed !important; inset:0 !important; z-index:1000; margin:0 !important; max-width:none !important;
+  width:auto !important; height:auto !important; border:0 !important; border-radius:0 !important;
+  background:var(--bg) !important; display:flex !important; flex-direction:column; gap:var(--s3);
+  padding:var(--s4) !important; overflow:auto; box-shadow:none !important; }
+.fv-on > *{ margin-top:0 !important; margin-bottom:0 !important; }
+.fv-on .fv-stage{ flex:1 1 0; min-height:0; max-height:none !important; height:auto !important; width:auto !important; aspect-ratio:auto !important;
+  display:flex !important; align-items:center; justify-content:center; overflow:hidden; }
+.fv-on .fv-stage canvas, .fv-on .fv-stage img, .fv-on .fv-stage video{ max-width:none !important; max-height:none !important; }
+/* スマホ幅で 1 行に詰めているボタン列も、全画面では折り返して全部見せる（「全画面を終了」が隠れないように） */
+.fv-on .btnrow{ flex-wrap:wrap !important; overflow:visible !important; }
+html.fv-open, html.fv-open body{ overflow:hidden; }
+/* 重なりの層を作る祖先（.shell や貼り付いた列）の中から、ヘッダーより上に出られるように */
+html.fv-open *:has(.fv-on){ z-index:1000 !important; }
