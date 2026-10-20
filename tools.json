@@ -2236,6 +2236,40 @@
         "臨界角"
       ],
       "added": "2026-09-28"
+    },
+    {
+      "id": "barcode-generator",
+      "type": "web",
+      "path": "tools/barcode-generator/",
+      "categories": [
+        "image"
+      ],
+      "sub": "generate",
+      "name": {
+        "en": "Barcode generator",
+        "ja": "バーコード作成"
+      },
+      "description": {
+        "en": "JAN/EAN, UPC, Code 128 (GS1-128), Code 39, ITF-14, QR Code and Data Matrix as PNG or SVG at a set print size.",
+        "ja": "JAN・EAN・UPC・Code 128（GS1-128）・Code 39・ITF-14・QR コード・Data Matrix を、印刷サイズを決めて PNG / SVG で作成。"
+      },
+      "keywords": [
+        "barcode",
+        "qr code",
+        "data matrix",
+        "jan",
+        "ean",
+        "upc",
+        "code128",
+        "gs1",
+        "code39",
+        "itf",
+        "バーコード",
+        "QRコード",
+        "データマトリックス",
+        "二次元コード"
+      ],
+      "added": "2026-10-20"
     }
   ]
 }

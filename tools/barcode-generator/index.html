@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barcode generator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .bc-seg{ display:inline-flex; flex-wrap:wrap; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; }
+  .bc-seg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px; color:var(--text-2);
+    height:28px; padding:0 12px; border-radius:7px; }
+  .bc-seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
+  .opts{ display:flex; flex-direction:column; gap:var(--s4); }
+  .opts:empty{ display:none; }
+  .optrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; }
+  .optrow .label{ margin:0; }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.55; margin-top:6px; }
+  textarea.input{ height:auto; min-height:76px; padding:10px 12px; resize:vertical; font-family:var(--font-mono); font-size:13.5px; line-height:1.5; }
+  .input.bad{ border-color:var(--neg); }
+  .msgs{ display:flex; flex-direction:column; gap:6px; margin-top:var(--s3); }
+  .msgs:empty{ display:none; }
+  .msg{ font-size:12.5px; line-height:1.5; padding:6px 10px; border-radius:var(--r-sm); }
+  .msg--err{ color:var(--neg); background:var(--neg-tint); }
+  .msg--warn{ color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); }
+  .unitin{ display:flex; align-items:center; gap:6px; }
+  .unitin .input{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  .unitin span{ font-size:12.5px; color:var(--text-3); white-space:nowrap; }
+  .colors{ display:flex; gap:var(--s4); flex-wrap:wrap; align-items:center; }
+  .colorin{ display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--text-2); cursor:pointer; }
+  .colorin input[type=color]{ width:34px; height:28px; padding:0; border:1px solid var(--border-strong); border-radius:var(--r-sm); background:none; cursor:pointer; }
+
+  .stage{ position:relative; display:flex; align-items:center; justify-content:center; min-height:220px; padding:var(--s5);
+    border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    background:repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 0 0/16px 16px; }
+  .stage svg{ display:block; max-width:100%; max-height:calc(100vh - 200px); width:auto; height:auto; }
+  .stage__empty{ color:var(--text-3); font-size:13px; text-align:center; }
+  .exp{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s2); margin-top:var(--s4); }
+  .exp .btn{ width:100%; }
+  @media (max-width:760px){ .stage{ min-height:0; padding:var(--s3); } .stage svg{ max-height:28vh; } }
+  .rrow__value.small{ font-size:15px; }
+  .limits{ margin:0; padding-left:1.2em; font-size:13px; color:var(--text-2); line-height:1.7; }
+  .limits li + li{ margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.image">Image</span><span class="chip" data-i18n="sub.image.generate">Generation</span></div>
+    <h1 data-i18n="t.title">Barcode generator</h1>
+    <p data-i18n="t.desc">Make JAN (EAN-13), EAN-8, UPC-A, Code 128 (GS1-128), Code 39, ITF (ITF-14), QR Code and Data Matrix symbols, and save them as PNG or SVG at a set print size.</p>
+  </div>
+
+  <div class="pin">
+    <div class="pin__view" id="pinview">
+      <div class="stage" id="stage"></div>
+    </div>
+    <div class="pin__ctrl">
+      <div class="card">
+        <div class="field">
+          <label class="label" for="type" data-i18n="t.type">Type</label>
+          <select class="select" id="type"></select>
+        </div>
+        <div class="field">
+          <label class="label" for="text" data-i18n="t.content">Content</label>
+          <textarea class="input" id="text" rows="3" spellcheck="false" autocomplete="off"></textarea>
+          <div class="hint" id="texthint"></div>
+          <div class="msgs" id="msgs"></div>
+        </div>
+        <div class="opts" id="opts"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.look">Size and look</div>
+        <div class="row2 field">
+          <div>
+            <label class="label" for="xmm" id="xlabel">Module width (X)</label>
+            <div class="unitin"><input class="input" id="xmm" type="number" min="0.05" max="5" step="0.01"><span>mm</span></div>
+          </div>
+          <div id="hbox">
+            <label class="label" for="hmm" data-i18n="t.height">Bar height</label>
+            <div class="unitin"><input class="input" id="hmm" type="number" min="1" max="300" step="0.5"><span>mm</span></div>
+          </div>
+        </div>
+        <div class="row2 field">
+          <div>
+            <label class="label" for="px" data-i18n="t.px">PNG: pixels per module</label>
+            <div class="unitin"><input class="input" id="px" type="number" min="1" max="40" step="1"><span>px</span></div>
+          </div>
+          <div id="bwrbox">
+            <label class="label" for="bwr" data-i18n="t.bwr">Bar width reduction (SVG)</label>
+            <div class="unitin"><input class="input" id="bwr" type="number" min="0" max="0.2" step="0.005"><span>mm</span></div>
+          </div>
+        </div>
+        <div class="toggles field">
+          <label class="toggle" id="hritog"><input type="checkbox" id="hri"><span class="track"></span><span data-i18n="t.hri">Show the text under the bars</span></label>
+          <label class="toggle"><input type="checkbox" id="quiet"><span class="track"></span><span data-i18n="t.quiet">Include the quiet zone (blank margin)</span></label>
+        </div>
+        <div class="colors">
+          <label class="colorin"><input type="color" id="fg"><span data-i18n="t.fg">Bars</span></label>
+          <label class="colorin"><input type="color" id="bg"><span data-i18n="t.bg">Background</span></label>
+          <label class="toggle"><input type="checkbox" id="transp"><span class="track"></span><span data-i18n="t.transp">Transparent background</span></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="exp" style="margin-top:0">
+        <button class="btn btn--primary" id="dl-png" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          <span data-i18n="t.dlpng">Save PNG</span>
+        </button>
+        <button class="btn btn--secondary" id="dl-svg" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          <span data-i18n="t.dlsvg">Save SVG</span>
+        </button>
+        <button class="btn btn--secondary" id="cp-png" type="button" data-i18n="t.cppng">Copy image</button>
+        <button class="btn btn--secondary" id="cp-svg" type="button" data-i18n="t.cpsvg">Copy SVG code</button>
+        </div>
+      </div>
+      <div class="readout" style="margin-top:var(--s4)">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.symbol">Symbol</span><span class="eyebrow" id="ro-type"></span></div>
+        <div id="rrows"></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s7)">
+    <div class="card__title" data-i18n="t.limits">Good to know</div>
+    <ul class="limits">
+      <li data-i18n="l.jan">JAN, EAN and UPC numbers start with a company prefix issued by GS1 (GS1 Japan for JAN). Products sold in stores need a registered number; a made-up number only works for in-house use.</li>
+      <li data-i18n="l.size">The printed size is set by the module width (X). Shrinking a symbol below the recommended size (JAN: 0.264 mm, 80%) or cutting into the quiet zone makes it hard to scan.</li>
+      <li data-i18n="l.png">PNG is drawn on whole pixels so the edges stay sharp. For printing, SVG keeps the exact size; check it is placed at 100% in your layout software.</li>
+      <li data-i18n="l.color">Dark bars on a light background read best. Red bars, light bars on a dark background and low contrast often cannot be read.</li>
+      <li data-i18n="l.text">QR Code and Data Matrix store text as UTF-8. Very old readers that expect Shift_JIS may show garbled Japanese.</li>
+      <li data-i18n="l.test">Always test the printed symbol with a real scanner or phone before mass printing.</li>
+      <li data-i18n="l.tm">QR Code is a registered trademark of DENSO WAVE INCORPORATED.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script src="barcode.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   Barcode generator — Vernier
+   符号化は barcode.js。ここでは入力・大きさの設定・SVG / PNG への描画と書き出しを受け持つ。
+   大きさは「1 モジュール（いちばん細いバー・1 マス）の幅 X（mm）」で決める。SVG はその寸法（mm）で書き出し、
+   PNG は 1 モジュールを整数ピクセルで描く（にじまないように）。
+   Code 39・ITF は細いバー = 2 モジュールで符号化しているので、X は細いバーの幅として扱う。
+   ========================================================================= */
+(function () {
+var $ = function (id) { return document.getElementById(id); };
+var T = function (k) { return Shell.t(k); };
+var STORE = "bc.state";
+
+var TYPES = ["ean13", "ean8", "upca", "code128", "code39", "itf", "qr", "datamatrix"];
+var TWO_D = { qr: 1, datamatrix: 1 };
+// 種類ごとの既定：内容、X（mm）、バーの高さ（mm、1 次元のみ）
+var DEF = {
+  ean13: { text: "491234567890", x: 0.33, h: 22.85 },
+  ean8: { text: "4912345", x: 0.33, h: 18.23 },
+  upca: { text: "03600029145", x: 0.33, h: 22.85 },
+  code128: { text: "Vernier-2026", x: 0.33, h: 15 },
+  code39: { text: "VERNIER-39", x: 0.25, h: 15 },
+  itf: { text: "1234567890", x: 0.5, h: 15 },
+  qr: { text: "https://example.com/", x: 0.5 },
+  datamatrix: { text: "Vernier Data Matrix", x: 0.5 }
+};
+
+var S = { type: "qr", per: {}, px: 4, bwr: 0, hri: true, quiet: true, fg: "#000000", bg: "#ffffff", transp: false,
+  gs1: { code128: false, qr: false, datamatrix: false }, c39check: false, ratio: { code39: 3, itf: 2.5 }, itf14: false, bearer: true,
+  ecl: "M", shape: "square" };
+try {
+  var sv = JSON.parse(localStorage.getItem(STORE));
+  if (sv && TYPES.indexOf(sv.type) >= 0) for (var k in S) if (sv[k] !== undefined) S[k] = sv[k];
+} catch (e) {}
+TYPES.forEach(function (t) { S.per[t] = S.per[t] || {}; ["text", "x", "h"].forEach(function (k) { if (S.per[t][k] === undefined && DEF[t][k] !== undefined) S.per[t][k] = DEF[t][k]; }); });
+function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
+function P() { return S.per[S.type]; }
+
+/* =========================================================================
+   1. 入力と種類ごとの設定
+   ========================================================================= */
+function buildTypes() {
+  var g1 = TYPES.filter(function (t) { return !TWO_D[t]; }), g2 = TYPES.filter(function (t) { return TWO_D[t]; });
+  function opts(list) { return list.map(function (t) { return '<option value="' + t + '">' + T("ty." + t) + "</option>"; }).join(""); }
+  $("type").innerHTML = '<optgroup label="' + T("t.g1") + '">' + opts(g1) + '</optgroup><optgroup label="' + T("t.g2") + '">' + opts(g2) + "</optgroup>";
+  $("type").value = S.type;
+}
+function seg(id, list, cur) {   // [値, 文言キー]
+  return '<div class="bc-seg" id="' + id + '" role="group">' + list.map(function (o) {
+    return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (String(o[0]) === String(cur)) + '">' + T(o[1]) + "</button>";
+  }).join("") + "</div>";
+}
+function tog(id, on, key) {
+  return '<label class="toggle"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '><span class="track"></span><span>' + T(key) + "</span></label>";
+}
+function buildOpts() {
+  var t = S.type, h = "";
+  if (t === "code128" || t === "qr" || t === "datamatrix") h += '<div>' + tog("o-gs1", S.gs1[t], "o.gs1") + '<div class="hint">' + T("o.gs1hint") + "</div></div>";
+  if (t === "code39") h += tog("o-c39check", S.c39check, "o.c39check");
+  if (t === "itf") h += tog("o-itf14", S.itf14, "o.itf14") + (S.itf14 ? tog("o-bearer", S.bearer, "o.bearer") : "");
+  if (t === "code39" || t === "itf")
+    h += '<div class="optrow"><span class="label">' + T("o.ratio") + "</span>" + seg("o-ratio", [[2, "r.2"], [2.5, "r.25"], [3, "r.3"]], S.ratio[t]) + "</div>";
+  if (t === "qr") h += '<div class="optrow"><span class="label">' + T("o.ecl") + "</span>" + seg("o-ecl", [["L", "e.L"], ["M", "e.M"], ["Q", "e.Q"], ["H", "e.H"]], S.ecl) + "</div>";
+  if (t === "datamatrix") h += '<div class="optrow"><span class="label">' + T("o.shape") + "</span>" + seg("o-shape", [["square", "s.square"], ["rect", "s.rect"], ["auto", "s.auto"]], S.shape) + "</div>";
+  $("opts").innerHTML = h;
+}
+function typeChanged() {
+  $("text").value = P().text;
+  $("xmm").value = P().x; $("hmm").value = P().h || "";
+  $("hbox").hidden = !!TWO_D[S.type]; $("hritog").hidden = !!TWO_D[S.type]; $("bwrbox").hidden = !!TWO_D[S.type];
+  $("xlabel").textContent = T(S.type === "code39" || S.type === "itf" ? "t.xnarrow" : TWO_D[S.type] ? "t.xcell" : "t.x");
+  buildOpts(); update();
+}
+function hint() {
+  var t = S.type;
+  if (t === "itf") return T(S.itf14 ? "h.itf14" : "h.itf");
+  if ((t === "code128" || t === "qr" || t === "datamatrix") && S.gs1[t]) return T("h.gs1");
+  return T("h." + t);
+}
+
+/* =========================================================================
+   2. 符号化
+   ========================================================================= */
+function opt() {
+  var t = S.type;
+  return { gs1: !!S.gs1[t], check: S.c39check, ratio: S.ratio[t], itfMode: S.itf14 ? "itf14" : "itf", ecl: S.ecl, shape: S.shape };
+}
+function errText(e) {
+  var s = T(e.message);
+  if (s === e.message) return T("e.generic");
+  return s.replace("{a}", e.arg === undefined ? "" : e.arg);
+}
+
+/* =========================================================================
+   3. 配置（モジュール単位）。SVG と PNG の両方がこれを使う
+   ========================================================================= */
+var FONT = 'Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
+function layout(r) {
+  var L = { rects: [], texts: [], W: 0, H: 0, mm: P().x / (r.unit || 1) };
+  if (r.dim === 2) {
+    var q = S.quiet ? r.quiet : 0;
+    L.W = r.w + q * 2; L.H = r.h + q * 2;
+    for (var y = 0; y < r.h; y++) {
+      for (var x = 0; x < r.w;) {
+        if (!r.grid[y * r.w + x]) { x++; continue; }
+        var x0 = x; while (x < r.w && r.grid[y * r.w + x]) x++;
+        L.rects.push([x0 + q, y + q, x - x0, 1, false]);
+      }
+    }
+    return L;
+  }
+  var unit = r.unit || 1, hri = S.hri, kind = r.hri.kind;
+  var barH = Math.max(1, (P().h || 15) / L.mm);
+  var fs = 8 * unit * (kind === "plain" ? 1.1 : 1);   // 文字の大きさ（モジュール）
+  var ql = S.quiet ? r.quiet[0] : 0, qr = S.quiet ? r.quiet[1] : 0;
+  // EAN・UPC の外側の数字は余白に置くので、余白を切っても数字の分は空ける
+  if (hri && (kind === "ean13" || kind === "upc")) ql = Math.max(ql, 9);
+  if (hri && kind === "upc") qr = Math.max(qr, 9);
+  // ITF-14 のベアラーバー：細いバー 2 本分の太さの枠で、余白はその内側に取る。文字は枠の下に出す
+  var bear = r.bearer && S.bearer ? 4 : 0, top = bear;
+  if (bear) { ql = Math.max(ql, r.quiet[0]); qr = Math.max(qr, r.quiet[1]); }
+  var n = r.mods.length, guardExt = (kind === "plain") ? 0 : 5, x0 = bear + ql;
+  for (var i = 0; i < n;) {
+    if (!r.mods[i]) { i++; continue; }
+    var s = i, g = r.guards && r.guards[i];
+    while (i < n && r.mods[i] && (!r.guards || r.guards[i] === g)) i++;
+    L.rects.push([x0 + s, top, i - s, barH + (hri && g ? guardExt : 0), true]);
+  }
+  var below = top + barH + bear;
+  var textY = below + (hri ? fs * 0.95 + 1 : 0);
+  L.W = x0 + n + qr + bear; L.H = hri ? Math.max(textY + 1, below + guardExt) : below;
+  if (bear) {
+    L.rects.push([0, 0, L.W, bear, false], [0, below - bear, L.W, bear, false], [0, 0, bear, below, false], [L.W - bear, 0, bear, below, false]);
+  }
+  ql = x0;
+  if (hri) {
+    var d = r.hri.digits, base = textY, cell = function (st, k) { return ql + st + 7 * k + 3.5; };
+    if (kind === "ean13") {
+      L.texts.push([ql - 2, base, d[0], fs, "end"]);
+      for (var k = 0; k < 6; k++) { L.texts.push([cell(3, k), base, d[1 + k], fs]); L.texts.push([cell(50, k), base, d[7 + k], fs]); }
+    } else if (kind === "ean8") {
+      for (k = 0; k < 4; k++) { L.texts.push([cell(3, k), base, d[k], fs]); L.texts.push([cell(36, k), base, d[4 + k], fs]); }
+    } else if (kind === "upc") {
+      L.texts.push([ql - 2, base, d[0], fs * 0.75, "end"]);
+      for (k = 1; k < 6; k++) L.texts.push([cell(3, k), base, d[k], fs]);
+      for (k = 0; k < 5; k++) L.texts.push([cell(50, k), base, d[6 + k], fs]);
+      L.texts.push([ql + n + 2, base, d[11], fs * 0.75, "start"]);
+    } else {
+      L.texts.push([ql + n / 2, base, r.hri.text, Math.min(fs, n / Math.max(1, r.hri.text.length) * 1.6)]);
+    }
+  }
+  return L;
+}
+
+/* ---- SVG（単位は mm。viewBox はモジュール） ---- */
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function svgOf(L, forFile) {
+  var mm = L.mm, red = Math.min(0.45, (S.bwr || 0) / mm), d = "";
+  L.rects.forEach(function (b) {
+    var x = b[0], w = b[2];
+    if (b[4] && red > 0) { x += red / 2; w -= red; }   // バー幅の補正（印刷でインクが広がる分、バーだけを細く）
+    d += "M" + +x.toFixed(4) + " " + +b[1].toFixed(4) + "h" + +w.toFixed(4) + "v" + +b[3].toFixed(4) + "h" + (-w.toFixed(4)) + "z";
+  });
+  var s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + +L.W.toFixed(4) + " " + +L.H.toFixed(4) + '"';
+  // プレビューは長い辺が 640 px 前後になる大きさを持たせ、CSS で枠に収める（縦横比はそのまま）
+  var k = 640 / Math.max(L.W, L.H);
+  s += forFile ? ' width="' + +(L.W * mm).toFixed(3) + 'mm" height="' + +(L.H * mm).toFixed(3) + 'mm"' : ' width="' + Math.round(L.W * k) + '" height="' + Math.round(L.H * k) + '"';
+  s += ' shape-rendering="crispEdges">';
+  if (!S.transp) s += '<rect width="100%" height="100%" fill="' + S.bg + '"/>';
+  s += '<path fill="' + S.fg + '" d="' + d + '"/>';
+  L.texts.forEach(function (t) {
+    s += '<text x="' + +t[0].toFixed(3) + '" y="' + +t[1].toFixed(3) + '" font-family=\'' + FONT + '\' font-size="' + +t[3].toFixed(3) +
+      '" text-anchor="' + (t[4] || "middle") + '" fill="' + S.fg + '">' + esc(t[2]) + "</text>";
+  });
+  return s + "</svg>";
+}
+
+/* ---- PNG：1 モジュール = px（Code 39・ITF の細いバー = px）。幅は境目ごとに丸めるので、太さの比がほぼ保たれ、にじまない ---- */
+function pngCanvas(L, r) {
+  var px = Math.max(1, Math.round(S.px)), per = px / (r.unit || 1);
+  var X = function (m) { return Math.round(m * per); };
+  var c = document.createElement("canvas");
+  c.width = X(L.W); c.height = X(L.H);
+  var g = c.getContext("2d");
+  if (!S.transp) { g.fillStyle = S.bg; g.fillRect(0, 0, c.width, c.height); }
+  g.fillStyle = S.fg;
+  L.rects.forEach(function (b) { g.fillRect(X(b[0]), X(b[1]), X(b[0] + b[2]) - X(b[0]), X(b[1] + b[3]) - X(b[1])); });
+  L.texts.forEach(function (t) {
+    g.font = (t[3] * per) + "px " + FONT; g.textAlign = t[4] === "end" ? "right" : t[4] === "start" ? "left" : "center"; g.textBaseline = "alphabetic";
+    g.fillText(t[2], t[0] * per, t[1] * per);
+  });
+  return c;
+}
+
+/* =========================================================================
+   4. 更新
+   ========================================================================= */
+var cur = null;   // { r, L }
+function msg(list) {
+  $("msgs").innerHTML = list.map(function (m) { return '<div class="msg msg--' + m[0] + '">' + esc(m[1]) + "</div>"; }).join("");
+}
+function lum(hex) {
+  var n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function update() {
+  save();
+  $("texthint").textContent = hint();
+  var r;
+  try { r = Barcode.encode(S.type, P().text, opt()); }
+  catch (e) {
+    $("text").classList.add("bad"); msg([["err", errText(e)]]);
+    // 古いシンボルを残すと、別の内容のものを保存しかねないので消す
+    cur = null; setExport(false); $("rrows").innerHTML = "";
+    $("stage").innerHTML = '<div class="stage__empty">' + esc(T("t.noSymbol")) + "</div>";
+    return;
+  }
+  $("text").classList.remove("bad");
+  var L = layout(r);
+  cur = { r: r, L: L };
+  var notes = (r.warn || []).map(function (w) { return ["warn", T(w[0]).replace("{a}", w[1] === undefined ? "" : w[1])]; });
+  var lf = lum(S.fg), lb = S.transp ? 1 : lum(S.bg);
+  if (lf > lb) notes.push(["warn", T("w.inverse")]);
+  else if ((lb + 0.05) / (lf + 0.05) < 3) notes.push(["warn", T("w.contrast")]);
+  if (!r.dim || r.dim === 1) { if (P().x < (S.type === "code39" || S.type === "itf" ? 0.19 : 0.25)) notes.push(["warn", T("w.small")]); }
+  else if (P().x < 0.25) notes.push(["warn", T("w.small")]);
+  if (S.transp) notes.push(["warn", T("w.transp")]);
+  msg(notes);
+  $("stage").innerHTML = svgOf(L, false);
+  readout(r, L);
+  setExport(true);
+}
+function setExport(on) { ["dl-png", "dl-svg", "cp-png", "cp-svg"].forEach(function (id) { $(id).disabled = !on; }); }
+
+function fmt(v, d) { return (+v.toFixed(d)).toString(); }
+function readout(r, L) {
+  var rows = [], mm = L.mm, px = Math.max(1, Math.round(S.px)) / (r.unit || 1);
+  $("ro-type").textContent = T("ty." + S.type);
+  if (r.dim === 1) {
+    rows.push(["ro.data", r.text]);
+    rows.push(["ro.mods", (r.mods.length / (r.unit || 1)) + " X"]);
+    if (r.symbols) rows.push(["ro.symbols", String(r.symbols)]);
+  } else if (r.info.kind === "qr") {
+    rows.push(["ro.version", r.info.version + (Shell.lang === "ja" ? "（" + r.w + " × " + r.h + "）" : " (" + r.w + " × " + r.h + ")")]);
+    rows.push(["ro.ecl", r.info.ecl + " · mask " + r.info.mask]);
+    rows.push(["ro.modes", r.info.modes.map(function (m) { return T("m." + m); }).join(" + ")]);
+    rows.push(["ro.used", r.info.used + " / " + r.info.capacity]);
+  } else {
+    rows.push(["ro.dmsize", r.h + " × " + r.w]);
+    rows.push(["ro.dmmode", T("dm." + r.info.mode)]);
+    rows.push(["ro.used", r.info.used + " / " + r.info.capacity]);
+  }
+  rows.push(["ro.print", fmt(L.W * mm, 2) + " × " + fmt(L.H * mm, 2) + " mm"]);
+  rows.push(["ro.png", Math.round(L.W * px) + " × " + Math.round(L.H * px) + " px"]);
+  $("rrows").innerHTML = rows.map(function (x) {
+    return '<div class="rrow"><span class="rrow__label">' + T(x[0]) + '</span><span class="rrow__value small" data-copy="' + esc(x[1]) + '">' + esc(x[1]) + "</span></div>";
+  }).join("");
+}
+
+/* =========================================================================
+   5. 書き出し
+   ========================================================================= */
+function baseName() {
+  var t = P().text.replace(/[\\/:*?"<>|\s()]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
+  return "barcode-" + S.type + (t ? "-" + t : "");
+}
+function download(blob, name) {
+  var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+}
+$("dl-svg").addEventListener("click", function () {
+  if (!cur) return;
+  download(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + svgOf(cur.L, true) + "\n"], { type: "image/svg+xml" }), baseName() + ".svg");
+});
+$("dl-png").addEventListener("click", function () {
+  if (!cur) return;
+  pngCanvas(cur.L, cur.r).toBlob(function (b) { download(b, baseName() + ".png"); }, "image/png");
+});
+$("cp-svg").addEventListener("click", function () { if (cur) Shell.copy(svgOf(cur.L, true), $("cp-svg")); });
+$("cp-png").addEventListener("click", function () {
+  if (!cur) return;
+  var btn = $("cp-png");
+  function say(k) { btn.textContent = T(k); setTimeout(function () { btn.textContent = T("t.cppng"); }, 1800); }
+  if (!navigator.clipboard || !window.ClipboardItem) { say("w.nocopy"); return; }
+  // Safari はクリックの直後に ClipboardItem を渡す必要があるので、画像は Promise のまま渡す
+  var blob = new Promise(function (res) { pngCanvas(cur.L, cur.r).toBlob(res, "image/png"); });
+  navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(function () { say("t.copied"); }).catch(function () { say("w.nocopy"); });
+});
+
+/* =========================================================================
+   6. 配線
+   ========================================================================= */
+$("type").addEventListener("change", function () { S.type = this.value; typeChanged(); });
+$("text").addEventListener("input", function () { P().text = this.value; update(); });
+function num(id, key, min, max, perType) {
+  $(id).addEventListener("input", function () {
+    var v = parseFloat(this.value); if (!isFinite(v)) return;
+    v = Math.min(max, Math.max(min, v));
+    if (perType) P()[key] = v; else S[key] = v;
+    update();
+  });
+  $(id).addEventListener("change", function () { this.value = perType ? P()[key] : S[key]; });
+}
+num("xmm", "x", 0.05, 5, true); num("hmm", "h", 1, 300, true); num("px", "px", 1, 40, false); num("bwr", "bwr", 0, 0.2, false);
+["hri", "quiet", "transp"].forEach(function (k) { $(k).addEventListener("change", function () { S[k] = this.checked; update(); }); });
+["fg", "bg"].forEach(function (k) { $(k).addEventListener("input", function () { S[k] = this.value; update(); }); });
+$("opts").addEventListener("change", function (e) {
+  var id = e.target.id, on = e.target.checked;
+  if (id === "o-gs1") { S.gs1[S.type] = on; if (on && !/^\(/.test(P().text)) { P().text = "(01)04912345678904(10)LOT123"; $("text").value = P().text; } }
+  if (id === "o-c39check") S.c39check = on;
+  if (id === "o-itf14") {
+    S.itf14 = on;
+    if (on && P().text.replace(/\D/g, "").length < 13) { P().text = "1491234567890"; $("text").value = P().text; }
+    // ITF-14 のバーの高さは 31.75 mm 以上（GS1）。既定のままなら合わせる
+    if (on && P().h < 31.75) { P().h = 32; $("hmm").value = 32; }
+    buildOpts();
+  }
+  if (id === "o-bearer") S.bearer = on;
+  update();
+});
+$("opts").addEventListener("click", function (e) {
+  var b = e.target.closest(".bc-seg button"); if (!b) return;
+  var g = b.parentNode.id, v = b.getAttribute("data-v");
+  if (g === "o-ratio") S.ratio[S.type] = +v;
+  if (g === "o-ecl") S.ecl = v;
+  if (g === "o-shape") S.shape = v;
+  b.parentNode.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+  update();
+});
+
+/* =========================================================================
+   7. 文言
+   ========================================================================= */
+var I18N = {
+  en: {
+    "t.title": "Barcode generator",
+    "t.desc": "Make JAN (EAN-13), EAN-8, UPC-A, Code 128 (GS1-128), Code 39, ITF (ITF-14), QR Code and Data Matrix symbols, and save them as PNG or SVG at a set print size.",
+    "t.type": "Type", "t.content": "Content", "t.g1": "Linear barcodes", "t.g2": "2D codes",
+    "ty.ean13": "JAN / EAN-13", "ty.ean8": "JAN short / EAN-8", "ty.upca": "UPC-A", "ty.code128": "Code 128", "ty.code39": "Code 39",
+    "ty.itf": "ITF (Interleaved 2 of 5)", "ty.qr": "QR Code", "ty.datamatrix": "Data Matrix",
+    "h.ean13": "12 digits (the check digit is added) or 13 digits (the check digit is verified).",
+    "h.ean8": "7 digits (the check digit is added) or 8 digits (the check digit is verified).",
+    "h.upca": "11 digits (the check digit is added) or 12 digits (the check digit is verified).",
+    "h.code128": "Any ASCII text, including control characters. Code sets A, B and C are switched automatically to keep the symbol short.",
+    "h.code39": "A–Z, 0–9, space and - . $ / + %. Lowercase letters are turned into capitals.",
+    "h.itf": "Digits only. An odd number of digits gets a leading 0.",
+    "h.itf14": "13 digits (the check digit is added) or 14 digits (the check digit is verified).",
+    "h.qr": "Any text, URL or Japanese. Numbers, capitals and other text are mixed in the most compact way.",
+    "h.datamatrix": "Any text. Japanese and other non-ASCII text is stored as UTF-8.",
+    "h.gs1": "Write each field as (AI)value, e.g. (01)04912345678904(17)250101(10)LOT123. Separators are inserted automatically.",
+    "o.gs1": "GS1 format", "o.gs1hint": "For GS1-128, GS1 QR Code and GS1 DataMatrix (application identifiers).",
+    "o.c39check": "Add a check character (modulo 43)", "o.itf14": "ITF-14 (GTIN-14 for shipping cartons)", "o.bearer": "Bearer bars (frame)",
+    "o.ratio": "Wide : narrow", "r.2": "2 : 1", "r.25": "2.5 : 1", "r.3": "3 : 1",
+    "o.ecl": "Error correction", "e.L": "L 7%", "e.M": "M 15%", "e.Q": "Q 25%", "e.H": "H 30%",
+    "o.shape": "Shape", "s.square": "Square", "s.rect": "Rectangle", "s.auto": "Smallest",
+    "t.look": "Size and look", "t.x": "Module width (X)", "t.xnarrow": "Narrow bar width (X)", "t.xcell": "Module size (X)",
+    "t.height": "Bar height", "t.px": "PNG: pixels per module", "t.bwr": "Bar width reduction (SVG)",
+    "t.hri": "Show the text under the bars", "t.quiet": "Include the quiet zone (blank margin)",
+    "t.fg": "Bars", "t.bg": "Background", "t.transp": "Transparent background",
+    "t.dlpng": "Save PNG", "t.dlsvg": "Save SVG", "t.cppng": "Copy image", "t.cpsvg": "Copy SVG code", "t.copied": "Copied",
+    "t.symbol": "Symbol", "t.noSymbol": "Fix the content to see the symbol.", "t.copyhint": "Click any value to copy.",
+    "ro.data": "Encoded", "ro.mods": "Width in modules", "ro.symbols": "Symbol characters", "ro.version": "Version (modules)",
+    "ro.ecl": "Error correction", "ro.modes": "Encoding", "ro.used": "Codewords used", "ro.dmsize": "Size (rows × columns)",
+    "ro.dmmode": "Encoding", "ro.print": "Printed size", "ro.png": "PNG size",
+    "m.N": "Numeric", "m.A": "Alphanumeric", "m.B": "Byte (UTF-8)", "dm.ascii": "ASCII", "dm.base256": "Base 256 (bytes)",
+    "e.digits": "Only digits can be used.", "e.len": "Enter {a} digits.", "e.check": "The check digit doesn't match. It should be {a}.",
+    "e.empty": "Enter the content.", "e.ascii": "This type only takes ASCII characters (no Japanese or accented letters).",
+    "e.c39": "“{a}” can't be used in Code 39.", "e.toolong": "Too much data for this type.",
+    "e.gs1": "Write GS1 data as (AI)value(AI)value…", "e.gs1empty": "({a}) has no value.", "e.gs1len": "{a} digits are needed after this AI.",
+    "e.generic": "This content can't be encoded.",
+    "w.gs1check": "The check digit of {a} is expected.", "w.itfpad": "A leading 0 was added to make the number of digits even.",
+    "w.inverse": "The bars are lighter than the background. Many scanners can't read inverted symbols.",
+    "w.contrast": "The contrast between bars and background is low.", "w.small": "The module is smaller than usual for printing. Check that your printer and scanner can handle it.",
+    "w.transp": "With a transparent background, make sure whatever is behind it is light and plain.", "w.nocopy": "This browser can't copy images",
+    "t.limits": "Good to know",
+    "l.jan": "JAN, EAN and UPC numbers start with a company prefix issued by GS1 (GS1 Japan for JAN). Products sold in stores need a registered number; a made-up number only works for in-house use.",
+    "l.size": "The printed size is set by the module width (X). Shrinking a symbol below the recommended size (JAN: 0.264 mm, 80%) or cutting into the quiet zone makes it hard to scan.",
+    "l.png": "PNG is drawn on whole pixels so the edges stay sharp. For printing, SVG keeps the exact size; check it is placed at 100% in your layout software.",
+    "l.color": "Dark bars on a light background read best. Red bars, light bars on a dark background and low contrast often cannot be read.",
+    "l.text": "QR Code and Data Matrix store text as UTF-8. Very old readers that expect Shift_JIS may show garbled Japanese.",
+    "l.test": "Always test the printed symbol with a real scanner or phone before mass printing.",
+    "l.tm": "QR Code is a registered trademark of DENSO WAVE INCORPORATED."
+  },
+  ja: {
+    "t.title": "バーコード作成",
+    "t.desc": "JAN（EAN-13）・EAN-8・UPC-A・Code 128（GS1-128）・Code 39・ITF（ITF-14）・QR コード・Data Matrix を作り、印刷サイズを決めて PNG や SVG で保存します。",
+    "t.type": "種類", "t.content": "内容", "t.g1": "1 次元バーコード", "t.g2": "2 次元コード",
+    "ty.ean13": "JAN / EAN-13", "ty.ean8": "JAN 短縮 / EAN-8", "ty.upca": "UPC-A", "ty.code128": "Code 128", "ty.code39": "Code 39",
+    "ty.itf": "ITF（インターリーブド 2 of 5）", "ty.qr": "QR コード", "ty.datamatrix": "Data Matrix",
+    "h.ean13": "12 桁（チェックデジットを付けます）か 13 桁（チェックデジットを確かめます）。",
+    "h.ean8": "7 桁（チェックデジットを付けます）か 8 桁（チェックデジットを確かめます）。",
+    "h.upca": "11 桁（チェックデジットを付けます）か 12 桁（チェックデジットを確かめます）。",
+    "h.code128": "半角英数字・記号（ASCII、制御文字も可）。コードセット A・B・C は、短くなるように自動で切り替えます。",
+    "h.code39": "A〜Z・0〜9・空白と - . $ / + %。小文字は大文字にします。",
+    "h.itf": "数字のみ。桁数が奇数のときは先頭に 0 を足します。",
+    "h.itf14": "13 桁（チェックデジットを付けます）か 14 桁（チェックデジットを確かめます）。",
+    "h.qr": "文章・URL・日本語など何でも。数字・英大文字・その他を、いちばん小さくなるように混ぜて符号化します。",
+    "h.datamatrix": "文章など何でも。日本語など ASCII 以外は UTF-8 で入れます。",
+    "h.gs1": "（AI）値 の形で並べます。例：(01)04912345678904(17)250101(10)LOT123。区切りは自動で入れます。",
+    "o.gs1": "GS1 形式", "o.gs1hint": "GS1-128・GS1 QR コード・GS1 データマトリックス（アプリケーション識別子）用。",
+    "o.c39check": "チェックキャラクタを付ける（モジュラス 43）", "o.itf14": "ITF-14（段ボール用の集合包装 GTIN）", "o.bearer": "ベアラーバー（枠）",
+    "o.ratio": "太：細", "r.2": "2：1", "r.25": "2.5：1", "r.3": "3：1",
+    "o.ecl": "誤り訂正", "e.L": "L 7%", "e.M": "M 15%", "e.Q": "Q 25%", "e.H": "H 30%",
+    "o.shape": "形", "s.square": "正方形", "s.rect": "長方形", "s.auto": "いちばん小さく",
+    "t.look": "大きさと見た目", "t.x": "モジュール幅（X）", "t.xnarrow": "細いバーの幅（X）", "t.xcell": "セルの大きさ（X）",
+    "t.height": "バーの高さ", "t.px": "PNG：1 モジュールのピクセル数", "t.bwr": "バー幅の補正（SVG）",
+    "t.hri": "バーの下に文字を出す", "t.quiet": "クワイエットゾーン（余白）を含める",
+    "t.fg": "バー", "t.bg": "背景", "t.transp": "背景を透明にする",
+    "t.dlpng": "PNG で保存", "t.dlsvg": "SVG で保存", "t.cppng": "画像をコピー", "t.cpsvg": "SVG のコードをコピー", "t.copied": "コピーしました",
+    "t.symbol": "シンボル", "t.noSymbol": "内容を直すと、ここにシンボルが出ます。", "t.copyhint": "数値をクリックでコピー。",
+    "ro.data": "符号化した内容", "ro.mods": "モジュール数（幅）", "ro.symbols": "シンボルキャラクタ数", "ro.version": "型番（セル数）",
+    "ro.ecl": "誤り訂正", "ro.modes": "符号化", "ro.used": "使ったコード語", "ro.dmsize": "大きさ（行 × 列）",
+    "ro.dmmode": "符号化", "ro.print": "印刷サイズ", "ro.png": "PNG の大きさ",
+    "m.N": "数字", "m.A": "英数字", "m.B": "8 ビット（UTF-8）", "dm.ascii": "ASCII", "dm.base256": "Base 256（バイト）",
+    "e.digits": "数字だけを入れてください。", "e.len": "{a} 桁で入れてください。", "e.check": "チェックデジットが合いません。正しくは {a} です。",
+    "e.empty": "内容を入れてください。", "e.ascii": "この種類は半角の英数字・記号（ASCII）だけです（日本語やアクセント付きの文字は使えません）。",
+    "e.c39": "「{a}」は Code 39 では使えません。", "e.toolong": "この種類に入る量を超えています。",
+    "e.gs1": "GS1 は（AI）値（AI）値… の形で入れてください。", "e.gs1empty": "({a}) の値がありません。", "e.gs1len": "{a} 桁が必要です。",
+    "e.generic": "この内容は符号化できません。",
+    "w.gs1check": "{a} がチェックデジットとして正しい値です。", "w.itfpad": "桁数を偶数にするため、先頭に 0 を足しました。",
+    "w.inverse": "バーが背景より明るくなっています。白黒反転したシンボルは、読めない機器が多いです。",
+    "w.contrast": "バーと背景の明るさの差が小さいです。", "w.small": "印刷用としては小さめのモジュールです。プリンターと読み取り機が対応しているか確かめてください。",
+    "w.transp": "背景を透明にしたときは、下に置くものが明るい無地になるようにしてください。", "w.nocopy": "このブラウザでは画像をコピーできません",
+    "t.limits": "知っておくと良いこと",
+    "l.jan": "JAN・EAN・UPC の番号は、GS1（日本では GS1 Japan）から貸与される事業者コードで始まります。店頭で流通させる商品には登録した番号が必要で、自分で決めた番号は社内用途にしか使えません。",
+    "l.size": "印刷サイズはモジュール幅（X）で決まります。推奨より小さくする（JAN なら 0.264 mm・80% 未満）ことや、余白（クワイエットゾーン）を削ることは、読み取りにくさにつながります。",
+    "l.png": "PNG は整数ピクセルで描くので、縁がにじみません。印刷には寸法が正確な SVG が向いています。レイアウトソフトで 100% で配置されているか確かめてください。",
+    "l.color": "明るい背景に暗いバーがいちばん読みやすい組み合わせです。赤いバー、暗い背景に明るいバー、明るさの差が小さい配色は読めないことが多いです。",
+    "l.text": "QR コードと Data Matrix は文字を UTF-8 で入れます。Shift_JIS を前提にした古い読み取り機では、日本語が文字化けすることがあります。",
+    "l.test": "大量に印刷する前に、必ず実際の読み取り機やスマートフォンで読めるか確かめてください。",
+    "l.tm": "QR コードは株式会社デンソーウェーブの登録商標です。"
+  }
+};
+
+Shell.init({ id: "barcode-generator", strings: I18N, onSettingsChange: function () {
+  buildTypes(); typeChanged();
+} });
+$("px").value = S.px; $("bwr").value = S.bwr; $("hri").checked = S.hri; $("quiet").checked = S.quiet;
+$("fg").value = S.fg; $("bg").value = S.bg; $("transp").checked = S.transp;
+})();
+</script>
+</body>
+</html>
