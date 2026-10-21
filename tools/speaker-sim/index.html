@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaker playback simulator — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .pills{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pills button{ font:inherit; font-size:12.5px; padding:6px 12px; border:1px solid var(--border-strong); border-radius:100px;
+    background:var(--surface); color:var(--text-2); cursor:pointer; transition:all var(--tap); }
+  .pills button[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg{ display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; flex-wrap:wrap; }
+  .seg button{ appearance:none; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--text-2);
+    padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
+  .seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); font-weight:500; }
+  .hint{ font-size:12px; color:var(--text-3); line-height:1.6; margin-top:6px; }
+  .prow{ margin-bottom:var(--s4); }
+  .prow:last-child{ margin-bottom:0; }
+  .prow .label{ display:flex; justify-content:space-between; gap:8px; }
+  .prow .label b{ font-family:var(--font-mono); font-weight:500; color:var(--text); font-variant-numeric:tabular-nums; }
+  .choicerow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; }
+  .choicerow .label{ margin:0; }
+  .dims{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--s2); margin-top:var(--s4); }
+  .dims .label{ margin-bottom:4px; }
+  .dims .input{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; padding:0 10px; }
+  .transport{ display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap; }
+  .playbtn{ width:44px; height:44px; border-radius:50%; border:0; background:var(--accent); color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
+  .playbtn:disabled{ opacity:.4; cursor:default; }
+  .playbtn svg{ width:18px; height:18px; }
+  .scrub{ flex:1 1 160px; min-width:120px; }
+  .time{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-2); white-space:nowrap; }
+  .busy{ font-size:12px; color:var(--text-3); display:inline-flex; align-items:center; gap:6px; }
+  .busy::before{ content:""; width:10px; height:10px; border-radius:50%; border:2px solid var(--accent); border-right-color:transparent; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .abrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s4); }
+  .phones{ display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--text-2); line-height:1.55;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); padding:8px 10px; margin-top:var(--s4); }
+  .phones svg{ width:16px; height:16px; flex:none; margin-top:2px; color:var(--accent); }
+  .plan{ position:relative; width:100%; aspect-ratio:4/3; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .plan canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; font-size:11.5px; color:var(--text-3); margin-top:var(--s2); }
+  .legend i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  .progress{ height:6px; border-radius:3px; background:var(--surface-2); overflow:hidden; margin-top:var(--s3); }
+  .progress i{ display:block; height:100%; width:0; background:var(--accent); transition:width .15s; }
+  .rrow__value.small{ font-size:16px; }
+  .warn{ font-size:12px; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-sm); padding:6px 10px; margin-top:var(--s3); line-height:1.5; }
+  .limits{ margin:0; padding-left:1.2em; font-size:13px; color:var(--text-2); line-height:1.7; }
+  .limits li + li{ margin-top:6px; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Speaker playback simulator</h1>
+    <p data-i18n="t.desc">Hear a stereo file as if it were played on a pair of speakers in a room — set how far apart they are, how far away you sit, the kind of speaker and the room. For headphones.</p>
+  </div>
+
+  <div class="work">
+    <div>
+      <div class="card" id="audio-card">
+        <div class="card__title" data-i18n="t.audio">Audio</div>
+        <div id="drop"></div>
+        <input type="file" id="file-input" accept="audio/*,.wav,.wave,.mp3,.m4a,.aac,.flac,.aiff,.aif,.ogg,.oga,.opus,.caf,.webm" hidden>
+        <div id="loaded" hidden>
+          <div class="transport">
+            <button type="button" class="playbtn" id="play" aria-label="Play">
+              <svg id="play-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <input type="range" class="slider scrub" id="scrub" min="0" max="1000" step="1" value="0" aria-label="Position">
+            <span class="time" id="time">0:00 / 0:00</span>
+          </div>
+          <div class="abrow">
+            <div class="seg" id="ab" role="group">
+              <button type="button" data-v="sim" aria-pressed="true" data-i18n="t.sim">Speakers</button>
+              <button type="button" data-v="orig" aria-pressed="false" data-i18n="t.orig">Original (headphones)</button>
+            </div>
+            <span class="busy" id="busy" hidden data-i18n="t.busy">Updating…</span>
+          </div>
+          <div id="fileinfo" hidden></div>
+          <button type="button" class="btn" id="replace"></button>
+        </div>
+        <div class="badge badge--neg" id="err" hidden style="margin-top:var(--s3)"></div>
+        <div class="phones">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg>
+          <span data-i18n="t.phones">Listen on headphones. The result is made for each ear separately, so it doesn't work through speakers.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.plan">Layout (seen from above)</div>
+        <div class="plan"><canvas id="plan"></canvas></div>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i><span data-i18n="t.lgSpk">Speakers</span></span>
+          <span><i style="background:var(--text)"></i><span data-i18n="t.lgYou">Listener (facing up)</span></span>
+          <span><i style="background:var(--text-3)"></i><span data-i18n="t.lgRefl">First reflections on the walls</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.export">Export</div>
+        <div class="choicerow" style="margin-bottom:var(--s4)">
+          <span class="label" data-i18n="t.format">Format</span>
+          <div class="seg" id="bits" role="group">
+            <button type="button" data-v="16" aria-pressed="false">WAV 16-bit</button>
+            <button type="button" data-v="24" aria-pressed="true">WAV 24-bit</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn--primary btn--block" id="export" disabled data-i18n="t.exportBtn">Process the whole file and save</button>
+        <div class="progress" id="prog" hidden><i id="prog-bar"></i></div>
+        <div class="hint" id="exp-msg" data-i18n="t.expHint">The reverb tail is added after the end, so the file gets a little longer.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card__title" data-i18n="t.arrange">Speaker placement</div>
+        <div class="prow">
+          <label class="label" for="spacing"><span data-i18n="t.spacing">Distance between the speakers</span><b id="spacing-v"></b></label>
+          <input type="range" class="slider" id="spacing" min="0" max="1000" step="1">
+        </div>
+        <div class="prow">
+          <label class="label" for="dist"><span data-i18n="t.dist">Distance from each speaker to you</span><b id="dist-v"></b></label>
+          <input type="range" class="slider" id="dist" min="0" max="1000" step="1">
+          <div class="hint" id="dist-hint"></div>
+        </div>
+        <div class="prow" id="front-row">
+          <label class="label" for="front"><span data-i18n="t.front">Speakers from the front wall</span><b id="front-v"></b></label>
+          <input type="range" class="slider" id="front" min="0" max="1000" step="1">
+        </div>
+        <label class="toggle"><input type="checkbox" id="delay"><span class="track"></span><span data-i18n="t.delay">Include the time the sound takes to arrive</span></label>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.speaker">Speaker type</div>
+        <div class="pills" id="spk" role="group"></div>
+        <div class="hint" id="spk-note"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.room">Room</div>
+        <div class="pills" id="rooms" role="group"></div>
+        <div id="roombox">
+          <div class="dims">
+            <div><label class="label" for="rw" data-i18n="t.rw">Width (m)</label><input class="input" id="rw" type="number" min="1" max="100" step="0.1"></div>
+            <div><label class="label" for="rd" data-i18n="t.rd">Depth (m)</label><input class="input" id="rd" type="number" min="1" max="100" step="0.1"></div>
+            <div><label class="label" for="rh" data-i18n="t.rh">Height (m)</label><input class="input" id="rh" type="number" min="1.5" max="40" step="0.1"></div>
+          </div>
+          <div class="prow" style="margin-top:var(--s4)">
+            <label class="label" for="abs"><span data-i18n="t.abs">Sound absorption of the walls</span><b id="abs-v"></b></label>
+            <input type="range" class="slider" id="abs" min="3" max="80" step="1">
+            <div class="hint" data-i18n="t.absHint">Low = bare concrete, glass and tiles (lively). High = curtains, carpet, sofas, acoustic panels (dry).</div>
+          </div>
+          <div class="warn" id="grown" hidden></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.level">Level</div>
+        <label class="toggle"><input type="checkbox" id="match"><span class="track"></span><span data-i18n="t.match">Keep about the same loudness as the original</span></label>
+        <div class="hint" data-i18n="t.matchHint">Off: the level follows the distance, like sitting farther away (2 m = about the original level).</div>
+        <div class="prow" style="margin-top:var(--s4)">
+          <label class="label" for="gain"><span data-i18n="t.gain">Output level</span><b id="gain-v"></b></label>
+          <input type="range" class="slider" id="gain" min="-24" max="12" step="0.5">
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.result">At the listening position</span></div>
+        <div id="rrows"></div>
+        <div class="copyhint" data-i18n="t.copyhint">Click any value to copy.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--s7)">
+    <div class="card__title" data-i18n="t.limits">How it works and its limits</div>
+    <ul class="limits">
+      <li data-i18n="l.how">Each channel becomes a speaker. The direct sound and the reflections off the walls, floor and ceiling (up to three bounces) reach each ear from their own direction through the browser's head-related transfer function (HRTF); the later reverb is added from the room's reverberation time.</li>
+      <li data-i18n="l.hrtf">The HRTF is a generic one built into the browser. Left and right are clear, distance comes through well, but how far in front the speakers seem varies from person to person.</li>
+      <li data-i18n="l.room">Rooms are empty boxes with the same absorption on every surface. Furniture, open doors and odd shapes are not modelled.</li>
+      <li data-i18n="l.type">Speaker types are typical frequency responses and how much treble they lose off to the side, not measurements of specific models.</li>
+      <li data-i18n="l.export">The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="../../shared/shell.js"></script>
+<script src="../../shared/filedrop.js"></script>
+<script src="room.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   Speaker playback simulator — Vernier
+   部屋とスピーカーからの両耳インパルス応答（BRIR）は room.js。ここでは読み込み・再生・聴き比べ・書き出しと、
+   設定の画面・配置図を受け持つ。左右のチャンネルをそれぞれ、スピーカーの周波数特性 → その BRIR で畳み込み、足す。
+   ========================================================================= */
+(function () {
+var $ = function (id) { return document.getElementById(id); };
+var T = function (k) { return Shell.t(k); };
+var R = window.SpeakerRoom, STORE = "sps.state";
+
+var ROOMS = {
+  free:    null,
+  small:   { w: 3.0, d: 3.6, h: 2.4, abs: 0.25 },
+  living:  { w: 4.5, d: 5.5, h: 2.5, abs: 0.30 },
+  studio:  { w: 5.0, d: 6.0, h: 2.8, abs: 0.50 },
+  class:   { w: 8.0, d: 9.0, h: 3.0, abs: 0.15 },
+  hall:    { w: 20, d: 30, h: 12, abs: 0.25 },
+  church:  { w: 18, d: 40, h: 20, abs: 0.10 }
+};
+var SPK_ORDER = ["ideal", "monitor", "bookshelf", "small", "tv", "radio", "phone"];
+
+var S = { spacing: 2, dist: 2, front: 0.6, delay: true, speaker: "bookshelf", roomKey: "living", room: { w: 4.5, d: 5.5, h: 2.5, abs: 0.30 },
+  match: true, gain: 0, bits: "24", view: "sim" };
+try { var sv = JSON.parse(localStorage.getItem(STORE)); if (sv) for (var k in S) if (sv[k] !== undefined) S[k] = sv[k]; } catch (e) {}
+if (!R.SPEAKERS[S.speaker]) S.speaker = "bookshelf";
+function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
+
+/* ---- スライダーは対数目盛り（近い所を細かく） ---- */
+var RANGE = { spacing: [0.1, 12], dist: [0.3, 40], front: [0.1, 5] };
+function toSlider(k, v) { var r = RANGE[k]; return Math.round(1000 * Math.log(v / r[0]) / Math.log(r[1] / r[0])); }
+function fromSlider(k, x) { var r = RANGE[k], v = r[0] * Math.pow(r[1] / r[0], x / 1000); return v < 1 ? Math.round(v * 100) / 100 : v < 10 ? Math.round(v * 20) / 20 : Math.round(v * 2) / 2; }
+function m(v) { return (v < 10 ? v.toFixed(2) : v.toFixed(1)) + " m"; }
+
+function settings() {
+  return { spacing: S.spacing, dist: Math.max(S.dist, S.spacing / 2 + 0.05), front: S.front, height: 1.1,
+    room: S.roomKey === "free" ? null : S.room };
+}
+
+/* =========================================================================
+   1. 音声の読み込みと再生
+   ========================================================================= */
+var A = { ctx: null, buf: null, rate: 48000, name: "", playing: false, src: null, t0: 0, off: 0 };
+var G = { inp: null, dry: null, wetOut: null, master: null, chain: null, version: 0 };
+function actx() {
+  if (!A.ctx) {
+    A.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    G.inp = A.ctx.createGain(); G.master = A.ctx.createGain(); G.dry = A.ctx.createGain(); G.wetOut = A.ctx.createGain();
+    G.inp.connect(G.dry); G.dry.connect(G.master); G.wetOut.connect(G.master); G.master.connect(A.ctx.destination);
+    setView(true);
+  }
+  return A.ctx;
+}
+function showErr(msg) { $("err").textContent = msg || ""; $("err").hidden = !msg; }
+function decode(ctx, buf) { return new Promise(function (res, rej) { var p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); }); }
+function load(f) {
+  showErr("");
+  var rateP = FileDrop.sampleRate(f);
+  Promise.all([f.arrayBuffer(), rateP]).then(function (r) {
+    // ファイル本来のサンプリング周波数で読み込む（書き出しもその周波数で行う）
+    var rate = r[1] || 48000, O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    try { return decode(new O(2, 1, rate), r[0]); } catch (e) { return decode(actx(), r[0]); }
+  }).then(function (ab) {
+    stop();
+    var ctx = actx(), n = ab.length, out = ctx.createBuffer(2, n, ab.sampleRate);
+    // モノラルは両方のスピーカーから同じ音を出す
+    out.copyToChannel(ab.getChannelData(0), 0);
+    out.copyToChannel(ab.getChannelData(Math.min(1, ab.numberOfChannels - 1)), 1);
+    A.buf = out; A.rate = ab.sampleRate; A.name = f.name.replace(/\.[^.]+$/, ""); A.off = 0;
+    $("loaded").hidden = false; $("export").disabled = false;
+    fd.show(f, [FileDrop.time(ab.duration), FileDrop.audioOf(f, ab.numberOfChannels)]);
+    tick();
+    rebuild();
+  }).catch(function () { showErr(T("t.decodeErr")); });
+}
+function pos() { return A.playing ? Math.min(A.buf.duration, A.off + A.ctx.currentTime - A.t0) : A.off; }
+function play() {
+  var ctx = actx(); if (!A.buf) return;
+  if (ctx.state === "suspended") ctx.resume();
+  if (A.off >= A.buf.duration - 0.05) A.off = 0;
+  var s = ctx.createBufferSource(); s.buffer = A.buf; s.connect(G.inp);
+  s.onended = function () { if (A.src === s) { A.off = pos(); A.playing = false; A.src = null; if (A.off >= A.buf.duration - 0.05) A.off = 0; icon(); } };
+  s.start(0, A.off); A.src = s; A.t0 = ctx.currentTime; A.playing = true; icon(); loop();
+}
+function stop() {
+  if (A.src) { var s = A.src; A.src = null; A.off = pos(); try { s.stop(); } catch (e) {} s.disconnect(); }
+  A.playing = false; icon();
+}
+function icon() { $("play-ico").innerHTML = A.playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>'; }
+function fmtT(x) { x = Math.max(0, x || 0); var mm = Math.floor(x / 60), ss = Math.floor(x % 60); return mm + ":" + (ss < 10 ? "0" : "") + ss; }
+function tick() {
+  if (!A.buf) return;
+  var p = pos();
+  $("time").textContent = fmtT(p) + " / " + fmtT(A.buf.duration);
+  if (document.activeElement !== $("scrub")) $("scrub").value = Math.round(p / A.buf.duration * 1000);
+}
+function loop() { tick(); if (A.playing) requestAnimationFrame(loop); }
+$("play").addEventListener("click", function () { if (A.playing) stop(); else play(); });
+$("scrub").addEventListener("input", function () {
+  if (!A.buf) return;
+  var was = A.playing; stop(); A.off = this.value / 1000 * A.buf.duration; tick(); if (was) play();
+});
+function setView(now) {
+  if (!A.ctx) return;
+  var t = A.ctx.currentTime, sim = S.view === "sim";
+  G.wetOut.gain.setTargetAtTime(sim ? 1 : 0, t, now ? 0 : 0.01);
+  G.dry.gain.setTargetAtTime(sim ? 0 : 1, t, now ? 0 : 0.01);
+}
+$("ab").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-v]"); if (!b) return;
+  S.view = b.getAttribute("data-v"); save(); setView(false);
+  $("ab").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+});
+
+/* =========================================================================
+   2. スピーカー → BRIR の信号の流れ（再生と書き出しで同じものを使う）
+   ========================================================================= */
+var cache = {};
+function key(rate) { return JSON.stringify([settings(), S.speaker, S.delay, rate]); }
+function brirs(rate) {
+  var k = key(rate);
+  if (!cache[k]) {
+    var L = R.layout(settings()), opt = { speaker: S.speaker, delay: S.delay };
+    cache[k] = Promise.all([R.brir(L, 0, opt, rate), R.brir(L, 1, opt, rate)]);
+    var keys = Object.keys(cache); if (keys.length > 6) delete cache[keys[0]];
+  }
+  return cache[k];
+}
+function scale(ir) {   // 元の音量に合わせる：左のスピーカー 1 本の BRIR の両耳のエネルギーを 1 に
+  if (!S.match) return 2;   // 合わせないとき：2 m で直接音が元と同じ大きさ
+  var e = 0; ir[0].forEach(function (ch) { for (var i = 0; i < ch.length; i++) e += ch[i] * ch[i]; });
+  return e > 0 ? 1 / Math.sqrt(e) : 1;
+}
+function chain(ctx, input, ir, rate) {
+  var out = ctx.createGain(), sp = ctx.createChannelSplitter(2), k = scale(ir) * Math.pow(10, S.gain / 20);
+  input.connect(sp);
+  for (var c = 0; c < 2; c++) {
+    var node = ctx.createGain(); sp.connect(node, c);
+    (R.SPEAKERS[S.speaker].eq || []).forEach(function (q) {
+      var f = ctx.createBiquadFilter(); f.type = q[0]; f.frequency.value = q[1]; f.Q.value = q[2]; if (q[3] !== undefined) f.gain.value = q[3];
+      node.connect(f); node = f;
+    });
+    var cv = ctx.createConvolver(); cv.normalize = false;
+    var b = ctx.createBuffer(2, ir[c][0].length, rate);
+    b.copyToChannel(ir[c][0], 0); b.copyToChannel(ir[c][1], 1);
+    cv.buffer = b; node.connect(cv); cv.connect(out);
+  }
+  out.gain.value = k; out._sp = sp;
+  return out;
+}
+
+/* ---- 設定を変えたら作り直し、前のものから 60 ms で切り替える ---- */
+var rbTimer = 0;
+function rebuild() {
+  save(); draw(); readout();
+  if (!A.buf) return;
+  clearTimeout(rbTimer);
+  rbTimer = setTimeout(function () {
+    var ctx = actx(), v = ++G.version;
+    $("busy").hidden = false;
+    brirs(ctx.sampleRate).then(function (ir) {
+      if (v !== G.version) return;
+      var next = chain(ctx, G.inp, ir, ctx.sampleRate), fade = ctx.createGain(), t = ctx.currentTime;
+      next.connect(fade); fade.connect(G.wetOut);
+      fade.gain.setValueAtTime(0, t); fade.gain.linearRampToValueAtTime(1, t + 0.06);
+      var old = G.chain; G.chain = { node: next, fade: fade };
+      if (old) { old.fade.gain.setValueAtTime(old.fade.gain.value, t); old.fade.gain.linearRampToValueAtTime(0, t + 0.06);
+        setTimeout(function () { try { G.inp.disconnect(old.node._sp); } catch (e) {} old.fade.disconnect(); }, 200); }
+      $("busy").hidden = true;
+    }).catch(function (e) { $("busy").hidden = true; showErr(String(e && e.message || e)); });
+  }, 120);
+}
+
+/* =========================================================================
+   3. 書き出し（ファイル本来のサンプリング周波数で、全体を計算）
+   ========================================================================= */
+function wav(ch, fs, bits) {
+  var n = ch[0].length, Cn = ch.length, B = bits / 8, size = n * Cn * B, buf = new ArrayBuffer(44 + size), dv = new DataView(buf), p = 0;
+  function str(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+  str("RIFF"); dv.setUint32(p, 36 + size, true); p += 4; str("WAVE"); str("fmt ");
+  dv.setUint32(p, 16, true); p += 4; dv.setUint16(p, 1, true); p += 2; dv.setUint16(p, Cn, true); p += 2;
+  dv.setUint32(p, fs, true); p += 4; dv.setUint32(p, fs * Cn * B, true); p += 4; dv.setUint16(p, Cn * B, true); p += 2; dv.setUint16(p, bits, true); p += 2;
+  str("data"); dv.setUint32(p, size, true); p += 4;
+  var max = bits === 16 ? 32767 : 8388607, seed = 1;
+  for (var i = 0; i < n; i++) for (var c = 0; c < Cn; c++) {
+    var v = ch[c][i] * max;
+    if (bits === 16) { seed = (seed * 1664525 + 1013904223) >>> 0; var r1 = seed / 4294967296; seed = (seed * 1664525 + 1013904223) >>> 0; v += r1 - seed / 4294967296; }   // TPDF ディザ
+    v = Math.max(-max - 1, Math.min(max, Math.round(v)));
+    if (bits === 16) { dv.setInt16(p, v, true); p += 2; }
+    else { dv.setUint8(p++, v & 255); dv.setUint8(p++, (v >> 8) & 255); dv.setUint8(p++, (v >> 16) & 255); }
+  }
+  return new Blob([buf], { type: "audio/wav" });
+}
+$("bits").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-v]"); if (!b) return;
+  S.bits = b.getAttribute("data-v"); save();
+  $("bits").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+});
+$("export").addEventListener("click", function () {
+  if (!A.buf) return;
+  var btn = $("export"), rate = A.rate, t0 = Date.now();
+  btn.disabled = true; $("prog").hidden = false; $("prog-bar").style.width = "5%"; $("exp-msg").textContent = T("t.busyExp");
+  brirs(rate).then(function (ir) {
+    $("prog-bar").style.width = "20%";
+    var tailN = Math.max(ir[0][0].length, ir[1][0].length), n = A.buf.length + tailN;
+    var O = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new O(2, n, rate);
+    var src = ctx.createBufferSource(), b = ctx.createBuffer(2, A.buf.length, rate);
+    b.copyToChannel(A.buf.getChannelData(0), 0); b.copyToChannel(A.buf.getChannelData(1), 1);
+    src.buffer = b; var inp = ctx.createGain(); src.connect(inp);
+    chain(ctx, inp, ir, rate).connect(ctx.destination); src.start(0);
+    var timer = setInterval(function () { $("prog-bar").style.width = Math.min(95, 20 + (Date.now() - t0) / 100) + "%"; }, 300);
+    return new Promise(function (res, rej) {
+      ctx.oncomplete = function (e) { res(e.renderedBuffer); };
+      var p = ctx.startRendering(); if (p && p.then) p.then(res, rej);
+    }).then(function (out) { clearInterval(timer); return out; }, function (e) { clearInterval(timer); throw e; });
+  }).then(function (out) {
+    var ch = [out.getChannelData(0), out.getChannelData(1)], peak = 0;
+    ch.forEach(function (x) { for (var i = 0; i < x.length; i++) { var a = Math.abs(x[i]); if (a > peak) peak = a; } });
+    var note = "";
+    if (peak > 0.97) {   // 音が割れないよう、最大を −0.3 dBFS に下げる
+      var k = 0.966 / peak; ch = ch.map(function (x) { var y = new Float32Array(x.length); for (var i = 0; i < x.length; i++) y[i] = x[i] * k; return y; });
+      note = " " + T("t.lowered").replace("{db}", (20 * Math.log10(k)).toFixed(1));
+    }
+    $("prog-bar").style.width = "100%";
+    var a = document.createElement("a"); a.href = URL.createObjectURL(wav(ch, rate, +S.bits));
+    a.download = A.name + "_speakers.wav"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    $("exp-msg").textContent = T("t.saved").replace("{s}", ((Date.now() - t0) / 1000).toFixed(1)) + note;
+  }).catch(function (e) { $("exp-msg").textContent = String(e && e.message || e); })
+    .then(function () { btn.disabled = false; setTimeout(function () { $("prog").hidden = true; }, 800); });
+});
+
+/* =========================================================================
+   4. 配置図（上から見た図）
+   ========================================================================= */
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function draw() {
+  var cv = $("plan"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  var L = R.layout(settings()), room = L.room, ls = L.listener, sp = L.speakers;
+  // 表示する範囲：部屋があれば部屋、無ければスピーカーと聴く人の周り
+  var x0, x1, z0, z1;
+  if (room) { x0 = 0; x1 = room.w; z0 = 0; z1 = room.d; }
+  else { var mgn = Math.max(0.6, L.depth * 0.35); x0 = sp[0][0] - mgn; x1 = sp[1][0] + mgn; z0 = sp[0][2] - mgn; z1 = ls[2] + mgn; }
+  var pad = 28, sc = Math.min((W - pad * 2) / (x1 - x0), (H - pad * 2) / (z1 - z0));
+  // 大きな部屋では拡大の小窓を横に並べるので、部屋の図を左に寄せて場所を空ける
+  var small = room && Math.max(sp[1][0] - sp[0][0], ls[2] - sp[0][2]) * sc < 110;
+  if (small && room.d / room.w > 1.1) sc = Math.min(sc, (W * 0.55 - pad) / (x1 - x0));
+  var ox = small && room.d / room.w > 1.1 ? pad : (W - (x1 - x0) * sc) / 2, oz = (H - (z1 - z0) * sc) / 2;
+  function X(x) { return ox + (x - x0) * sc; } function Z(z) { return oz + (z - z0) * sc; }
+  var cText = cssVar("--text"), c3 = cssVar("--text-3"), cAcc = cssVar("--accent"), cBorder = cssVar("--border-strong");
+  g.font = "11px " + cssVar("--font-sans");
+  if (room) {
+    g.strokeStyle = cText; g.lineWidth = 2; g.strokeRect(X(0), Z(0), room.w * sc, room.d * sc);
+    g.fillStyle = c3; g.textAlign = "center"; g.fillText(m(room.w), X(room.w / 2), Z(room.d) + 16);
+    g.save(); g.translate(X(room.w) + 14, Z(room.d / 2)); g.rotate(Math.PI / 2); g.fillText(m(room.d), 0, 0); g.restore();
+    // 1 回目の反射が壁に当たる所（左右と前後の壁）
+    g.fillStyle = c3;
+    sp.forEach(function (s) {
+      [[0, 0], [0, room.w], [2, 0], [2, room.d]].forEach(function (wl) {
+        var ax = wl[0], wv = wl[1], img = s.slice(); img[ax] = 2 * wv - s[ax];
+        var t = (wv - img[ax]) / (ls[ax] - img[ax]);
+        var px = img[0] + (ls[0] - img[0]) * t, pz = img[2] + (ls[2] - img[2]) * t;
+        g.beginPath(); g.arc(X(px), Z(pz), 3, 0, Math.PI * 2); g.fill();
+      });
+    });
+  }
+  // スピーカーと聴く人が小さすぎるとき（大きな部屋）は、部屋の中は印だけにして、拡大した小窓を隅に出す
+  var setupPx = Math.max(sp[1][0] - sp[0][0], ls[2] - sp[0][2]) * sc;
+  if (room && setupPx < 110) {
+    setup(g, X, Z, sc, L, false);
+    // 部屋の右（縦長の部屋）か下（横長の部屋）の空いている所に置く。無ければ右上に重ねる
+    var freeR = W - X(room.w) - 30, freeB = H - Z(room.d) - 22, iw, ih, ix, iy;
+    if (freeR >= 110) { iw = Math.min(freeR, 210); ih = Math.min(iw * 0.85, H - 20); ix = X(room.w) + 28; iy = (H - ih) / 2; }
+    else if (freeB >= 90) { ih = Math.min(freeB, 180); iw = Math.min(ih / 0.85, W - 20); ix = (W - iw) / 2; iy = Z(room.d) + 22; }
+    else { iw = Math.min(W * 0.42, 210); ih = iw * 0.85; ix = W - iw - 10; iy = 10; }
+    g.fillStyle = cssVar("--surface"); g.strokeStyle = cBorder; g.lineWidth = 1;
+    g.fillRect(ix, iy, iw, ih); g.strokeRect(ix + 0.5, iy + 0.5, iw, ih);
+    var mg = Math.max(0.5, L.depth * 0.3), ax0 = sp[0][0] - mg, ax1 = sp[1][0] + mg, az0 = sp[0][2] - mg, az1 = ls[2] + mg;
+    var isc = Math.min((iw - 30) / (ax1 - ax0), (ih - 36) / (az1 - az0));
+    var iox = ix + (iw - (ax1 - ax0) * isc) / 2, ioz = iy + 6 + (ih - (az1 - az0) * isc) / 2;
+    g.save(); g.beginPath(); g.rect(ix, iy, iw, ih); g.clip();
+    setup(g, function (x) { return iox + (x - ax0) * isc; }, function (z) { return ioz + (z - az0) * isc; }, isc, L, true);
+    g.restore();
+  } else setup(g, X, Z, sc, L, true);
+}
+/* スピーカー・聴く人・角度を描く（labels = 文字も書く） */
+function setup(g, X, Z, sc, L, labels) {
+  var ls = L.listener, sp = L.speakers;
+  var cText = cssVar("--text"), c3 = cssVar("--text-3"), cAcc = cssVar("--accent"), cBorder = cssVar("--border-strong");
+  g.textAlign = "center";
+  g.strokeStyle = cBorder; g.lineWidth = 1; g.setLineDash([4, 4]);
+  g.beginPath(); g.moveTo(X(sp[0][0]), Z(sp[0][2])); g.lineTo(X(ls[0]), Z(ls[2])); g.lineTo(X(sp[1][0]), Z(sp[1][2])); g.stroke();
+  g.beginPath(); g.moveTo(X(sp[0][0]), Z(sp[0][2])); g.lineTo(X(sp[1][0]), Z(sp[1][2])); g.stroke();
+  g.setLineDash([]);
+  var sz = Math.max(labels ? 7 : 3, Math.min(14, 0.3 * sc)), hr = Math.max(labels ? 6 : 3, Math.min(12, 0.18 * sc));
+  if (labels) {
+    var ar = Math.min(40, L.depth * sc * 0.4), a0 = Math.atan2(sp[0][2] - ls[2], sp[0][0] - ls[0]), a1 = Math.atan2(sp[1][2] - ls[2], sp[1][0] - ls[0]);
+    g.strokeStyle = cAcc; g.beginPath(); g.arc(X(ls[0]), Z(ls[2]), ar, a0, a1); g.stroke();
+    g.fillStyle = cAcc; g.fillText(L.angle.toFixed(0) + "°", X(ls[0]), Z(ls[2]) - ar - 6);
+    g.fillStyle = c3; g.fillText(m(S.spacing), (X(sp[0][0]) + X(sp[1][0])) / 2, Z(sp[0][2]) - 10);
+  }
+  // スピーカー（聴く人の方を向いた箱）
+  sp.forEach(function (s, i) {
+    var ang = Math.atan2(ls[2] - s[2], ls[0] - s[0]) - Math.PI / 2;
+    g.save(); g.translate(X(s[0]), Z(s[2])); g.rotate(ang);
+    g.fillStyle = cAcc; g.fillRect(-sz / 2, -sz / 2, sz, sz * 0.8);
+    g.restore();
+    if (labels) { g.fillStyle = cAcc; g.fillText(i ? "R" : "L", X(s[0]), Z(s[2]) + (sz + 12)); }
+  });
+  // 聴く人（上が前）
+  g.fillStyle = cText; g.beginPath(); g.arc(X(ls[0]), Z(ls[2]), hr, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(X(ls[0]) - hr * 0.45, Z(ls[2]) - hr * 0.8); g.lineTo(X(ls[0]), Z(ls[2]) - hr * 1.6); g.lineTo(X(ls[0]) + hr * 0.45, Z(ls[2]) - hr * 0.8); g.fill();
+}
+window.addEventListener("resize", draw);
+
+/* =========================================================================
+   5. 読み取り値
+   ========================================================================= */
+function readout() {
+  var st = settings(), L = R.layout(st), rows = [];
+  rows.push(["r.angle", L.angle.toFixed(1) + "°"]);
+  rows.push(["r.arrive", (st.dist / R.C * 1000).toFixed(1) + " ms"]);
+  if (L.room) {
+    var e = R.eyring(L.room), a = Math.min(0.99, L.room.abs);
+    var drr = 10 * Math.log10((1 / (st.dist * st.dist)) / (16 * Math.PI * (1 - a) / (e.S * a)));
+    var rc = Math.sqrt(e.S * a / (16 * Math.PI * (1 - a)));   // 臨界距離：直接音と響きが同じ大きさになる距離
+    rows.push(["r.rt", e.rt.toFixed(2) + " s"]);
+    rows.push(["r.drr", (drr >= 0 ? "+" : "") + drr.toFixed(1) + " dB"]);
+    rows.push(["r.rc", m(rc)]);
+  }
+  $("rrows").innerHTML = rows.map(function (r) {
+    return '<div class="rrow"><span class="rrow__label">' + T(r[0]) + '</span><span class="rrow__value small" data-copy="' + r[1] + '">' + r[1] + "</span></div>";
+  }).join("");
+  $("grown").hidden = !L.grown;
+  if (L.grown) $("grown").textContent = T("t.grown").replace("{w}", L.room.w.toFixed(1)).replace("{d}", L.room.d.toFixed(1)).replace("{h}", L.room.h.toFixed(1));
+  $("dist-hint").textContent = T(Math.abs(L.angle - 60) < 3 ? "t.eq" : L.angle > 75 ? "t.wide" : L.angle < 35 ? "t.narrow" : "t.ok");
+}
+
+/* =========================================================================
+   6. 設定の画面
+   ========================================================================= */
+function buildPills() {
+  $("spk").innerHTML = SPK_ORDER.map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.speaker) + '">' + T("sp." + k) + "</button>"; }).join("");
+  $("spk-note").textContent = T("sn." + S.speaker);
+  $("rooms").innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.roomKey) + '">' + T("rm." + k) + "</button>"; }).join("") +
+    '<button type="button" data-v="custom" aria-pressed="' + (S.roomKey === "custom") + '">' + T("rm.custom") + "</button>";
+  $("roombox").hidden = S.roomKey === "free"; $("front-row").hidden = S.roomKey === "free";
+}
+function syncInputs() {
+  ["spacing", "dist", "front"].forEach(function (k) { $(k).value = toSlider(k, S[k]); $(k + "-v").textContent = m(S[k]); });
+  $("rw").value = S.room.w; $("rd").value = S.room.d; $("rh").value = S.room.h;
+  $("abs").value = Math.round(S.room.abs * 100); $("abs-v").textContent = S.room.abs.toFixed(2);
+  $("delay").checked = S.delay; $("match").checked = S.match;
+  $("gain").value = S.gain; $("gain-v").textContent = (S.gain > 0 ? "+" : "") + S.gain.toFixed(1) + " dB";
+  $("bits").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.bits)); });
+  $("ab").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.view)); });
+}
+["spacing", "dist", "front"].forEach(function (k) {
+  $(k).addEventListener("input", function () {
+    S[k] = fromSlider(k, +this.value); $(k + "-v").textContent = m(S[k]);
+    if (k === "spacing" && S.dist < S.spacing / 2 + 0.05) { S.dist = Math.round((S.spacing / 2 + 0.05) * 100) / 100; $("dist").value = toSlider("dist", S.dist); $("dist-v").textContent = m(S.dist); }
+    if (k === "dist" && S.dist < S.spacing / 2 + 0.05) { S.dist = Math.round((S.spacing / 2 + 0.05) * 100) / 100; $("dist-v").textContent = m(S.dist); }
+    rebuild();
+  });
+});
+$("spk").addEventListener("click", function (e) { var b = e.target.closest("[data-v]"); if (!b) return; S.speaker = b.getAttribute("data-v"); buildPills(); rebuild(); });
+$("rooms").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-v]"); if (!b) return;
+  var k = b.getAttribute("data-v"); S.roomKey = k;
+  if (ROOMS[k]) S.room = { w: ROOMS[k].w, d: ROOMS[k].d, h: ROOMS[k].h, abs: ROOMS[k].abs };
+  buildPills(); syncInputs(); rebuild();
+});
+[["rw", "w", 1, 100], ["rd", "d", 1, 100], ["rh", "h", 1.5, 40]].forEach(function (q) {
+  $(q[0]).addEventListener("input", function () {
+    var v = parseFloat(this.value); if (!isFinite(v)) return;
+    S.room[q[1]] = Math.min(q[3], Math.max(q[2], v)); S.roomKey = "custom"; buildPills(); rebuild();
+  });
+  $(q[0]).addEventListener("change", function () { this.value = S.room[q[1]]; });
+});
+$("abs").addEventListener("input", function () { S.room.abs = +this.value / 100; $("abs-v").textContent = S.room.abs.toFixed(2); S.roomKey = "custom"; buildPills(); rebuild(); });
+$("delay").addEventListener("change", function () { S.delay = this.checked; rebuild(); });
+$("match").addEventListener("change", function () { S.match = this.checked; rebuild(); });
+$("gain").addEventListener("input", function () { S.gain = +this.value; $("gain-v").textContent = (S.gain > 0 ? "+" : "") + S.gain.toFixed(1) + " dB"; rebuild(); });
+
+var fd = FileDrop.attach({ accept: $("file-input").getAttribute("accept"), kind: "audio", input: $("file-input"), zone: $("drop"), fillZone: true,
+  formats: "WAV, MP3, M4A, FLAC, AIFF, Ogg", info: $("fileinfo"), replace: $("replace"), hasFile: function () { return !!A.buf; },
+  onFile: function (f) { $("drop").hidden = true; load(f); } });
+
+/* =========================================================================
+   7. 文言
+   ========================================================================= */
+var I18N = {
+  en: {
+    "t.title": "Speaker playback simulator",
+    "t.desc": "Hear a stereo file as if it were played on a pair of speakers in a room — set how far apart they are, how far away you sit, the kind of speaker and the room. For headphones.",
+    "t.audio": "Audio", "t.sim": "Speakers", "t.orig": "Original (headphones)", "t.busy": "Updating…",
+    "t.phones": "Listen on headphones. The result is made for each ear separately, so it doesn't work through speakers.",
+    "t.decodeErr": "This file couldn't be decoded in this browser.",
+    "t.plan": "Layout (seen from above)", "t.lgSpk": "Speakers", "t.lgYou": "Listener (facing up)", "t.lgRefl": "First reflections on the walls",
+    "t.export": "Export", "t.format": "Format", "t.exportBtn": "Process the whole file and save",
+    "t.expHint": "The reverb tail is added after the end, so the file gets a little longer.",
+    "t.busyExp": "Processing…", "t.saved": "Saved ({s} s).", "t.lowered": "The level was lowered by {db} dB to avoid clipping.",
+    "t.arrange": "Speaker placement", "t.spacing": "Distance between the speakers", "t.dist": "Distance from each speaker to you",
+    "t.front": "Speakers from the front wall", "t.delay": "Include the time the sound takes to arrive",
+    "t.eq": "An equilateral triangle (60°) — the usual stereo setup.", "t.ok": "A normal stereo spread.",
+    "t.wide": "Very wide: the centre image may become weak.", "t.narrow": "Narrow: the sound comes from a small area in front.",
+    "t.speaker": "Speaker type",
+    "sp.ideal": "Ideal (flat)", "sp.monitor": "Studio monitors", "sp.bookshelf": "Bookshelf", "sp.small": "Small / PC", "sp.tv": "Flat TV",
+    "sp.radio": "Radio cassette", "sp.phone": "Phone speaker",
+    "sn.ideal": "No coloration and no treble loss to the side — only the room and the direction.",
+    "sn.monitor": "Flat down to about 45 Hz and even off-axis.", "sn.bookshelf": "Bass down to about 65 Hz with a slight lift above it.",
+    "sn.small": "Little bass below 130 Hz, a small bump in the upper bass.", "sn.tv": "Thin bass, forward presence and soft treble from small, often downward-facing drivers.",
+    "sn.radio": "Boxy mid-range with little bass or treble.", "sn.phone": "Almost nothing below 500 Hz, bright upper mids.",
+    "t.room": "Room", "rm.free": "No room (open air)", "rm.small": "Small room", "rm.living": "Living room", "rm.studio": "Studio",
+    "rm.class": "Classroom", "rm.hall": "Hall", "rm.church": "Church", "rm.custom": "Custom",
+    "t.rw": "Width (m)", "t.rd": "Depth (m)", "t.rh": "Height (m)", "t.abs": "Sound absorption of the walls",
+    "t.absHint": "Low = bare concrete, glass and tiles (lively). High = curtains, carpet, sofas, acoustic panels (dry).",
+    "t.grown": "The room was enlarged to {w} × {d} × {h} m so the speakers and the listener fit.",
+    "t.level": "Level", "t.match": "Keep about the same loudness as the original",
+    "t.matchHint": "Off: the level follows the distance, like sitting farther away (2 m = about the original level).", "t.gain": "Output level",
+    "t.result": "At the listening position", "t.copyhint": "Click any value to copy.",
+    "r.angle": "Angle between the speakers", "r.arrive": "Time to arrive", "r.rt": "Reverberation time (RT60)",
+    "r.drr": "Direct sound vs. reverb", "r.rc": "Critical distance",
+    "t.limits": "How it works and its limits",
+    "l.how": "Each channel becomes a speaker. The direct sound and the reflections off the walls, floor and ceiling (up to three bounces) reach each ear from their own direction through the browser's head-related transfer function (HRTF); the later reverb is added from the room's reverberation time.",
+    "l.hrtf": "The HRTF is a generic one built into the browser. Left and right are clear, distance comes through well, but how far in front the speakers seem varies from person to person.",
+    "l.room": "Rooms are empty boxes with the same absorption on every surface. Furniture, open doors and odd shapes are not modelled.",
+    "l.type": "Speaker types are typical frequency responses and how much treble they lose off to the side, not measurements of specific models.",
+    "l.export": "The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones."
+  },
+  ja: {
+    "t.title": "スピーカー再生シミュレーター",
+    "t.desc": "ステレオの音声を、部屋に置いた 2 本のスピーカーで聴いているように変えます。スピーカーの間隔、聴く位置までの距離、スピーカーの種類、部屋を選べます。ヘッドホン用。",
+    "t.audio": "音声", "t.sim": "スピーカー", "t.orig": "元の音（ヘッドホン直）", "t.busy": "更新中…",
+    "t.phones": "ヘッドホンで聴いてください。左右の耳それぞれに届く音として作るので、スピーカーで鳴らすと効果がありません。",
+    "t.decodeErr": "このブラウザではこのファイルを読み込めませんでした。",
+    "t.plan": "配置（上から見た図）", "t.lgSpk": "スピーカー", "t.lgYou": "聴く人（上が正面）", "t.lgRefl": "壁での 1 回目の反射",
+    "t.export": "書き出し", "t.format": "形式", "t.exportBtn": "ファイル全体を処理して保存",
+    "t.expHint": "最後に残響の余韻が付くので、元のファイルより少し長くなります。",
+    "t.busyExp": "処理中…", "t.saved": "保存しました（{s} 秒）。", "t.lowered": "音が割れないよう、{db} dB 下げました。",
+    "t.arrange": "スピーカーの配置", "t.spacing": "スピーカー同士の距離", "t.dist": "各スピーカーから聴く位置までの距離",
+    "t.front": "前の壁からスピーカーまで", "t.delay": "音が届くまでの時間を含める",
+    "t.eq": "正三角形（60°）。ステレオの標準的な配置です。", "t.ok": "ふつうのステレオの広がりです。",
+    "t.wide": "かなり広めです。真ん中の音が弱く感じることがあります。", "t.narrow": "狭めです。前の小さな範囲から聞こえます。",
+    "t.speaker": "スピーカーの種類",
+    "sp.ideal": "理想（フラット）", "sp.monitor": "スタジオモニター", "sp.bookshelf": "ブックシェルフ", "sp.small": "小型・PC 用", "sp.tv": "薄型テレビ",
+    "sp.radio": "ラジカセ", "sp.phone": "スマホのスピーカー",
+    "sn.ideal": "音色の変化も横方向の高音の減りもなし。部屋と方向の効果だけを確かめられます。",
+    "sn.monitor": "45 Hz 付近まで平坦で、横に回っても音色がそろっています。", "sn.bookshelf": "低音は 65 Hz 付近まで、その少し上がわずかに膨らみます。",
+    "sn.small": "130 Hz より下はほぼ出ず、少し上の低音が膨らみます。", "sn.tv": "低音が薄く、中高音が前に出て、高音は丸め（小さく、下向きのスピーカーが多いため）。",
+    "sn.radio": "低音も高音も少ない、箱鳴りのする中音域。", "sn.phone": "500 Hz より下はほぼ出ず、中高音が明るい。",
+    "t.room": "部屋", "rm.free": "部屋なし（屋外）", "rm.small": "小さな部屋", "rm.living": "リビング", "rm.studio": "スタジオ",
+    "rm.class": "教室", "rm.hall": "ホール", "rm.church": "教会", "rm.custom": "カスタム",
+    "t.rw": "幅（m）", "t.rd": "奥行き（m）", "t.rh": "高さ（m）", "t.abs": "壁の吸音",
+    "t.absHint": "低い＝コンクリート・ガラス・タイル（よく響く）。高い＝カーテン・じゅうたん・ソファ・吸音材（響かない）。",
+    "t.grown": "スピーカーと聴く人が入るよう、部屋を {w} × {d} × {h} m に広げました。",
+    "t.level": "音量", "t.match": "元の音とだいたい同じ大きさにする",
+    "t.matchHint": "オフ：離れて座ったときのように、距離に応じて小さくなります（2 m でほぼ元の大きさ）。", "t.gain": "出力の大きさ",
+    "t.result": "聴く位置で", "t.copyhint": "数値をクリックでコピー。",
+    "r.angle": "スピーカーの見開き角", "r.arrive": "音が届くまで", "r.rt": "残響時間（RT60）",
+    "r.drr": "直接音と響きの比", "r.rc": "臨界距離",
+    "t.limits": "仕組みと限界",
+    "l.how": "左右のチャンネルをそれぞれ 1 本のスピーカーにします。直接音と、壁・床・天井での反射（3 回まで）は、それぞれ届く向きに応じてブラウザの頭部伝達関数（HRTF）で左右の耳に分け、その後の残響は部屋の残響時間から加えます。",
+    "l.hrtf": "HRTF はブラウザに入っている平均的なものです。左右ははっきり、距離もよく分かりますが、スピーカーがどれくらい前に見えるかは人によって違います。",
+    "l.room": "部屋は家具のない箱で、どの面も同じ吸音として扱います。家具・開いたドア・変わった形は扱いません。",
+    "l.type": "スピーカーの種類は、典型的な周波数特性と横方向での高音の減り方で、特定の機種を測ったものではありません。",
+    "l.export": "書き出した WAV はバイノーラル（両耳）です。3DCG のシーンで聴く人（カメラなど）に聞こえる音として、ヘッドホンで使ってください。"
+  }
+};
+Shell.init({ id: "speaker-sim", strings: I18N, onSettingsChange: function () { buildPills(); syncInputs(); draw(); readout(); } });
+})();
+</script>
+</body>
+</html>

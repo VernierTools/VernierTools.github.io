@@ -2270,6 +2270,39 @@
         "二次元コード"
       ],
       "added": "2026-10-20"
+    },
+    {
+      "id": "speaker-sim",
+      "type": "web",
+      "path": "tools/speaker-sim/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "production",
+      "name": {
+        "en": "Speaker playback simulator",
+        "ja": "スピーカー再生シミュレーター"
+      },
+      "description": {
+        "en": "Hear a stereo file as if played on two speakers in a room (binaural, for headphones), and export it as WAV.",
+        "ja": "ステレオの音声を、部屋に置いた 2 本のスピーカーで聴いているような音（ヘッドホン用のバイノーラル）にして、WAV で書き出し。"
+      },
+      "keywords": [
+        "speaker",
+        "stereo",
+        "binaural",
+        "hrtf",
+        "room",
+        "reverb",
+        "3dcg",
+        "スピーカー",
+        "ステレオ",
+        "バイノーラル",
+        "立体音響",
+        "残響",
+        "部屋"
+      ],
+      "added": "2026-10-21"
     }
   ]
 }
