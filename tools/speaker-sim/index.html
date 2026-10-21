@@ -46,6 +46,14 @@
   .phones svg{ width:16px; height:16px; flex:none; margin-top:2px; color:var(--accent); }
   .plan{ position:relative; width:100%; aspect-ratio:4/3; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
   .plan canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  .plan--side{ aspect-ratio:2/1; }
+  .vlabel{ font-size:11.5px; color:var(--text-3); margin:var(--s3) 0 6px; }
+  .vlabel:first-of-type{ margin-top:0; }
+  .xyz{ display:grid; grid-template-columns:auto repeat(3, minmax(0,1fr)); gap:6px var(--s2); align-items:center; }
+  .xyz--2{ grid-template-columns:auto repeat(2, minmax(0,1fr)); }
+  .xyz__h{ font-size:11.5px; color:var(--text-3); text-align:center; }
+  .xyz__n{ font-size:12.5px; color:var(--text-2); white-space:nowrap; }
+  .xyz .input{ height:32px; padding:0 8px; font-family:var(--font-mono); font-size:13px; font-variant-numeric:tabular-nums; text-align:right; }
   .legend{ display:flex; gap:var(--s4); flex-wrap:wrap; font-size:11.5px; color:var(--text-3); margin-top:var(--s2); }
   .legend i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
   .progress{ height:6px; border-radius:3px; background:var(--surface-2); overflow:hidden; margin-top:var(--s3); }
@@ -95,13 +103,17 @@
       </div>
 
       <div class="card">
-        <div class="card__title" data-i18n="t.plan">Layout (seen from above)</div>
+        <div class="card__title" data-i18n="t.plan">Layout</div>
+        <div class="vlabel" data-i18n="t.top">Seen from above (front wall at the top)</div>
         <div class="plan"><canvas id="plan"></canvas></div>
+        <div class="vlabel" data-i18n="t.sideview">Seen from the side (front wall on the left)</div>
+        <div class="plan plan--side"><canvas id="side"></canvas></div>
         <div class="legend">
-          <span><i style="background:var(--accent)"></i><span data-i18n="t.lgSpk">Speakers</span></span>
-          <span><i style="background:var(--text)"></i><span data-i18n="t.lgYou">Listener (facing up)</span></span>
+          <span><i style="background:var(--accent)"></i><span data-i18n="t.lgSpk">Speakers (triangle = where they point)</span></span>
+          <span><i style="background:var(--text)"></i><span data-i18n="t.lgYou">Listener (triangle = facing)</span></span>
           <span><i style="background:var(--text-3)"></i><span data-i18n="t.lgRefl">First reflections on the walls</span></span>
         </div>
+        <div class="hint" data-i18n="t.dragHint">Drag the speakers or the listener to move them (this switches to free placement).</div>
       </div>
 
       <div class="card">
@@ -121,19 +133,49 @@
 
     <div>
       <div class="card">
-        <div class="card__title" data-i18n="t.arrange">Speaker placement</div>
-        <div class="prow">
-          <label class="label" for="spacing"><span data-i18n="t.spacing">Distance between the speakers</span><b id="spacing-v"></b></label>
-          <input type="range" class="slider" id="spacing" min="0" max="1000" step="1">
+        <div class="choicerow" style="margin-bottom:var(--s4)">
+          <span class="card__title" style="margin:0" data-i18n="t.arrange">Speaker placement</span>
+          <div class="seg" id="mode" role="group">
+            <button type="button" data-v="simple" data-i18n="t.mSimple">Simple</button>
+            <button type="button" data-v="free" data-i18n="t.mFree">Free</button>
+          </div>
         </div>
-        <div class="prow">
-          <label class="label" for="dist"><span data-i18n="t.dist">Distance from each speaker to you</span><b id="dist-v"></b></label>
-          <input type="range" class="slider" id="dist" min="0" max="1000" step="1">
-          <div class="hint" id="dist-hint"></div>
+        <div id="simplebox">
+          <div class="prow">
+            <label class="label" for="spacing"><span data-i18n="t.spacing">Distance between the speakers</span><b id="spacing-v"></b></label>
+            <input type="range" class="slider" id="spacing" min="0" max="1000" step="1">
+          </div>
+          <div class="prow">
+            <label class="label" for="dist"><span data-i18n="t.dist">Distance from each speaker to you</span><b id="dist-v"></b></label>
+            <input type="range" class="slider" id="dist" min="0" max="1000" step="1">
+            <div class="hint" id="dist-hint"></div>
+          </div>
+          <div class="prow" id="front-row">
+            <label class="label" for="front"><span data-i18n="t.front">Speakers from the front wall</span><b id="front-v"></b></label>
+            <input type="range" class="slider" id="front" min="0" max="1000" step="1">
+          </div>
         </div>
-        <div class="prow" id="front-row">
-          <label class="label" for="front"><span data-i18n="t.front">Speakers from the front wall</span><b id="front-v"></b></label>
-          <input type="range" class="slider" id="front" min="0" max="1000" step="1">
+        <div id="freebox" hidden>
+          <div class="xyz">
+            <span></span><span class="xyz__h">x</span><span class="xyz__h">y</span><span class="xyz__h">z</span>
+            <span class="xyz__n" data-i18n="t.spkL">Left speaker</span><input class="input" data-f="L" data-i="0"><input class="input" data-f="L" data-i="1"><input class="input" data-f="L" data-i="2">
+            <span class="xyz__n" data-i18n="t.spkR">Right speaker</span><input class="input" data-f="R" data-i="0"><input class="input" data-f="R" data-i="1"><input class="input" data-f="R" data-i="2">
+            <span class="xyz__n" data-i18n="t.you">Listener (ears)</span><input class="input" data-f="ear" data-i="0"><input class="input" data-f="ear" data-i="1"><input class="input" data-f="ear" data-i="2">
+          </div>
+          <div class="hint" id="xyz-hint"></div>
+          <div class="xyz xyz--2" style="margin-top:var(--s4)">
+            <span></span><span class="xyz__h" data-i18n="t.yaw">Turn (right +)</span><span class="xyz__h" data-i18n="t.pitch">Tilt (up +)</span>
+            <span class="xyz__n" data-i18n="t.head">Head</span><input class="input" data-a="head" data-i="0"><input class="input" data-a="head" data-i="1">
+          </div>
+          <label class="toggle" style="margin-top:var(--s4)"><input type="checkbox" id="aim"><span class="track"></span><span data-i18n="t.aim">Point the speakers at the listener</span></label>
+          <div class="xyz xyz--2" id="aimbox" style="margin-top:var(--s3)">
+            <span></span><span class="xyz__h" data-i18n="t.yaw">Turn (right +)</span><span class="xyz__h" data-i18n="t.pitch">Tilt (up +)</span>
+            <span class="xyz__n" data-i18n="t.spkL">Left speaker</span><input class="input" data-a="aimL" data-i="0"><input class="input" data-a="aimL" data-i="1">
+            <span class="xyz__n" data-i18n="t.spkR">Right speaker</span><input class="input" data-a="aimR" data-i="0"><input class="input" data-a="aimR" data-i="1">
+          </div>
+          <div class="hint" data-i18n="t.angHint">Angles: 0° = facing the front wall. Turn is clockwise seen from above (180° = facing the back wall).</div>
+          <div class="btnrow" style="margin-top:var(--s3)"><button type="button" class="btn btn--secondary" id="resetFree" data-i18n="t.resetFree">Start again from the simple layout</button></div>
+          <div class="warn" id="clamped" hidden data-i18n="t.clamped">Positions outside the room were moved inside it.</div>
         </div>
         <label class="toggle"><input type="checkbox" id="delay"><span class="track"></span><span data-i18n="t.delay">Include the time the sound takes to arrive</span></label>
       </div>
@@ -147,6 +189,7 @@
       <div class="card">
         <div class="card__title" data-i18n="t.room">Room</div>
         <div class="pills" id="rooms" role="group"></div>
+        <label class="toggle" id="groundrow" style="margin-top:var(--s4)"><input type="checkbox" id="ground"><span class="track"></span><span data-i18n="t.ground">Reflection off the ground</span></label>
         <div id="roombox">
           <div class="dims">
             <div><label class="label" for="rw" data-i18n="t.rw">Width (m)</label><input class="input" id="rw" type="number" min="1" max="100" step="0.1"></div>
@@ -185,6 +228,7 @@
     <ul class="limits">
       <li data-i18n="l.how">Each channel becomes a speaker. The direct sound and the reflections off the walls, floor and ceiling (up to three bounces) reach each ear from their own direction through the browser's head-related transfer function (HRTF); the later reverb is added from the room's reverberation time.</li>
       <li data-i18n="l.hrtf">The HRTF is a generic one built into the browser. Left and right are clear, distance comes through well, but how far in front the speakers seem varies from person to person.</li>
+      <li data-i18n="l.dir">Left and right are the clearest.</li>
       <li data-i18n="l.room">Rooms are empty boxes with the same absorption on every surface. Furniture, open doors and odd shapes are not modelled.</li>
       <li data-i18n="l.type">Speaker types are typical frequency responses and how much treble they lose off to the side, not measurements of specific models.</li>
       <li data-i18n="l.export">The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones.</li>
@@ -219,7 +263,7 @@ var ROOMS = {
 var SPK_ORDER = ["ideal", "monitor", "bookshelf", "small", "tv", "radio", "phone"];
 
 var S = { spacing: 2, dist: 2, front: 0.6, delay: true, speaker: "bookshelf", roomKey: "living", room: { w: 4.5, d: 5.5, h: 2.5, abs: 0.30 },
-  match: true, gain: 0, bits: "24", view: "sim" };
+  match: true, gain: 0, bits: "24", view: "sim", mode: "simple", ground: true, free: null };
 try { var sv = JSON.parse(localStorage.getItem(STORE)); if (sv) for (var k in S) if (sv[k] !== undefined) S[k] = sv[k]; } catch (e) {}
 if (!R.SPEAKERS[S.speaker]) S.speaker = "bookshelf";
 function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
@@ -230,10 +274,24 @@ function toSlider(k, v) { var r = RANGE[k]; return Math.round(1000 * Math.log(v 
 function fromSlider(k, x) { var r = RANGE[k], v = r[0] * Math.pow(r[1] / r[0], x / 1000); return v < 1 ? Math.round(v * 100) / 100 : v < 10 ? Math.round(v * 20) / 20 : Math.round(v * 2) / 2; }
 function m(v) { return (v < 10 ? v.toFixed(2) : v.toFixed(1)) + " m"; }
 
-function settings() {
+function simple() {
   return { spacing: S.spacing, dist: Math.max(S.dist, S.spacing / 2 + 0.05), front: S.front, height: 1.1,
-    room: S.roomKey === "free" ? null : S.room };
+    room: S.roomKey === "free" ? null : S.room, ground: S.ground };
 }
+function settings() {
+  var s = simple();
+  if (S.mode === "free" && S.free) s.free = S.free;
+  return s;
+}
+/* 自由配置へ：いまの（かんたん配置の）位置から始める。スピーカーの向きの角度も、聴く人の方に合わせておく */
+function toFree() {
+  var L = R.layout(simple());
+  function aimOf(sp) { var v = norm3(sub3(L.listener, sp)); return [Math.round(Math.atan2(v[0], -v[2]) * 180 / Math.PI), Math.round(Math.asin(v[1]) * 180 / Math.PI)]; }
+  S.free = { L: L.speakers[0].map(r2), R: L.speakers[1].map(r2), ear: L.listener.map(r2), yaw: 0, pitch: 0, aim: true,
+    aimL: aimOf(L.speakers[0]), aimR: aimOf(L.speakers[1]) };
+  S.mode = "free"; showMode(); syncFree();
+}
+function r2(v) { return Math.round(v * 100) / 100; }
 
 /* =========================================================================
    1. 音声の読み込みと再生
@@ -350,7 +408,7 @@ function chain(ctx, input, ir, rate) {
 /* ---- 設定を変えたら作り直し、前のものから 60 ms で切り替える ---- */
 var rbTimer = 0;
 function rebuild() {
-  save(); draw(); readout();
+  keepInside(); save(); draw(); readout();
   if (!A.buf) return;
   clearTimeout(rbTimer);
   rbTimer = setTimeout(function () {
@@ -429,101 +487,162 @@ $("export").addEventListener("click", function () {
 });
 
 /* =========================================================================
-   4. 配置図（上から見た図）
+   4. 配置図（上から見た図・横から見た図）。ドラッグで動かせる（動かすと自由配置になる）
    ========================================================================= */
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
-function draw() {
-  var cv = $("plan"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+// 図ごとの軸：上から = 横 x・縦 z（下が奥）、横から = 横 z（左が前の壁）・縦 y（上が天井）
+var VIEWS = { plan: { h: 0, v: 2, up: false }, side: { h: 2, v: 1, up: true } };
+var VT = {};   // 図ごとの変換（ドラッグで使う）
+function draw() { drawView("plan"); drawView("side"); }
+function drawView(id) {
+  var cv = $(id), vw = VIEWS[id], dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   if (!W) return;
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-  var L = R.layout(settings()), room = L.room, ls = L.listener, sp = L.speakers;
-  // 表示する範囲：部屋があれば部屋、無ければスピーカーと聴く人の周り
-  var x0, x1, z0, z1;
-  if (room) { x0 = 0; x1 = room.w; z0 = 0; z1 = room.d; }
-  else { var mgn = Math.max(0.6, L.depth * 0.35); x0 = sp[0][0] - mgn; x1 = sp[1][0] + mgn; z0 = sp[0][2] - mgn; z1 = ls[2] + mgn; }
-  var pad = 28, sc = Math.min((W - pad * 2) / (x1 - x0), (H - pad * 2) / (z1 - z0));
-  // 大きな部屋では拡大の小窓を横に並べるので、部屋の図を左に寄せて場所を空ける
-  var small = room && Math.max(sp[1][0] - sp[0][0], ls[2] - sp[0][2]) * sc < 110;
-  if (small && room.d / room.w > 1.1) sc = Math.min(sc, (W * 0.55 - pad) / (x1 - x0));
-  var ox = small && room.d / room.w > 1.1 ? pad : (W - (x1 - x0) * sc) / 2, oz = (H - (z1 - z0) * sc) / 2;
-  function X(x) { return ox + (x - x0) * sc; } function Z(z) { return oz + (z - z0) * sc; }
-  var cText = cssVar("--text"), c3 = cssVar("--text-3"), cAcc = cssVar("--accent"), cBorder = cssVar("--border-strong");
-  g.font = "11px " + cssVar("--font-sans");
+  var L = R.layout(settings()), room = L.room, ls = L.listener, sp = L.speakers, hA = vw.h, vA = vw.v;
+  var pts = [ls, sp[0], sp[1]];
+  // 表示範囲：物の周り（少し余白）。部屋があって、物の範囲の 3 倍に収まるなら部屋全体
+  var b0 = [Infinity, Infinity], b1 = [-Infinity, -Infinity];
+  pts.forEach(function (p) { b0[0] = Math.min(b0[0], p[hA]); b1[0] = Math.max(b1[0], p[hA]); b0[1] = Math.min(b0[1], p[vA]); b1[1] = Math.max(b1[1], p[vA]); });
+  var span = Math.max(b1[0] - b0[0], b1[1] - b0[1], 1.5), mg = Math.max(0.6, span * 0.3);
+  b0 = [b0[0] - mg, b0[1] - mg]; b1 = [b1[0] + mg, b1[1] + mg];
+  if (vA === 1 && !room) b0[1] = Math.min(b0[1], -0.3);   // 屋外の横の図は地面まで
+  var dims = room ? [room.w, room.h, room.d] : null, whole = false;
+  if (room && Math.max(dims[hA], dims[vA]) <= Math.max(b1[0] - b0[0], b1[1] - b0[1]) * 3) {
+    b0 = [Math.min(b0[0], 0), Math.min(b0[1], 0)]; b1 = [Math.max(b1[0], dims[hA]), Math.max(b1[1], dims[vA])];
+    b0 = [Math.max(b0[0], -0.2), Math.max(b0[1], -0.2)]; b1 = [Math.min(b1[0], dims[hA] + 0.2), Math.min(b1[1], dims[vA] + 0.2)];
+    whole = true;
+  }
+  var pad = 22, sc = Math.min((W - pad * 2) / (b1[0] - b0[0]), (H - pad * 2) / (b1[1] - b0[1]));
+  var ox = (W - (b1[0] - b0[0]) * sc) / 2, oy = (H - (b1[1] - b0[1]) * sc) / 2;
+  function X(p) { return ox + (p - b0[0]) * sc; }
+  function Y(p) { return vw.up ? H - oy - (p - b0[1]) * sc : oy + (p - b0[1]) * sc; }
+  VT[id] = { X: X, Y: Y, sc: sc, toH: function (px) { return b0[0] + (px - ox) / sc; },
+    toV: function (py) { return vw.up ? b0[1] + (H - oy - py) / sc : b0[1] + (py - oy) / sc; } };
+  var cText = cssVar("--text"), c3 = cssVar("--text-3"), cAcc = cssVar("--accent"), cB = cssVar("--border"), cBS = cssVar("--border-strong");
+  g.font = "11px " + cssVar("--font-sans"); g.textAlign = "center";
+  // 1 m ごとの目盛り（細かすぎるときは 5 m）
+  var step = sc >= 18 ? 1 : sc >= 4 ? 5 : 20;
+  g.strokeStyle = cB; g.lineWidth = 1;
+  for (var a = Math.ceil(b0[0] / step) * step; a <= b1[0]; a += step) { g.beginPath(); g.moveTo(X(a), 0); g.lineTo(X(a), H); g.stroke(); }
+  for (a = Math.ceil(b0[1] / step) * step; a <= b1[1]; a += step) { g.beginPath(); g.moveTo(0, Y(a)); g.lineTo(W, Y(a)); g.stroke(); }
   if (room) {
-    g.strokeStyle = cText; g.lineWidth = 2; g.strokeRect(X(0), Z(0), room.w * sc, room.d * sc);
-    g.fillStyle = c3; g.textAlign = "center"; g.fillText(m(room.w), X(room.w / 2), Z(room.d) + 16);
-    g.save(); g.translate(X(room.w) + 14, Z(room.d / 2)); g.rotate(Math.PI / 2); g.fillText(m(room.d), 0, 0); g.restore();
-    // 1 回目の反射が壁に当たる所（左右と前後の壁）
-    g.fillStyle = c3;
-    sp.forEach(function (s) {
-      [[0, 0], [0, room.w], [2, 0], [2, room.d]].forEach(function (wl) {
-        var ax = wl[0], wv = wl[1], img = s.slice(); img[ax] = 2 * wv - s[ax];
-        var t = (wv - img[ax]) / (ls[ax] - img[ax]);
-        var px = img[0] + (ls[0] - img[0]) * t, pz = img[2] + (ls[2] - img[2]) * t;
-        g.beginPath(); g.arc(X(px), Z(pz), 3, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = cText; g.lineWidth = 2;
+    g.strokeRect(Math.min(X(0), X(dims[hA])), Math.min(Y(0), Y(dims[vA])), Math.abs(X(dims[hA]) - X(0)), Math.abs(Y(dims[vA]) - Y(0)));
+    if (whole) {
+      g.fillStyle = c3;
+      g.fillText(m(dims[hA]), (X(0) + X(dims[hA])) / 2, Math.max(Y(0), Y(dims[vA])) + 14);
+      g.save(); g.translate(Math.max(X(0), X(dims[hA])) + 12, (Y(0) + Y(dims[vA])) / 2); g.rotate(Math.PI / 2); g.fillText(m(dims[vA]), 0, 0); g.restore();
+    }
+    if (id === "plan") {   // 1 回目の反射が壁に当たる所（左右と前後の壁）
+      g.fillStyle = c3;
+      sp.forEach(function (s) {
+        [[0, 0], [0, room.w], [2, 0], [2, room.d]].forEach(function (wl) {
+          var ax = wl[0], wv = wl[1], img = s.slice(); img[ax] = 2 * wv - s[ax];
+          var t = (wv - img[ax]) / (ls[ax] - img[ax]);
+          g.beginPath(); g.arc(X(img[0] + (ls[0] - img[0]) * t), Y(img[2] + (ls[2] - img[2]) * t), 3, 0, Math.PI * 2); g.fill();
+        });
       });
-    });
+    }
+  } else if (vA === 1) {   // 屋外：地面
+    g.strokeStyle = cText; g.lineWidth = 2; g.beginPath(); g.moveTo(0, Y(0)); g.lineTo(W, Y(0)); g.stroke();
+    g.fillStyle = c3; g.textAlign = "left"; g.fillText(T(L.ground ? "t.groundOn" : "t.groundOff"), 8, Y(0) + 14); g.textAlign = "center";
   }
-  // スピーカーと聴く人が小さすぎるとき（大きな部屋）は、部屋の中は印だけにして、拡大した小窓を隅に出す
-  var setupPx = Math.max(sp[1][0] - sp[0][0], ls[2] - sp[0][2]) * sc;
-  if (room && setupPx < 110) {
-    setup(g, X, Z, sc, L, false);
-    // 部屋の右（縦長の部屋）か下（横長の部屋）の空いている所に置く。無ければ右上に重ねる
-    var freeR = W - X(room.w) - 30, freeB = H - Z(room.d) - 22, iw, ih, ix, iy;
-    if (freeR >= 110) { iw = Math.min(freeR, 210); ih = Math.min(iw * 0.85, H - 20); ix = X(room.w) + 28; iy = (H - ih) / 2; }
-    else if (freeB >= 90) { ih = Math.min(freeB, 180); iw = Math.min(ih / 0.85, W - 20); ix = (W - iw) / 2; iy = Z(room.d) + 22; }
-    else { iw = Math.min(W * 0.42, 210); ih = iw * 0.85; ix = W - iw - 10; iy = 10; }
-    g.fillStyle = cssVar("--surface"); g.strokeStyle = cBorder; g.lineWidth = 1;
-    g.fillRect(ix, iy, iw, ih); g.strokeRect(ix + 0.5, iy + 0.5, iw, ih);
-    var mg = Math.max(0.5, L.depth * 0.3), ax0 = sp[0][0] - mg, ax1 = sp[1][0] + mg, az0 = sp[0][2] - mg, az1 = ls[2] + mg;
-    var isc = Math.min((iw - 30) / (ax1 - ax0), (ih - 36) / (az1 - az0));
-    var iox = ix + (iw - (ax1 - ax0) * isc) / 2, ioz = iy + 6 + (ih - (az1 - az0) * isc) / 2;
-    g.save(); g.beginPath(); g.rect(ix, iy, iw, ih); g.clip();
-    setup(g, function (x) { return iox + (x - ax0) * isc; }, function (z) { return ioz + (z - az0) * isc; }, isc, L, true);
-    g.restore();
-  } else setup(g, X, Z, sc, L, true);
-}
-/* スピーカー・聴く人・角度を描く（labels = 文字も書く） */
-function setup(g, X, Z, sc, L, labels) {
-  var ls = L.listener, sp = L.speakers;
-  var cText = cssVar("--text"), c3 = cssVar("--text-3"), cAcc = cssVar("--accent"), cBorder = cssVar("--border-strong");
-  g.textAlign = "center";
-  g.strokeStyle = cBorder; g.lineWidth = 1; g.setLineDash([4, 4]);
-  g.beginPath(); g.moveTo(X(sp[0][0]), Z(sp[0][2])); g.lineTo(X(ls[0]), Z(ls[2])); g.lineTo(X(sp[1][0]), Z(sp[1][2])); g.stroke();
-  g.beginPath(); g.moveTo(X(sp[0][0]), Z(sp[0][2])); g.lineTo(X(sp[1][0]), Z(sp[1][2])); g.stroke();
+  // 聴く人からスピーカーへの線
+  g.strokeStyle = cBS; g.lineWidth = 1; g.setLineDash([4, 4]);
+  sp.forEach(function (s) { g.beginPath(); g.moveTo(X(ls[hA]), Y(ls[vA])); g.lineTo(X(s[hA]), Y(s[vA])); g.stroke(); });
   g.setLineDash([]);
-  var sz = Math.max(labels ? 7 : 3, Math.min(14, 0.3 * sc)), hr = Math.max(labels ? 6 : 3, Math.min(12, 0.18 * sc));
-  if (labels) {
-    var ar = Math.min(40, L.depth * sc * 0.4), a0 = Math.atan2(sp[0][2] - ls[2], sp[0][0] - ls[0]), a1 = Math.atan2(sp[1][2] - ls[2], sp[1][0] - ls[0]);
-    g.strokeStyle = cAcc; g.beginPath(); g.arc(X(ls[0]), Z(ls[2]), ar, a0, a1); g.stroke();
-    g.fillStyle = cAcc; g.fillText(L.angle.toFixed(0) + "°", X(ls[0]), Z(ls[2]) - ar - 6);
-    g.fillStyle = c3; g.fillText(m(S.spacing), (X(sp[0][0]) + X(sp[1][0])) / 2, Z(sp[0][2]) - 10);
+  if (id === "plan" && S.mode === "simple") {
+    var ar = Math.min(36, L.depth * sc * 0.4), a0 = Math.atan2(Y(sp[0][2]) - Y(ls[2]), X(sp[0][0]) - X(ls[0])), a1 = Math.atan2(Y(sp[1][2]) - Y(ls[2]), X(sp[1][0]) - X(ls[0]));
+    if (ar > 8) { g.strokeStyle = cAcc; g.beginPath(); g.arc(X(ls[0]), Y(ls[2]), ar, a0, a1); g.stroke(); g.fillStyle = cAcc; g.fillText(L.angle.toFixed(0) + "°", X(ls[0]), Y(ls[2]) - ar - 6); }
   }
-  // スピーカー（聴く人の方を向いた箱）
+  // スピーカー：向いている方向を三角で
   sp.forEach(function (s, i) {
-    var ang = Math.atan2(ls[2] - s[2], ls[0] - s[0]) - Math.PI / 2;
-    g.save(); g.translate(X(s[0]), Z(s[2])); g.rotate(ang);
-    g.fillStyle = cAcc; g.fillRect(-sz / 2, -sz / 2, sz, sz * 0.8);
+    var aim = L.aims[i] || norm3(sub3(ls, s)), dx = aim[hA], dy = vw.up ? -aim[vA] : aim[vA], dl = Math.hypot(dx, dy);
+    var ang = dl > 0.15 ? Math.atan2(dy, dx) : null, sz = 9;
+    g.save(); g.translate(X(s[hA]), Y(s[vA]));
+    g.fillStyle = cAcc; g.fillRect(-sz / 2, -sz / 2, sz, sz);
+    if (ang !== null) { g.rotate(ang); g.beginPath(); g.moveTo(sz / 2 + 1, -sz / 2); g.lineTo(sz / 2 + 7, 0); g.lineTo(sz / 2 + 1, sz / 2); g.fill(); }
     g.restore();
-    if (labels) { g.fillStyle = cAcc; g.fillText(i ? "R" : "L", X(s[0]), Z(s[2]) + (sz + 12)); }
+    g.fillStyle = cAcc; g.fillText(i ? "R" : "L", X(s[hA]), Y(s[vA]) + 20);
   });
-  // 聴く人（上が前）
-  g.fillStyle = cText; g.beginPath(); g.arc(X(ls[0]), Z(ls[2]), hr, 0, Math.PI * 2); g.fill();
-  g.beginPath(); g.moveTo(X(ls[0]) - hr * 0.45, Z(ls[2]) - hr * 0.8); g.lineTo(X(ls[0]), Z(ls[2]) - hr * 1.6); g.lineTo(X(ls[0]) + hr * 0.45, Z(ls[2]) - hr * 0.8); g.fill();
+  // 聴く人：頭の向き（上から＝左右の向き、横から＝上下の向き）
+  var f = R.dir(L.yaw, L.pitch), fx = f[hA], fy = vw.up ? -f[vA] : f[vA], fl = Math.hypot(fx, fy), hr = 8;
+  g.fillStyle = cText; g.beginPath(); g.arc(X(ls[hA]), Y(ls[vA]), hr, 0, Math.PI * 2); g.fill();
+  if (fl > 0.15) {
+    var fa = Math.atan2(fy, fx);
+    g.save(); g.translate(X(ls[hA]), Y(ls[vA])); g.rotate(fa);
+    g.beginPath(); g.moveTo(hr * 0.6, -hr * 0.55); g.lineTo(hr * 1.8, 0); g.lineTo(hr * 0.6, hr * 0.55); g.fill(); g.restore();
+  }
+  // 部屋の一部だけを出しているときは、隅に全体図
+  if (room && !whole) {
+    var mw = 74, mh = 74 * Math.min(1.4, dims[vA] / dims[hA]), mx = W - mw - 8, my = 8, ms = Math.min(mw / dims[hA], mh / dims[vA]);
+    mw = dims[hA] * ms; mh = dims[vA] * ms; mx = W - mw - 8;
+    g.fillStyle = cssVar("--surface"); g.fillRect(mx - 3, my - 3, mw + 6, mh + 6);
+    g.strokeStyle = cText; g.lineWidth = 1; g.strokeRect(mx, my, mw, mh);
+    var vx0 = (b0[0]) * ms, vx1 = b1[0] * ms, vy0 = vw.up ? (dims[vA] - b1[1]) * ms : b0[1] * ms, vy1 = vw.up ? (dims[vA] - b0[1]) * ms : b1[1] * ms;
+    g.strokeStyle = cAcc; g.strokeRect(mx + Math.max(0, vx0), my + Math.max(0, vy0), Math.min(mw, vx1) - Math.max(0, vx0), Math.min(mh, vy1) - Math.max(0, vy0));
+  }
 }
+function sub3(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function norm3(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
 window.addEventListener("resize", draw);
+
+/* ---- ドラッグ：いちばん近い物（14 px 以内）を、その図の 2 つの軸で動かす ---- */
+var drag = null;
+["plan", "side"].forEach(function (id) {
+  var cv = $(id);
+  function at(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  cv.addEventListener("pointerdown", function (e) {
+    var t = VT[id]; if (!t) return;
+    var L = R.layout(settings()), p = at(e), vw = VIEWS[id], best = null, bd = 14;
+    [["ear", L.listener], ["L", L.speakers[0]], ["R", L.speakers[1]]].forEach(function (o) {
+      var d = Math.hypot(t.X(o[1][vw.h]) - p[0], t.Y(o[1][vw.v]) - p[1]);
+      if (d < bd) { bd = d; best = o[0]; }
+    });
+    if (!best) return;
+    if (S.mode !== "free") toFree();
+    drag = { id: id, key: best }; cv.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  cv.addEventListener("pointermove", function (e) {
+    var t = VT[id];
+    if (!drag || drag.id !== id) {   // 掴める物の上ではカーソルを変える
+      if (!t) return;
+      var L = R.layout(settings()), p = at(e), vw = VIEWS[id], near = false;
+      [L.listener, L.speakers[0], L.speakers[1]].forEach(function (q) { if (Math.hypot(t.X(q[vw.h]) - p[0], t.Y(q[vw.v]) - p[1]) < 14) near = true; });
+      cv.style.cursor = near ? "grab" : "default"; return;
+    }
+    var p2 = at(e), vw2 = VIEWS[id], o = S.free[drag.key];
+    o[vw2.h] = Math.round(t.toH(p2[0]) * 100) / 100; o[vw2.v] = Math.round(t.toV(p2[1]) * 100) / 100;
+    var L2 = R.layout(settings());   // 部屋の外へは出さない
+    var q2 = drag.key === "ear" ? L2.listener : L2.speakers[drag.key === "L" ? 0 : 1];
+    S.free[drag.key] = q2.slice();
+    syncFree(); rebuild(); cv.style.cursor = "grabbing";
+  });
+  function end() { drag = null; }
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+});
 
 /* =========================================================================
    5. 読み取り値
    ========================================================================= */
+function where(o) {
+  var az = o.az, el = o.el, h;
+  if (Math.abs(az) < 0.5) h = T("d.front");
+  else h = T(az < 0 ? "d.left" : "d.right") + " " + Math.abs(az).toFixed(0) + "°" + (Math.abs(az) > 90 ? T("d.behind") : "");
+  if (Math.abs(el) >= 0.5) h += " · " + T(el > 0 ? "d.up" : "d.down") + " " + Math.abs(el).toFixed(0) + "°";
+  return h;
+}
 function readout() {
-  var st = settings(), L = R.layout(st), rows = [];
+  var st = settings(), L = R.layout(st), rows = [], sL = R.seen(L, 0), sR = R.seen(L, 1);
   rows.push(["r.angle", L.angle.toFixed(1) + "°"]);
-  rows.push(["r.arrive", (st.dist / R.C * 1000).toFixed(1) + " ms"]);
+  rows.push(["r.dirL", where(sL)]);
+  rows.push(["r.dirR", where(sR)]);
+  rows.push(["r.distLR", m(sL.dist) + " / " + m(sR.dist)]);
+  rows.push(["r.arrive", (sL.dist / R.C * 1000).toFixed(1) + " / " + (sR.dist / R.C * 1000).toFixed(1) + " ms"]);
   if (L.room) {
-    var e = R.eyring(L.room), a = Math.min(0.99, L.room.abs);
-    var drr = 10 * Math.log10((1 / (st.dist * st.dist)) / (16 * Math.PI * (1 - a) / (e.S * a)));
+    var e = R.eyring(L.room), a = Math.min(0.99, L.room.abs), d = (sL.dist + sR.dist) / 2;
+    var drr = 10 * Math.log10((1 / (d * d)) / (16 * Math.PI * (1 - a) / (e.S * a)));
     var rc = Math.sqrt(e.S * a / (16 * Math.PI * (1 - a)));   // 臨界距離：直接音と響きが同じ大きさになる距離
     rows.push(["r.rt", e.rt.toFixed(2) + " s"]);
     rows.push(["r.drr", (drr >= 0 ? "+" : "") + drr.toFixed(1) + " dB"]);
@@ -546,12 +665,36 @@ function buildPills() {
   $("rooms").innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-v="' + k + '" aria-pressed="' + (k === S.roomKey) + '">' + T("rm." + k) + "</button>"; }).join("") +
     '<button type="button" data-v="custom" aria-pressed="' + (S.roomKey === "custom") + '">' + T("rm.custom") + "</button>";
   $("roombox").hidden = S.roomKey === "free"; $("front-row").hidden = S.roomKey === "free";
+  $("groundrow").hidden = S.roomKey !== "free";
+}
+function showMode() {
+  $("simplebox").hidden = S.mode === "free"; $("freebox").hidden = S.mode !== "free";
+  $("mode").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.mode)); });
+}
+function syncFree() {
+  if (!S.free) return;
+  document.querySelectorAll("#freebox [data-f]").forEach(function (el) {
+    if (el !== document.activeElement) el.value = S.free[el.getAttribute("data-f")][+el.getAttribute("data-i")].toFixed(2);
+  });
+  document.querySelectorAll("#freebox [data-a]").forEach(function (el) {
+    var a = el.getAttribute("data-a"), i = +el.getAttribute("data-i"), v = a === "head" ? (i ? S.free.pitch : S.free.yaw) : S.free[a][i];
+    if (el !== document.activeElement) el.value = String(Math.round(v * 10) / 10);
+  });
+  $("aim").checked = S.free.aim; $("aimbox").hidden = S.free.aim;
+  $("xyz-hint").textContent = T(S.roomKey === "free" ? "t.xyzOut" : "t.xyzRoom");
+}
+/* 部屋の外に出た位置は、部屋の中に収めた値に置き換える */
+function keepInside() {
+  if (S.mode !== "free" || !S.free) { $("clamped").hidden = true; return; }
+  var L = R.layout(settings());
+  $("clamped").hidden = !L.clamped;
+  if (L.clamped) { S.free.L = L.speakers[0].map(r2); S.free.R = L.speakers[1].map(r2); S.free.ear = L.listener.map(r2); syncFree(); }
 }
 function syncInputs() {
   ["spacing", "dist", "front"].forEach(function (k) { $(k).value = toSlider(k, S[k]); $(k + "-v").textContent = m(S[k]); });
   $("rw").value = S.room.w; $("rd").value = S.room.d; $("rh").value = S.room.h;
   $("abs").value = Math.round(S.room.abs * 100); $("abs-v").textContent = S.room.abs.toFixed(2);
-  $("delay").checked = S.delay; $("match").checked = S.match;
+  $("delay").checked = S.delay; $("match").checked = S.match; $("ground").checked = S.ground;
   $("gain").value = S.gain; $("gain-v").textContent = (S.gain > 0 ? "+" : "") + S.gain.toFixed(1) + " dB";
   $("bits").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.bits)); });
   $("ab").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.view)); });
@@ -580,6 +723,23 @@ $("rooms").addEventListener("click", function (e) {
 });
 $("abs").addEventListener("input", function () { S.room.abs = +this.value / 100; $("abs-v").textContent = S.room.abs.toFixed(2); S.roomKey = "custom"; buildPills(); rebuild(); });
 $("delay").addEventListener("change", function () { S.delay = this.checked; rebuild(); });
+$("ground").addEventListener("change", function () { S.ground = this.checked; rebuild(); });
+$("mode").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-v]"); if (!b) return;
+  if (b.getAttribute("data-v") === "free") { if (!S.free) toFree(); S.mode = "free"; } else S.mode = "simple";
+  showMode(); syncFree(); rebuild();
+});
+$("resetFree").addEventListener("click", function () { S.mode = "simple"; toFree(); rebuild(); });
+$("aim").addEventListener("change", function () { S.free.aim = this.checked; syncFree(); rebuild(); });
+$("freebox").addEventListener("input", function (e) {
+  var el = e.target, v = parseFloat(el.value); if (!isFinite(v) || !S.free) return;
+  var i = +el.getAttribute("data-i");
+  if (el.hasAttribute("data-f")) S.free[el.getAttribute("data-f")][i] = Math.max(-200, Math.min(200, v));
+  else if (el.getAttribute("data-a") === "head") { if (i) S.free.pitch = Math.max(-85, Math.min(85, v)); else S.free.yaw = v; }
+  else if (el.hasAttribute("data-a")) S.free[el.getAttribute("data-a")][i] = i ? Math.max(-89, Math.min(89, v)) : v;
+  rebuild();
+});
+$("freebox").addEventListener("change", function () { syncFree(); });
 $("match").addEventListener("change", function () { S.match = this.checked; rebuild(); });
 $("gain").addEventListener("input", function () { S.gain = +this.value; $("gain-v").textContent = (S.gain > 0 ? "+" : "") + S.gain.toFixed(1) + " dB"; rebuild(); });
 
@@ -592,12 +752,42 @@ var fd = FileDrop.attach({ accept: $("file-input").getAttribute("accept"), kind:
    ========================================================================= */
 var I18N = {
   en: {
+    "l.dir": "Left and right are the clearest. Front versus behind and up versus down are heard more weakly with a generic HRTF; a turned head or a speaker overhead may be less obvious than in reality.",
+    "r.distLR": "Distance (L / R)",
+    "r.dirR": "Right speaker is heard from",
+    "r.dirL": "Left speaker is heard from",
+    "d.down": "down",
+    "d.up": "up",
+    "d.behind": " (behind)",
+    "d.right": "Right",
+    "d.left": "Left",
+    "d.front": "Straight ahead",
+    "t.xyzOut": "In metres: x to the right, y up from the ground, z towards the back. Only the positions relative to each other matter.",
+    "t.xyzRoom": "In metres: x from the left wall, y from the floor, z from the front wall.",
+    "t.groundOff": "Ground (no reflection)",
+    "t.groundOn": "Ground (reflects)",
+    "t.ground": "Reflection off the ground",
+    "t.clamped": "Positions outside the room were moved inside it.",
+    "t.resetFree": "Start again from the simple layout",
+    "t.angHint": "Angles in degrees: 0° = facing the front wall. Turn is clockwise seen from above (180° = facing the back wall).",
+    "t.aim": "Point the speakers at the listener",
+    "t.head": "Head",
+    "t.pitch": "Tilt (up +)",
+    "t.yaw": "Turn (right +)",
+    "t.you": "Listener (ears)",
+    "t.spkR": "Right speaker",
+    "t.spkL": "Left speaker",
+    "t.mFree": "Free",
+    "t.mSimple": "Simple",
+    "t.dragHint": "Drag the speakers or the listener to move them (this switches to free placement).",
+    "t.sideview": "Seen from the side (front wall on the left)",
+    "t.top": "Seen from above (front wall at the top)",
     "t.title": "Speaker playback simulator",
     "t.desc": "Hear a stereo file as if it were played on a pair of speakers in a room — set how far apart they are, how far away you sit, the kind of speaker and the room. For headphones.",
     "t.audio": "Audio", "t.sim": "Speakers", "t.orig": "Original (headphones)", "t.busy": "Updating…",
     "t.phones": "Listen on headphones. The result is made for each ear separately, so it doesn't work through speakers.",
     "t.decodeErr": "This file couldn't be decoded in this browser.",
-    "t.plan": "Layout (seen from above)", "t.lgSpk": "Speakers", "t.lgYou": "Listener (facing up)", "t.lgRefl": "First reflections on the walls",
+    "t.plan": "Layout", "t.lgSpk": "Speakers (triangle = where they point)", "t.lgYou": "Listener (triangle = facing)", "t.lgRefl": "First reflections on the walls",
     "t.export": "Export", "t.format": "Format", "t.exportBtn": "Process the whole file and save",
     "t.expHint": "The reverb tail is added after the end, so the file gets a little longer.",
     "t.busyExp": "Processing…", "t.saved": "Saved ({s} s).", "t.lowered": "The level was lowered by {db} dB to avoid clipping.",
@@ -620,7 +810,7 @@ var I18N = {
     "t.level": "Level", "t.match": "Keep about the same loudness as the original",
     "t.matchHint": "Off: the level follows the distance, like sitting farther away (2 m = about the original level).", "t.gain": "Output level",
     "t.result": "At the listening position", "t.copyhint": "Click any value to copy.",
-    "r.angle": "Angle between the speakers", "r.arrive": "Time to arrive", "r.rt": "Reverberation time (RT60)",
+    "r.angle": "Angle between the speakers", "r.arrive": "Time to arrive (L / R)", "r.rt": "Reverberation time (RT60)",
     "r.drr": "Direct sound vs. reverb", "r.rc": "Critical distance",
     "t.limits": "How it works and its limits",
     "l.how": "Each channel becomes a speaker. The direct sound and the reflections off the walls, floor and ceiling (up to three bounces) reach each ear from their own direction through the browser's head-related transfer function (HRTF); the later reverb is added from the room's reverberation time.",
@@ -630,12 +820,46 @@ var I18N = {
     "l.export": "The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones."
   },
   ja: {
+    "l.dir": "左右がいちばんはっきり分かります。前後と上下は平均的な HRTF では弱めに聞こえ、頭を回したときや真上のスピーカーは、実際ほどはっきりしないことがあります。",
+    "r.arrive": "音が届くまで（左 / 右）",
+    "r.distLR": "距離（左 / 右）",
+    "r.dirR": "右スピーカーの聞こえる方向",
+    "r.dirL": "左スピーカーの聞こえる方向",
+    "d.down": "下",
+    "d.up": "上",
+    "d.behind": "（後ろ）",
+    "d.right": "右",
+    "d.left": "左",
+    "d.front": "正面",
+    "t.xyzOut": "単位は m。x = 右へ、y = 地面から上へ、z = 後ろへ。互いの位置関係だけが効きます。",
+    "t.xyzRoom": "単位は m。x = 左の壁から、y = 床から、z = 前の壁から。",
+    "t.groundOff": "地面（反射なし）",
+    "t.groundOn": "地面（反射あり）",
+    "t.ground": "地面での反射",
+    "t.clamped": "部屋の外に出ていた位置を、部屋の中に収めました。",
+    "t.resetFree": "かんたん配置の位置からやり直す",
+    "t.angHint": "角度は度。0° = 前の壁の方。左右は上から見て時計回り（180° = 後ろの壁の方）。",
+    "t.aim": "スピーカーを聴く人に向ける",
+    "t.head": "頭の向き",
+    "t.pitch": "上下（上 +）",
+    "t.yaw": "左右（右 +）",
+    "t.you": "聴く人（耳）",
+    "t.spkR": "右スピーカー",
+    "t.spkL": "左スピーカー",
+    "t.mFree": "自由",
+    "t.mSimple": "かんたん",
+    "t.dragHint": "スピーカーや聴く人はドラッグで動かせます（動かすと自由配置になります）。",
+    "t.lgYou": "聴く人（三角が顔の向き）",
+    "t.lgSpk": "スピーカー（三角が向き）",
+    "t.sideview": "横から見た図（左が前の壁）",
+    "t.top": "上から見た図（上が前の壁）",
+    "t.plan": "配置",
     "t.title": "スピーカー再生シミュレーター",
     "t.desc": "ステレオの音声を、部屋に置いた 2 本のスピーカーで聴いているように変えます。スピーカーの間隔、聴く位置までの距離、スピーカーの種類、部屋を選べます。ヘッドホン用。",
     "t.audio": "音声", "t.sim": "スピーカー", "t.orig": "元の音（ヘッドホン直）", "t.busy": "更新中…",
     "t.phones": "ヘッドホンで聴いてください。左右の耳それぞれに届く音として作るので、スピーカーで鳴らすと効果がありません。",
     "t.decodeErr": "このブラウザではこのファイルを読み込めませんでした。",
-    "t.plan": "配置（上から見た図）", "t.lgSpk": "スピーカー", "t.lgYou": "聴く人（上が正面）", "t.lgRefl": "壁での 1 回目の反射",
+    "t.lgRefl": "壁での 1 回目の反射",
     "t.export": "書き出し", "t.format": "形式", "t.exportBtn": "ファイル全体を処理して保存",
     "t.expHint": "最後に残響の余韻が付くので、元のファイルより少し長くなります。",
     "t.busyExp": "処理中…", "t.saved": "保存しました（{s} 秒）。", "t.lowered": "音が割れないよう、{db} dB 下げました。",
@@ -658,7 +882,7 @@ var I18N = {
     "t.level": "音量", "t.match": "元の音とだいたい同じ大きさにする",
     "t.matchHint": "オフ：離れて座ったときのように、距離に応じて小さくなります（2 m でほぼ元の大きさ）。", "t.gain": "出力の大きさ",
     "t.result": "聴く位置で", "t.copyhint": "数値をクリックでコピー。",
-    "r.angle": "スピーカーの見開き角", "r.arrive": "音が届くまで", "r.rt": "残響時間（RT60）",
+    "r.angle": "スピーカーの見開き角", "r.rt": "残響時間（RT60）",
     "r.drr": "直接音と響きの比", "r.rc": "臨界距離",
     "t.limits": "仕組みと限界",
     "l.how": "左右のチャンネルをそれぞれ 1 本のスピーカーにします。直接音と、壁・床・天井での反射（3 回まで）は、それぞれ届く向きに応じてブラウザの頭部伝達関数（HRTF）で左右の耳に分け、その後の残響は部屋の残響時間から加えます。",
@@ -668,7 +892,8 @@ var I18N = {
     "l.export": "書き出した WAV はバイノーラル（両耳）です。3DCG のシーンで聴く人（カメラなど）に聞こえる音として、ヘッドホンで使ってください。"
   }
 };
-Shell.init({ id: "speaker-sim", strings: I18N, onSettingsChange: function () { buildPills(); syncInputs(); draw(); readout(); } });
+if (S.mode === "free" && !S.free) S.mode = "simple";
+Shell.init({ id: "speaker-sim", strings: I18N, onSettingsChange: function () { buildPills(); syncInputs(); showMode(); syncFree(); draw(); readout(); } });
 })();
 </script>
 </body>

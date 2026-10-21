@@ -2284,8 +2284,8 @@
         "ja": "スピーカー再生シミュレーター"
       },
       "description": {
-        "en": "Hear a stereo file as if played on two speakers in a room (binaural, for headphones), and export it as WAV.",
-        "ja": "ステレオの音声を、部屋に置いた 2 本のスピーカーで聴いているような音（ヘッドホン用のバイノーラル）にして、WAV で書き出し。"
+        "en": "Hear a stereo file as if played on two speakers placed anywhere in a room, with the listener's head direction (binaural, for headphones); export WAV.",
+        "ja": "ステレオの音声を、部屋の好きな位置に置いた 2 本のスピーカーで聴いているような音（頭の向きも指定、ヘッドホン用）にして WAV で書き出し。"
       },
       "keywords": [
         "speaker",
