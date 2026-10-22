@@ -102,7 +102,7 @@ function paths(L, si, opt) {
   var absorb = room ? room.abs : GROUND_ABS;
   function add(img, order, flips) {
     var v = sub(img, ls), r = len(v);
-    if (r < 0.05) return;
+    if (r < 0.05) { if (!opt.keepAll) return; r = 0.05; }   // アニメーションでは本数を変えない（重なっても消さない）
     var beta = Math.pow(Math.sqrt(1 - Math.min(0.99, absorb)), order);
     var g = beta / r;
     // スピーカーから出た向き：聴く人へ向かう向きを、反射の回数が奇数の軸だけ折り返す
@@ -176,7 +176,8 @@ function brir(L, si, opt, rate) {
   return calibrate(rate).then(function (cal) {
     var ps = paths(L, si, opt), direct = Infinity;
     ps.forEach(function (p) { if (p[0] < direct) direct = p[0]; });
-    var shift = opt.delay === false ? direct : 0;   // 届くまでの遅れを含めないときは、直接音が 0 になるようずらす
+    var shift = opt.shift !== undefined ? opt.shift : opt.delay === false ? direct : 0;   // 届くまでの遅れを含めないときは、直接音が 0 になるようずらす
+    var minOrder = opt.minOrder || 0;   // アニメーションでは、動かして描く直接音・1 回目の反射を除いた残りだけを作る
     var room = L.room, rt = room ? eyring(room).rt : 0;
     var lastEarly = 0, tailStart = 0;
     ps.forEach(function (p) {
@@ -191,7 +192,7 @@ function brir(L, si, opt, rate) {
     var src = ctx.createBufferSource(); src.buffer = imp;
     var maxD = lastEarly - shift + 0.01;
     ps.forEach(function (p) {
-      if (p[1] < 0.002) return;
+      if (p[1] < 0.002 || p[4] < minOrder) return;
       var d = ctx.createDelay(Math.max(0.01, maxD)), g = ctx.createGain(), f = ctx.createBiquadFilter();
       d.delayTime.value = Math.max(0, p[0] - shift); g.gain.value = p[1];
       f.type = "highshelf"; f.frequency.value = 4000; f.gain.value = p[3];
@@ -237,5 +238,53 @@ function tail(out, rate, tDirect, tStart, rt, Erev, seed) {
   }
 }
 
-root.SpeakerRoom = { SPEAKERS: SPEAKERS, layout: layout, eyring: eyring, paths: paths, brir: brir, calibrate: calibrate, seen: seen, dir: dir, C: C };
+/* =========================================================================
+   動く音源（アニメーション）。直接音と 1 回目の反射（屋外では地面の反射）を、10 ms ごとに計算した
+   遅れ・強さ・高音の減り・向きの曲線で動かす。遅れが変わることで、移動による音程の変化（ドップラー効果）が
+   そのまま生まれる。2 回目より後の反射と残響は、最初の位置の BRIR（minOrder: 2）を畳み込む。
+     ins: スピーカーごとの入力（周波数特性を掛けた後の AudioNode）、layoutAt(t): その時刻の配置
+     t0: 音声の何秒目から、at: ctx のいつから、dur: 何秒ぶん
+   出力は HRTF の処理の遅れ（cal.latency サンプル）だけ遅れる（残響の側も同じだけ遅らせて合わせる）
+   ========================================================================= */
+var DT = 0.01;
+function motionPlan(layoutAt, opt, t0, dur) {
+  var n = Math.max(2, Math.ceil(dur / DT) + 1), plan = [[], []], shift = Infinity;
+  for (var k = 0; k < n; k++) {
+    var L = layoutAt(t0 + k * DT);
+    for (var si = 0; si < 2; si++) {
+      var ps = paths(L, si, { speaker: opt.speaker, order: L.room ? 1 : 0, keepAll: true });
+      ps.forEach(function (p, j) {
+        var q = plan[si][j] || (plan[si][j] = { d: new Float32Array(n), g: new Float32Array(n), hf: new Float32Array(n), x: new Float32Array(n), y: new Float32Array(n), z: new Float32Array(n) });
+        q.d[k] = p[0]; q.g[k] = p[1]; q.hf[k] = p[3]; q.x[k] = p[2][0]; q.y[k] = p[2][1]; q.z[k] = p[2][2];
+        if (j === 0 && p[0] < shift) shift = p[0];
+      });
+    }
+  }
+  return { n: n, paths: plan, shift: opt.delay === false ? shift : 0 };
+}
+function motion(ctx, ins, plan, at, shiftAbs) {
+  var out = ctx.createGain(), span = (plan.n - 1) * DT;
+  plan.paths.forEach(function (list, si) {
+    list.forEach(function (q) {
+      var dl = new Float32Array(plan.n), mx = 0;
+      for (var k = 0; k < plan.n; k++) { dl[k] = Math.max(0, q.d[k] - shiftAbs); if (dl[k] > mx) mx = dl[k]; }
+      var d = ctx.createDelay(Math.max(0.05, mx + 0.05)), g = ctx.createGain(), f = ctx.createBiquadFilter(), pn = ctx.createPanner();
+      f.type = "highshelf"; f.frequency.value = 4000;
+      pn.panningModel = "HRTF"; pn.distanceModel = "linear"; pn.rolloffFactor = 0; pn.refDistance = 1; pn.maxDistance = 1e4;
+      pn.coneInnerAngle = 360; pn.coneOuterAngle = 360;
+      curve(d.delayTime, dl, at, span); curve(g.gain, q.g, at, span); curve(f.gain, q.hf, at, span);
+      if (pn.positionX) { curve(pn.positionX, q.x, at, span); curve(pn.positionY, q.y, at, span); curve(pn.positionZ, q.z, at, span); }
+      else pn.setPosition(q.x[0], q.y[0], q.z[0]);
+      ins[si].connect(d); d.connect(g); g.connect(f); f.connect(pn); pn.connect(out);
+    });
+  });
+  return out;
+}
+function curve(param, values, at, span) {
+  param.value = values[0];   // 曲線が始まるまでの値（同じ時刻に別の予定を入れると重なりとして弾かれる）
+  param.setValueCurveAtTime(values, at, span);
+}
+
+root.SpeakerRoom = { SPEAKERS: SPEAKERS, layout: layout, eyring: eyring, paths: paths, brir: brir, calibrate: calibrate, seen: seen, dir: dir, C: C,
+  motionPlan: motionPlan, motion: motion, DT: DT };
 })(window);

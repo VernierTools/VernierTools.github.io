@@ -47,6 +47,13 @@
   .plan{ position:relative; width:100%; aspect-ratio:4/3; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
   .plan canvas{ position:absolute; inset:0; width:100%; height:100%; }
   .plan--side{ aspect-ratio:2/1; }
+  .tl{ position:relative; height:64px; margin-top:var(--s3); background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r); touch-action:none; }
+  .tl canvas{ position:absolute; inset:0; width:100%; height:100%; cursor:pointer; }
+  .tlrow{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:var(--s3); }
+  .tlrow .btn{ height:32px; padding:0 10px; font-size:12.5px; }
+  .tlrow .time{ margin-left:auto; }
+  .fpsrow{ display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-2); }
+  .fpsrow .select{ width:84px; height:32px; }
   .vlabel{ font-size:11.5px; color:var(--text-3); margin:var(--s3) 0 6px; }
   .vlabel:first-of-type{ margin-top:0; }
   .xyz{ display:grid; grid-template-columns:auto repeat(3, minmax(0,1fr)); gap:6px var(--s2); align-items:center; }
@@ -114,6 +121,33 @@
           <span><i style="background:var(--text-3)"></i><span data-i18n="t.lgRefl">First reflections on the walls</span></span>
         </div>
         <div class="hint" data-i18n="t.dragHint">Drag the speakers or the listener to move them (this switches to free placement).</div>
+      </div>
+
+      <div class="card" id="animcard">
+        <div class="choicerow">
+          <span class="card__title" style="margin:0" data-i18n="t.anim">Animation</span>
+          <label class="toggle"><input type="checkbox" id="anim-on"><span class="track"></span><span data-i18n="t.animOn">Animate positions and directions</span></label>
+        </div>
+        <div id="animbox" hidden>
+          <div class="choicerow" style="margin-top:var(--s4)">
+            <div class="seg" id="interp" role="group">
+              <button type="button" data-v="smooth" data-i18n="t.smooth">Smooth</button>
+              <button type="button" data-v="linear" data-i18n="t.linear">Linear</button>
+            </div>
+            <label class="fpsrow"><span data-i18n="t.fps">Frame rate</span>
+              <select class="select" id="fps"><option value="24">24</option><option value="25">25</option><option value="30">30</option><option value="50">50</option><option value="60">60</option></select></label>
+          </div>
+          <div class="tl"><canvas id="tl"></canvas></div>
+          <div class="tlrow">
+            <button type="button" class="btn btn--secondary" id="k-prev" aria-label="Previous key">◀</button>
+            <button type="button" class="btn btn--secondary" id="k-next" aria-label="Next key">▶</button>
+            <button type="button" class="btn btn--secondary" id="k-add" data-i18n="t.kAdd">Set key here</button>
+            <button type="button" class="btn btn--secondary" id="k-del" data-i18n="t.kDel">Delete key</button>
+            <span class="time" id="tl-time"></span>
+          </div>
+          <div class="hint" data-i18n="t.animHint">Move the playhead, then move things in the layout or type values: a key is set at that time automatically. Drag a diamond to retime it. Between keys the positions are interpolated, and moving sources change pitch (Doppler effect).</div>
+          <div class="warn" id="animnote" hidden data-i18n="t.animNote">Add a second key at another time to start the animation.</div>
+        </div>
       </div>
 
       <div class="card">
@@ -213,6 +247,8 @@
           <label class="label" for="gain"><span data-i18n="t.gain">Output level</span><b id="gain-v"></b></label>
           <input type="range" class="slider" id="gain" min="-24" max="12" step="0.5">
         </div>
+        <div class="hint" style="margin-top:var(--s4)" data-i18n="t.pfHint">Save every setting, including the animation keys, to a file and load it later.</div>
+        <div id="pfrow"></div>
       </div>
 
       <div class="readout">
@@ -229,6 +265,7 @@
       <li data-i18n="l.how">Each channel becomes a speaker. The direct sound and the reflections off the walls, floor and ceiling (up to three bounces) reach each ear from their own direction through the browser's head-related transfer function (HRTF); the later reverb is added from the room's reverberation time.</li>
       <li data-i18n="l.hrtf">The HRTF is a generic one built into the browser. Left and right are clear, distance comes through well, but how far in front the speakers seem varies from person to person.</li>
       <li data-i18n="l.dir">Left and right are the clearest.</li>
+      <li data-i18n="l.anim">While animating, the direct sound and the first reflections follow the movement.</li>
       <li data-i18n="l.room">Rooms are empty boxes with the same absorption on every surface. Furniture, open doors and odd shapes are not modelled.</li>
       <li data-i18n="l.type">Speaker types are typical frequency responses and how much treble they lose off to the side, not measurements of specific models.</li>
       <li data-i18n="l.export">The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones.</li>
@@ -238,6 +275,7 @@
 
 <script src="../../shared/shell.js"></script>
 <script src="../../shared/filedrop.js"></script>
+<script src="../../shared/presetfile.js"></script>
 <script src="room.js"></script>
 <script>
 "use strict";
@@ -263,7 +301,8 @@ var ROOMS = {
 var SPK_ORDER = ["ideal", "monitor", "bookshelf", "small", "tv", "radio", "phone"];
 
 var S = { spacing: 2, dist: 2, front: 0.6, delay: true, speaker: "bookshelf", roomKey: "living", room: { w: 4.5, d: 5.5, h: 2.5, abs: 0.30 },
-  match: true, gain: 0, bits: "24", view: "sim", mode: "simple", ground: true, free: null };
+  match: true, gain: 0, bits: "24", view: "sim", mode: "simple", ground: true, free: null,
+  anim: { on: false, fps: 30, interp: "smooth", keys: [] } };
 try { var sv = JSON.parse(localStorage.getItem(STORE)); if (sv) for (var k in S) if (sv[k] !== undefined) S[k] = sv[k]; } catch (e) {}
 if (!R.SPEAKERS[S.speaker]) S.speaker = "bookshelf";
 function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
@@ -331,16 +370,33 @@ function load(f) {
 }
 function pos() { return A.playing ? Math.min(A.buf.duration, A.off + A.ctx.currentTime - A.t0) : A.off; }
 function play() {
-  var ctx = actx(); if (!A.buf) return;
+  var ctx = actx(); if (!A.buf || A.starting) return;
   if (ctx.state === "suspended") ctx.resume();
   if (A.off >= A.buf.duration - 0.05) A.off = 0;
-  var s = ctx.createBufferSource(); s.buffer = A.buf; s.connect(G.inp);
-  s.onended = function () { if (A.src === s) { A.off = pos(); A.playing = false; A.src = null; if (A.off >= A.buf.duration - 0.05) A.off = 0; icon(); } };
-  s.start(0, A.off); A.src = s; A.t0 = ctx.currentTime; A.playing = true; icon(); loop();
+  function go(at) {
+    var s = ctx.createBufferSource(); s.buffer = A.buf; s.connect(G.inp);
+    s.onended = function () { if (A.src === s) { A.off = pos(); A.playing = false; A.src = null; dropAnim(); if (A.off >= A.buf.duration - 0.05) A.off = 0; icon(); follow(); } };
+    s.start(at, A.off); A.src = s; A.t0 = at; A.playing = true; icon(); loop();
+  }
+  if (!animated()) { go(ctx.currentTime); return; }
+  // アニメーション：再生する位置からの動きを計算してから、少し先の時刻にそろえて始める
+  A.starting = true; $("busy").hidden = false;
+  var at = ctx.currentTime + 0.15;
+  animGraph(ctx, G.inp, ctx.sampleRate, A.off, at, A.buf.duration - A.off + 0.5).then(function (g) {
+    A.starting = false; $("busy").hidden = true;
+    dropAnim(); G.anim = g; g.out.connect(G.wetOut);
+    go(Math.max(at, ctx.currentTime + 0.01));
+  }).catch(function (e) { A.starting = false; $("busy").hidden = true; showErr(String(e && e.message || e)); });
+}
+function dropAnim() {
+  if (!G.anim) return;
+  var g = G.anim; G.anim = null;
+  try { G.inp.disconnect(g.out._sp); } catch (e) {}
+  g.out.disconnect();
 }
 function stop() {
   if (A.src) { var s = A.src; A.src = null; A.off = pos(); try { s.stop(); } catch (e) {} s.disconnect(); }
-  A.playing = false; icon();
+  A.playing = false; dropAnim(); icon();
 }
 function icon() { $("play-ico").innerHTML = A.playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>'; }
 function fmtT(x) { x = Math.max(0, x || 0); var mm = Math.floor(x / 60), ss = Math.floor(x % 60); return mm + ":" + (ss < 10 ? "0" : "") + ss; }
@@ -350,11 +406,11 @@ function tick() {
   $("time").textContent = fmtT(p) + " / " + fmtT(A.buf.duration);
   if (document.activeElement !== $("scrub")) $("scrub").value = Math.round(p / A.buf.duration * 1000);
 }
-function loop() { tick(); if (A.playing) requestAnimationFrame(loop); }
+function loop() { tick(); if (animOn()) follow(); if (A.playing) requestAnimationFrame(loop); }
 $("play").addEventListener("click", function () { if (A.playing) stop(); else play(); });
 $("scrub").addEventListener("input", function () {
   if (!A.buf) return;
-  var was = A.playing; stop(); A.off = this.value / 1000 * A.buf.duration; tick(); if (was) play();
+  var was = A.playing; stop(); A.off = this.value / 1000 * A.buf.duration; tick(); follow(); if (was) play();
 });
 function setView(now) {
   if (!A.ctx) return;
@@ -372,11 +428,11 @@ $("ab").addEventListener("click", function (e) {
    2. スピーカー → BRIR の信号の流れ（再生と書き出しで同じものを使う）
    ========================================================================= */
 var cache = {};
-function key(rate) { return JSON.stringify([settings(), S.speaker, S.delay, rate]); }
-function brirs(rate) {
-  var k = key(rate);
+function brirs(rate, sett) {
+  sett = sett || settings();
+  var k = JSON.stringify([sett, S.speaker, S.delay, rate]);
   if (!cache[k]) {
-    var L = R.layout(settings()), opt = { speaker: S.speaker, delay: S.delay };
+    var L = R.layout(sett), opt = { speaker: S.speaker, delay: S.delay };
     cache[k] = Promise.all([R.brir(L, 0, opt, rate), R.brir(L, 1, opt, rate)]);
     var keys = Object.keys(cache); if (keys.length > 6) delete cache[keys[0]];
   }
@@ -387,8 +443,9 @@ function scale(ir) {   // 元の音量に合わせる：左のスピーカー 1 
   var e = 0; ir[0].forEach(function (ch) { for (var i = 0; i < ch.length; i++) e += ch[i] * ch[i]; });
   return e > 0 ? 1 / Math.sqrt(e) : 1;
 }
-function chain(ctx, input, ir, rate) {
-  var out = ctx.createGain(), sp = ctx.createChannelSplitter(2), k = scale(ir) * Math.pow(10, S.gain / 20);
+/* 左右に分けて、スピーカーの周波数特性を掛ける → [左の出力, 右の出力] */
+function eqChain(ctx, input) {
+  var sp = ctx.createChannelSplitter(2), ins = [];
   input.connect(sp);
   for (var c = 0; c < 2; c++) {
     var node = ctx.createGain(); sp.connect(node, c);
@@ -396,23 +453,59 @@ function chain(ctx, input, ir, rate) {
       var f = ctx.createBiquadFilter(); f.type = q[0]; f.frequency.value = q[1]; f.Q.value = q[2]; if (q[3] !== undefined) f.gain.value = q[3];
       node.connect(f); node = f;
     });
-    var cv = ctx.createConvolver(); cv.normalize = false;
-    var b = ctx.createBuffer(2, ir[c][0].length, rate);
-    b.copyToChannel(ir[c][0], 0); b.copyToChannel(ir[c][1], 1);
-    cv.buffer = b; node.connect(cv); cv.connect(out);
+    ins.push(node);
   }
-  out.gain.value = k; out._sp = sp;
+  ins.sp = sp;
+  return ins;
+}
+function convolver(ctx, ir, rate) {
+  var cv = ctx.createConvolver(); cv.normalize = false;
+  var b = ctx.createBuffer(2, ir[0].length, rate);
+  b.copyToChannel(ir[0], 0); b.copyToChannel(ir[1], 1);
+  cv.buffer = b; return cv;
+}
+function chain(ctx, input, ir, rate) {
+  var out = ctx.createGain(), ins = eqChain(ctx, input), k = scale(ir) * Math.pow(10, S.gain / 20);
+  for (var c = 0; c < 2; c++) { var cv = convolver(ctx, ir[c], rate); ins[c].connect(cv); cv.connect(out); }
+  out.gain.value = k; out._sp = ins.sp;
   return out;
+}
+/* ---- アニメーション：音声の t0 秒目から dur 秒ぶん、ctx の at 秒から動かす（room.js の motion）。
+        2 回目より後の反射と残響は、t0 の位置の BRIR を畳み込み、HRTF の遅れに合わせて遅らせる ---- */
+function animGraph(ctx, input, rate, t0, at, dur) {
+  var s0 = poseSettings(poseAt(t0)), L0 = R.layout(s0);
+  var plan = R.motionPlan(function (t) { return R.layout(poseSettings(poseAt(t))); }, { speaker: S.speaker, delay: S.delay }, t0, dur);
+  var opt = { speaker: S.speaker, minOrder: 2, shift: plan.shift };
+  return Promise.all([brirs(rate, s0), R.calibrate(rate),
+    L0.room ? Promise.all([R.brir(L0, 0, opt, rate), R.brir(L0, 1, opt, rate)]) : null]).then(function (r) {
+    var out = ctx.createGain(), ins = eqChain(ctx, input);
+    out.gain.value = scale(r[0]) * Math.pow(10, S.gain / 20);
+    R.motion(ctx, ins, plan, at, plan.shift).connect(out);
+    if (r[2]) for (var c = 0; c < 2; c++) {
+      var cv = convolver(ctx, r[2][c], rate), d = ctx.createDelay(1);
+      d.delayTime.value = r[1].latency / rate;
+      ins[c].connect(cv); cv.connect(d); d.connect(out);
+    }
+    out._sp = ins.sp;
+    return { out: out, latency: r[1].latency, tail: r[2] ? r[2][0][0].length / rate : 0.1 };
+  });
 }
 
 /* ---- 設定を変えたら作り直し、前のものから 60 ms で切り替える ---- */
 var rbTimer = 0;
 function rebuild() {
-  keepInside(); save(); draw(); readout();
+  keepInside(); save(); draw(); readout(); drawTL();
   if (!A.buf) return;
   clearTimeout(rbTimer);
   rbTimer = setTimeout(function () {
     var ctx = actx(), v = ++G.version;
+    if (animated()) {   // アニメーション中は動く音源の流れを使う。再生中なら、その位置から作り直す
+      if (G.chain) { var o = G.chain; G.chain = null; o.fade.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
+        setTimeout(function () { try { G.inp.disconnect(o.node._sp); } catch (e) {} o.fade.disconnect(); }, 200); }
+      if (A.playing && !drag) { stop(); play(); }
+      return;
+    }
+    dropAnim();
     $("busy").hidden = false;
     brirs(ctx.sampleRate).then(function (ir) {
       if (v !== G.version) return;
@@ -456,7 +549,7 @@ $("export").addEventListener("click", function () {
   if (!A.buf) return;
   var btn = $("export"), rate = A.rate, t0 = Date.now();
   btn.disabled = true; $("prog").hidden = false; $("prog-bar").style.width = "5%"; $("exp-msg").textContent = T("t.busyExp");
-  brirs(rate).then(function (ir) {
+  (animated() ? exportAnim(rate, t0) : brirs(rate).then(function (ir) {
     $("prog-bar").style.width = "20%";
     var tailN = Math.max(ir[0][0].length, ir[1][0].length), n = A.buf.length + tailN;
     var O = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new O(2, n, rate);
@@ -469,8 +562,8 @@ $("export").addEventListener("click", function () {
       ctx.oncomplete = function (e) { res(e.renderedBuffer); };
       var p = ctx.startRendering(); if (p && p.then) p.then(res, rej);
     }).then(function (out) { clearInterval(timer); return out; }, function (e) { clearInterval(timer); throw e; });
-  }).then(function (out) {
-    var ch = [out.getChannelData(0), out.getChannelData(1)], peak = 0;
+  })).then(function (out) {
+    var ch = out.ch || [out.getChannelData(0), out.getChannelData(1)], peak = 0;
     ch.forEach(function (x) { for (var i = 0; i < x.length; i++) { var a = Math.abs(x[i]); if (a > peak) peak = a; } });
     var note = "";
     if (peak > 0.97) {   // 音が割れないよう、最大を −0.3 dBFS に下げる
@@ -485,6 +578,191 @@ $("export").addEventListener("click", function () {
   }).catch(function (e) { $("exp-msg").textContent = String(e && e.message || e); })
     .then(function () { btn.disabled = false; setTimeout(function () { $("prog").hidden = true; }, 800); });
 });
+
+/* アニメーションの書き出し：全体を 1 回で計算し、HRTF の処理の遅れのぶんを先頭から削る */
+function exportAnim(rate, t0) {
+  var O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  var tail = 0.5, dur0 = A.buf.duration;
+  // 先に残響の長さを知るため、仮の ctx で組み立てる代わりに、部屋の残響時間から長さを決める
+  var L0 = R.layout(poseSettings(poseAt(0)));
+  if (L0.room) tail = Math.min(6, R.eyring(L0.room).rt * 1.6) + 0.2;
+  var n = Math.ceil((dur0 + tail) * rate) + 2048, ctx = new O(2, n, rate);
+  var src = ctx.createBufferSource(), b = ctx.createBuffer(2, A.buf.length, rate);
+  b.copyToChannel(A.buf.getChannelData(0), 0); b.copyToChannel(A.buf.getChannelData(1), 1);
+  src.buffer = b; var inp = ctx.createGain(); src.connect(inp);
+  return animGraph(ctx, inp, rate, 0, 0, dur0 + tail).then(function (g) {
+    $("prog-bar").style.width = "20%";
+    g.out.connect(ctx.destination); src.start(0);
+    var timer = setInterval(function () { $("prog-bar").style.width = Math.min(95, 20 + (Date.now() - t0) / 100) + "%"; }, 300);
+    return new Promise(function (res, rej) {
+      ctx.oncomplete = function (e) { res(e.renderedBuffer); };
+      var p = ctx.startRendering(); if (p && p.then) p.then(res, rej);
+    }).then(function (out) {
+      clearInterval(timer);
+      var lat = g.latency;
+      return { ch: [out.getChannelData(0).slice(lat), out.getChannelData(1).slice(lat)] };
+    }, function (e) { clearInterval(timer); throw e; });
+  });
+}
+
+/* =========================================================================
+   3.5 アニメーション（キーフレーム）
+   キーフレームは自由配置の「姿勢」（スピーカーと聴く人の位置・頭の向き・スピーカーの向き）を時刻つきで持つ。
+   キーの間は「なめらか」（Blender の自動クランプに近い 3 次エルミート：山と谷では接線を 0）か「直線」で補間する。
+   再生位置で配置を変えると、その時刻（フレームにそろえる）にキーを入れる・上書きする（自動キー）。
+   ========================================================================= */
+var UI = { ph: 0, sel: -1 };
+function animOn() { return S.mode === "free" && !!S.anim.on; }
+function animated() { return animOn() && S.anim.keys.length >= 2; }
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function poseSettings(pose) { var s = simple(); s.free = pose; return s; }
+function ph() { return A.buf ? pos() : UI.ph; }
+function fps() { return S.anim.fps || 30; }
+function snap(t) { return Math.max(0, Math.round(t * fps()) / fps()); }
+function tlDur() { var last = S.anim.keys.length ? S.anim.keys[S.anim.keys.length - 1].t : 0; return A.buf ? A.buf.duration : Math.max(10, last + 2); }
+// 補間する値：位置 9 個・頭の向き 2 個・スピーカーの向き 4 個
+var COMP = [["L", 0], ["L", 1], ["L", 2], ["R", 0], ["R", 1], ["R", 2], ["ear", 0], ["ear", 1], ["ear", 2], ["yaw"], ["pitch"], ["aimL", 0], ["aimL", 1], ["aimR", 0], ["aimR", 1]];
+function getC(p, c) { return c.length > 1 ? p[c[0]][c[1]] : p[c[0]]; }
+function setC(p, c, v) { if (c.length > 1) p[c[0]][c[1]] = v; else p[c[0]] = v; }
+function poseAt(t) {
+  var K = S.anim.keys;
+  if (!animOn() || !K.length) return S.free;
+  if (t <= K[0].t) return K[0].pose;
+  if (t >= K[K.length - 1].t) return K[K.length - 1].pose;
+  var i = 0; while (i < K.length - 2 && t >= K[i + 1].t) i++;
+  var a = K[i], b = K[i + 1], h = b.t - a.t, u = h > 0 ? (t - a.t) / h : 0, out = clone(a.pose);
+  function tan(k, c) {   // 接線：両端と山・谷では 0、それ以外は前後のキーを結ぶ傾き
+    if (k <= 0 || k >= K.length - 1) return 0;
+    var p0 = getC(K[k - 1].pose, c), p1 = getC(K[k].pose, c), p2 = getC(K[k + 1].pose, c);
+    if ((p1 - p0) * (p2 - p1) <= 0) return 0;
+    return (p2 - p0) / (K[k + 1].t - K[k - 1].t);
+  }
+  COMP.forEach(function (c) {
+    var p0 = getC(a.pose, c), p1 = getC(b.pose, c), v;
+    if (S.anim.interp === "linear") v = p0 + (p1 - p0) * u;
+    else {
+      var u2 = u * u, u3 = u2 * u;
+      v = (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * h * tan(i, c) + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * h * tan(i + 1, c);
+    }
+    setC(out, c, v);
+  });
+  return out;
+}
+function keyAt(t) {   // その時刻（半フレーム以内）のキーの番号
+  for (var i = 0; i < S.anim.keys.length; i++) if (Math.abs(S.anim.keys[i].t - t) < 0.5 / fps()) return i;
+  return -1;
+}
+function upsertKey(t, pose) {
+  t = snap(t);
+  var i = keyAt(t);
+  if (i >= 0) S.anim.keys[i].pose = clone(pose);
+  else { S.anim.keys.push({ t: t, pose: clone(pose) }); S.anim.keys.sort(function (a, b) { return a.t - b.t; }); i = keyAt(t); }
+  UI.sel = i;
+}
+/* 配置を変えたら呼ぶ：アニメーション中なら、再生位置にキーを入れる */
+function autoKey() { if (animOn()) upsertKey(ph(), S.free); }
+/* 再生位置が動いたら、その時刻の姿勢を表示と入力欄に反映する */
+function follow() {
+  if (animOn() && S.anim.keys.length) { S.free = clone(poseAt(ph())); syncFree(); }
+  draw(); readout(); drawTL();
+}
+function seek(t) {
+  t = Math.max(0, Math.min(tlDur(), t));
+  if (A.buf) { var was = A.playing; stop(); A.off = Math.min(t, A.buf.duration); tick(); if (was) play(); }
+  else UI.ph = t;
+  follow();
+}
+function fmtTC(t) {   // 秒とフレーム
+  return t.toFixed(2) + " s · " + Math.round(t * fps()) + " f";
+}
+
+/* ---- タイムライン ---- */
+var TLX = null;
+function drawTL() {
+  var cv = $("tl"); if (!cv || $("animbox").hidden) return;
+  var dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  var D = tlDur(), pad = 10, X = function (t) { return pad + (W - pad * 2) * t / D; };
+  TLX = { X: X, T: function (x) { return (x - pad) / (W - pad * 2) * D; } };
+  var c3 = cssVar("--text-3"), cB = cssVar("--border"), cAcc = cssVar("--accent"), cText = cssVar("--text");
+  g.font = "10px " + cssVar("--font-mono"); g.textAlign = "center"; g.fillStyle = c3;
+  var step = [0.5, 1, 2, 5, 10, 15, 30, 60, 120].filter(function (s) { return (W - pad * 2) / (D / s) >= 46; })[0] || 300;
+  g.strokeStyle = cB; g.lineWidth = 1;
+  for (var t = 0; t <= D + 1e-6; t += step) {
+    g.beginPath(); g.moveTo(X(t), 14); g.lineTo(X(t), H); g.stroke();
+    g.fillText(step < 1 ? t.toFixed(1) : String(Math.round(t)), X(t), 10);
+  }
+  g.strokeStyle = cText; g.beginPath(); g.moveTo(pad, H / 2 + 6); g.lineTo(W - pad, H / 2 + 6); g.stroke();
+  S.anim.keys.forEach(function (k, i) {
+    var x = X(k.t), y = H / 2 + 6, r = 6;
+    g.fillStyle = i === UI.sel ? cAcc : cText; g.strokeStyle = cssVar("--surface");
+    g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); g.fill(); g.stroke();
+  });
+  var p = ph();
+  g.strokeStyle = cAcc; g.lineWidth = 2; g.beginPath(); g.moveTo(X(p), 14); g.lineTo(X(p), H); g.stroke();
+  $("tl-time").textContent = fmtTC(p);
+  $("animnote").hidden = S.anim.keys.length >= 2;
+  $("k-del").disabled = UI.sel < 0;
+}
+(function () {
+  var cv = $("tl"), dk = -1;
+  function at(e) { var r = cv.getBoundingClientRect(); return e.clientX - r.left; }
+  cv.addEventListener("pointerdown", function (e) {
+    if (!TLX) return;
+    var x = at(e); dk = -1;
+    S.anim.keys.forEach(function (k, i) { if (Math.abs(TLX.X(k.t) - x) < 8) dk = i; });
+    UI.sel = dk;
+    cv.setPointerCapture(e.pointerId);
+    if (dk < 0) seek(snap(TLX.T(x))); else drawTL();
+  });
+  cv.addEventListener("pointermove", function (e) {
+    if (!TLX || !(e.buttons & 1)) return;
+    var t = snap(TLX.T(at(e)));
+    if (dk >= 0) {   // キーを動かす（他のキーと同じ時刻には重ねない）
+      if (keyAt(t) >= 0 && keyAt(t) !== dk) return;
+      var k = S.anim.keys[dk]; k.t = Math.max(0, t);
+      S.anim.keys.sort(function (a, b) { return a.t - b.t; }); dk = S.anim.keys.indexOf(k); UI.sel = dk;
+      save(); follow();
+    } else seek(t);
+  });
+  cv.addEventListener("pointerup", function () { if (dk >= 0) { dk = -1; rebuild(); } });
+})();
+$("anim-on").addEventListener("change", function () {
+  S.anim.on = this.checked;
+  if (S.anim.on) {
+    if (S.mode !== "free") { if (!S.free) toFree(); S.mode = "free"; showMode(); }
+    if (!S.anim.keys.length) upsertKey(ph(), S.free);
+  }
+  showAnim(); follow(); rebuild();
+});
+$("fps").addEventListener("change", function () { S.anim.fps = +this.value; save(); drawTL(); });
+$("interp").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-v]"); if (!b) return;
+  S.anim.interp = b.getAttribute("data-v"); showAnim(); follow(); rebuild();
+});
+$("k-add").addEventListener("click", function () { upsertKey(ph(), S.free); follow(); rebuild(); });
+$("k-del").addEventListener("click", function () {
+  if (UI.sel < 0) return;
+  S.anim.keys.splice(UI.sel, 1); UI.sel = -1; follow(); rebuild();
+});
+$("k-prev").addEventListener("click", function () {
+  var t = ph() - 1e-3, ks = S.anim.keys.filter(function (k) { return k.t < t; });
+  if (ks.length) { UI.sel = S.anim.keys.indexOf(ks[ks.length - 1]); seek(ks[ks.length - 1].t); }
+});
+$("k-next").addEventListener("click", function () {
+  var t = ph() + 1e-3, ks = S.anim.keys.filter(function (k) { return k.t > t; });
+  if (ks.length) { UI.sel = S.anim.keys.indexOf(ks[0]); seek(ks[0].t); }
+});
+function showAnim() {
+  $("anim-on").checked = !!S.anim.on; $("animbox").hidden = !S.anim.on;
+  $("fps").value = String(S.anim.fps);
+  $("interp").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-v") === S.anim.interp)); });
+  $("animnote").hidden = !(S.anim.on && S.anim.keys.length < 2);
+  drawTL();
+}
+window.addEventListener("resize", drawTL);
 
 /* =========================================================================
    4. 配置図（上から見た図・横から見た図）。ドラッグで動かせる（動かすと自由配置になる）
@@ -617,9 +895,9 @@ var drag = null;
     var L2 = R.layout(settings());   // 部屋の外へは出さない
     var q2 = drag.key === "ear" ? L2.listener : L2.speakers[drag.key === "L" ? 0 : 1];
     S.free[drag.key] = q2.slice();
-    syncFree(); rebuild(); cv.style.cursor = "grabbing";
+    autoKey(); syncFree(); rebuild(); cv.style.cursor = "grabbing";
   });
-  function end() { drag = null; }
+  function end() { if (drag) { drag = null; rebuild(); } }
   cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
 });
 
@@ -726,18 +1004,18 @@ $("delay").addEventListener("change", function () { S.delay = this.checked; rebu
 $("ground").addEventListener("change", function () { S.ground = this.checked; rebuild(); });
 $("mode").addEventListener("click", function (e) {
   var b = e.target.closest("[data-v]"); if (!b) return;
-  if (b.getAttribute("data-v") === "free") { if (!S.free) toFree(); S.mode = "free"; } else S.mode = "simple";
-  showMode(); syncFree(); rebuild();
+  if (b.getAttribute("data-v") === "free") { if (!S.free) toFree(); S.mode = "free"; } else { S.mode = "simple"; S.anim.on = false; }
+  showMode(); syncFree(); showAnim(); follow(); rebuild();
 });
 $("resetFree").addEventListener("click", function () { S.mode = "simple"; toFree(); rebuild(); });
-$("aim").addEventListener("change", function () { S.free.aim = this.checked; syncFree(); rebuild(); });
+$("aim").addEventListener("change", function () { S.free.aim = this.checked; autoKey(); syncFree(); rebuild(); });
 $("freebox").addEventListener("input", function (e) {
   var el = e.target, v = parseFloat(el.value); if (!isFinite(v) || !S.free) return;
   var i = +el.getAttribute("data-i");
   if (el.hasAttribute("data-f")) S.free[el.getAttribute("data-f")][i] = Math.max(-200, Math.min(200, v));
   else if (el.getAttribute("data-a") === "head") { if (i) S.free.pitch = Math.max(-85, Math.min(85, v)); else S.free.yaw = v; }
   else if (el.hasAttribute("data-a")) S.free[el.getAttribute("data-a")][i] = i ? Math.max(-89, Math.min(89, v)) : v;
-  rebuild();
+  autoKey(); rebuild();
 });
 $("freebox").addEventListener("change", function () { syncFree(); });
 $("match").addEventListener("change", function () { S.match = this.checked; rebuild(); });
@@ -752,6 +1030,17 @@ var fd = FileDrop.attach({ accept: $("file-input").getAttribute("accept"), kind:
    ========================================================================= */
 var I18N = {
   en: {
+    "t.pfHint": "Save every setting, including the animation keys, to a file and load it later.",
+    "t.anim": "Animation",
+    "t.animOn": "Animate positions and directions",
+    "t.smooth": "Smooth",
+    "t.linear": "Linear",
+    "t.fps": "Frame rate",
+    "t.kAdd": "Set key here",
+    "t.kDel": "Delete key",
+    "t.animHint": "Move the playhead, then move things in the layout or type values: a key is set at that time automatically. Drag a diamond to retime it. Between keys the positions are interpolated, and moving sources change pitch (Doppler effect).",
+    "t.animNote": "Add a second key at another time to start the animation.",
+    "l.anim": "While animating, the direct sound and the first reflections follow the movement every 10 ms (including the Doppler effect); later reflections and the reverb are taken from the position at the start.",
     "l.dir": "Left and right are the clearest. Front versus behind and up versus down are heard more weakly with a generic HRTF; a turned head or a speaker overhead may be less obvious than in reality.",
     "r.distLR": "Distance (L / R)",
     "r.dirR": "Right speaker is heard from",
@@ -820,6 +1109,17 @@ var I18N = {
     "l.export": "The exported WAV is binaural: use it as the sound heard by a listener (such as the camera) in your 3D scene, on headphones."
   },
   ja: {
+    "t.pfHint": "アニメーションのキーも含めて、すべての設定をファイルに保存し、あとで読み込めます。",
+    "t.anim": "アニメーション",
+    "t.animOn": "位置と向きをアニメーションさせる",
+    "t.smooth": "なめらか",
+    "t.linear": "直線",
+    "t.fps": "フレームレート",
+    "t.kAdd": "ここにキーを入れる",
+    "t.kDel": "キーを削除",
+    "t.animHint": "再生位置を動かしてから、配置図で動かすか数値を入れると、その時刻に自動でキーが入ります。ひし形はドラッグで時刻を変えられます。キーの間の位置は補間され、動く音源は音程が変わります（ドップラー効果）。",
+    "t.animNote": "別の時刻にもう 1 つキーを入れると、アニメーションが始まります。",
+    "l.anim": "アニメーション中は、直接音と 1 回目の反射が 10 ms ごとに動きに合わせて変わります（ドップラー効果を含む）。2 回目より後の反射と残響は、始めの位置のものを使います。",
     "l.dir": "左右がいちばんはっきり分かります。前後と上下は平均的な HRTF では弱めに聞こえ、頭を回したときや真上のスピーカーは、実際ほどはっきりしないことがあります。",
     "r.arrive": "音が届くまで（左 / 右）",
     "r.distLR": "距離（左 / 右）",
@@ -893,7 +1193,36 @@ var I18N = {
   }
 };
 if (S.mode === "free" && !S.free) S.mode = "simple";
-Shell.init({ id: "speaker-sim", strings: I18N, onSettingsChange: function () { buildPills(); syncInputs(); showMode(); syncFree(); draw(); readout(); } });
+if (!S.anim || !Array.isArray(S.anim.keys)) S.anim = { on: false, fps: 30, interp: "smooth", keys: [] };
+/* ---- 設定ファイル（キーフレームも含めて全部）。読み込むときは形を確かめ、知らない値は捨てる ---- */
+function vec(v) { return Array.isArray(v) && v.length === 3 && v.every(function (x) { return typeof x === "number" && isFinite(x); }); }
+function pair(v) { return Array.isArray(v) && v.length === 2 && v.every(function (x) { return typeof x === "number" && isFinite(x); }); }
+function okPose(p) { return p && vec(p.L) && vec(p.R) && vec(p.ear) && isFinite(p.yaw) && isFinite(p.pitch) && pair(p.aimL) && pair(p.aimR); }
+PresetFile.attach({ tool: "speaker-sim", into: $("pfrow"),
+  name: function () { return S.roomKey + "-" + S.speaker; },
+  get: function () { var o = clone(S); delete o.view; return o; },
+  set: function (o) {
+    var n = {};
+    ["spacing", "dist", "front", "gain"].forEach(function (k) { if (typeof o[k] === "number" && isFinite(o[k])) n[k] = o[k]; });
+    ["delay", "match", "ground"].forEach(function (k) { if (typeof o[k] === "boolean") n[k] = o[k]; });
+    if (R.SPEAKERS[o.speaker]) n.speaker = o.speaker;
+    if (o.roomKey && (ROOMS.hasOwnProperty(o.roomKey) || o.roomKey === "custom")) n.roomKey = o.roomKey;
+    if (o.room && [o.room.w, o.room.d, o.room.h, o.room.abs].every(function (x) { return typeof x === "number" && isFinite(x) && x > 0; }))
+      n.room = { w: o.room.w, d: o.room.d, h: o.room.h, abs: Math.min(0.99, o.room.abs) };
+    if (o.mode === "free" || o.mode === "simple") n.mode = o.mode;
+    if (o.free && okPose(o.free)) n.free = clone(o.free);
+    if (n.mode === "free" && !n.free) n.mode = "simple";
+    if (o.anim && Array.isArray(o.anim.keys)) {
+      var keys = o.anim.keys.filter(function (k) { return k && typeof k.t === "number" && k.t >= 0 && okPose(k.pose); }).map(clone);
+      keys.sort(function (a, b) { return a.t - b.t; });
+      n.anim = { on: !!o.anim.on && n.mode === "free", fps: [24, 25, 30, 50, 60].indexOf(o.anim.fps) >= 0 ? o.anim.fps : 30,
+        interp: o.anim.interp === "linear" ? "linear" : "smooth", keys: keys };
+    }
+    for (var k in n) S[k] = n[k];
+    UI.sel = -1; buildPills(); syncInputs(); showMode(); syncFree(); showAnim(); follow(); rebuild();
+  } });
+if (S.mode !== "free") S.anim.on = false;
+Shell.init({ id: "speaker-sim", strings: I18N, onSettingsChange: function () { buildPills(); syncInputs(); showMode(); syncFree(); showAnim(); follow(); } });
 })();
 </script>
 </body>

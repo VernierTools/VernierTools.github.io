@@ -2284,8 +2284,8 @@
         "ja": "スピーカー再生シミュレーター"
       },
       "description": {
-        "en": "Hear a stereo file as if played on two speakers placed anywhere in a room, with the listener's head direction (binaural, for headphones); export WAV.",
-        "ja": "ステレオの音声を、部屋の好きな位置に置いた 2 本のスピーカーで聴いているような音（頭の向きも指定、ヘッドホン用）にして WAV で書き出し。"
+        "en": "Hear a stereo file as if played on speakers in a room, with free placement, head direction and keyframe animation with Doppler (binaural, for headphones); export WAV.",
+        "ja": "ステレオの音声を、部屋に置いたスピーカーで聴いているような音（ヘッドホン用）に。自由な配置・頭の向き・キーフレームのアニメーション（ドップラー効果つき）に対応し、WAV で書き出し。"
       },
       "keywords": [
         "speaker",
@@ -2300,7 +2300,11 @@
         "バイノーラル",
         "立体音響",
         "残響",
-        "部屋"
+        "部屋",
+        "animation",
+        "doppler",
+        "アニメーション",
+        "ドップラー"
       ],
       "added": "2026-10-21"
     }
