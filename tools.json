@@ -1210,6 +1210,128 @@
       "added": "2026-10-09"
     },
     {
+      "id": "hextile",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/hextile/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "HexTile",
+        "ja": "HexTile"
+      },
+      "description": {
+        "en": "Hide texture repetition with hex-tiling. Blender add-on.",
+        "ja": "テクスチャの繰り返しをヘックスタイリングで目立たなくするアドオン（英語・日本語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "hex tiling",
+        "texture",
+        "tiling",
+        "repetition",
+        "material",
+        "shader",
+        "テクスチャ",
+        "タイリング",
+        "繰り返し",
+        "マテリアル",
+        "アドオン"
+      ],
+      "added": "2026-10-22"
+    },
+    {
+      "id": "material-cleaner",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/material-cleaner/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Material Cleaner",
+        "ja": "Material Cleaner"
+      },
+      "description": {
+        "en": "Merge identical materials and remove unused ones. Blender add-on.",
+        "ja": "同じマテリアルをまとめ、未使用のものを消すアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "material",
+        "duplicate",
+        "merge",
+        "unused",
+        "cleanup",
+        "マテリアル",
+        "重複",
+        "統合",
+        "未使用",
+        "整理",
+        "アドオン"
+      ],
+      "added": "2026-10-22"
+    },
+    {
+      "id": "material-users",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/material-users/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Material Users",
+        "ja": "Material Users"
+      },
+      "description": {
+        "en": "See which objects use a material, from the Shader Editor. Blender add-on.",
+        "ja": "マテリアルを使っているオブジェクトをシェーダーエディターで確認するアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "material",
+        "users",
+        "shader editor",
+        "object",
+        "マテリアル",
+        "使用数",
+        "シェーダーエディター",
+        "アドオン"
+      ],
+      "added": "2026-10-22"
+    },
+    {
+      "id": "sync-subsurf-render-levels",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/sync-subsurf-render-levels/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Sync Subsurf Render Levels",
+        "ja": "Sync Subsurf Render Levels"
+      },
+      "description": {
+        "en": "Match Subdivision Surface render levels to the viewport. Blender add-on.",
+        "ja": "サブディビジョンのレンダーのレベルをビューポートにそろえるアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "subdivision",
+        "subsurf",
+        "render levels",
+        "modifier",
+        "サブディビジョン",
+        "レンダー",
+        "モディファイア",
+        "アドオン"
+      ],
+      "added": "2026-10-22"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",
