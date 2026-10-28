@@ -354,32 +354,6 @@
       "added": "2026-07-04"
     },
     {
-      "id": "static-keyframe-cleaner",
-      "hidden": true,
-      "type": "blender",
-      "platform": "Blender",
-      "path": "tools/static-keyframe-cleaner/",
-      "categories": [
-        "blender"
-      ],
-      "name": {
-        "en": "Static Keyframe Cleaner",
-        "ja": "Static Keyframe Cleaner"
-      },
-      "description": {
-        "en": "Remove keyframes whose value doesn't change. Blender add-on.",
-        "ja": "値が変化しないキーフレームを除去するBlenderアドオン（英語UI）。"
-      },
-      "keywords": [
-        "blender",
-        "keyframe",
-        "fcurve",
-        "cleanup",
-        "アドオン"
-      ],
-      "added": "2026-07-04"
-    },
-    {
       "id": "spectrum-stereo",
       "type": "web",
       "path": "tools/spectrum-stereo/",
