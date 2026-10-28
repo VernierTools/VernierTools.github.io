@@ -81,7 +81,7 @@
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f2.t">Only the culprit</b><span data-i18n="t.f2.d">Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost.</span></span>
+            <span><b data-i18n="t.f2.t">Only the culprit</b><span data-i18n="t.f2.d">Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost, and Decimate is caught too: it lowers the face count but can take minutes on its own.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
@@ -135,7 +135,7 @@
             <span data-i18n="t.download">Download (.zip)</span>
           </a>
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.3.1</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.4.1</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">5.2+</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
           </div>
@@ -171,7 +171,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f1.t": "Stops it before it runs",
         "t.f1.d": "Blender can't cancel a modifier once it starts. Modifier Guard estimates each modifier's load just before the viewport updates, and turns off the viewport display of one that would go over the limit, so the freeze never happens.",
         "t.f2.t": "Only the culprit",
-        "t.f2.d": "Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost.",
+        "t.f2.d": "Just the modifier that goes over the limit is stopped. Slow types like Bevel, Remesh and Exact Boolean are weighted by measured cost, and Decimate is caught too: it lowers the face count but can take minutes on its own.",
         "t.f3.t": "Calibrate for your computer",
         "t.f3.d": "One click measures this machine and scene, then sets the limit so a modifier at the limit takes no longer than the wait you choose (2 seconds by default).",
         "t.f4.t": "Easy to undo",
@@ -202,7 +202,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f1.t": "評価が始まる前に止める",
         "t.f1.d": "Blender は始まったモディファイアの計算を止められません。Modifier Guard はビューポートが更新される直前に各モディファイアの重さを見積もり、上限を超えそうなものだけビューポート表示をオフにするので、固まる計算そのものが走りません。",
         "t.f2.t": "原因のものだけ",
-        "t.f2.d": "止めるのは上限を超えたモディファイアだけです。ベベル・リメッシュ・正確モードのブーリアンのように遅い種類は、実測した重みで見積もります。",
+        "t.f2.d": "止めるのは上限を超えたモディファイアだけです。ベベル・リメッシュ・正確モードのブーリアンのように遅い種類は、実測した重みで見積もります。デシメートも対象です（面数は減りますが、それ自体の処理で何分も固まることがあります）。",
         "t.f3.t": "パソコンに合わせて調整",
         "t.f3.d": "Calibrate を押すと、このパソコンと開いているシーンで実測し、上限のモディファイアでも待ち時間が設定値（標準2秒）に収まるように上限を決めます。",
         "t.f4.t": "すぐ元に戻せる",
