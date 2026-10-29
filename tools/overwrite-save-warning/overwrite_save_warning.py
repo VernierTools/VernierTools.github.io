@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Project Save Overwrite Warning",
     "author": "Mikat",
-    "version": (1, 1, 0),
+    "version": (2, 0, 0),
     "blender": (4, 2, 0),
     "location": "Ctrl/Cmd+S / Ctrl/Cmd+Shift+S / File menu",
     "description": "Warns before overwriting an existing .blend: a live warning "
@@ -258,8 +258,9 @@ class WM_OT_confirm_overwrite(bpy.types.Operator):
                 copy=copy,
             )
             try:
-                if win is not None:
-                    with bpy.context.temp_override(window=win):
+                target = _live_window(win)
+                if target is not None:
+                    with bpy.context.temp_override(window=target):
                         bpy.ops.wm.save_as_guard('INVOKE_DEFAULT', **kwargs)
                 else:
                     bpy.ops.wm.save_as_guard('INVOKE_DEFAULT', **kwargs)
@@ -268,6 +269,23 @@ class WM_OT_confirm_overwrite(bpy.types.Operator):
             return None  # one-shot
 
         bpy.app.timers.register(reopen, first_interval=0.0)
+
+
+def _live_window(win):
+    """Return win if it is still open, else the first open window (or None).
+
+    The window the dialog came from may have been closed before the timer
+    fires; re-opening the browser there would fail, so fall back to the
+    first window instead.
+    """
+    windows = bpy.context.window_manager.windows
+    if win is not None:
+        try:
+            if any(w == win for w in windows):
+                return win
+        except ReferenceError:
+            pass
+    return windows[0] if len(windows) else None
 
 
 # --- File menu override (hook layout.operator to swap in the guarded Save As) ---

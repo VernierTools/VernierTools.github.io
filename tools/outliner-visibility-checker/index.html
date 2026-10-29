@@ -85,7 +85,7 @@
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f3.t">One-click fixes</b><span data-i18n="t.f3.d">Each row has buttons to turn the eye or the camera on or off, and clicking a visible object's name selects it.</span></span>
+            <span><b data-i18n="t.f3.t">One-click fixes</b><span data-i18n="t.f3.d">Each row has buttons to turn the eye or the camera on or off. Clicking a name makes the object active and scrolls the Outliner to it, even when it is hidden in the viewport.</span></span>
           </li>
         </ul>
       </div>
@@ -95,7 +95,7 @@
         <p class="note"><b data-i18n="t.req">Requirements</b><br>
           <span data-i18n="t.reqbody">Requires Blender 5.2 or later. Pure Python, so it should run on Windows, macOS and Linux; tested on macOS with Blender 5.2.</span></p>
         <p class="note"><b data-i18n="t.limits">Good to know</b><br>
-          <span data-i18n="t.limitsbody">Only each object's own eye (Hide in Viewport) and camera (Disable in Renders) toggles are compared. Visibility inherited from collections, and the monitor toggle (Disable in Viewports), are not counted. Objects hidden in the viewport can't be selected until you turn their eye back on.</span></p>
+          <span data-i18n="t.limitsbody">Only each object's own eye (Hide in Viewport) and camera (Disable in Renders) toggles are compared. Visibility inherited from collections, and the monitor toggle (Disable in Viewports), are not counted. Objects hidden in the viewport can't be selected in the viewport, so their row is selected in the Outliner instead.</span></p>
       </div>
 
       <div class="card">
@@ -127,7 +127,7 @@
             <span data-i18n="t.download">Download (.zip)</span>
           </a>
           <div class="dl-specs">
-            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">1.1.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">2.0.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.blender">Blender</span><span class="v">5.2+</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">Win / macOS / Linux</span></div>
           </div>
@@ -153,7 +153,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.req": "Requirements",
         "t.reqbody": "Requires Blender 5.2 or later. Pure Python, so it should run on Windows, macOS and Linux; tested on macOS with Blender 5.2.",
         "t.limits": "Good to know",
-        "t.limitsbody": "Only each object's own eye (Hide in Viewport) and camera (Disable in Renders) toggles are compared. Visibility inherited from collections, and the monitor toggle (Disable in Viewports), are not counted. Objects hidden in the viewport can't be selected until you turn their eye back on.",
+        "t.limitsbody": "Only each object's own eye (Hide in Viewport) and camera (Disable in Renders) toggles are compared. Visibility inherited from collections, and the monitor toggle (Disable in Viewports), are not counted. Objects hidden in the viewport can't be selected in the viewport, so their row is selected in the Outliner instead.",
         "t.install": "Install",
         "t.download": "Download (.zip)",
         "t.version": "Version",
@@ -165,7 +165,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f2.t": "Two clear lists",
         "t.f2.d": "Click the button to see objects that are hidden in the viewport but still render, and objects that are visible but won't render.",
         "t.f3.t": "One-click fixes",
-        "t.f3.d": "Each row has buttons to turn the eye or the camera on or off, and clicking a visible object's name selects it.",
+        "t.f3.d": "Each row has buttons to turn the eye or the camera on or off. Clicking a name makes the object active and scrolls the Outliner to it, even when it is hidden in the viewport.",
         "t.step1": "Download the .zip file on the right. Don't unzip it.",
         "t.step2": "In Blender, open Edit ▸ Preferences ▸ Get Extensions.",
         "t.step3": "Open the ⌄ menu at the top-right, choose \"Install from Disk…\", then pick the .zip file. (Dragging the .zip into the Blender window also works.)",
@@ -180,7 +180,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.req": "動作環境",
         "t.reqbody": "Blender 5.2 以降が必要です。Python だけで書かれているので Windows・macOS・Linux で動くはずです（動作確認は macOS・Blender 5.2）。",
         "t.limits": "知っておきたいこと",
-        "t.limitsbody": "比べるのはオブジェクト自身の目（ビューポートで隠す）とカメラ（レンダーで無効）だけです。コレクションから受け継ぐ表示状態や、モニターのアイコン（ビューポートで無効）は数えません。ビューポートで隠れているオブジェクトは、目をオンにするまで選択できません。",
+        "t.limitsbody": "比べるのはオブジェクト自身の目（ビューポートで隠す）とカメラ（レンダーで無効）だけです。コレクションから受け継ぐ表示状態や、モニターのアイコン（ビューポートで無効）は数えません。ビューポートで隠れているオブジェクトはビューポートでは選択できないので、代わりにアウトライナーの行を選択します。",
         "t.install": "インストール",
         "t.download": "ダウンロード（.zip）",
         "t.version": "バージョン",
@@ -192,7 +192,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f2.t": "2つの一覧",
         "t.f2.d": "ボタンを押すと、「ビューポートでは非表示なのにレンダーされる」ものと「見えているのにレンダーされない」ものを分けて一覧にします。",
         "t.f3.t": "ワンクリックで直せる",
-        "t.f3.d": "各行のボタンで目やカメラをオン・オフできます。表示中のオブジェクトは名前をクリックすると選択できます。",
+        "t.f3.d": "各行のボタンで目やカメラをオン・オフできます。名前をクリックすると、ビューポートで隠れているものでもアクティブにして、アウトライナーをその行までスクロールします。",
         "t.step1": "右の .zip ファイルをダウンロードします。展開（解凍）はしないでください。",
         "t.step2": "Blenderで 編集 ▸ プリファレンス ▸ エクステンションを入手 を開きます。",
         "t.step3": "右上の ⌄ メニューから「ディスクからインストール…」を選び、.zip ファイルを指定します。（.zip を Blender のウィンドウにドラッグ＆ドロップしても入ります）",

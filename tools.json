@@ -1306,6 +1306,37 @@
       "added": "2026-10-22"
     },
     {
+      "id": "one-click-wet",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/one-click-wet/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "One Click Wet",
+        "ja": "One Click Wet"
+      },
+      "description": {
+        "en": "Make existing materials wet in one click. Blender add-on.",
+        "ja": "今あるマテリアルをワンクリックで濡らすアドオン（英語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "wet",
+        "rain",
+        "puddle",
+        "material",
+        "shader",
+        "濡れ",
+        "雨",
+        "水たまり",
+        "マテリアル",
+        "アドオン"
+      ],
+      "added": "2026-10-29"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",
