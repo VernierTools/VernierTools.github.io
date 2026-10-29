@@ -1337,6 +1337,40 @@
       "added": "2026-10-29"
     },
     {
+      "id": "vector-strokes",
+      "type": "blender",
+      "platform": "Blender",
+      "path": "tools/vector-strokes/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Vector Strokes (Image Editor)",
+        "ja": "Vector Strokes (Image Editor)"
+      },
+      "description": {
+        "en": "Editable vector shapes and text drawn non-destructively onto images (beta). Blender add-on.",
+        "ja": "画像に、後から編集できるベクター図形や文字を描き込むアドオン（ベータ版・日本語UI）。"
+      },
+      "keywords": [
+        "blender",
+        "vector",
+        "image editor",
+        "texture",
+        "text",
+        "svg",
+        "layer",
+        "beta",
+        "ベクター",
+        "イメージエディター",
+        "テクスチャ",
+        "文字",
+        "レイヤー",
+        "アドオン"
+      ],
+      "added": "2026-10-29"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",
