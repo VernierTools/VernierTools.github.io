@@ -1453,6 +1453,40 @@
       "added": "2026-07-11"
     },
     {
+      "id": "bars-to-time",
+      "type": "web",
+      "path": "tools/bars-to-time/",
+      "categories": [
+        "audio"
+      ],
+      "sub": "production",
+      "name": {
+        "en": "Bars to time",
+        "ja": "小節数から時間を計算"
+      },
+      "description": {
+        "en": "How long a number of bars lasts at a given BPM and time signature, in seconds and frames; also works backwards from a target time.",
+        "ja": "BPM と拍子から、小節数が何秒・何フレームになるかを計算。目標の時間から小節数や BPM を逆算。"
+      },
+      "keywords": [
+        "bpm",
+        "bars",
+        "measures",
+        "tempo",
+        "time signature",
+        "duration",
+        "seconds",
+        "frames",
+        "小節",
+        "テンポ",
+        "拍子",
+        "秒数",
+        "尺",
+        "フレーム"
+      ],
+      "added": "2026-11-04"
+    },
+    {
       "id": "audio-info",
       "type": "web",
       "path": "tools/audio-info/",

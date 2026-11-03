@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bars to time — Vernier</title>
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  .fpsrow{ display:flex; gap:var(--s2); }
+  .fpsrow .select{ flex:1 1 auto; min-width:0; }
+  .fpsrow .input{ flex:0 0 96px; }
+  .help{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:6px; }
+  .err{ margin-top:var(--s3); }
+  .rrow__label small{ display:block; font-size:11px; color:var(--text-3); margin-top:1px; }
+  .rrow__value[data-copy]{ cursor:pointer; }
+  .rrow--sm .rrow__value{ font-size:17px; }
+  .rev{ margin-top:var(--s4); }
+  .rev .readout{ margin-top:var(--s4); }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips"><span class="chip" data-i18n="cat.audio">Audio</span></div>
+    <h1 data-i18n="t.title">Bars to time</h1>
+    <p data-i18n="t.desc">How long a number of bars lasts at a given BPM and time signature, in seconds and frames. Also works backwards from a target time.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 入力 -->
+    <div>
+      <div class="card">
+        <div class="field">
+          <label class="label" for="bpm" data-i18n="t.bpm">BPM</label>
+          <div class="inputgroup">
+            <input class="input" id="bpm" type="number" min="1" step="0.01" inputmode="decimal">
+            <span class="unit">BPM</span>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" for="bars" data-i18n="t.bars">Bars</label>
+            <input class="input" id="bars" type="number" min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label class="label" for="beats" data-i18n="t.beats">Extra beats</label>
+            <input class="input" id="beats" type="number" min="0" step="1" inputmode="decimal">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="label" for="num" data-i18n="t.num">Beats per bar</label>
+            <input class="input" id="num" type="number" min="1" max="64" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label class="label" for="den" data-i18n="t.den">Beat unit</label>
+            <select class="select" id="den">
+              <option value="1">/1</option>
+              <option value="2">/2</option>
+              <option value="4">/4</option>
+              <option value="8">/8</option>
+              <option value="16">/16</option>
+              <option value="32">/32</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="basis" data-i18n="t.basis">BPM counts</label>
+          <select class="select" id="basis"></select>
+          <div class="help" data-i18n="t.basishelp">Most DAWs count BPM in quarter notes, even in 6/8. Change this only if your tempo is written for another note, such as a dotted quarter.</div>
+        </div>
+        <div class="field">
+          <label class="label" for="fps" data-i18n="t.fps">Frame rate</label>
+          <div class="fpsrow">
+            <select class="select" id="fps"></select>
+            <input class="input" id="fpscustom" type="number" min="0.001" step="0.001" inputmode="decimal" aria-label="fps" hidden>
+          </div>
+        </div>
+        <div class="badge badge--neg err" id="err" hidden></div>
+      </div>
+    </div>
+
+    <!-- 右: 結果・逆算 -->
+    <div>
+      <div class="readout">
+        <div class="readout__head"><span class="eyebrow" data-i18n="t.length">Length</span></div>
+        <div class="rrow rrow--hero">
+          <span class="rrow__label" data-i18n="t.seconds">Seconds</span>
+          <span class="rrow__value" id="r-sec">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label" data-i18n="t.clock">Min:sec.ms</span>
+          <span class="rrow__value" id="r-clock">—</span>
+        </div>
+        <div class="rrow">
+          <span class="rrow__label"><span data-i18n="t.frames">Frames</span><small id="r-exact"></small></span>
+          <span class="rrow__value" id="r-frames">—</span>
+        </div>
+        <div class="rrow rrow--sm">
+          <span class="rrow__label" data-i18n="t.onebar">1 bar</span>
+          <span class="rrow__value" id="r-bar">—</span>
+        </div>
+        <div class="rrow rrow--sm">
+          <span class="rrow__label" data-i18n="t.onebeat">1 beat</span>
+          <span class="rrow__value" id="r-beat">—</span>
+        </div>
+      </div>
+
+      <div class="card rev">
+        <div class="card__title" data-i18n="t.reverse">Work back from a time</div>
+        <div class="field">
+          <label class="label" for="target" data-i18n="t.target">Target time</label>
+          <input class="input" id="target" type="text" inputmode="decimal" placeholder="30 / 1:30 / 1:02:03.5">
+          <div class="help" data-i18n="t.targethelp">Seconds, or minutes:seconds.</div>
+        </div>
+        <div class="readout">
+          <div class="rrow rrow--sm">
+            <span class="rrow__label"><span data-i18n="t.fit">Bars at this BPM</span><small id="r-fitnote"></small></span>
+            <span class="rrow__value" id="r-fit">—</span>
+          </div>
+          <div class="rrow rrow--sm">
+            <span class="rrow__label"><span data-i18n="t.needbpm">BPM for these bars</span><small id="r-bpmnote"></small></span>
+            <span class="rrow__value" id="r-needbpm">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = "b2t.state";
+
+  var BASES = [
+    { id: "q", q: 1, key: "t.b.q" },
+    { id: "dq", q: 1.5, key: "t.b.dq" },
+    { id: "h", q: 2, key: "t.b.h" },
+    { id: "e", q: 0.5, key: "t.b.e" }
+  ];
+  var RATES = [
+    { id: "23.976", fps: 24000 / 1001 },
+    { id: "24", fps: 24 },
+    { id: "25", fps: 25 },
+    { id: "29.97", fps: 30000 / 1001 },
+    { id: "30", fps: 30 },
+    { id: "50", fps: 50 },
+    { id: "59.94", fps: 60000 / 1001 },
+    { id: "60", fps: 60 },
+    { id: "custom", fps: null }
+  ];
+  var S = { bpm: "120", bars: "8", beats: "0", num: "4", den: "4", basis: "q", fps: "24", fpscustom: "24", target: "30" };
+  var FIELDS = ["bpm", "bars", "beats", "num", "den", "basis", "fps", "fpscustom", "target"];
+
+  function T(key) { return (window.Shell && Shell.t) ? Shell.t(key) : key; }
+
+  function load() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || "{}");
+      FIELDS.forEach(function (k) { if (typeof o[k] === "string") S[k] = o[k]; });
+    } catch (e) { /* 既定値のまま */ }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 保存できなくても計算はできる */ }
+  }
+
+  function fillSelects() {
+    $("basis").innerHTML = BASES.map(function (b) { return '<option value="' + b.id + '">' + T(b.key) + "</option>"; }).join("");
+    $("fps").innerHTML = RATES.map(function (r) {
+      return '<option value="' + r.id + '">' + (r.fps ? r.id + " fps" : T("t.fpscustom")) + "</option>";
+    }).join("");
+    $("basis").value = S.basis;
+    $("fps").value = S.fps;
+  }
+
+  /* ---- 書式 ---- */
+  function trim(x, digits) {   // 末尾の 0 を落とす（128.50 → 128.5）
+    return String(+x.toFixed(digits));
+  }
+  function secText(s) { return s.toFixed(3); }
+  function clockText(s) {
+    var ms = Math.round(s * 1000);
+    var h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60, r = ms % 1000;
+    var tail = (sec < 10 ? "0" : "") + sec + "." + ("00" + r).slice(-3);
+    return h ? h + ":" + (m < 10 ? "0" : "") + m + ":" + tail : m + ":" + tail;
+  }
+  function fill(str, vals) {
+    return str.replace(/\{(\w+)\}/g, function (_, k) { return vals[k]; });
+  }
+  function show(id, text, unit, copy) {
+    var el = $(id);
+    el.textContent = text;
+    if (unit) {
+      var u = document.createElement("span");
+      u.className = "u"; u.textContent = unit;
+      el.appendChild(u);
+    }
+    if (copy === undefined) el.removeAttribute("data-copy");
+    else el.setAttribute("data-copy", copy);
+  }
+
+  /* 秒、または 分:秒、時:分:秒。読めなければ null */
+  function parseTime(text) {
+    var t = String(text).trim().replace(/：/g, ":");
+    if (!/^\d+(\.\d*)?$|^\.\d+$|^\d+(:\d{1,2}){1,2}(\.\d*)?$/.test(t)) return null;
+    return t.split(":").reduce(function (sum, part) { return sum * 60 + parseFloat(part); }, 0);
+  }
+
+  function fpsValue() {
+    var r = RATES.filter(function (x) { return x.id === S.fps; })[0];
+    return r && r.fps ? r.fps : parseFloat(S.fpscustom);
+  }
+
+  /* ---- 計算 ---- */
+  function calc() {
+    var bpm = parseFloat(S.bpm), bars = parseFloat(S.bars), beats = parseFloat(S.beats || "0");
+    var num = parseFloat(S.num), den = parseFloat(S.den), fps = fpsValue();
+    var basis = BASES.filter(function (b) { return b.id === S.basis; })[0] || BASES[0];
+    var err = "";
+    if (!(bpm > 0)) err = "t.e.bpm";
+    else if (!(bars >= 0) || !(beats >= 0)) err = "t.e.bars";
+    else if (!(num >= 1) || num !== Math.floor(num)) err = "t.e.num";
+    else if (!(fps > 0)) err = "t.e.fps";
+
+    var box = $("err");
+    box.hidden = !err;
+    box.textContent = err ? T(err) : "";
+    if (err) {
+      ["r-sec", "r-clock", "r-frames", "r-bar", "r-beat", "r-fit", "r-needbpm"].forEach(function (id) { show(id, "—"); });
+      $("r-exact").textContent = $("r-fitnote").textContent = $("r-bpmnote").textContent = "";
+      return;
+    }
+
+    // 1 拍（分母の音符）と 1 小節の秒数。BPM は基準の音符が 1 分間に何回か
+    var quarterSec = 60 / (bpm * basis.q);
+    var beatSec = quarterSec * 4 / den;
+    var barSec = beatSec * num;
+    var totalBeats = bars * num + beats;
+    var total = totalBeats * beatSec;
+
+    show("r-sec", secText(total), "s", secText(total));
+    show("r-clock", clockText(total), "", clockText(total));
+    var exact = total * fps, rounded = Math.round(exact);
+    show("r-frames", String(rounded), "f", String(rounded));
+    $("r-exact").textContent = Math.abs(exact - rounded) < 1e-6 ? "" : fill(T("t.exact"), { n: exact.toFixed(3) });
+    show("r-bar", secText(barSec), "s", secText(barSec));
+    show("r-beat", (beatSec * 1000).toFixed(2), "ms", (beatSec * 1000).toFixed(2));
+
+    // 逆算
+    var target = parseTime(S.target);
+    if (target === null || !(target > 0)) {
+      show("r-fit", "—"); show("r-needbpm", "—");
+      $("r-fitnote").textContent = $("r-bpmnote").textContent = "";
+      return;
+    }
+    var exactBars = target / barSec;
+    var whole = Math.floor(exactBars + 1e-9);
+    var rest = Math.max(0, target - whole * barSec);
+    show("r-fit", trim(exactBars, 3), "", trim(exactBars, 3));
+    $("r-fitnote").textContent = rest < 5e-4 ? fill(T("t.fitexact"), { n: whole })
+      : fill(T("t.fitrest"), { n: whole, s: secText(rest) });
+
+    if (totalBeats > 0) {
+      var need = bpm * total / target;   // 秒数は BPM に反比例する
+      var near = Math.max(1, Math.round(need));
+      show("r-needbpm", need.toFixed(2), "BPM", need.toFixed(2));
+      $("r-bpmnote").textContent = fill(T("t.nearbpm"), { n: near, s: secText(total * bpm / near) });
+    } else {
+      show("r-needbpm", "—");
+      $("r-bpmnote").textContent = "";
+    }
+  }
+
+  function syncCustom() {
+    var custom = S.fps === "custom";
+    $("fpscustom").hidden = !custom;
+  }
+
+  /* ---- 起動 ---- */
+  load();
+  if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+    Shell.init({
+      id: "bars-to-time",
+      strings: {
+        en: {
+          "t.title": "Bars to time",
+          "t.desc": "How long a number of bars lasts at a given BPM and time signature, in seconds and frames. Also works backwards from a target time.",
+          "t.bpm": "BPM", "t.bars": "Bars", "t.beats": "Extra beats",
+          "t.num": "Beats per bar", "t.den": "Beat unit",
+          "t.basis": "BPM counts",
+          "t.basishelp": "Most DAWs count BPM in quarter notes, even in 6/8. Change this only if your tempo is written for another note, such as a dotted quarter.",
+          "t.b.q": "Quarter notes", "t.b.dq": "Dotted quarter notes", "t.b.h": "Half notes", "t.b.e": "Eighth notes",
+          "t.fps": "Frame rate", "t.fpscustom": "Custom",
+          "t.length": "Length", "t.seconds": "Seconds", "t.clock": "Min:sec.ms", "t.frames": "Frames",
+          "t.exact": "exactly {n}",
+          "t.onebar": "1 bar", "t.onebeat": "1 beat",
+          "t.reverse": "Work back from a time", "t.target": "Target time",
+          "t.targethelp": "Seconds, or minutes:seconds.",
+          "t.fit": "Bars at this BPM", "t.fitexact": "exactly {n} bars", "t.fitrest": "{n} whole bars, {s} s left over",
+          "t.needbpm": "BPM for these bars", "t.nearbpm": "nearest whole: {n} BPM = {s} s",
+          "t.e.bpm": "Enter a BPM above 0.", "t.e.bars": "Bars and beats can't be negative.",
+          "t.e.num": "Beats per bar must be a whole number of 1 or more.", "t.e.fps": "Enter a frame rate above 0."
+        },
+        ja: {
+          "t.title": "小節数から時間を計算",
+          "t.desc": "BPM と拍子から、指定した小節数が何秒になるかを秒とフレームで出します。目標の時間からの逆算もできます。",
+          "t.bpm": "BPM", "t.bars": "小節数", "t.beats": "追加の拍数",
+          "t.num": "1小節の拍数（分子）", "t.den": "拍の音符（分母）",
+          "t.basis": "BPM の基準の音符",
+          "t.basishelp": "多くの DAW では、6/8 拍子でも BPM は4分音符で数えます。付点4分音符など別の音符で書かれたテンポのときだけ変えてください。",
+          "t.b.q": "4分音符", "t.b.dq": "付点4分音符", "t.b.h": "2分音符", "t.b.e": "8分音符",
+          "t.fps": "フレームレート", "t.fpscustom": "カスタム",
+          "t.length": "長さ", "t.seconds": "秒", "t.clock": "分:秒.ミリ秒", "t.frames": "フレーム",
+          "t.exact": "正確には {n}",
+          "t.onebar": "1小節", "t.onebeat": "1拍",
+          "t.reverse": "時間から逆算", "t.target": "目標の時間",
+          "t.targethelp": "秒、または 分:秒 で入力します。",
+          "t.fit": "この BPM での小節数", "t.fitexact": "ちょうど {n} 小節", "t.fitrest": "{n} 小節と、余り {s} 秒",
+          "t.needbpm": "この小節数にする BPM", "t.nearbpm": "近い整数：{n} BPM で {s} 秒",
+          "t.e.bpm": "BPM は 0 より大きい値を入れてください。", "t.e.bars": "小節数と拍数は 0 以上にしてください。",
+          "t.e.num": "1小節の拍数は 1 以上の整数にしてください。", "t.e.fps": "フレームレートは 0 より大きい値を入れてください。"
+        }
+      },
+      onSettingsChange: function () { fillSelects(); calc(); }
+    });
+  }
+  fillSelects();
+  FIELDS.forEach(function (k) {
+    var el = $(k);
+    el.value = S[k];
+    var ev = el.tagName === "SELECT" ? "change" : "input";
+    el.addEventListener(ev, function () {
+      S[k] = el.value;
+      save();
+      syncCustom();
+      calc();
+    });
+  });
+  syncCustom();
+  calc();
+})();
+</script>
+</body>
+</html>
