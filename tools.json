@@ -201,6 +201,35 @@
       "added": "2026-07-04"
     },
     {
+      "id": "every-nth-line",
+      "type": "web",
+      "path": "tools/every-nth-line/",
+      "categories": [
+        "text"
+      ],
+      "name": {
+        "en": "Every Nth line",
+        "ja": "N行ごとに抽出"
+      },
+      "description": {
+        "en": "Take every Nth line of a text (e.g. lines 1, 4, 7…).",
+        "ja": "文章から N 行ごとに行を抜き出す（3 行ごとなら 1, 4, 7… 行目）。"
+      },
+      "keywords": [
+        "line",
+        "lines",
+        "every nth",
+        "extract",
+        "skip",
+        "行",
+        "抽出",
+        "間引き",
+        "行ごと",
+        "テキスト"
+      ],
+      "added": "2026-11-07"
+    },
+    {
       "id": "value-saturation-crop",
       "type": "web",
       "path": "tools/value-saturation-crop/",
