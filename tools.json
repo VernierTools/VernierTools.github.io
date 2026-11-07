@@ -1400,6 +1400,41 @@
       "added": "2026-10-29"
     },
     {
+      "id": "instrument-channel-mute",
+      "type": "blender",
+      "platform": "Fender Studio Pro",
+      "path": "tools/instrument-channel-mute/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Instrument Channel Mute",
+        "ja": "Instrument Channel Mute"
+      },
+      "description": {
+        "en": "Mute the instrument channel (the sound, not just the MIDI) of selected instrument tracks. Unofficial Fender Studio Pro 8 script.",
+        "ja": "選んだインストゥルメントトラックの音源チャンネル（MIDI ではなく音）をミュートする、Fender Studio Pro 8 の非公式スクリプト（英語UI）。"
+      },
+      "keywords": [
+        "fender",
+        "studio pro",
+        "studio one",
+        "presonus",
+        "mute",
+        "instrument",
+        "mixer",
+        "console",
+        "script",
+        "daw",
+        "ミュート",
+        "インストゥルメント",
+        "ミキサー",
+        "スクリプト",
+        "非公式"
+      ],
+      "added": "2026-11-08"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",

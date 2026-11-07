@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instrument Channel Mute — Vernier</title>
+<!-- テーマ先出し（フラッシュ防止）: shell.js より前に data-theme を確定させる -->
+<script>(function(){try{var m=localStorage.getItem('tb.theme');var d=m?m==='dark':matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();</script>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/shared/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/shared/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/shared/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5457E5">
+<style>
+  /* ツール固有CSSのみ。色/余白/角丸/字体はトークン変数経由で使う */
+
+  /* 特長リスト（Safe / Smart / Smooth） */
+  .feat{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--s4); }
+  .feat li{ display:flex; gap:var(--s3); align-items:flex-start; }
+  .feat .ic{ flex:0 0 auto; width:24px; height:24px; border-radius:var(--r-sm);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .feat .ic svg{ width:15px; height:15px; }
+  .feat b{ display:block; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .feat span{ font-size:13px; color:var(--text-2); line-height:1.5; }
+
+  /* インストール手順（連番） */
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:st; display:flex; flex-direction:column; gap:var(--s3); }
+  .steps li{ display:flex; gap:var(--s3); align-items:flex-start; counter-increment:st;
+    font-size:13px; color:var(--text-2); line-height:1.55; }
+  .steps li::before{ content:counter(st); flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-2);
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; margin-top:1px; }
+
+  /* 注記（動作環境・制限事項） */
+  .note{ font-size:12.5px; color:var(--text-3); line-height:1.6; }
+  .note + .note{ margin-top:var(--s3); }
+  .note b{ color:var(--text-2); font-weight:600; }
+
+  /* 締めの一文 */
+  .kicker{ font-size:13px; color:var(--text-2); line-height:1.55; margin-top:var(--s4); }
+
+  /* ダウンロードカード（readout の代わり） */
+  .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
+  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
+  .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
+  .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
+    background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .dl-ico svg{ width:22px; height:22px; }
+  .dl-name{ font-size:14px; font-weight:600; letter-spacing:-.01em; color:var(--text); }
+  .dl-kind{ font-size:11px; font-weight:600; color:var(--accent); margin-top:2px; }
+  .dl-specs{ margin-top:var(--s4); border-top:1px solid var(--border); }
+  .dl-spec{ display:flex; align-items:baseline; justify-content:space-between; padding:var(--s3) 0; }
+  .dl-spec + .dl-spec{ border-top:1px solid var(--border); }
+  .dl-spec .k{ font-size:12.5px; color:var(--text-2); }
+  .dl-spec .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:13px; color:var(--text); }
+  .dl-cap{ font-size:11.5px; color:var(--text-3); line-height:1.5; margin-top:var(--s3); }
+  /* 注意（非公式・無保証・置き場所） */
+  .chip--warn{ color:var(--neg); border-color:var(--neg-tint); background:var(--neg-tint); }
+  .warn{ border-color:var(--neg); background:linear-gradient(var(--neg-tint), var(--neg-tint)), var(--surface); }
+  .warn__title{ display:flex; align-items:center; gap:var(--s2); color:var(--neg); }
+  .warn__title svg{ width:18px; height:18px; flex:0 0 auto; }
+  .warn__list{ margin:0; padding-left:1.2em; display:flex; flex-direction:column; gap:var(--s3);
+    font-size:13px; color:var(--text-2); line-height:1.6; }
+  .warn__list b{ color:var(--text); font-weight:600; }
+  .consent__list{ margin:var(--s3) 0 0; padding-left:1.2em; display:flex; flex-direction:column; gap:var(--s2);
+    font-size:13px; color:var(--text-2); line-height:1.6; }
+  .consent__agree{ display:flex; align-items:center; gap:var(--s2); margin-top:var(--s4); font-size:13px; font-weight:600;
+    color:var(--text); cursor:pointer; }
+  .consent__agree input{ width:16px; height:16px; accent-color:var(--accent); margin:0; }
+  .consent .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  code.path{ display:block; margin-top:var(--s2); padding:6px 10px; border-radius:var(--r-sm); background:var(--surface-2);
+    border:1px solid var(--border); font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; user-select:all; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="toolhead">
+    <div class="chips">
+      <span class="chip chip--bl" data-i18n="t.badge">Fender Studio Pro script</span>
+      <span class="chip chip--warn" data-i18n="t.unofficial">Unofficial</span>
+    </div>
+    <h1 data-i18n="t.title">Instrument Channel Mute</h1>
+    <p data-i18n="t.desc">A script for Fender Studio Pro 8 that mutes the instrument's channel in the Console — the part you actually hear — for the selected instrument tracks, whichever view has focus.</p>
+  </div>
+
+  <div class="work">
+    <!-- 左: 注意 / 説明 / インストール手順 -->
+    <div>
+      <div class="card warn">
+        <div class="card__title warn__title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.5A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span data-i18n="t.warnTitle">Read before installing</span>
+        </div>
+        <ul class="warn__list">
+          <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
+          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app "is damaged and can't be opened", and you will have to reinstall Studio Pro. Use only the Extensions folder shown below.</span></li>
+          <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described below.</span></li>
+          <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">Unsigned extensions run with the same rights as Studio Pro. This one only reads and writes the mute state of mixer channels and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.</span></li>
+          <li><b data-i18n="t.w5.t">Updates may break it.</b> <span data-i18n="t.w5.d">A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.</span></li>
+          <li><b data-i18n="t.w6.t">Check it for security problems yourself.</b> <span data-i18n="t.w6.d">Any script you download could be malicious, including this one. Before installing, read the code in the source folder of the .zip yourself, or ask an AI assistant to review it for security problems, and install it only if you are satisfied.</span></li>
+          <li><b data-i18n="t.w7.t">Vernier and the author accept no responsibility.</b> <span data-i18n="t.w7.d">Vernier and the author accept no responsibility or liability for any damage, data loss or trouble caused by downloading, installing or using this script, including problems with Studio Pro or your computer.</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.feat">Features</div>
+        <ul class="feat">
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f1.t">Mutes the sound, not just the MIDI</b><span data-i18n="t.f1.d">When the Arrange view has focus, the built-in track mute (M) only mutes an instrument track's MIDI, so the instrument keeps sounding. This command mutes the instrument's channel in the Console instead.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f2.t">One shortcut, any focus</b><span data-i18n="t.f2.d">"Toggle Instrument Channel Mute" appears in Keyboard Shortcuts; assign it any key. With several tracks selected, it mutes them all if any is unmuted, and unmutes them all otherwise. For audio tracks it mutes the track's own channel.</span></span>
+          </li>
+          <li>
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+            <span><b data-i18n="t.f3.t">Probe for problem reports</b><span data-i18n="t.f3.d">"Instrument Channel Mute Probe" shows what the script sees about the selected tracks and channels, to help when something doesn't work.</span></span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
+        <p class="note"><b data-i18n="t.req">Requirements</b><br>
+          <span data-i18n="t.reqbody">Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The steps below are for macOS.</span></p>
+        <p class="note"><b data-i18n="t.limits">Good to know</b><br>
+          <span data-i18n="t.limitsbody">The M button on the track in the Arrange view stays as it is; the instrument channel's M in the Console lights up. If one instrument is shared by several tracks, muting its channel silences all of them. Which channel gets muted for multi-output instruments hasn't been checked. If the matching channel can't be found, a message tells you so.</span></p>
+      </div>
+
+      <div class="card">
+        <div class="card__title" data-i18n="t.install">Install (macOS)</div>
+        <ol class="steps">
+          <li data-i18n="t.step1">Download the .zip file on the right and unzip it.</li>
+          <li data-i18n="t.step2">Quit Studio Pro.</li>
+          <li><div><span data-i18n="t.step3">In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:</span><code class="path">~/Library/Application Support/Fender/Studio Pro 8/Extensions/</code></div></li>
+          <li data-i18n="t.step4">Copy the "local.instrumentchannelmute.mac" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.</li>
+          <li data-i18n="t.step5">Start Studio Pro, search for "Instrument Channel Mute" in Keyboard Shortcuts and assign a key to "Toggle Instrument Channel Mute".</li>
+        </ol>
+        <p class="note" style="margin-top:var(--s4)"><b data-i18n="t.uninstall">Uninstall</b><br>
+          <span data-i18n="t.uninstallbody">Quit Studio Pro and delete the "local.instrumentchannelmute.mac" folder from the Extensions folder above.</span></p>
+      </div>
+    </div>
+
+    <!-- 右: ダウンロードカード -->
+    <div>
+      <div class="dl-wrap">
+        <div class="card">
+          <div class="dl-head">
+            <div class="dl-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 4 6M21 9l-4 6"/></svg>
+            </div>
+            <div>
+              <div class="dl-name">Instrument Channel Mute</div>
+              <div class="dl-kind" data-i18n="t.badge">Fender Studio Pro script</div>
+            </div>
+          </div>
+          <a class="btn btn--primary btn--block" id="dl" href="instrument_channel_mute.zip" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+            <span data-i18n="t.download">Download (.zip)</span>
+          </a>
+          <div class="dl-specs">
+            <div class="dl-spec"><span class="k" data-i18n="t.version">Version</span><span class="v">0.1.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.app">Studio Pro</span><span class="v">8.2.0</span></div>
+            <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">macOS (Apple Silicon)</span></div>
+          </div>
+          <p class="dl-cap" data-i18n="t.dlcap">Free, public domain (CC0 1.0). Provided as is, without warranty. Runs locally inside Studio Pro — nothing is uploaded.</p>
+          <p class="dl-cap" data-i18n="t.tm">Fender, Studio Pro and Studio One are trademarks of their respective owners. This script is not affiliated with or endorsed by Fender or PreSonus.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<dialog class="tb-dialog consent" id="consent" aria-labelledby="consent-title">
+  <div>
+    <div class="tb-dialog__title" id="consent-title" data-i18n="t.c.title">Please confirm before downloading</div>
+    <ul class="consent__list">
+      <li data-i18n="t.c.1">This script is not official Fender software and comes with no warranty.</li>
+      <li data-i18n="t.c.2">Vernier and the author accept no responsibility for any damage caused by using it. You use it entirely at your own risk.</li>
+      <li data-i18n="t.c.3">A Studio Pro update may stop it from working.</li>
+      <li data-i18n="t.c.4">Install it exactly as described on this page, and never put it inside the Studio Pro app.</li>
+    </ul>
+    <label class="consent__agree">
+      <input type="checkbox" id="consent-ok">
+      <span data-i18n="t.c.agree">I have read and agree to the above</span>
+    </label>
+    <div class="tb-dialog__btns">
+      <button class="btn btn--ghost" type="button" id="consent-cancel" data-i18n="t.c.cancel">Cancel</button>
+      <button class="btn btn--primary" type="button" id="consent-go" disabled data-i18n="t.c.go">Agree and download</button>
+    </div>
+  </div>
+</dialog>
+<script src="../../shared/shell.js"></script>
+<script>
+"use strict";
+if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
+  Shell.init({
+    id: "instrument-channel-mute",
+    strings: {
+      en: {
+        "t.title": "Instrument Channel Mute",
+        "t.badge": "Fender Studio Pro script",
+        "t.unofficial": "Unofficial",
+        "t.desc": "A script for Fender Studio Pro 8 that mutes the instrument's channel in the Console — the part you actually hear — for the selected instrument tracks, whichever view has focus.",
+        "t.warnTitle": "Read before installing",
+        "t.w1.t": "Unofficial, no warranty.",
+        "t.w1.d": "This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
+        "t.w2.t": "Never put it inside the app.",
+        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app \"is damaged and can't be opened\", and you will have to reinstall Studio Pro. Use only the Extensions folder shown below.",
+        "t.w3.t": "\"Install from File\" doesn't work.",
+        "t.w3.d": "The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described below.",
+        "t.w4.t": "It isn't signed.",
+        "t.w4.d": "Unsigned extensions run with the same rights as Studio Pro. This one only reads and writes the mute state of mixer channels and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.",
+        "t.w5.t": "Updates may break it.",
+        "t.w5.d": "A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.",
+        "t.w6.t": "Check it for security problems yourself.",
+        "t.w6.d": "Any script you download could be malicious, including this one. Before installing, read the code in the source folder of the .zip yourself, or ask an AI assistant to review it for security problems, and install it only if you are satisfied.",
+        "t.w7.t": "Vernier and the author accept no responsibility.",
+        "t.w7.d": "Vernier and the author accept no responsibility or liability for any damage, data loss or trouble caused by downloading, installing or using this script, including problems with Studio Pro or your computer.",
+        "t.c.title": "Please confirm before downloading",
+        "t.c.1": "This script is not official Fender software and comes with no warranty.",
+        "t.c.2": "Vernier and the author accept no responsibility for any damage caused by using it. You use it entirely at your own risk.",
+        "t.c.3": "A Studio Pro update may stop it from working.",
+        "t.c.4": "Install it exactly as described on this page, and never put it inside the Studio Pro app.",
+        "t.c.agree": "I have read and agree to the above",
+        "t.c.cancel": "Cancel",
+        "t.c.go": "Agree and download",
+        "t.feat": "Features",
+        "t.f1.t": "Mutes the sound, not just the MIDI",
+        "t.f1.d": "When the Arrange view has focus, the built-in track mute (M) only mutes an instrument track's MIDI, so the instrument keeps sounding. This command mutes the instrument's channel in the Console instead.",
+        "t.f2.t": "One shortcut, any focus",
+        "t.f2.d": "\"Toggle Instrument Channel Mute\" appears in Keyboard Shortcuts; assign it any key. With several tracks selected, it mutes them all if any is unmuted, and unmutes them all otherwise. For audio tracks it mutes the track's own channel.",
+        "t.f3.t": "Probe for problem reports",
+        "t.f3.d": "\"Instrument Channel Mute Probe\" shows what the script sees about the selected tracks and channels, to help when something doesn't work.",
+        "t.about": "Requirements & notes",
+        "t.req": "Requirements",
+        "t.reqbody": "Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The steps below are for macOS.",
+        "t.limits": "Good to know",
+        "t.limitsbody": "The M button on the track in the Arrange view stays as it is; the instrument channel's M in the Console lights up. If one instrument is shared by several tracks, muting its channel silences all of them. Which channel gets muted for multi-output instruments hasn't been checked. If the matching channel can't be found, a message tells you so.",
+        "t.install": "Install (macOS)",
+        "t.step1": "Download the .zip file on the right and unzip it.",
+        "t.step2": "Quit Studio Pro.",
+        "t.step3": "In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:",
+        "t.step4": "Copy the \"local.instrumentchannelmute.mac\" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.",
+        "t.step5": "Start Studio Pro, search for \"Instrument Channel Mute\" in Keyboard Shortcuts and assign a key to \"Toggle Instrument Channel Mute\".",
+        "t.uninstall": "Uninstall",
+        "t.uninstallbody": "Quit Studio Pro and delete the \"local.instrumentchannelmute.mac\" folder from the Extensions folder above.",
+        "t.download": "Download (.zip)",
+        "t.version": "Version",
+        "t.app": "Studio Pro",
+        "t.os": "OS",
+        "t.dlcap": "Free, public domain (CC0 1.0). Provided as is, without warranty. Runs locally inside Studio Pro — nothing is uploaded.",
+        "t.tm": "Fender, Studio Pro and Studio One are trademarks of their respective owners. This script is not affiliated with or endorsed by Fender or PreSonus."
+      },
+      ja: {
+        "t.title": "Instrument Channel Mute",
+        "t.badge": "Fender Studio Pro スクリプト",
+        "t.unofficial": "非公式",
+        "t.desc": "Fender Studio Pro 8 で、選んだインストゥルメントトラックの「音が出る側」（コンソールの音源チャンネル）をミュートするスクリプトです。どの画面にフォーカスがあっても使えます。",
+        "t.warnTitle": "入れる前に必ずお読みください",
+        "t.w1.t": "非公式・無保証です。",
+        "t.w1.d": "このスクリプトは Fender（旧 PreSonus）が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
+        "t.w2.t": "アプリの中には絶対に入れないでください。",
+        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れ、macOS に「壊れているため開けません」と表示されて起動できなくなり、Studio Pro の再インストールが必要になります。置き場所は、下の手順の Extensions フォルダだけです。",
+        "t.w3.t": "「Install from File」では入りません。",
+        "t.w3.d": "署名付きの .install 形式ではないため、エラーになります。下の手順のとおり、フォルダを手でコピーしてください。",
+        "t.w4.t": "署名されていません。",
+        "t.w4.d": "署名のない拡張機能は、Studio Pro と同じ権限で動きます。このスクリプトがするのは、ミキサーチャンネルのミュートの読み書きとダイアログの表示だけで、ファイルやネットワークには触れません。中身は .zip の source フォルダで読めます。出どころの分からない改変版は使わないでください。",
+        "t.w5.t": "アップデートで動かなくなることがあります。",
+        "t.w5.d": "今後の Studio Pro のアップデートで動かなくなったり、署名のない拡張機能が読み込まれなくなったりする可能性があります。",
+        "t.w6.t": "セキュリティ上の問題がないか、ご自身で確認してください。",
+        "t.w6.d": "ダウンロードしたスクリプトは、これも含めて、悪意のあるものである可能性があります。入れる前に、.zip の source フォルダのコードをご自身で読むか、AI アシスタントにセキュリティ上の問題がないかを確認してもらい、納得できた場合だけ入れてください。",
+        "t.w7.t": "Vernier と作者は一切の責任を負いません。",
+        "t.w7.d": "このスクリプトのダウンロード・インストール・使用によって生じたいかなる損害・データの消失・不具合（Studio Pro やパソコンの問題を含む）についても、Vernier および作者は一切の責任を負いません。",
+        "t.c.title": "ダウンロードの前に、次の内容をご確認ください",
+        "t.c.1": "このスクリプトは Fender の公式のものではなく、動作の保証もありません。",
+        "t.c.2": "使用によって生じた損害について、Vernier と作者は一切の責任を負いません。ご利用はすべてご自身の責任となります。",
+        "t.c.3": "Studio Pro のアップデートで動かなくなることがあります。",
+        "t.c.4": "インストールはこのページの手順どおりに行い、Studio Pro のアプリの中には絶対に置かないでください。",
+        "t.c.agree": "上記の内容を理解し、同意します",
+        "t.c.cancel": "キャンセル",
+        "t.c.go": "同意してダウンロード",
+        "t.feat": "特長",
+        "t.f1.t": "MIDI だけでなく、音を止める",
+        "t.f1.d": "アレンジ画面にフォーカスがあるとき、標準のトラックミュート（M）はインストゥルメントトラックの MIDI だけを止め、音源は鳴り続けます。このコマンドは、コンソールの音源チャンネルをミュートします。",
+        "t.f2.t": "フォーカスに関係なくショートカットひとつで",
+        "t.f2.d": "キーボードショートカットの設定に「Toggle Instrument Channel Mute」が出るので、好きなキーを割り当てます。複数のトラックを選んでいるときは、1つでもミュートされていなければ全部ミュート、全部ミュート済みなら全部解除します。オーディオトラックでは、そのトラックのチャンネルをミュートします。",
+        "t.f3.t": "不具合の報告用の Probe",
+        "t.f3.d": "「Instrument Channel Mute Probe」で、選んだトラックとチャンネルについてスクリプトから見える情報を表示します。うまく動かないときの手がかりになります。",
+        "t.about": "動作環境・補足",
+        "t.req": "動作環境",
+        "t.reqbody": "動作を確認したのは Fender Studio Pro 8.2.0（Build 114903）・macOS（Apple Silicon）だけです。Studio One 6 / 7、Windows、Intel の Mac では試していません。下の手順は macOS 用です。",
+        "t.limits": "知っておきたいこと",
+        "t.limitsbody": "アレンジ画面のトラックの M ボタンは変わらず、コンソールの音源チャンネルの M が点灯します。1つの音源を複数のトラックで共有していると、その音源チャンネルがミュートされるので、共有しているトラックすべての音が止まります。マルチアウトの音源で、どのチャンネルがミュートされるかは確認していません。対応するチャンネルが見つからないときはメッセージが出ます。",
+        "t.install": "インストール（macOS）",
+        "t.step1": "右の .zip ファイルをダウンロードして展開（解凍）します。",
+        "t.step2": "Studio Pro を終了します。",
+        "t.step3": "Finder のメニューの 移動 ▸ フォルダへ移動…（⌘⇧G）を開き、次のパスを貼り付けて Return を押します。",
+        "t.step4": "展開した中の「local.instrumentchannelmute.mac」フォルダを、開いたフォルダの中にそのままコピーします。中に metainfo.xml・installdata.xml と、instrument-channel-mute.package の入った Scripts フォルダがあれば OK です。",
+        "t.step5": "Studio Pro を起動し、キーボードショートカットの設定で「Instrument Channel Mute」を検索して、「Toggle Instrument Channel Mute」にキーを割り当てます。",
+        "t.uninstall": "アンインストール",
+        "t.uninstallbody": "Studio Pro を終了し、上の Extensions フォルダの中の「local.instrumentchannelmute.mac」フォルダを削除します。",
+        "t.download": "ダウンロード（.zip）",
+        "t.version": "バージョン",
+        "t.app": "Studio Pro",
+        "t.os": "OS",
+        "t.dlcap": "無料・パブリックドメイン（CC0 1.0）。無保証で、現状のまま提供します。Studio Pro の中でローカルに動作し、アップロードはありません。",
+        "t.tm": "Fender、Studio Pro、Studio One は各社の商標です。このスクリプトは Fender・PreSonus とは関係がなく、承認を受けたものでもありません。"
+      }
+    }
+  });
+}
+
+/* ダウンロードの前に同意を求める。同意したら、元のリンクと同じファイルを落とす */
+(function () {
+  var link = document.getElementById("dl"), dlg = document.getElementById("consent");
+  var ok = document.getElementById("consent-ok"), go = document.getElementById("consent-go");
+  var cancel = document.getElementById("consent-cancel");
+  if (!link || !dlg || typeof dlg.showModal !== "function") return;   // 古いブラウザはリンクのまま
+  link.addEventListener("click", function (e) {
+    e.preventDefault();
+    ok.checked = false;
+    go.disabled = true;
+    dlg.showModal();
+  });
+  ok.addEventListener("change", function () { go.disabled = !ok.checked; });
+  cancel.addEventListener("click", function () { dlg.close(); });
+  go.addEventListener("click", function () {
+    if (!ok.checked) return;
+    dlg.close();
+    var a = document.createElement("a");
+    a.href = link.getAttribute("href");
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+})();
+</script>
+</body>
+</html>
