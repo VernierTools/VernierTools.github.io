@@ -44,7 +44,6 @@
 
   /* ダウンロードカード（readout の代わり） */
   .dl-wrap{ display:flex; flex-direction:column; gap:var(--s4); }
-  @media (min-width:761px){ .dl-wrap{ position:sticky; top:89px; } }
   .dl-head{ display:flex; gap:var(--s3); align-items:center; margin-bottom:var(--s4); }
   .dl-ico{ flex:0 0 auto; width:40px; height:40px; border-radius:var(--r);
     background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; }
@@ -87,7 +86,7 @@
   </div>
 
   <div class="work">
-    <!-- 左: 注意 / 説明 / インストール手順 -->
+    <!-- 左: 注意 / 説明 -->
     <div>
       <div class="card warn">
         <div class="card__title warn__title">
@@ -96,8 +95,8 @@
         </div>
         <ul class="warn__list">
           <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
-          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app "is damaged and can't be opened", and you will have to reinstall Studio Pro. Use only the Extensions folder shown below.</span></li>
-          <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described below.</span></li>
+          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app "is damaged and can't be opened", and you will have to reinstall Studio Pro. Use only the Extensions folder given in the install steps.</span></li>
+          <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.</span></li>
           <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">Unsigned extensions run with the same rights as Studio Pro. This one only reads and writes the mute state of mixer channels and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.</span></li>
           <li><b data-i18n="t.w5.t">Updates may break it.</b> <span data-i18n="t.w5.d">A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.</span></li>
           <li><b data-i18n="t.w6.t">Check it for security problems yourself.</b> <span data-i18n="t.w6.d">Any script you download could be malicious, including this one. Before installing, read the code in the source folder of the .zip yourself, or ask an AI assistant to review it for security problems, and install it only if you are satisfied.</span></li>
@@ -126,26 +125,14 @@
       <div class="card">
         <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
         <p class="note"><b data-i18n="t.req">Requirements</b><br>
-          <span data-i18n="t.reqbody">Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The steps below are for macOS.</span></p>
+          <span data-i18n="t.reqbody">Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The install steps are for macOS.</span></p>
         <p class="note"><b data-i18n="t.limits">Good to know</b><br>
           <span data-i18n="t.limitsbody">The M button on the track in the Arrange view stays as it is; the instrument channel's M in the Console lights up. If one instrument is shared by several tracks, muting its channel silences all of them. Which channel gets muted for multi-output instruments hasn't been checked. If the matching channel can't be found, a message tells you so.</span></p>
       </div>
 
-      <div class="card">
-        <div class="card__title" data-i18n="t.install">Install (macOS)</div>
-        <ol class="steps">
-          <li data-i18n="t.step1">Download the .zip file on the right and unzip it.</li>
-          <li data-i18n="t.step2">Quit Studio Pro.</li>
-          <li><div><span data-i18n="t.step3">In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:</span><code class="path">~/Library/Application Support/Fender/Studio Pro 8/Extensions/</code></div></li>
-          <li data-i18n="t.step4">Copy the "local.instrumentchannelmute.mac" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.</li>
-          <li data-i18n="t.step5">Start Studio Pro, search for "Instrument Channel Mute" in Keyboard Shortcuts and assign a key to "Toggle Instrument Channel Mute".</li>
-        </ol>
-        <p class="note" style="margin-top:var(--s4)"><b data-i18n="t.uninstall">Uninstall</b><br>
-          <span data-i18n="t.uninstallbody">Quit Studio Pro and delete the "local.instrumentchannelmute.mac" folder from the Extensions folder above.</span></p>
-      </div>
     </div>
 
-    <!-- 右: ダウンロードカード -->
+    <!-- 右: ダウンロードカード / インストール手順 -->
     <div>
       <div class="dl-wrap">
         <div class="card">
@@ -169,6 +156,18 @@
           </div>
           <p class="dl-cap" data-i18n="t.dlcap">Free, public domain (CC0 1.0). Provided as is, without warranty. Runs locally inside Studio Pro — nothing is uploaded.</p>
           <p class="dl-cap" data-i18n="t.tm">Fender, Studio Pro and Studio One are trademarks of their respective owners. This script is not affiliated with or endorsed by Fender or PreSonus.</p>
+        </div>
+        <div class="card">
+          <div class="card__title" data-i18n="t.install">Install (macOS)</div>
+          <ol class="steps">
+            <li data-i18n="t.step1">Download the .zip file above and unzip it.</li>
+            <li data-i18n="t.step2">Quit Studio Pro.</li>
+            <li><div><span data-i18n="t.step3">In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:</span><code class="path">~/Library/Application Support/Fender/Studio Pro 8/Extensions/</code></div></li>
+            <li data-i18n="t.step4">Copy the "local.instrumentchannelmute.mac" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.</li>
+            <li data-i18n="t.step5">Start Studio Pro, search for "Instrument Channel Mute" in Keyboard Shortcuts and assign a key to "Toggle Instrument Channel Mute".</li>
+          </ol>
+          <p class="note" style="margin-top:var(--s4)"><b data-i18n="t.uninstall">Uninstall</b><br>
+            <span data-i18n="t.uninstallbody">Quit Studio Pro and delete the "local.instrumentchannelmute.mac" folder from the Extensions folder above.</span></p>
         </div>
       </div>
     </div>
@@ -210,9 +209,9 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.w1.t": "Unofficial, no warranty.",
         "t.w1.d": "This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
         "t.w2.t": "Never put it inside the app.",
-        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app \"is damaged and can't be opened\", and you will have to reinstall Studio Pro. Use only the Extensions folder shown below.",
+        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app \"is damaged and can't be opened\", and you will have to reinstall Studio Pro. Use only the Extensions folder given in the install steps.",
         "t.w3.t": "\"Install from File\" doesn't work.",
-        "t.w3.d": "The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described below.",
+        "t.w3.d": "The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.",
         "t.w4.t": "It isn't signed.",
         "t.w4.d": "Unsigned extensions run with the same rights as Studio Pro. This one only reads and writes the mute state of mixer channels and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.",
         "t.w5.t": "Updates may break it.",
@@ -238,11 +237,11 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f3.d": "\"Instrument Channel Mute Probe\" shows what the script sees about the selected tracks and channels, to help when something doesn't work.",
         "t.about": "Requirements & notes",
         "t.req": "Requirements",
-        "t.reqbody": "Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The steps below are for macOS.",
+        "t.reqbody": "Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The install steps are for macOS.",
         "t.limits": "Good to know",
         "t.limitsbody": "The M button on the track in the Arrange view stays as it is; the instrument channel's M in the Console lights up. If one instrument is shared by several tracks, muting its channel silences all of them. Which channel gets muted for multi-output instruments hasn't been checked. If the matching channel can't be found, a message tells you so.",
         "t.install": "Install (macOS)",
-        "t.step1": "Download the .zip file on the right and unzip it.",
+        "t.step1": "Download the .zip file above and unzip it.",
         "t.step2": "Quit Studio Pro.",
         "t.step3": "In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:",
         "t.step4": "Copy the \"local.instrumentchannelmute.mac\" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.",
@@ -265,9 +264,9 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.w1.t": "非公式・無保証です。",
         "t.w1.d": "このスクリプトは Fender（旧 PreSonus）が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
         "t.w2.t": "アプリの中には絶対に入れないでください。",
-        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れ、macOS に「壊れているため開けません」と表示されて起動できなくなり、Studio Pro の再インストールが必要になります。置き場所は、下の手順の Extensions フォルダだけです。",
+        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れ、macOS に「壊れているため開けません」と表示されて起動できなくなり、Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
         "t.w3.t": "「Install from File」では入りません。",
-        "t.w3.d": "署名付きの .install 形式ではないため、エラーになります。下の手順のとおり、フォルダを手でコピーしてください。",
+        "t.w3.d": "署名付きの .install 形式ではないため、エラーになります。インストール手順のとおり、フォルダを手でコピーしてください。",
         "t.w4.t": "署名されていません。",
         "t.w4.d": "署名のない拡張機能は、Studio Pro と同じ権限で動きます。このスクリプトがするのは、ミキサーチャンネルのミュートの読み書きとダイアログの表示だけで、ファイルやネットワークには触れません。中身は .zip の source フォルダで読めます。出どころの分からない改変版は使わないでください。",
         "t.w5.t": "アップデートで動かなくなることがあります。",
@@ -293,11 +292,11 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.f3.d": "「Instrument Channel Mute Probe」で、選んだトラックとチャンネルについてスクリプトから見える情報を表示します。うまく動かないときの手がかりになります。",
         "t.about": "動作環境・補足",
         "t.req": "動作環境",
-        "t.reqbody": "動作を確認したのは Fender Studio Pro 8.2.0（Build 114903）・macOS（Apple Silicon）だけです。Studio One 6 / 7、Windows、Intel の Mac では試していません。下の手順は macOS 用です。",
+        "t.reqbody": "動作を確認したのは Fender Studio Pro 8.2.0（Build 114903）・macOS（Apple Silicon）だけです。Studio One 6 / 7、Windows、Intel の Mac では試していません。インストール手順は macOS 用です。",
         "t.limits": "知っておきたいこと",
         "t.limitsbody": "アレンジ画面のトラックの M ボタンは変わらず、コンソールの音源チャンネルの M が点灯します。1つの音源を複数のトラックで共有していると、その音源チャンネルがミュートされるので、共有しているトラックすべての音が止まります。マルチアウトの音源で、どのチャンネルがミュートされるかは確認していません。対応するチャンネルが見つからないときはメッセージが出ます。",
         "t.install": "インストール（macOS）",
-        "t.step1": "右の .zip ファイルをダウンロードして展開（解凍）します。",
+        "t.step1": "上の .zip ファイルをダウンロードして展開（解凍）します。",
         "t.step2": "Studio Pro を終了します。",
         "t.step3": "Finder のメニューの 移動 ▸ フォルダへ移動…（⌘⇧G）を開き、次のパスを貼り付けて Return を押します。",
         "t.step4": "展開した中の「local.instrumentchannelmute.mac」フォルダを、開いたフォルダの中にそのままコピーします。中に metainfo.xml・installdata.xml と、instrument-channel-mute.package の入った Scripts フォルダがあれば OK です。",
