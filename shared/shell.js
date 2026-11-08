@@ -117,10 +117,11 @@
     document.documentElement.setAttribute("data-theme", resolved);
     return resolved;
   }
-  function cycleTheme(){                                              // auto → light → dark → auto
-    var order = ["auto","light","dark"], i = order.indexOf(themeMode());
-    var next = order[(i + 1) % order.length];
-    if (next === "auto") lsDel(K.theme); else lsSet(K.theme, next);
+  function cycleTheme(){
+    // 押すたびに見た目を反転する。反転先が OS の設定と同じなら auto に戻して OS 追従を続ける
+    var next = applyThemeGet() === "dark" ? "light" : "dark";
+    var os = mq.matches ? "dark" : "light";
+    if (next === os) lsDel(K.theme); else lsSet(K.theme, next);
     applyTheme(); updateThemeBtn(); notify();
   }
   if (mq.addEventListener) mq.addEventListener("change", function(){ if (themeMode()==="auto"){ applyTheme(); notify(); } });
