@@ -1412,8 +1412,8 @@
         "ja": "Instrument Channel Mute"
       },
       "description": {
-        "en": "Mute the instrument channel (the sound, not just the MIDI) of selected instrument tracks. Unofficial Fender Studio Pro 8 script.",
-        "ja": "選んだインストゥルメントトラックの音源チャンネル（MIDI ではなく音）をミュートする、Fender Studio Pro 8 の非公式スクリプト（英語UI）。"
+        "en": "Make muting an instrument track silence the instrument too: links track mute with the instrument channel, plus a mute command for any focus. Unofficial Fender Studio Pro 8 script.",
+        "ja": "インストゥルメントトラックのミュートを音源の音にも効かせる、Fender Studio Pro 8 の非公式スクリプト。トラックと音源チャンネルのミュートを連動（英語UI）。"
       },
       "keywords": [
         "fender",
@@ -1430,7 +1430,9 @@
         "インストゥルメント",
         "ミキサー",
         "スクリプト",
-        "非公式"
+        "非公式",
+        "mute link",
+        "連動"
       ],
       "added": "2026-11-08"
     },
