@@ -94,7 +94,7 @@
           <span data-i18n="t.warnTitle">Read before installing</span>
         </div>
         <ul class="warn__list">
-          <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
+          <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender or PreSonus. It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
           <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.</span></li>
           <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.</span></li>
           <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">Unsigned extensions run with the same rights as Studio Pro. This one runs in the background from the moment Studio Pro starts, checking mute states every 0.1 seconds. It only reads track and mixer channel information, changes mute states and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.</span></li>
@@ -213,7 +213,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.desc": "A script for Fender Studio Pro 8 that makes muting an instrument track silence the instrument itself, not just its MIDI. It links each track's mute with its instrument channel in the Console, and adds a mute command that works whichever view has focus.",
         "t.warnTitle": "Read before installing",
         "t.w1.t": "Unofficial, no warranty.",
-        "t.w1.d": "This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
+        "t.w1.d": "This script is not made, checked or supported by Fender or PreSonus. It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
         "t.w2.t": "Never put it inside the app.",
         "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.",
         "t.w3.t": "\"Install from File\" doesn't work.",
@@ -272,7 +272,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.desc": "Fender Studio Pro 8 で、インストゥルメントトラックのミュートを、MIDI だけでなく音源の音にも効かせるスクリプトです。トラックのミュートとコンソールの音源チャンネルのミュートを自動で連動させ、どの画面にフォーカスがあっても使えるミュートのコマンドも追加します。",
         "t.warnTitle": "入れる前に必ずお読みください",
         "t.w1.t": "非公式・無保証です。",
-        "t.w1.d": "このスクリプトは Fender（旧 PreSonus）が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
+        "t.w1.d": "このスクリプトは Fender・PreSonus が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
         "t.w2.t": "アプリの中には絶対に入れないでください。",
         "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れて起動できなくなり、Fender Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
         "t.w3.t": "「Install from File」では入りません。",
