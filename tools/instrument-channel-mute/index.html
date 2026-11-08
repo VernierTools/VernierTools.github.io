@@ -82,7 +82,7 @@
       <span class="chip chip--warn" data-i18n="t.unofficial">Unofficial</span>
     </div>
     <h1 data-i18n="t.title">Instrument Channel Mute</h1>
-    <p data-i18n="t.desc">A script for Fender Studio Pro 8 that makes muting an instrument track silence the instrument itself, not just its MIDI. It links each track's mute with its instrument channel in the Console, and adds a mute command that works whichever view has focus.</p>
+    <p data-i18n="t.desc">Makes muting an instrument track in Fender Studio Pro 8 silence the instrument, not just the MIDI.</p>
   </div>
 
   <div class="work">
@@ -94,13 +94,13 @@
           <span data-i18n="t.warnTitle">Read before installing</span>
         </div>
         <ul class="warn__list">
-          <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender or PreSonus. It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
-          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.</span></li>
-          <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.</span></li>
-          <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">Unsigned extensions run with the same rights as Studio Pro. This one runs in the background from the moment Studio Pro starts, checking mute states every 0.1 seconds. It only reads track and mixer channel information, changes mute states and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.</span></li>
-          <li><b data-i18n="t.w5.t">Updates may break it.</b> <span data-i18n="t.w5.d">A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.</span></li>
-          <li><b data-i18n="t.w6.t">Check it for security problems yourself.</b> <span data-i18n="t.w6.d">Any script you download could be malicious, including this one. Before installing, read the code in the source folder of the .zip yourself, or ask an AI assistant to review it for security problems, and install it only if you are satisfied.</span></li>
-          <li><b data-i18n="t.w7.t">Vernier and the author accept no responsibility.</b> <span data-i18n="t.w7.d">Vernier and the author accept no responsibility or liability for any damage, data loss or trouble caused by downloading, installing or using this script, including problems with Studio Pro or your computer.</span></li>
+          <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">Not made or supported by Fender or PreSonus. It uses undocumented internal features of Studio Pro.</span></li>
+          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Placing files inside "Studio Pro 8.app" breaks its signature so it won't start, and you will have to reinstall Studio Pro. Use only the Extensions folder in the install steps.</span></li>
+          <li><b data-i18n="t.w3.t">"Install from File" won't work.</b> <span data-i18n="t.w3.d">It isn't a signed .install file. Copy the folder by hand.</span></li>
+          <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">It runs with the same rights as Studio Pro, in the background from launch. It reads track and mixer information, changes mute states and shows dialogs; it doesn't access files or the network. Don't use copies from other sources.</span></li>
+          <li><b data-i18n="t.w5.t">Updates may break it.</b> <span data-i18n="t.w5.d">A Studio Pro update may stop it working, or stop unsigned extensions from loading.</span></li>
+          <li><b data-i18n="t.w6.t">Check the code first.</b> <span data-i18n="t.w6.d">Any downloaded script could be malicious, this one included. Read the code in the source folder of the .zip, or have an AI assistant check it for security problems, before installing.</span></li>
+          <li><b data-i18n="t.w7.t">Vernier and the author accept no responsibility.</b> <span data-i18n="t.w7.d">This includes any damage, data loss or problems with Studio Pro or your computer caused by downloading, installing or using it.</span></li>
         </ul>
       </div>
 
@@ -109,19 +109,19 @@
         <ul class="feat">
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f1.t">Mute Link: track mute silences the instrument</b><span data-i18n="t.f1.d">Normally an instrument track's M button only mutes its MIDI, so the instrument keeps sounding. With Mute Link, the track's M and its instrument channel's M in the Console follow each other automatically, in both directions. Tracks are matched to instruments by their actual connections, so renaming tracks is fine.</span></span>
+            <span><b data-i18n="t.f1.t">Mute Link</b><span data-i18n="t.f1.d">An instrument track's M button normally mutes only its MIDI. Mute Link keeps the track's M and its instrument channel's M in the Console in sync, whichever you press. Tracks are matched to instruments by their connections, not their names.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f2.t">Works with shared instruments</b><span data-i18n="t.f2.d">When several tracks play one instrument, muting one track leaves the others sounding; the instrument channel is muted only once all of those tracks are muted. Muting the instrument channel in the Console mutes all of its tracks, and unmuting it puts each track back the way it was.</span></span>
+            <span><b data-i18n="t.f2.t">Shared instruments</b><span data-i18n="t.f2.d">When several tracks play one instrument, its channel is muted only once all of them are muted. Muting the channel in the Console mutes all of them; unmuting restores each track's previous state.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f3.t">A mute command for any focus</b><span data-i18n="t.f3.d">"Toggle Instrument Channel Mute" mutes or unmutes the instrument channel of the selected tracks, the same way whether the Arrange view or the Console has focus. Assign it a key, such as one on the numeric keypad. With several tracks selected, it mutes them all if any is unmuted, and unmutes them all otherwise. For audio tracks it mutes the track's own channel.</span></span>
+            <span><b data-i18n="t.f3.t">Mute command</b><span data-i18n="t.f3.d">"Toggle Instrument Channel Mute" toggles the instrument channels of the selected tracks, whether the Arrange view or the Console has focus. If any of them is unmuted, all get muted; otherwise all get unmuted. For audio tracks, it toggles the track's own channel.</span></span>
           </li>
           <li>
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
-            <span><b data-i18n="t.f4.t">Switch the link off, or probe for reports</b><span data-i18n="t.f4.d">"Toggle Instrument Mute Link" turns Mute Link on or off and shows the new state (it starts on). "Instrument Channel Mute Probe" shows what the script sees about the selected tracks and channels, to help when something doesn't work.</span></span>
+            <span><b data-i18n="t.f4.t">Other commands</b><span data-i18n="t.f4.d">"Toggle Instrument Mute Link" turns Mute Link on or off (on at launch). "Instrument Channel Mute Probe" shows what the script sees, for problem reports.</span></span>
           </li>
         </ul>
       </div>
@@ -129,9 +129,9 @@
       <div class="card">
         <div class="card__title" data-i18n="t.about">Requirements &amp; notes</div>
         <p class="note"><b data-i18n="t.req">Requirements</b><br>
-          <span data-i18n="t.reqbody">Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The install steps are for macOS.</span></p>
+          <span data-i18n="t.reqbody">Tested only with Studio Pro 8.2.0 on macOS (Apple Silicon). Untested on Windows, Intel Macs and Studio One 6/7.</span></p>
         <p class="note"><b data-i18n="t.limits">Good to know</b><br>
-          <span data-i18n="t.limitsbody">Mute Link doesn't fix mismatches that already exist when a song opens; it starts following once you press an M button. A change can take up to about 0.1 seconds to show. Extra outputs of multi-output instruments (such as "Stereo 2") aren't linked; mute them in the Console as before. Tracks that aren't connected to an instrument, such as the chord track, are left alone. How it behaves together with Undo (⌘Z) hasn't been checked yet.</span></p>
+          <span data-i18n="t.limitsbody">Mute Link doesn't fix mismatches present when a song opens; it follows from the next M press. Changes can take up to 0.1 s to appear. Extra outputs of multi-output instruments aren't linked. Behavior with Undo hasn't been checked.</span></p>
       </div>
 
     </div>
@@ -158,22 +158,22 @@
             <div class="dl-spec"><span class="k" data-i18n="t.app">Studio Pro</span><span class="v">8.2.0</span></div>
             <div class="dl-spec"><span class="k" data-i18n="t.os">OS</span><span class="v">macOS (Apple Silicon)</span></div>
           </div>
-          <p class="dl-cap" data-i18n="t.dlcap">Free, public domain (CC0 1.0). Provided as is, without warranty. Runs locally inside Studio Pro — nothing is uploaded.</p>
-          <p class="dl-cap" data-i18n="t.tm">Fender, Studio Pro and Studio One are trademarks of their respective owners. This script is not affiliated with or endorsed by Fender or PreSonus.</p>
+          <p class="dl-cap" data-i18n="t.dlcap">Free. Public domain (CC0 1.0), no warranty.</p>
+          <p class="dl-cap" data-i18n="t.tm">Fender, Studio Pro and Studio One are trademarks of their respective owners. Not affiliated with or endorsed by Fender or PreSonus.</p>
         </div>
         <div class="card">
           <div class="card__title" data-i18n="t.install">Install (macOS)</div>
           <ol class="steps">
-            <li data-i18n="t.step1">Download the .zip file above and unzip it.</li>
+            <li data-i18n="t.step1">Download and unzip the .zip file above.</li>
             <li data-i18n="t.step2">Quit Studio Pro.</li>
-            <li><div><span data-i18n="t.step3">In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:</span><code class="path">~/Library/Application Support/Fender/Studio Pro 8/Extensions/</code></div></li>
-            <li data-i18n="t.step4">Copy the "local.instrumentchannelmute.mac" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.</li>
-            <li data-i18n="t.step5">Start Studio Pro. Mute Link starts working right away. To use the command, search for "Instrument Channel Mute" in Keyboard Shortcuts and assign a key to "Toggle Instrument Channel Mute".</li>
+            <li><div><span data-i18n="t.step3">In Finder, choose Go ▸ Go to Folder… (⌘⇧G) and open:</span><code class="path">~/Library/Application Support/Fender/Studio Pro 8/Extensions/</code></div></li>
+            <li data-i18n="t.step4">Copy the "local.instrumentchannelmute.mac" folder into it, as is.</li>
+            <li data-i18n="t.step5">Start Studio Pro. Mute Link is active. To use the command, assign a key to "Toggle Instrument Channel Mute" in Keyboard Shortcuts.</li>
           </ol>
-          <p class="note" style="margin-top:var(--s4)"><b data-i18n="t.updatenote">Updating</b><br>
-            <span data-i18n="t.updatebody">Quit Studio Pro and replace the whole "local.instrumentchannelmute.mac" folder in the Extensions folder with the new one.</span></p>
+          <p class="note" style="margin-top:var(--s4)"><b data-i18n="t.updatenote">Update</b><br>
+            <span data-i18n="t.updatebody">Quit Studio Pro and replace the folder with the new one.</span></p>
           <p class="note" style="margin-top:var(--s3)"><b data-i18n="t.uninstall">Uninstall</b><br>
-            <span data-i18n="t.uninstallbody">Quit Studio Pro and delete the "local.instrumentchannelmute.mac" folder from the Extensions folder above.</span></p>
+            <span data-i18n="t.uninstallbody">Quit Studio Pro and delete the folder.</span></p>
         </div>
       </div>
     </div>
@@ -182,12 +182,12 @@
 
 <dialog class="tb-dialog consent" id="consent" aria-labelledby="consent-title">
   <div>
-    <div class="tb-dialog__title" id="consent-title" data-i18n="t.c.title">Please confirm before downloading</div>
+    <div class="tb-dialog__title" id="consent-title" data-i18n="t.c.title">Before you download</div>
     <ul class="consent__list">
-      <li data-i18n="t.c.1">This script is not official Fender software and comes with no warranty.</li>
-      <li data-i18n="t.c.2">Vernier and the author accept no responsibility for any damage caused by using it. You use it entirely at your own risk.</li>
-      <li data-i18n="t.c.3">A Studio Pro update may stop it from working.</li>
-      <li data-i18n="t.c.4">Install it exactly as described on this page, and never put it inside the Studio Pro app.</li>
+      <li data-i18n="t.c.1">This script is unofficial and comes with no warranty.</li>
+      <li data-i18n="t.c.2">Vernier and the author accept no responsibility for any damage caused by using it. You use it at your own risk.</li>
+      <li data-i18n="t.c.3">A Studio Pro update may stop it working.</li>
+      <li data-i18n="t.c.4">Install it exactly as described on this page, and never inside the Studio Pro app.</li>
     </ul>
     <label class="consent__agree">
       <input type="checkbox" id="consent-ok">
@@ -210,119 +210,119 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.title": "Instrument Channel Mute",
         "t.badge": "Fender Studio Pro script",
         "t.unofficial": "Unofficial",
-        "t.desc": "A script for Fender Studio Pro 8 that makes muting an instrument track silence the instrument itself, not just its MIDI. It links each track's mute with its instrument channel in the Console, and adds a mute command that works whichever view has focus.",
+        "t.desc": "Makes muting an instrument track in Fender Studio Pro 8 silence the instrument, not just the MIDI.",
         "t.warnTitle": "Read before installing",
         "t.w1.t": "Unofficial, no warranty.",
-        "t.w1.d": "This script is not made, checked or supported by Fender or PreSonus. It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
+        "t.w1.d": "Not made or supported by Fender or PreSonus. It uses undocumented internal features of Studio Pro.",
         "t.w2.t": "Never put it inside the app.",
-        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.",
-        "t.w3.t": "\"Install from File\" doesn't work.",
-        "t.w3.d": "The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.",
+        "t.w2.d": "Placing files inside \"Studio Pro 8.app\" breaks its signature so it won't start, and you will have to reinstall Studio Pro. Use only the Extensions folder in the install steps.",
+        "t.w3.t": "\"Install from File\" won't work.",
+        "t.w3.d": "It isn't a signed .install file. Copy the folder by hand.",
         "t.w4.t": "It isn't signed.",
-        "t.w4.d": "Unsigned extensions run with the same rights as Studio Pro. This one runs in the background from the moment Studio Pro starts, checking mute states every 0.1 seconds. It only reads track and mixer channel information, changes mute states and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.",
+        "t.w4.d": "It runs with the same rights as Studio Pro, in the background from launch. It reads track and mixer information, changes mute states and shows dialogs; it doesn't access files or the network. Don't use copies from other sources.",
         "t.w5.t": "Updates may break it.",
-        "t.w5.d": "A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.",
-        "t.w6.t": "Check it for security problems yourself.",
-        "t.w6.d": "Any script you download could be malicious, including this one. Before installing, read the code in the source folder of the .zip yourself, or ask an AI assistant to review it for security problems, and install it only if you are satisfied.",
+        "t.w5.d": "A Studio Pro update may stop it working, or stop unsigned extensions from loading.",
+        "t.w6.t": "Check the code first.",
+        "t.w6.d": "Any downloaded script could be malicious, this one included. Read the code in the source folder of the .zip, or have an AI assistant check it for security problems, before installing.",
         "t.w7.t": "Vernier and the author accept no responsibility.",
-        "t.w7.d": "Vernier and the author accept no responsibility or liability for any damage, data loss or trouble caused by downloading, installing or using this script, including problems with Studio Pro or your computer.",
-        "t.c.title": "Please confirm before downloading",
-        "t.c.1": "This script is not official Fender software and comes with no warranty.",
-        "t.c.2": "Vernier and the author accept no responsibility for any damage caused by using it. You use it entirely at your own risk.",
-        "t.c.3": "A Studio Pro update may stop it from working.",
-        "t.c.4": "Install it exactly as described on this page, and never put it inside the Studio Pro app.",
+        "t.w7.d": "This includes any damage, data loss or problems with Studio Pro or your computer caused by downloading, installing or using it.",
+        "t.c.title": "Before you download",
+        "t.c.1": "This script is unofficial and comes with no warranty.",
+        "t.c.2": "Vernier and the author accept no responsibility for any damage caused by using it. You use it at your own risk.",
+        "t.c.3": "A Studio Pro update may stop it working.",
+        "t.c.4": "Install it exactly as described on this page, and never inside the Studio Pro app.",
         "t.c.agree": "I have read and agree to the above",
         "t.c.cancel": "Cancel",
         "t.c.go": "Agree and download",
         "t.feat": "Features",
-        "t.f1.t": "Mute Link: track mute silences the instrument",
-        "t.f1.d": "Normally an instrument track's M button only mutes its MIDI, so the instrument keeps sounding. With Mute Link, the track's M and its instrument channel's M in the Console follow each other automatically, in both directions. Tracks are matched to instruments by their actual connections, so renaming tracks is fine.",
-        "t.f2.t": "Works with shared instruments",
-        "t.f2.d": "When several tracks play one instrument, muting one track leaves the others sounding; the instrument channel is muted only once all of those tracks are muted. Muting the instrument channel in the Console mutes all of its tracks, and unmuting it puts each track back the way it was.",
-        "t.f3.t": "A mute command for any focus",
-        "t.f3.d": "\"Toggle Instrument Channel Mute\" mutes or unmutes the instrument channel of the selected tracks, the same way whether the Arrange view or the Console has focus. Assign it a key, such as one on the numeric keypad. With several tracks selected, it mutes them all if any is unmuted, and unmutes them all otherwise. For audio tracks it mutes the track's own channel.",
-        "t.f4.t": "Switch the link off, or probe for reports",
-        "t.f4.d": "\"Toggle Instrument Mute Link\" turns Mute Link on or off and shows the new state (it starts on). \"Instrument Channel Mute Probe\" shows what the script sees about the selected tracks and channels, to help when something doesn't work.",
+        "t.f1.t": "Mute Link",
+        "t.f1.d": "An instrument track's M button normally mutes only its MIDI. Mute Link keeps the track's M and its instrument channel's M in the Console in sync, whichever you press. Tracks are matched to instruments by their connections, not their names.",
+        "t.f2.t": "Shared instruments",
+        "t.f2.d": "When several tracks play one instrument, its channel is muted only once all of them are muted. Muting the channel in the Console mutes all of them; unmuting restores each track's previous state.",
+        "t.f3.t": "Mute command",
+        "t.f3.d": "\"Toggle Instrument Channel Mute\" toggles the instrument channels of the selected tracks, whether the Arrange view or the Console has focus. If any of them is unmuted, all get muted; otherwise all get unmuted. For audio tracks, it toggles the track's own channel.",
+        "t.f4.t": "Other commands",
+        "t.f4.d": "\"Toggle Instrument Mute Link\" turns Mute Link on or off (on at launch). \"Instrument Channel Mute Probe\" shows what the script sees, for problem reports.",
         "t.about": "Requirements & notes",
         "t.req": "Requirements",
-        "t.reqbody": "Tested only with Fender Studio Pro 8.2.0 (Build 114903) on macOS with Apple Silicon. Not tested on Studio One 6 or 7, Windows or Intel Macs. The install steps are for macOS.",
+        "t.reqbody": "Tested only with Studio Pro 8.2.0 on macOS (Apple Silicon). Untested on Windows, Intel Macs and Studio One 6/7.",
         "t.limits": "Good to know",
-        "t.limitsbody": "Mute Link doesn't fix mismatches that already exist when a song opens; it starts following once you press an M button. A change can take up to about 0.1 seconds to show. Extra outputs of multi-output instruments (such as \"Stereo 2\") aren't linked; mute them in the Console as before. Tracks that aren't connected to an instrument, such as the chord track, are left alone. How it behaves together with Undo (⌘Z) hasn't been checked yet.",
+        "t.limitsbody": "Mute Link doesn't fix mismatches present when a song opens; it follows from the next M press. Changes can take up to 0.1 s to appear. Extra outputs of multi-output instruments aren't linked. Behavior with Undo hasn't been checked.",
         "t.install": "Install (macOS)",
-        "t.step1": "Download the .zip file above and unzip it.",
+        "t.step1": "Download and unzip the .zip file above.",
         "t.step2": "Quit Studio Pro.",
-        "t.step3": "In Finder, choose Go ▸ Go to Folder… (⌘⇧G), paste this path and press Return:",
-        "t.step4": "Copy the \"local.instrumentchannelmute.mac\" folder from the unzipped files into that folder, as is. It must contain metainfo.xml, installdata.xml and a Scripts folder with instrument-channel-mute.package.",
-        "t.step5": "Start Studio Pro. Mute Link starts working right away. To use the command, search for \"Instrument Channel Mute\" in Keyboard Shortcuts and assign a key to \"Toggle Instrument Channel Mute\".",
-        "t.updatenote": "Updating",
-        "t.updatebody": "Quit Studio Pro and replace the whole \"local.instrumentchannelmute.mac\" folder in the Extensions folder with the new one.",
+        "t.step3": "In Finder, choose Go ▸ Go to Folder… (⌘⇧G) and open:",
+        "t.step4": "Copy the \"local.instrumentchannelmute.mac\" folder into it, as is.",
+        "t.step5": "Start Studio Pro. Mute Link is active. To use the command, assign a key to \"Toggle Instrument Channel Mute\" in Keyboard Shortcuts.",
+        "t.updatenote": "Update",
+        "t.updatebody": "Quit Studio Pro and replace the folder with the new one.",
         "t.uninstall": "Uninstall",
-        "t.uninstallbody": "Quit Studio Pro and delete the \"local.instrumentchannelmute.mac\" folder from the Extensions folder above.",
+        "t.uninstallbody": "Quit Studio Pro and delete the folder.",
         "t.download": "Download (.zip)",
         "t.version": "Version",
         "t.app": "Studio Pro",
         "t.os": "OS",
-        "t.dlcap": "Free, public domain (CC0 1.0). Provided as is, without warranty. Runs locally inside Studio Pro — nothing is uploaded.",
-        "t.tm": "Fender, Studio Pro and Studio One are trademarks of their respective owners. This script is not affiliated with or endorsed by Fender or PreSonus."
+        "t.dlcap": "Free. Public domain (CC0 1.0), no warranty.",
+        "t.tm": "Fender, Studio Pro and Studio One are trademarks of their respective owners. Not affiliated with or endorsed by Fender or PreSonus."
       },
       ja: {
         "t.title": "Instrument Channel Mute",
         "t.badge": "Fender Studio Pro スクリプト",
         "t.unofficial": "非公式",
-        "t.desc": "Fender Studio Pro 8 で、インストゥルメントトラックのミュートを、MIDI だけでなく音源の音にも効かせるスクリプトです。トラックのミュートとコンソールの音源チャンネルのミュートを自動で連動させ、どの画面にフォーカスがあっても使えるミュートのコマンドも追加します。",
-        "t.warnTitle": "入れる前に必ずお読みください",
+        "t.desc": "Fender Studio Pro 8 で、インストゥルメントトラックをミュートしたときに、MIDI だけでなく音源の音も止まるようにするスクリプトです。",
+        "t.warnTitle": "インストールの前にお読みください",
         "t.w1.t": "非公式・無保証です。",
-        "t.w1.d": "このスクリプトは Fender・PreSonus が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
-        "t.w2.t": "アプリの中には絶対に入れないでください。",
-        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れて起動できなくなり、Fender Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
+        "t.w1.d": "Fender・PreSonus とは関係のないスクリプトで、Studio Pro の公開されていない内部機能を使っています。",
+        "t.w2.t": "アプリの中には絶対に置かないでください。",
+        "t.w2.d": "「Studio Pro 8.app」の中にファイルを置くと、署名が壊れて起動できなくなり、Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
         "t.w3.t": "「Install from File」では入りません。",
-        "t.w3.d": "署名付きの .install 形式ではないため、エラーになります。インストール手順のとおり、フォルダを手でコピーしてください。",
+        "t.w3.d": "署名付きの .install ファイルではないためです。フォルダを手でコピーしてください。",
         "t.w4.t": "署名されていません。",
-        "t.w4.d": "署名のない拡張機能は、Studio Pro と同じ権限で動きます。このスクリプトは Studio Pro の起動と同時に裏で動き始め、0.1 秒ごとにミュートの状態を確認します。するのは、トラックとミキサーチャンネルの情報の読み取り、ミュートの切り替え、ダイアログの表示だけで、ファイルやネットワークには触れません。中身は .zip の source フォルダで読めます。出どころの分からない改変版は使わないでください。",
+        "t.w4.d": "Studio Pro と同じ権限で、起動時から裏で動きます。することは、トラックとミキサーの情報の読み取り、ミュートの切り替え、ダイアログの表示だけで、ファイルやネットワークには触れません。配布元以外から入手したものは使わないでください。",
         "t.w5.t": "アップデートで動かなくなることがあります。",
-        "t.w5.d": "今後の Studio Pro のアップデートで動かなくなったり、署名のない拡張機能が読み込まれなくなったりする可能性があります。",
-        "t.w6.t": "セキュリティ上の問題がないか、ご自身で確認してください。",
-        "t.w6.d": "ダウンロードしたスクリプトは、これも含めて、悪意のあるものである可能性があります。入れる前に、.zip の source フォルダのコードをご自身で読むか、AI アシスタントにセキュリティ上の問題がないかを確認してもらい、納得できた場合だけ入れてください。",
-        "t.w7.t": "Vernier と作者は一切の責任を負いません。",
-        "t.w7.d": "このスクリプトのダウンロード・インストール・使用によって生じたいかなる損害・データの消失・不具合（Studio Pro やパソコンの問題を含む）についても、Vernier および作者は一切の責任を負いません。",
-        "t.c.title": "ダウンロードの前に、次の内容をご確認ください",
-        "t.c.1": "このスクリプトは Fender の公式のものではなく、動作の保証もありません。",
-        "t.c.2": "使用によって生じた損害について、Vernier と作者は一切の責任を負いません。ご利用はすべてご自身の責任となります。",
+        "t.w5.d": "Studio Pro のアップデートで、動かなくなったり、署名のない拡張機能が読み込まれなくなったりする可能性があります。",
+        "t.w6.t": "入れる前にコードを確認してください。",
+        "t.w6.d": "ダウンロードしたスクリプトは、これも含めて、悪意のあるものである可能性があります。.zip の source フォルダのコードを自分で読むか、AI アシスタントにセキュリティ上の問題がないか確認してもらってから入れてください。",
+        "t.w7.t": "Vernier と作者は責任を負いません。",
+        "t.w7.d": "ダウンロード・インストール・使用によって生じた損害、データの消失、Studio Pro やパソコンの不具合を含みます。",
+        "t.c.title": "ダウンロードの前に",
+        "t.c.1": "このスクリプトは非公式で、無保証です。",
+        "t.c.2": "使用によって生じた損害について、Vernier と作者は責任を負いません。使用は自己責任です。",
         "t.c.3": "Studio Pro のアップデートで動かなくなることがあります。",
-        "t.c.4": "インストールはこのページの手順どおりに行い、Studio Pro のアプリの中には絶対に置かないでください。",
-        "t.c.agree": "上記の内容を理解し、同意します",
+        "t.c.4": "インストールはこのページの手順どおりに行い、Studio Pro のアプリの中には置かないでください。",
+        "t.c.agree": "上記を理解し、同意します",
         "t.c.cancel": "キャンセル",
         "t.c.go": "同意してダウンロード",
         "t.feat": "特長",
-        "t.f1.t": "Mute Link：トラックのミュートで音源も止まる",
-        "t.f1.d": "標準では、インストゥルメントトラックの M ボタンは MIDI だけをミュートし、音源は鳴り続けます。Mute Link を使うと、トラックの M とコンソールの音源チャンネルの M が、どちらから押しても自動で連動します。トラックと音源の対応は名前ではなく実際の接続から判別するので、トラック名を変えても大丈夫です。",
-        "t.f2.t": "共有している音源にも対応",
-        "t.f2.d": "1つの音源を複数のトラックで鳴らしているときは、1本をミュートしても他のトラックは鳴り続け、全部をミュートしたときだけ音源チャンネルもミュートされます。コンソールで音源チャンネルをミュートすると、その音源を鳴らしている全トラックがミュートされ、解除すると各トラックがミュートする前の状態に戻ります。",
-        "t.f3.t": "フォーカスに関係なく使えるコマンド",
-        "t.f3.d": "「Toggle Instrument Channel Mute」は、選んだトラックの音源チャンネルのミュートを切り替えます。アレンジ画面とコンソールのどちらにフォーカスがあっても同じように動きます。テンキーなど好きなキーに割り当てて使います。複数のトラックを選んでいるときは、1つでもミュートされていなければ全部ミュート、全部ミュート済みなら全部解除します。オーディオトラックでは、そのトラックのチャンネルをミュートします。",
-        "t.f4.t": "連動のオン・オフと、不具合の報告用の Probe",
-        "t.f4.d": "「Toggle Instrument Mute Link」で Mute Link のオン・オフを切り替えられ、切り替えると状態を表示します（起動時はオン）。「Instrument Channel Mute Probe」は、選んだトラックとチャンネルについてスクリプトから見える情報を表示し、うまく動かないときの手がかりになります。",
+        "t.f1.t": "Mute Link",
+        "t.f1.d": "インストゥルメントトラックの M ボタンは、通常は MIDI だけをミュートします。Mute Link は、トラックの M とコンソールの音源チャンネルの M を、どちらを押しても連動させます。トラックと音源の対応は、名前ではなく接続で判別します。",
+        "t.f2.t": "共有している音源",
+        "t.f2.d": "1つの音源を複数のトラックで鳴らしている場合、音源チャンネルがミュートされるのは、それらのトラックが全部ミュートされたときだけです。コンソールで音源チャンネルをミュートすると全トラックがミュートされ、解除すると各トラックが元の状態に戻ります。",
+        "t.f3.t": "ミュートのコマンド",
+        "t.f3.d": "「Toggle Instrument Channel Mute」は、選択中のトラックの音源チャンネルのミュートを切り替えます。アレンジ画面とコンソールのどちらにフォーカスがあっても動きます。1つでもミュートされていなければ全部ミュートし、全部ミュート済みなら全部解除します。オーディオトラックでは、そのトラックのチャンネルを切り替えます。",
+        "t.f4.t": "その他のコマンド",
+        "t.f4.d": "「Toggle Instrument Mute Link」は Mute Link のオン・オフを切り替えます（起動時はオン）。「Instrument Channel Mute Probe」は、不具合の報告用に、スクリプトから見えている情報を表示します。",
         "t.about": "動作環境・補足",
         "t.req": "動作環境",
-        "t.reqbody": "動作を確認したのは Fender Studio Pro 8.2.0（Build 114903）・macOS（Apple Silicon）だけです。Studio One 6 / 7、Windows、Intel の Mac では試していません。インストール手順は macOS 用です。",
+        "t.reqbody": "動作を確認したのは Studio Pro 8.2.0・macOS（Apple Silicon）だけです。Windows、Intel の Mac、Studio One 6 / 7 では試していません。",
         "t.limits": "知っておきたいこと",
-        "t.limitsbody": "Mute Link は、曲を開いた時点でトラックと音源の M がずれていても、勝手にそろえることはしません。連動するのは、そのあと M を押したときからです。押してから反映されるまで、最大で 0.1 秒ほどかかります。マルチアウトの音源の追加の出力（「Stereo 2」など）は連動しないので、これまでどおりコンソールで個別にミュートしてください。コードトラックなど、音源につながっていないトラックは対象外です。「元に戻す（⌘Z）」と組み合わせたときの動作は、まだ確認されていません。",
+        "t.limitsbody": "曲を開いた時点ですでに M がずれている場合、Mute Link はそろえません。次に M を押したときから連動します。反映まで最大 0.1 秒かかります。マルチアウト音源の追加の出力は連動しません。「元に戻す」との組み合わせは確認されていません。",
         "t.install": "インストール（macOS）",
-        "t.step1": "上の .zip ファイルをダウンロードして展開（解凍）します。",
+        "t.step1": "上の .zip ファイルをダウンロードして展開します。",
         "t.step2": "Studio Pro を終了します。",
-        "t.step3": "Finder のメニューの 移動 ▸ フォルダへ移動…（⌘⇧G）を開き、次のパスを貼り付けて Return を押します。",
-        "t.step4": "展開した中の「local.instrumentchannelmute.mac」フォルダを、開いたフォルダの中にそのままコピーします。中に metainfo.xml・installdata.xml と、instrument-channel-mute.package の入った Scripts フォルダがあれば OK です。",
-        "t.step5": "Studio Pro を起動します。この時点で Mute Link が動き始めます。コマンドも使う場合は、キーボードショートカットの設定で「Instrument Channel Mute」を検索し、「Toggle Instrument Channel Mute」にキーを割り当てます。",
-        "t.updatenote": "更新するとき",
-        "t.updatebody": "Studio Pro を終了し、Extensions フォルダの中の「local.instrumentchannelmute.mac」フォルダを、新しいものとフォルダごと置き換えます。",
+        "t.step3": "Finder で 移動 ▸ フォルダへ移動…（⌘⇧G）を選び、次のフォルダを開きます。",
+        "t.step4": "「local.instrumentchannelmute.mac」フォルダを、そのままその中にコピーします。",
+        "t.step5": "Studio Pro を起動すると、Mute Link が有効になります。コマンドを使う場合は、キーボードショートカットの設定で「Toggle Instrument Channel Mute」にキーを割り当てます。",
+        "t.updatenote": "更新",
+        "t.updatebody": "Studio Pro を終了し、フォルダを新しいものに置き換えます。",
         "t.uninstall": "アンインストール",
-        "t.uninstallbody": "Studio Pro を終了し、上の Extensions フォルダの中の「local.instrumentchannelmute.mac」フォルダを削除します。",
+        "t.uninstallbody": "Studio Pro を終了し、フォルダを削除します。",
         "t.download": "ダウンロード（.zip）",
         "t.version": "バージョン",
         "t.app": "Studio Pro",
         "t.os": "OS",
-        "t.dlcap": "無料・パブリックドメイン（CC0 1.0）。無保証で、現状のまま提供します。Studio Pro の中でローカルに動作し、アップロードはありません。",
-        "t.tm": "Fender、Studio Pro、Studio One は各社の商標です。このスクリプトは Fender・PreSonus とは関係がなく、承認を受けたものでもありません。"
+        "t.dlcap": "無料。パブリックドメイン（CC0 1.0）、無保証。",
+        "t.tm": "Fender、Studio Pro、Studio One は、それぞれの権利者の商標です。Fender・PreSonus とは関係がなく、承認も受けていません。"
       }
     }
   });
