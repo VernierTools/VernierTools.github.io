@@ -95,7 +95,7 @@
         </div>
         <ul class="warn__list">
           <li><b data-i18n="t.w1.t">Unofficial, no warranty.</b> <span data-i18n="t.w1.d">This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.</span></li>
-          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app "is damaged and can't be opened", and you will have to reinstall Studio Pro. Use only the Extensions folder given in the install steps.</span></li>
+          <li><b data-i18n="t.w2.t">Never put it inside the app.</b> <span data-i18n="t.w2.d">Don't place anything inside "Studio Pro 8.app" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.</span></li>
           <li><b data-i18n="t.w3.t">"Install from File" doesn't work.</b> <span data-i18n="t.w3.d">The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.</span></li>
           <li><b data-i18n="t.w4.t">It isn't signed.</b> <span data-i18n="t.w4.d">Unsigned extensions run with the same rights as Studio Pro. This one runs in the background from the moment Studio Pro starts, checking mute states every 0.1 seconds. It only reads track and mixer channel information, changes mute states and shows dialogs; it doesn't touch files or the network. The code is readable in the source folder of the .zip. Don't use modified copies from elsewhere.</span></li>
           <li><b data-i18n="t.w5.t">Updates may break it.</b> <span data-i18n="t.w5.d">A future Studio Pro update may stop it from working, or stop loading unsigned extensions altogether.</span></li>
@@ -215,7 +215,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.w1.t": "Unofficial, no warranty.",
         "t.w1.d": "This script is not made, checked or supported by Fender (formerly PreSonus). It relies on Studio Pro's internal, undocumented scripting features. It is provided as is, without any warranty; use it at your own risk.",
         "t.w2.t": "Never put it inside the app.",
-        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature: macOS then says the app \"is damaged and can't be opened\", and you will have to reinstall Studio Pro. Use only the Extensions folder given in the install steps.",
+        "t.w2.d": "Don't place anything inside \"Studio Pro 8.app\" (such as Contents/Scripts). That breaks the app's signature so it won't start, and you will have to reinstall Fender Studio Pro. Use only the Extensions folder given in the install steps.",
         "t.w3.t": "\"Install from File\" doesn't work.",
         "t.w3.d": "The script isn't a signed .install file, so Studio Pro rejects it. Copy the folder by hand as described in the install steps.",
         "t.w4.t": "It isn't signed.",
@@ -274,7 +274,7 @@ if (typeof Shell !== "undefined" && Shell && typeof Shell.init === "function") {
         "t.w1.t": "非公式・無保証です。",
         "t.w1.d": "このスクリプトは Fender（旧 PreSonus）が作ったものでも、確認・サポートしているものでもありません。Studio Pro の公開されていない内部のスクリプト機能を使っています。いかなる保証もなく現状のまま提供するもので、ご利用は自己責任でお願いします。",
         "t.w2.t": "アプリの中には絶対に入れないでください。",
-        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れ、macOS に「壊れているため開けません」と表示されて起動できなくなり、Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
+        "t.w2.d": "「Studio Pro 8.app」の中（Contents/Scripts など）には何も置かないでください。アプリの署名が壊れて起動できなくなり、Fender Studio Pro の再インストールが必要になります。置き場所は、インストール手順の Extensions フォルダだけです。",
         "t.w3.t": "「Install from File」では入りません。",
         "t.w3.d": "署名付きの .install 形式ではないため、エラーになります。インストール手順のとおり、フォルダを手でコピーしてください。",
         "t.w4.t": "署名されていません。",
