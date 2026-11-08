@@ -53,6 +53,12 @@
     ]
   };
 
+  /* ---- 拡張機能（blender）は、対応ソフト（tools.json の platform）ごとに束ねる ----
+     ソフト名は固有名詞なので翻訳しない。並びは PLATFORM_ORDER の順、無いものはその後ろに名前順。
+     platform が無いものは「その他」。 */
+  var GROUP_BY_PLATFORM = { blender: true };
+  var PLATFORM_ORDER = ["Blender"];
+
   /* ---- 共通辞書（cat.* とヘッダー/一覧の文言） ---- */
   var COMMON = {
     en: {
@@ -323,6 +329,7 @@
   // カテゴリー内のツール一覧を、SUBCATS[catId] があれば控えめな小見出し(.subsection)で束ねて返す。
   // 無ければ従来どおり見出し無しの単一 .grid を返す（ホーム／カテゴリー単独ページ共通で使用）。
   function subGroupedHTML(catId, list){
+    if (GROUP_BY_PLATFORM[catId]) return platformGroupedHTML(list);
     var subcats = SUBCATS[catId];
     if (!subcats || !subcats.length){
       return list.length ? '<div class="grid">'+list.map(cardHTML).join("")+'</div>' : "";
@@ -337,6 +344,30 @@
         '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
     });
     var rest = list.filter(function(tl){ return !used[tl.id]; });
+    if (rest.length){
+      html += '<div class="subsection">'+
+        '<div class="subsection__head eyebrow" data-i18n="sub.other">'+t("sub.other")+'</div>'+
+        '<div class="grid">'+rest.map(cardHTML).join("")+'</div></div>';
+    }
+    return html;
+  }
+
+  function platformGroupedHTML(list){
+    var names = [];
+    list.forEach(function(tl){ if (tl.platform && names.indexOf(tl.platform) < 0) names.push(tl.platform); });
+    names.sort(function(a, b){
+      var ia = PLATFORM_ORDER.indexOf(a), ib = PLATFORM_ORDER.indexOf(b);
+      if (ia < 0) ia = PLATFORM_ORDER.length;
+      if (ib < 0) ib = PLATFORM_ORDER.length;
+      return ia !== ib ? ia - ib : a.localeCompare(b);
+    });
+    var html = names.map(function(name){
+      var group = list.filter(function(tl){ return tl.platform === name; });
+      return '<div class="subsection">'+
+        '<div class="subsection__head eyebrow">'+esc(name)+'</div>'+
+        '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
+    }).join("");
+    var rest = list.filter(function(tl){ return !tl.platform; });
     if (rest.length){
       html += '<div class="subsection">'+
         '<div class="subsection__head eyebrow" data-i18n="sub.other">'+t("sub.other")+'</div>'+
