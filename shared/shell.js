@@ -162,6 +162,9 @@
       el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph")));
     });
     document.documentElement.setAttribute("lang", LANG);
+    // カテゴリーページは、タブのタイトルも表示中の言語のカテゴリー名にする（例: 拡張機能 — Vernier）
+    var catEl = document.querySelector("[data-tools-category]");
+    if (catEl) document.title = t("cat." + catEl.getAttribute("data-tools-category")) + " — Vernier";
   }
 
   /* ---- クリップボード ---- */
@@ -364,7 +367,7 @@
     var html = names.map(function(name){
       var group = list.filter(function(tl){ return tl.platform === name; });
       return '<div class="subsection">'+
-        '<div class="subsection__head eyebrow">'+esc(name)+'</div>'+
+        '<div class="subsection__head subsection__head--name eyebrow">'+esc(name)+'</div>'+
         '<div class="grid">'+group.map(cardHTML).join("")+'</div></div>';
     }).join("");
     var rest = list.filter(function(tl){ return !tl.platform; });

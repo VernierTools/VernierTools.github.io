@@ -309,6 +309,7 @@ button{ font-family:inherit; }
 .subsection{ margin-top:var(--s5); }
 .subsection:first-child{ margin-top:0; }
 .subsection__head{ margin-bottom:var(--s3); }
+.subsection__head--name{ text-transform:none; letter-spacing:.02em; }   /* ソフト名などの固有名詞は書き方のまま */
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:var(--s3); }
 .toolcard{ display:block; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--s4); position:relative; transition:border-color var(--tap), box-shadow var(--tap), transform var(--tap); }
