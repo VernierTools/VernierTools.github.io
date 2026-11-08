@@ -1437,6 +1437,43 @@
       "added": "2026-11-08"
     },
     {
+      "id": "note-memory",
+      "type": "blender",
+      "platform": "Fender Studio Pro",
+      "path": "tools/note-memory/",
+      "categories": [
+        "blender"
+      ],
+      "name": {
+        "en": "Note Memory",
+        "ja": "Note Memory"
+      },
+      "description": {
+        "en": "Notes placed by clicking in the piano roll take the length and velocity of the last note you touched. Unofficial Fender Studio Pro 8 script.",
+        "ja": "ピアノロールでクリックで置いたノートを、直前に触ったノートと同じ長さ・ベロシティにする、Fender Studio Pro 8 の非公式スクリプト（英語UI）。"
+      },
+      "keywords": [
+        "fender",
+        "studio pro",
+        "studio one",
+        "presonus",
+        "piano roll",
+        "note",
+        "velocity",
+        "length",
+        "midi",
+        "script",
+        "daw",
+        "ピアノロール",
+        "ノート",
+        "ベロシティ",
+        "長さ",
+        "スクリプト",
+        "非公式"
+      ],
+      "added": "2026-11-08"
+    },
+    {
       "id": "scale-finder",
       "type": "web",
       "path": "tools/scale-finder/",
