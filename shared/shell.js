@@ -288,6 +288,15 @@
     });
 
     updateThemeBtn(); syncLangUI(); syncUnitUI();
+    revealCurrentNav();
+    window.addEventListener("resize", revealCurrentNav);
+  }
+  // ナビが横スクロールになる幅でも、今いるカテゴリが隠れないように中央へ寄せる
+  function revealCurrentNav(){
+    var nav = document.querySelector(".tb-nav"), cur = nav && nav.querySelector('[aria-current="page"]');
+    if (!cur || nav.scrollWidth <= nav.clientWidth) return;
+    var n = nav.getBoundingClientRect(), c = cur.getBoundingClientRect();
+    nav.scrollLeft += (c.left + c.width / 2) - (n.left + n.width / 2);
   }
   function updateThemeBtn(){ if (themeBtn) themeBtn.title = t("theme." + themeMode()); }
   function syncLangUI(){ var l = langBtn && langBtn.querySelector(".tb-langlbl"); if (l) l.textContent = LANG.toUpperCase(); }

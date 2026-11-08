@@ -91,8 +91,13 @@ button{ font-family:inherit; }
 .tb-brandmenu a{ font-size:13px; color:var(--text-2); padding:8px 10px; border-radius:var(--r-sm); transition:background var(--tap), color var(--tap); }
 .tb-brandmenu a:hover{ background:var(--surface-2); color:var(--text); }
 .tb-brandmenu a[aria-current="page"]{ color:var(--text); background:var(--accent-tint); }
-.tb-nav{ display:flex; gap:2px; }
-.tb-nav a{ font-size:13px; color:var(--text-2); padding:6px 10px; border-radius:var(--r-sm);
+/* 入りきらない幅では折り返さず横スクロール。端の余白(--s4)でフェードさせ、広い幅の見た目は変えない */
+.tb-nav{ display:flex; gap:2px; flex:0 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none;
+  margin:0 calc(-1 * var(--s4)); padding:0 var(--s4);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 var(--s4), #000 calc(100% - var(--s4)), transparent);
+          mask-image:linear-gradient(90deg, transparent, #000 var(--s4), #000 calc(100% - var(--s4)), transparent); }
+.tb-nav::-webkit-scrollbar{ display:none; }
+.tb-nav a{ flex:0 0 auto; white-space:nowrap; font-size:13px; color:var(--text-2); padding:6px 10px; border-radius:var(--r-sm);
   transition:background var(--tap), color var(--tap); }
 .tb-nav a:hover{ background:var(--surface-2); color:var(--text); }
 .tb-nav a[aria-current="page"]{ color:var(--text); background:var(--accent-tint); }
@@ -108,9 +113,9 @@ button{ font-family:inherit; }
   transition:background var(--tap), border-color var(--tap); }
 .tb-langbtn:hover{ background:var(--surface-2); border-color:var(--text-3); }
 .tb-langbtn svg{ width:15px; height:15px; }
-.tb-seg{ display:inline-flex; padding:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-sm); }
+.tb-seg{ display:inline-flex; flex:0 0 auto; padding:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-sm); }
 .tb-seg button{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit; font-size:12.5px;
-  font-weight:500; color:var(--text-2); padding:4px 10px; border-radius:4px; transition:all var(--tap); }
+  font-weight:500; color:var(--text-2); padding:4px 10px; border-radius:4px; white-space:nowrap; transition:all var(--tap); }
 .tb-seg button[aria-pressed="true"]{ background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
 .tb-menu{ display:none; }
 @media (max-width:760px){
