@@ -1438,6 +1438,7 @@
     },
     {
       "id": "note-memory",
+      "hidden": true,
       "type": "blender",
       "platform": "Fender Studio Pro",
       "path": "tools/note-memory/",
